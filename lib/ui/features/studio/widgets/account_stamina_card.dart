@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../settings/views/settings_dialog.dart';
 import '../view_models/studio_view_model.dart';
 
 class AccountStaminaCard extends StatelessWidget {
@@ -11,13 +12,14 @@ class AccountStaminaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final info = viewModel.accountInfo;
     final isLoading = viewModel.isLoadingAccount;
+    final isOpusFree = viewModel.params.isOpusFree;
 
     if (info == null) {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceElevated,
-          borderRadius: BorderRadius.circular(6),
+          color: AppTheme.pureWhite,
+          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
           border: Border.all(color: AppTheme.border),
         ),
         child: Row(
@@ -29,17 +31,35 @@ class AccountStaminaCard extends StatelessWidget {
                 style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
               ),
             ),
-            IconButton(
-              icon: isLoading
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh, size: 16),
-              onPressed: isLoading ? null : () => viewModel.refreshAccountInfo(),
-              tooltip: '刷新账号状态',
-              visualDensity: VisualDensity.compact,
+            Row(
+              children: [
+                IconButton(
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.notionBlue),
+                          ),
+                        )
+                      : const Icon(Icons.refresh, size: 16, color: AppTheme.textSecondary),
+                  onPressed: isLoading ? null : () => viewModel.refreshAccountInfo(),
+                  tooltip: '刷新账号状态',
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined, size: 16, color: AppTheme.textSecondary),
+                  tooltip: '全局配置',
+                  onPressed: () => SettingsDialog.show(context, viewModel),
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(),
+                ),
+              ],
             ),
           ],
         ),
@@ -56,57 +76,102 @@ class AccountStaminaCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(6),
+        color: AppTheme.pureWhite,
+        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
         border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 顶部：等级与刷新按钮
+          // 顶部：等级、点数、免点状态与操作按钮
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryDark.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: AppTheme.primaryLight.withValues(alpha: 0.5)),
-                    ),
-                    child: Text(
-                      info.tierName,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.primaryLight,
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.skyTint,
+                        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                        border: Border.all(color: AppTheme.notionBlue.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        info.tierName,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.notionBlue,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${info.totalAnlas} Anlas',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+                    Text(
+                      '${info.totalAnlas} Anlas',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isOpusFree
+                            ? AppTheme.success.withValues(alpha: 0.12)
+                            : AppTheme.warning.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                        border: Border.all(
+                          color: isOpusFree
+                              ? AppTheme.success.withValues(alpha: 0.4)
+                              : AppTheme.warning.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Text(
+                        isOpusFree ? 'Opus 免费' : '需点数',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isOpusFree ? AppTheme.success : AppTheme.warning,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: isLoading
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.notionBlue),
+                            ),
+                          )
+                        : const Icon(Icons.refresh, size: 16, color: AppTheme.textSecondary),
+                    onPressed: isLoading ? null : () => viewModel.refreshAccountInfo(),
+                    tooltip: '刷新体力与点数',
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined, size: 16, color: AppTheme.textSecondary),
+                    tooltip: '全局配置',
+                    onPressed: () => SettingsDialog.show(context, viewModel),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
                   ),
                 ],
-              ),
-              IconButton(
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh, size: 16),
-                onPressed: isLoading ? null : () => viewModel.refreshAccountInfo(),
-                tooltip: '刷新体力与点数',
-                visualDensity: VisualDensity.compact,
               ),
             ],
           ),
@@ -132,10 +197,10 @@ class AccountStaminaCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           ClipRRect(
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
             child: LinearProgressIndicator(
               value: percent,
-              backgroundColor: AppTheme.background,
+              backgroundColor: const Color(0xFFEFEFEF),
               valueColor: AlwaysStoppedAnimation<Color>(staminaColor),
               minHeight: 5,
             ),

@@ -30,7 +30,7 @@ class ImageCanvasCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.image_outlined, size: 16, color: AppTheme.primaryLight),
+                    const Icon(Icons.image_outlined, size: 16, color: AppTheme.notionBlue),
                     const SizedBox(width: 6),
                     const Text(
                       '图像画板',
@@ -42,9 +42,21 @@ class ImageCanvasCard extends StatelessWidget {
                     ),
                     if (selectedImage != null) ...[
                       const SizedBox(width: 10),
-                      Text(
-                        '${selectedImage.params.width}x${selectedImage.params.height} · ${selectedImage.params.model.label} · 种子: ${selectedImage.seed}',
-                        style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.skyTint,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                          border: Border.all(color: AppTheme.notionBlue.withValues(alpha: 0.2)),
+                        ),
+                        child: Text(
+                          '${selectedImage.params.width}x${selectedImage.params.height} · ${selectedImage.params.model.label} · 种子: ${selectedImage.seed}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.notionBlue,
+                          ),
+                        ),
                       ),
                     ],
                   ],
@@ -64,7 +76,7 @@ class ImageCanvasCard extends StatelessWidget {
               children: [
                 Positioned.fill(
                   child: Container(
-                    color: Colors.black.withValues(alpha: 0.4),
+                    color: const Color(0xFF1E1E1E),
                     child: selectedImage != null
                         ? InteractiveViewer(
                             minScale: 0.2,
@@ -86,15 +98,15 @@ class ImageCanvasCard extends StatelessWidget {
                     top: 12,
                     right: 12,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppTheme.surface.withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(6),
+                        color: AppTheme.pureWhite.withValues(alpha: 0.95),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
                         border: Border.all(color: AppTheme.border),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            blurRadius: 6,
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
                         ],
@@ -160,20 +172,21 @@ class ImageCanvasCard extends StatelessWidget {
                 if (viewModel.isGenerating)
                   Positioned.fill(
                     child: Container(
-                      color: Colors.black.withValues(alpha: 0.6),
+                      color: Colors.black.withValues(alpha: 0.65),
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.notionBlue),
                             ),
                             const SizedBox(height: 12),
                             Text(
                               viewModel.statusMessage ?? '正在生成中...',
                               style: const TextStyle(
                                 fontSize: 13,
-                                color: AppTheme.textPrimary,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
@@ -190,7 +203,7 @@ class ImageCanvasCard extends StatelessWidget {
             height: 90,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: const BoxDecoration(
-              color: AppTheme.surfaceElevated,
+              color: AppTheme.pureWhite,
               border: Border(top: BorderSide(color: AppTheme.border)),
             ),
             child: gallery.isEmpty
@@ -213,9 +226,9 @@ class ImageCanvasCard extends StatelessWidget {
                           duration: const Duration(milliseconds: 150),
                           width: 74,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(AppTheme.radiusButton),
                             border: Border.all(
-                              color: isSelected ? AppTheme.primary : AppTheme.border,
+                              color: isSelected ? AppTheme.notionBlue : AppTheme.border,
                               width: isSelected ? 2 : 1,
                             ),
                           ),
@@ -257,26 +270,33 @@ class ImageCanvasCard extends StatelessWidget {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.palette_outlined, size: 48, color: AppTheme.textMuted.withValues(alpha: 0.6)),
-          const SizedBox(height: 12),
-          const Text(
-            '画板暂无图像',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textSecondary,
+    return Container(
+      color: AppTheme.paperWarmth,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.palette_outlined,
+              size: 48,
+              color: AppTheme.stone.withValues(alpha: 0.5),
             ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '可在右侧与 AI 对话协助构思，或在左侧设置后点击直接生图',
-            style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
-          ),
-        ],
+            const SizedBox(height: 12),
+            const Text(
+              '画板暂无图像',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.charcoal,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              '可在右侧与 AI 对话协助构思，或在左侧设置后点击直接生图',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -287,21 +307,28 @@ class ImageCanvasCard extends StatelessWidget {
     required String tooltip,
     required VoidCallback? onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: AppTheme.textPrimary),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, color: AppTheme.textPrimary),
-            ),
-          ],
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: AppTheme.charcoal),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.charcoal,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

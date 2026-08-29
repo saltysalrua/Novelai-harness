@@ -69,7 +69,114 @@ enum NoiseSchedule {
   }
 }
 
-/// 分辨率预设
+/// 分辨率预设分类 (匹配 NovelAI 官方标准: Normal, Large, Wallpaper, Small, Custom)
+enum ResolutionCategory {
+  normal('normal', 'Normal'),
+  large('large', 'Large'),
+  wallpaper('wallpaper', 'Wallpaper'),
+  small('small', 'Small'),
+  custom('custom', 'Custom');
+
+  final String key;
+  final String label;
+  const ResolutionCategory(this.key, this.label);
+
+  static ResolutionCategory fromDimensions(int width, int height) {
+    if ((width == 832 && height == 1216) ||
+        (width == 1216 && height == 832) ||
+        (width == 1024 && height == 1024)) {
+      return ResolutionCategory.normal;
+    }
+    if ((width == 1024 && height == 1536) ||
+        (width == 1536 && height == 1024) ||
+        (width == 1472 && height == 1472)) {
+      return ResolutionCategory.large;
+    }
+    if ((width == 1088 && height == 1920) ||
+        (width == 1920 && height == 1088)) {
+      return ResolutionCategory.wallpaper;
+    }
+    if ((width == 512 && height == 768) ||
+        (width == 768 && height == 512) ||
+        (width == 640 && height == 640)) {
+      return ResolutionCategory.small;
+    }
+    return ResolutionCategory.custom;
+  }
+}
+
+/// 分辨率方向 (横屏、竖屏、正方形)
+enum ResolutionOrientation {
+  landscape('landscape', '横屏'),
+  portrait('portrait', '竖屏'),
+  square('square', '正方形');
+
+  final String key;
+  final String label;
+  const ResolutionOrientation(this.key, this.label);
+
+  static ResolutionOrientation fromDimensions(int width, int height) {
+    if (width > height) return ResolutionOrientation.landscape;
+    if (width < height) return ResolutionOrientation.portrait;
+    return ResolutionOrientation.square;
+  }
+}
+
+/// 分辨率计算辅助工具
+class ResolutionPresetHelper {
+  /// 判断该分类是否支持 1:1 正方形比例 (Wallpaper 壁纸分类官方无 1:1)
+  static bool supportsSquare(ResolutionCategory category) {
+    return category != ResolutionCategory.wallpaper;
+  }
+
+  static (int width, int height) getDimensions(
+    ResolutionCategory category,
+    ResolutionOrientation orientation,
+  ) {
+    switch (category) {
+      case ResolutionCategory.normal:
+        switch (orientation) {
+          case ResolutionOrientation.landscape:
+            return (1216, 832);
+          case ResolutionOrientation.portrait:
+            return (832, 1216);
+          case ResolutionOrientation.square:
+            return (1024, 1024);
+        }
+      case ResolutionCategory.large:
+        switch (orientation) {
+          case ResolutionOrientation.landscape:
+            return (1536, 1024);
+          case ResolutionOrientation.portrait:
+            return (1024, 1536);
+          case ResolutionOrientation.square:
+            return (1472, 1472);
+        }
+      case ResolutionCategory.wallpaper:
+        switch (orientation) {
+          case ResolutionOrientation.landscape:
+            return (1920, 1088);
+          case ResolutionOrientation.portrait:
+            return (1088, 1920);
+          case ResolutionOrientation.square:
+            return (1920, 1088); // 壁纸无 1:1，回退为横屏
+        }
+      case ResolutionCategory.small:
+        switch (orientation) {
+          case ResolutionOrientation.landscape:
+            return (768, 512);
+          case ResolutionOrientation.portrait:
+            return (512, 768);
+          case ResolutionOrientation.square:
+            return (640, 640);
+        }
+      case ResolutionCategory.custom:
+        return (832, 1216);
+    }
+  }
+}
+
+/// 兼容老预设定义
 enum ResolutionPreset {
   portrait('portrait', '竖屏 (832x1216)', 832, 1216, true),
   landscape('landscape', '横屏 (1216x832)', 1216, 832, true),

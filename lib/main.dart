@@ -15,7 +15,7 @@ class NovelAiHarnessApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'NovelAI Harness',
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
       // Windows 引擎的 accessibility bridge 在处理节点移除与重排时会原生崩溃
       // (flutter/flutter#175041, #182444)。在 Windows 上禁用 semantics 绕开崩溃。

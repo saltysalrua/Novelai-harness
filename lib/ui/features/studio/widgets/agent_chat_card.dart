@@ -67,11 +67,12 @@ class _AgentChatCardState extends State<AgentChatCard> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.psychology_outlined, size: 16, color: AppTheme.primaryLight),
+                    const Icon(Icons.psychology_outlined, size: 16, color: AppTheme.notionBlue),
                     const SizedBox(width: 6),
                     DropdownButtonHideUnderline(
                       child: DropdownButton<Skill>(
                         value: currentSkill,
+                        dropdownColor: AppTheme.pureWhite,
                         items: BuiltinSkills.all.map((skill) {
                           return DropdownMenuItem(
                             value: skill,
@@ -123,9 +124,9 @@ class _AgentChatCardState extends State<AgentChatCard> {
 
           // 底部快捷指令栏
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: const BoxDecoration(
-              color: AppTheme.surfaceElevated,
+              color: AppTheme.pureWhite,
               border: Border(top: BorderSide(color: AppTheme.border)),
             ),
             child: SingleChildScrollView(
@@ -149,7 +150,10 @@ class _AgentChatCardState extends State<AgentChatCard> {
           // 底部消息输入框
           Container(
             padding: const EdgeInsets.all(10),
-            color: AppTheme.surface,
+            decoration: const BoxDecoration(
+              color: AppTheme.pureWhite,
+              border: Border(top: BorderSide(color: AppTheme.border)),
+            ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -162,9 +166,24 @@ class _AgentChatCardState extends State<AgentChatCard> {
                       controller: _inputController,
                       minLines: 1,
                       maxLines: 4,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: const InputDecoration(
+                      style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
+                      decoration: InputDecoration(
                         hintText: '输入绘画构思，或输入 /nai <词> 快速生图...',
+                        fillColor: AppTheme.paperWarmth,
+                        filled: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                          borderSide: const BorderSide(color: AppTheme.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                          borderSide: const BorderSide(color: AppTheme.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                          borderSide: const BorderSide(color: AppTheme.notionBlue, width: 1.5),
+                        ),
                       ),
                     ),
                   ),
@@ -172,9 +191,11 @@ class _AgentChatCardState extends State<AgentChatCard> {
                 const SizedBox(width: 8),
                 IconButton(
                   style: IconButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
+                    backgroundColor: AppTheme.notionBlue,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                    ),
                   ),
                   icon: isStreaming
                       ? const SizedBox(
@@ -203,10 +224,10 @@ class _AgentChatCardState extends State<AgentChatCard> {
     if (isTool) {
       return Container(
         margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceElevated,
-          borderRadius: BorderRadius.circular(6),
+          color: AppTheme.paperWarmth,
+          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
           border: Border.all(color: AppTheme.border),
         ),
         child: Column(
@@ -214,14 +235,14 @@ class _AgentChatCardState extends State<AgentChatCard> {
           children: [
             const Row(
               children: [
-                Icon(Icons.build_circle_outlined, size: 14, color: AppTheme.primaryLight),
+                Icon(Icons.build_circle_outlined, size: 14, color: AppTheme.notionBlue),
                 SizedBox(width: 4),
                 Text(
                   '工具执行输出',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.primaryLight,
+                    color: AppTheme.notionBlue,
                   ),
                 ),
               ],
@@ -229,7 +250,12 @@ class _AgentChatCardState extends State<AgentChatCard> {
             const SizedBox(height: 4),
             SelectableText(
               msg.content,
-              style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppTheme.textSecondary),
+              style: const TextStyle(
+                fontSize: 11,
+                fontFamily: 'monospace',
+                color: AppTheme.textSecondary,
+                height: 1.35,
+              ),
             ),
           ],
         ),
@@ -245,10 +271,10 @@ class _AgentChatCardState extends State<AgentChatCard> {
         ),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isUser ? AppTheme.primaryDark.withValues(alpha: 0.6) : AppTheme.surfaceElevated,
-          borderRadius: BorderRadius.circular(6),
+          color: isUser ? AppTheme.skyTint : AppTheme.paperWarmth,
+          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
           border: Border.all(
-            color: isUser ? AppTheme.primaryLight.withValues(alpha: 0.4) : AppTheme.border,
+            color: isUser ? AppTheme.notionBlue.withValues(alpha: 0.25) : AppTheme.border,
           ),
         ),
         child: Column(
@@ -267,7 +293,7 @@ class _AgentChatCardState extends State<AgentChatCard> {
                       SizedBox(width: 4),
                       Text(
                         '思考过程',
-                        style: TextStyle(fontSize: 11, color: AppTheme.warning),
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.warning),
                       ),
                     ],
                   ),
@@ -276,8 +302,9 @@ class _AgentChatCardState extends State<AgentChatCard> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppTheme.background.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(4),
+                        color: AppTheme.pureWhite,
+                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                        border: Border.all(color: AppTheme.border),
                       ),
                       child: SelectableText(
                         msg.thoughts,
@@ -285,7 +312,7 @@ class _AgentChatCardState extends State<AgentChatCard> {
                           fontSize: 11,
                           fontFamily: 'monospace',
                           color: AppTheme.textMuted,
-                          height: 1.3,
+                          height: 1.35,
                         ),
                       ),
                     ),
@@ -297,10 +324,10 @@ class _AgentChatCardState extends State<AgentChatCard> {
             // 消息正文
             SelectableText(
               msg.content,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
-                color: isUser ? Colors.white : AppTheme.textPrimary,
-                height: 1.4,
+                color: AppTheme.textPrimary,
+                height: 1.45,
               ),
             ),
           ],
@@ -319,30 +346,37 @@ class _AgentChatCardState extends State<AgentChatCard> {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceElevated,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: AppTheme.primaryLight.withValues(alpha: 0.4)),
+          color: AppTheme.paperWarmth,
+          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+          border: Border.all(color: AppTheme.notionBlue.withValues(alpha: 0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (thoughts.isNotEmpty) ...[
-              Row(
+              const Row(
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 10,
                     height: 10,
                     child: CircularProgressIndicator(strokeWidth: 1.5, color: AppTheme.warning),
                   ),
-                  const SizedBox(width: 6),
-                  const Text('正在思考...', style: TextStyle(fontSize: 11, color: AppTheme.warning)),
+                  SizedBox(width: 6),
+                  Text(
+                    '正在思考...',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.warning),
+                  ),
                 ],
               ),
               const SizedBox(height: 6),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(6),
-                color: AppTheme.background.withValues(alpha: 0.4),
+                decoration: BoxDecoration(
+                  color: AppTheme.pureWhite,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  border: Border.all(color: AppTheme.border),
+                ),
                 child: Text(
                   thoughts,
                   maxLines: 4,
@@ -354,7 +388,7 @@ class _AgentChatCardState extends State<AgentChatCard> {
             ],
             SelectableText(
               content.isEmpty ? '构思中...' : content,
-              style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary, height: 1.4),
+              style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary, height: 1.45),
             ),
           ],
         ),
@@ -370,17 +404,21 @@ class _AgentChatCardState extends State<AgentChatCard> {
           TextPosition(offset: _inputController.text.length),
         );
       },
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(4),
+          color: AppTheme.paperWarmth,
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
           border: Border.all(color: AppTheme.border),
         ),
         child: Text(
           '$command ($label)',
-          style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+            color: AppTheme.textSecondary,
+          ),
         ),
       ),
     );

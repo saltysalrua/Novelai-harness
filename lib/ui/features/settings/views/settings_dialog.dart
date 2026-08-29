@@ -81,14 +81,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: AppTheme.surface,
+      backgroundColor: AppTheme.pureWhite,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
         side: const BorderSide(color: AppTheme.border),
       ),
       child: Container(
         width: 540,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(22),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -96,7 +96,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             // 标题
             const Row(
               children: [
-                Icon(Icons.settings, size: 18, color: AppTheme.primaryLight),
+                Icon(Icons.settings_outlined, size: 18, color: AppTheme.notionBlue),
                 SizedBox(width: 8),
                 Text(
                   '全局参数与模型配置',
@@ -104,11 +104,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.textPrimary,
+                    letterSpacing: -0.2,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // 表单内容
             Flexible(
@@ -129,6 +130,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           icon: Icon(
                             _obscureNaiKey ? Icons.visibility_off : Icons.visibility,
                             size: 16,
+                            color: AppTheme.textMuted,
                           ),
                           onPressed: () =>
                               setState(() => _obscureNaiKey = !_obscureNaiKey),
@@ -151,8 +153,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         const SizedBox(width: 8),
                         OutlinedButton.icon(
                           onPressed: _pickDirectory,
-                          icon: const Icon(Icons.folder_open, size: 14),
-                          label: const Text('选择', style: TextStyle(fontSize: 11)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppTheme.border),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          ),
+                          icon: const Icon(Icons.folder_open, size: 15, color: AppTheme.textPrimary),
+                          label: const Text('选择', style: TextStyle(fontSize: 12, color: AppTheme.textPrimary)),
                         ),
                       ],
                     ),
@@ -160,13 +169,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Opus 免点数保护', style: TextStyle(fontSize: 12)),
+                      title: const Text(
+                        'Opus 免点数保护',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                      ),
                       subtitle: const Text(
                         '自动将默认参数限制在免费区间内 (像素 <= 1048576 且 步数 <= 28)',
                         style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
                       ),
                       value: _opusFreeMode,
-                      activeThumbColor: AppTheme.primary,
+                      activeThumbColor: AppTheme.notionBlue,
                       onChanged: (val) => setState(() => _opusFreeMode = val),
                     ),
                     const SizedBox(height: 18),
@@ -194,6 +206,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           icon: Icon(
                             _obscureLlmKey ? Icons.visibility_off : Icons.visibility,
                             size: 16,
+                            color: AppTheme.textMuted,
                           ),
                           onPressed: () =>
                               setState(() => _obscureLlmKey = !_obscureLlmKey),
@@ -230,7 +243,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           min: 0.0,
                           max: 1.5,
                           divisions: 15,
-                          activeColor: AppTheme.primary,
+                          activeColor: AppTheme.notionBlue,
                           onChanged: (val) => setState(() => _llmTemperature = val),
                         ),
                       ],
@@ -252,10 +265,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 const SizedBox(width: 8),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
+                    backgroundColor: AppTheme.notionBlue,
                     foregroundColor: Colors.white,
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                    ),
                   ),
                   onPressed: _handleSave,
                   child: const Text('保存设置', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
@@ -274,7 +290,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       style: const TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: AppTheme.primaryLight,
+        color: AppTheme.textPrimary,
       ),
     );
   }

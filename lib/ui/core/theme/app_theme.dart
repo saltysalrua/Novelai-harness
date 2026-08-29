@@ -1,32 +1,66 @@
 import 'package:flutter/material.dart';
 
-/// 应用视觉主题与调色板 (专业克制的暗黑工作台风格)
+/// 应用视觉主题与调色板 (Notion 风格暖纸本极简工作台)
 class AppTheme {
-  static const Color background = Color(0xFF0D1117);
-  static const Color surface = Color(0xFF161B22);
-  static const Color surfaceElevated = Color(0xFF21262D);
-  static const Color border = Color(0xFF30363D);
-  static const Color borderHover = Color(0xFF8B949E);
+  // --- 基础色板 Tokens (Notion Style) ---
+  static const Color paperWarmth = Color(0xFFF6F5F4); // Page canvas / 暖纸底色
+  static const Color pureWhite = Color(0xFFFFFFFF); // Card surfaces / 纯白卡片
+  static const Color notionBlue = Color(0xFF0075DE); // Primary CTA fill / 核心操作蓝
+  static const Color skyTint = Color(0xFFE6F3FE); // Ghost CTA bg / 浅蓝底
+  static const Color signalBlue = Color(0xFF097FE8);
+  static const Color skyWash = Color(0xFF62AEF0);
+  static const Color midnightInk = Color(0xFF02093A);
 
-  static const Color primary = Color(0xFF7C3AED); // 紫罗兰强调色
-  static const Color primaryLight = Color(0xFF8B5CF6);
-  static const Color primaryDark = Color(0xFF6D28D9);
+  static const Color inkBlack = Color(0xFF000000);
+  static const Color charcoal = Color(0xFF111111);
+  static const Color graphite = Color(0xFF615D59);
+  static const Color slate = Color(0xFF696969);
+  static const Color stone = Color(0xFF757575);
 
-  static const Color textPrimary = Color(0xFFF0F6FC);
-  static const Color textSecondary = Color(0xFF8B949E);
-  static const Color textMuted = Color(0xFF6E7681);
+  static const Color marigold = Color(0xFFFFB110);
+  static const Color coral = Color(0xFFF64932);
+  static const Color saffron = Color(0xFFE89D01);
+  static const Color vermillion = Color(0xFFE32D14);
+  static const Color mocha = Color(0xFFB18164);
 
-  static const Color success = Color(0xFF2EA043);
-  static const Color warning = Color(0xFFD29922);
-  static const Color error = Color(0xFFF85149);
-  static const Color info = Color(0xFF58A6FF);
+  static const Color success = Color(0xFF0F9960);
+  static const Color warning = Color(0xFFD9822B);
+  static const Color error = Color(0xFFDB3737);
+  static const Color info = Color(0xFF0075DE);
 
-  static ThemeData get darkTheme {
+  // --- 语义映射 ---
+  static const Color background = paperWarmth;
+  static const Color surface = pureWhite;
+  static const Color surfaceElevated = Color(0xFFFAFAF9);
+  static const Color surfaceMuted = Color(0xFFF0EFEB);
+  static const Color border = Color(0x14000000); // 1px hairline border (rgba(0,0,0,0.08))
+  static const Color borderSubtle = Color(0x0A000000);
+  static const Color borderHover = Color(0x26000000);
+
+  static const Color primary = notionBlue;
+  static const Color primaryLight = skyWash;
+  static const Color primaryDark = signalBlue;
+  static const Color primaryTint = skyTint;
+
+  static const Color textPrimary = charcoal;
+  static const Color textSecondary = graphite;
+  static const Color textMuted = stone;
+
+  // --- 圆角规范 ---
+  static const double radiusSmall = 4.0;
+  static const double radiusButton = 8.0;
+  static const double radiusCard = 12.0;
+  static const double radiusPill = 9999.0;
+
+  static const String fontFamily = 'MiSans';
+
+  static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
+      brightness: Brightness.light,
+      fontFamily: fontFamily,
       scaffoldBackgroundColor: background,
-      colorScheme: const ColorScheme.dark(
+      colorScheme: const ColorScheme.light(
         primary: primary,
         secondary: primaryLight,
         surface: surface,
@@ -37,9 +71,10 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: surface,
         elevation: 0,
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           side: const BorderSide(color: border, width: 1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(radiusCard),
         ),
       ),
       dividerTheme: const DividerThemeData(
@@ -49,48 +84,65 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surfaceElevated,
+        fillColor: pureWhite,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(radiusButton),
           borderSide: const BorderSide(color: border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(radiusButton),
           borderSide: const BorderSide(color: border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(radiusButton),
           borderSide: const BorderSide(color: primary, width: 1.5),
         ),
-        hintStyle: const TextStyle(color: textMuted, fontSize: 13),
+        hintStyle: const TextStyle(fontFamily: fontFamily, color: textMuted, fontSize: 13),
+        labelStyle: const TextStyle(fontFamily: fontFamily, fontSize: 12),
+      ),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: primary,
+        inactiveTrackColor: const Color(0xFFE6E5E3),
+        thumbColor: primary,
+        overlayColor: primary.withValues(alpha: 0.12),
+        trackHeight: 3,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
       ),
       textTheme: const TextTheme(
         headlineMedium: TextStyle(
+          fontFamily: fontFamily,
           color: textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
         ),
         titleMedium: TextStyle(
+          fontFamily: fontFamily,
           color: textPrimary,
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
         bodyMedium: TextStyle(
+          fontFamily: fontFamily,
           color: textPrimary,
           fontSize: 13,
-          height: 1.4,
+          height: 1.45,
         ),
         bodySmall: TextStyle(
+          fontFamily: fontFamily,
           color: textSecondary,
           fontSize: 12,
         ),
       ),
       scrollbarTheme: ScrollbarThemeData(
-        thumbColor: WidgetStateProperty.all(borderHover.withValues(alpha: 0.4)),
-        radius: const Radius.circular(4),
+        thumbColor: WidgetStateProperty.all(borderHover),
+        radius: const Radius.circular(radiusSmall),
         thickness: WidgetStateProperty.all(6),
       ),
     );
   }
+
+  // 兼容老引用
+  static ThemeData get darkTheme => lightTheme;
 }

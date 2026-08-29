@@ -149,7 +149,33 @@ class StudioViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 快速切换分辨率预设
+  /// 快速切换官方分辨率预设 (分类 + 方向)
+  void selectResolution(ResolutionCategory category, ResolutionOrientation orientation) {
+    if (category == ResolutionCategory.custom) {
+      if (orientation == ResolutionOrientation.landscape && _params.width < _params.height) {
+        final tmp = _params.width;
+        _params = _params.copyWith(width: _params.height, height: tmp);
+      } else if (orientation == ResolutionOrientation.portrait && _params.width > _params.height) {
+        final tmp = _params.width;
+        _params = _params.copyWith(width: _params.height, height: tmp);
+      }
+    } else {
+      final (w, h) = ResolutionPresetHelper.getDimensions(category, orientation);
+      _params = _params.copyWith(width: w, height: h);
+    }
+    notifyListeners();
+  }
+
+  /// 快速交换宽高
+  void swapResolution() {
+    _params = _params.copyWith(
+      width: _params.height,
+      height: _params.width,
+    );
+    notifyListeners();
+  }
+
+  /// 快速切换分辨率预设 (兼容老调用)
   void selectResolutionPreset(ResolutionPreset preset) {
     _params = _params.copyWith(
       width: preset.width,

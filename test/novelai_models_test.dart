@@ -93,5 +93,33 @@ void main() {
       expect(info.totalAnlas, equals(10500));
       expect(info.fixedAnlas, equals(10000));
     });
+
+    test('ResolutionPresetHelper correctly identifies Wallpaper does not support square', () {
+      expect(ResolutionPresetHelper.supportsSquare(ResolutionCategory.wallpaper), isFalse);
+      expect(ResolutionPresetHelper.supportsSquare(ResolutionCategory.normal), isTrue);
+      expect(ResolutionPresetHelper.supportsSquare(ResolutionCategory.large), isTrue);
+      expect(ResolutionPresetHelper.supportsSquare(ResolutionCategory.small), isTrue);
+
+      final (wLandscape, hLandscape) = ResolutionPresetHelper.getDimensions(
+        ResolutionCategory.wallpaper,
+        ResolutionOrientation.landscape,
+      );
+      expect(wLandscape, equals(1920));
+      expect(hLandscape, equals(1088));
+
+      final (wPortrait, hPortrait) = ResolutionPresetHelper.getDimensions(
+        ResolutionCategory.wallpaper,
+        ResolutionOrientation.portrait,
+      );
+      expect(wPortrait, equals(1088));
+      expect(hPortrait, equals(1920));
+
+      final (wFallback, hFallback) = ResolutionPresetHelper.getDimensions(
+        ResolutionCategory.wallpaper,
+        ResolutionOrientation.square,
+      );
+      expect(wFallback, equals(1920));
+      expect(hFallback, equals(1088));
+    });
   });
 }
