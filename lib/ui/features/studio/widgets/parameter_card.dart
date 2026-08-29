@@ -4,13 +4,55 @@ import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
 import 'account_stamina_card.dart';
 
-class ParameterCard extends StatelessWidget {
+class ParameterCard extends StatefulWidget {
   final StudioViewModel viewModel;
 
   const ParameterCard({super.key, required this.viewModel});
 
   @override
+  State<ParameterCard> createState() => _ParameterCardState();
+}
+
+class _ParameterCardState extends State<ParameterCard> {
+  late TextEditingController _prefixController;
+  late TextEditingController _suffixController;
+  late TextEditingController _negativeController;
+
+  @override
+  void initState() {
+    super.initState();
+    final params = widget.viewModel.params;
+    _prefixController = TextEditingController(text: params.prefixPrompt);
+    _suffixController = TextEditingController(text: params.suffixPrompt);
+    _negativeController = TextEditingController(text: params.negativePrompt);
+  }
+
+  @override
+  void didUpdateWidget(covariant ParameterCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final params = widget.viewModel.params;
+    if (_prefixController.text != (params.prefixPrompt ?? '')) {
+      _prefixController.text = params.prefixPrompt ?? '';
+    }
+    if (_suffixController.text != (params.suffixPrompt ?? '')) {
+      _suffixController.text = params.suffixPrompt ?? '';
+    }
+    if (_negativeController.text != params.negativePrompt) {
+      _negativeController.text = params.negativePrompt;
+    }
+  }
+
+  @override
+  void dispose() {
+    _prefixController.dispose();
+    _suffixController.dispose();
+    _negativeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final viewModel = widget.viewModel;
     final params = viewModel.params;
     final isOpusFree = params.isOpusFree;
 
@@ -80,23 +122,31 @@ class ParameterCard extends StatelessWidget {
                 // 2. 模型选择
                 _buildSectionHeader('模型'),
                 const SizedBox(height: 6),
-                DropdownButtonFormField<NaiModel>(
-                  initialValue: params.model,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceElevated,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppTheme.border),
                   ),
-                  items: NaiModel.values.map((m) {
-                    return DropdownMenuItem(
-                      value: m,
-                      child: Text(m.label, style: const TextStyle(fontSize: 12)),
-                    );
-                  }).toList(),
-                  onChanged: (m) {
-                    if (m != null) {
-                      viewModel.updateParams(params.copyWith(model: m));
-                    }
-                  },
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<NaiModel>(
+                      value: params.model,
+                      isExpanded: true,
+                      dropdownColor: AppTheme.surfaceElevated,
+                      items: NaiModel.values.map((m) {
+                        return DropdownMenuItem(
+                          value: m,
+                          child: Text(m.label, style: const TextStyle(fontSize: 12)),
+                        );
+                      }).toList(),
+                      onChanged: (m) {
+                        if (m != null) {
+                          viewModel.updateParams(params.copyWith(model: m));
+                        }
+                      },
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 14),
 
@@ -136,9 +186,9 @@ class ParameterCard extends StatelessWidget {
                       child: _buildSliderField(
                         label: '宽度: ${params.width}',
                         value: params.width.toDouble(),
-                        min: 512,
-                        max: 1920,
-                        divisions: (1920 - 512) ~/ 64,
+                        min: 64,
+                        max: 2048,
+                        divisions: 31,
                         onChanged: (val) {
                           final w = ((val.toInt() ~/ 64) * 64).clamp(64, 2048);
                           viewModel.updateParams(params.copyWith(width: w));
@@ -150,9 +200,9 @@ class ParameterCard extends StatelessWidget {
                       child: _buildSliderField(
                         label: '高度: ${params.height}',
                         value: params.height.toDouble(),
-                        min: 512,
-                        max: 1920,
-                        divisions: (1920 - 512) ~/ 64,
+                        min: 64,
+                        max: 2048,
+                        divisions: 31,
                         onChanged: (val) {
                           final h = ((val.toInt() ~/ 64) * 64).clamp(64, 2048);
                           viewModel.updateParams(params.copyWith(height: h));
@@ -216,23 +266,31 @@ class ParameterCard extends StatelessWidget {
                         children: [
                           _buildSectionHeader('采样算法'),
                           const SizedBox(height: 6),
-                          DropdownButtonFormField<NaiSampler>(
-                            initialValue: params.sampler,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceElevated,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppTheme.border),
                             ),
-                            items: NaiSampler.values.map((s) {
-                              return DropdownMenuItem(
-                                value: s,
-                                child: Text(s.label, style: const TextStyle(fontSize: 11)),
-                              );
-                            }).toList(),
-                            onChanged: (s) {
-                              if (s != null) {
-                                viewModel.updateParams(params.copyWith(sampler: s));
-                              }
-                            },
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<NaiSampler>(
+                                value: params.sampler,
+                                isExpanded: true,
+                                dropdownColor: AppTheme.surfaceElevated,
+                                items: NaiSampler.values.map((s) {
+                                  return DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s.label, style: const TextStyle(fontSize: 11)),
+                                  );
+                                }).toList(),
+                                onChanged: (s) {
+                                  if (s != null) {
+                                    viewModel.updateParams(params.copyWith(sampler: s));
+                                  }
+                                },
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -244,23 +302,31 @@ class ParameterCard extends StatelessWidget {
                         children: [
                           _buildSectionHeader('噪声调度'),
                           const SizedBox(height: 6),
-                          DropdownButtonFormField<NoiseSchedule>(
-                            initialValue: params.noiseSchedule,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceElevated,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppTheme.border),
                             ),
-                            items: NoiseSchedule.values.map((n) {
-                              return DropdownMenuItem(
-                                value: n,
-                                child: Text(n.label, style: const TextStyle(fontSize: 11)),
-                              );
-                            }).toList(),
-                            onChanged: (n) {
-                              if (n != null) {
-                                viewModel.updateParams(params.copyWith(noiseSchedule: n));
-                              }
-                            },
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<NoiseSchedule>(
+                                value: params.noiseSchedule,
+                                isExpanded: true,
+                                dropdownColor: AppTheme.surfaceElevated,
+                                items: NoiseSchedule.values.map((n) {
+                                  return DropdownMenuItem(
+                                    value: n,
+                                    child: Text(n.label, style: const TextStyle(fontSize: 11)),
+                                  );
+                                }).toList(),
+                                onChanged: (n) {
+                                  if (n != null) {
+                                    viewModel.updateParams(params.copyWith(noiseSchedule: n));
+                                  }
+                                },
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -276,7 +342,7 @@ class ParameterCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        params.seed < 0 ? '每次生图随机生成' : '${params.seed}',
+                        params.seed < 0 ? '每次随机生成' : '${params.seed}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppTheme.textPrimary,
@@ -300,12 +366,12 @@ class ParameterCard extends StatelessWidget {
 
                 // 7. 正向与负面词展开区域
                 ExpansionTile(
-                  title: const Text('固定前缀/后缀与负面词', style: TextStyle(fontSize: 12)),
+                  title: const Text('固定前置/后置与负面词', style: TextStyle(fontSize: 12)),
                   tilePadding: EdgeInsets.zero,
                   childrenPadding: const EdgeInsets.only(top: 8),
                   children: [
-                    TextFormField(
-                      initialValue: params.prefixPrompt,
+                    TextField(
+                      controller: _prefixController,
                       decoration: const InputDecoration(
                         labelText: '固定前置词 (Prefix)',
                         labelStyle: TextStyle(fontSize: 11),
@@ -317,8 +383,8 @@ class ParameterCard extends StatelessWidget {
                       },
                     ),
                     const SizedBox(height: 8),
-                    TextFormField(
-                      initialValue: params.suffixPrompt,
+                    TextField(
+                      controller: _suffixController,
                       decoration: const InputDecoration(
                         labelText: '固定后置词 (Suffix)',
                         labelStyle: TextStyle(fontSize: 11),
@@ -330,8 +396,8 @@ class ParameterCard extends StatelessWidget {
                       },
                     ),
                     const SizedBox(height: 8),
-                    TextFormField(
-                      initialValue: params.negativePrompt,
+                    TextField(
+                      controller: _negativeController,
                       decoration: const InputDecoration(
                         labelText: '负面提示词 (Negative Prompt)',
                         labelStyle: TextStyle(fontSize: 11),
@@ -404,6 +470,7 @@ class ParameterCard extends StatelessWidget {
     required int divisions,
     required ValueChanged<double> onChanged,
   }) {
+    final clampedValue = value.clamp(min, max);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -418,7 +485,7 @@ class ParameterCard extends StatelessWidget {
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           ),
           child: Slider(
-            value: value,
+            value: clampedValue,
             min: min,
             max: max,
             divisions: divisions,
