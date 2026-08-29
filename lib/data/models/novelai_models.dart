@@ -1,14 +1,14 @@
 
 /// NovelAI 官方支持的模型列表
 enum NaiModel {
-  v5Full('nai-diffusion-5-full', 'V5 旗舰版 (最新)'),
-  v5Curated('nai-diffusion-5-curated', 'V5 审美精选版'),
-  v45Full('nai-diffusion-4-5-full', 'V4.5 旗舰版'),
-  v45Curated('nai-diffusion-4-5-curated', 'V4.5 审美精选版'),
-  v4Full('nai-diffusion-4-full', 'V4 经典版'),
-  v4Curated('nai-diffusion-4-curated', 'V4 精选版'),
-  v3('nai-diffusion-3', 'V3 动漫经典版'),
-  v3Furry('nai-diffusion-furry-3', 'V3 Furry 兽人版');
+  v5Full('nai-diffusion-5-full', 'NAI-Diffusion-v5-Full'),
+  v5Curated('nai-diffusion-5-curated', 'NAI-Diffusion-v5-Curated'),
+  v45Full('nai-diffusion-4-5-full', 'NAI-Diffusion-v4.5-Full'),
+  v45Curated('nai-diffusion-4-5-curated', 'NAI-Diffusion-v4.5-Curated'),
+  v4Full('nai-diffusion-4-full', 'NAI-Diffusion-v4-Full'),
+  v4Curated('nai-diffusion-4-curated', 'NAI-Diffusion-v4-Curated'),
+  v3('nai-diffusion-3', 'NAI-Diffusion-v3'),
+  v3Furry('nai-diffusion-furry-3', 'NAI-Diffusion-Furry-v3');
 
   final String id;
   final String label;
@@ -27,14 +27,14 @@ enum NaiModel {
 
 /// 采样算法
 enum NaiSampler {
-  kEuler('k_euler', 'Euler (快速清晰)'),
-  kEulerAncestral('k_euler_ancestral', 'Euler A (柔和生动)'),
-  kDpmpp2m('k_dpmpp_2m', 'DPM++ 2M (高质量收敛)'),
-  kDpmpp2sAncestral('k_dpmpp_2s_ancestral', 'DPM++ 2S A'),
-  kDpmppSde('k_dpmpp_sde', 'DPM++ SDE (细腻质感)'),
+  kEuler('k_euler', 'Euler'),
+  kEulerAncestral('k_euler_ancestral', 'Euler Ancestral'),
+  kDpmpp2m('k_dpmpp_2m', 'DPM++ 2M'),
+  kDpmpp2sAncestral('k_dpmpp_2s_ancestral', 'DPM++ 2S Ancestral'),
+  kDpmppSde('k_dpmpp_sde', 'DPM++ SDE'),
   ddim('ddim', 'DDIM'),
   kDpm2('k_dpm_2', 'DPM2'),
-  kDpm2Ancestral('k_dpm_2_ancestral', 'DPM2 A'),
+  kDpm2Ancestral('k_dpm_2_ancestral', 'DPM2 Ancestral'),
   kDpmAdaptive('k_dpm_adaptive', 'DPM Adaptive');
 
   final String id;
@@ -51,11 +51,11 @@ enum NaiSampler {
 
 /// 噪声计划
 enum NoiseSchedule {
-  karras('karras', 'Karras (推荐高频细节)'),
-  exponential('exponential', 'Exponential (指数调度)'),
+  karras('karras', 'Karras'),
+  exponential('exponential', 'Exponential'),
   polyexponential('polyexponential', 'Polyexponential'),
-  native('native', 'Native (原生)'),
-  linear('linear', 'Linear (线性)');
+  native('native', 'Native'),
+  linear('linear', 'Linear');
 
   final String id;
   final String label;
@@ -71,12 +71,12 @@ enum NoiseSchedule {
 
 /// 分辨率预设
 enum ResolutionPreset {
-  portrait('portrait', '标准竖屏', 832, 1216, true),
-  landscape('landscape', '标准横屏', 1216, 832, true),
-  square('square', '标准正方形', 1024, 1024, true),
-  wallpaper('wallpaper', '超宽壁纸', 1920, 1088, false),
-  portraitLarge('portrait_large', '大竖屏', 1024, 1536, false),
-  landscapeLarge('landscape_large', '大横屏', 1536, 1024, false);
+  portrait('portrait', '竖屏 (832x1216)', 832, 1216, true),
+  landscape('landscape', '横屏 (1216x832)', 1216, 832, true),
+  square('square', '正方形 (1024x1024)', 1024, 1024, true),
+  wallpaper('wallpaper', '壁纸 (1920x1088)', 1920, 1088, false),
+  portraitLarge('portrait_large', '大竖屏 (1024x1536)', 1024, 1536, false),
+  landscapeLarge('landscape_large', '大横屏 (1536x1024)', 1536, 1024, false);
 
   final String key;
   final String label;
@@ -322,10 +322,10 @@ class NaiAccountInfo {
 
     final tier = sub['tier'] as int? ?? 0;
     const tierNames = [
-      'Paper (免费)',
-      'Tablet (初级)',
-      'Scroll (中级)',
-      'Opus (大师/无限)'
+      'Paper',
+      'Tablet',
+      'Scroll',
+      'Opus',
     ];
     final tierName = tier >= 0 && tier < tierNames.length
         ? tierNames[tier]

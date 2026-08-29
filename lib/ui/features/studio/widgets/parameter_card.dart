@@ -56,7 +56,7 @@ class ParameterCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    isOpusFree ? 'Opus 免费区间' : '消耗点数',
+                    isOpusFree ? 'Opus 免费' : '需点数',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -78,7 +78,7 @@ class ParameterCard extends StatelessWidget {
                 const SizedBox(height: 14),
 
                 // 2. 模型选择
-                _buildSectionHeader('生图模型'),
+                _buildSectionHeader('模型'),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<NaiModel>(
                   initialValue: params.model,
@@ -101,7 +101,7 @@ class ParameterCard extends StatelessWidget {
                 const SizedBox(height: 14),
 
                 // 3. 分辨率预设与尺寸
-                _buildSectionHeader('分辨率 (${params.width} x ${params.height})'),
+                _buildSectionHeader('分辨率 (${params.width}x${params.height})'),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
@@ -111,7 +111,7 @@ class ParameterCard extends StatelessWidget {
                         params.height == preset.height;
                     return ChoiceChip(
                       label: Text(
-                        '${preset.label} (${preset.width}x${preset.height})',
+                        preset.label,
                         style: TextStyle(
                           fontSize: 11,
                           color: isSelected ? Colors.white : AppTheme.textSecondary,
@@ -165,7 +165,7 @@ class ParameterCard extends StatelessWidget {
 
                 // 4. 采样步数与 CFG
                 _buildSliderField(
-                  label: '采样步数: ${params.steps} 步 (<=28 步 Opus 免费)',
+                  label: '步数: ${params.steps}',
                   value: params.steps.toDouble(),
                   min: 1,
                   max: 50,
@@ -180,7 +180,7 @@ class ParameterCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _buildSliderField(
-                        label: 'CFG 强度: ${params.scale.toStringAsFixed(1)}',
+                        label: 'CFG: ${params.scale.toStringAsFixed(1)}',
                         value: params.scale,
                         min: 1.0,
                         max: 15.0,
@@ -193,7 +193,7 @@ class ParameterCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: _buildSliderField(
-                        label: '抗焦黑修正: ${params.cfgRescale.toStringAsFixed(2)}',
+                        label: 'CFG Rescale: ${params.cfgRescale.toStringAsFixed(2)}',
                         value: params.cfgRescale,
                         min: 0.0,
                         max: 1.0,
@@ -375,7 +375,7 @@ class ParameterCard extends StatelessWidget {
                     )
                   : const Icon(Icons.auto_awesome, size: 18),
               label: Text(
-                viewModel.isGenerating ? '生图中...' : '直接生图 (Generate)',
+                viewModel.isGenerating ? '生成中...' : '生成图片',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),

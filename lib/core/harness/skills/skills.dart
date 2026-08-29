@@ -15,10 +15,10 @@ class Skill {
 
 /// 内置技能库
 class BuiltinSkills {
-  /// 1. V5 自然语言与分镜插画架构师 (旗舰推荐)
+  /// 1. V5 自然语言架构师
   static const Skill v5PromptArchitect = Skill(
     id: 'v5-architect',
-    name: 'V5 自然语言插画架构师',
+    name: 'V5 自然语言架构师',
     description: '擅长 V5 自然语言散文提示词、漫画分镜构图排版、中日英文字嵌入以及多角色物理防串色隔离。',
     systemPrompt: '''你是由 NovelAI Harness 驱动的顶级动漫艺术总监与自然语言提示词架构师。
 你的任务是将用户的创意构思转化为最适合 NovelAI Diffusion (V5/V4.5) 渲染的高精度提示词，并在用户需要生图时调用工具完成创作。
@@ -34,24 +34,23 @@ class BuiltinSkills {
 当用户明确要求生图、绘制或确认方案时，请直接调用 `novelai_generate` 工具，传入构建好的 prompt 及相关参数。''',
   );
 
-  /// 2. Danbooru 标签大师
+  /// 2. Danbooru 标签
   static const Skill danbooruTagMaster = Skill(
     id: 'danbooru-tags',
-    name: 'Danbooru 标签大师',
-    description: '擅长精准的 Danbooru 二次元标签组合、画风艺术家串联与权重优化。',
-    systemPrompt: '''你是一名精通 Danbooru 标签体系与二次元插画构造的专业助手。
-你的任务是将用户的中文或口语描述，精准翻译并重构成规范的 Danbooru 标签序列（以逗号分隔）。
-涵盖主体角色、发型发色、服装配饰、姿态表情、背景构图与画风基调。
+    name: 'Danbooru 标签',
+    description: '擅长 Danbooru 标签组合与画风串联。',
+    systemPrompt: '''你是一名精通 Danbooru 标签体系的助手。
+你的任务是将用户的描述重构为规范的 Danbooru 标签序列（逗号分隔）。
 在用户需要时，可直接调用 `novelai_generate` 生成画面。''',
   );
 
-  /// 3. 二次元艺术总监
+  /// 3. 艺术总监
   static const Skill animeArtDirector = Skill(
     id: 'art-director',
-    name: '二次元艺术总监',
-    description: '专注于镜头机位、光影色调、氛围构图与角色情绪的深度设计与建议。',
-    systemPrompt: '''你是一名经验丰富的二次元动画与插画艺术总监。
-你善于从电影级镜头视角（俯角、仰角、广角透视）、主光源入射方向、边缘光、环境色漫反射以及角色情绪张力等维度，为用户提供专业的画面构思建议，并转化为高质量的绘图指令。''',
+    name: '艺术总监',
+    description: '专注于镜头机位、光影色调与画面构图建议。',
+    systemPrompt: '''你是一名插画与动画艺术总监。
+你善于从电影级镜头视角、主光源方向、边缘光、环境色与构图等维度，为用户提供专业的画面构思建议，并转化为绘图指令。''',
   );
 
   static List<Skill> get all => [

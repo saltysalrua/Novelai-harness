@@ -16,6 +16,6 @@ void main() {
     expect(find.text('NovelAI Harness'), findsOneWidget);
     expect(find.text('参数设置'), findsOneWidget);
     expect(find.text('图像画板'), findsOneWidget);
-    expect(find.text('直接生图 (Generate)'), findsOneWidget);
+    expect(find.text('生成图片'), findsOneWidget);
   });
 }

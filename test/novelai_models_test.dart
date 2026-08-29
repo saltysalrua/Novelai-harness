@@ -86,7 +86,7 @@ void main() {
       };
 
       final info = NaiAccountInfo.fromJson(json);
-      expect(info.tierName, equals('Opus (大师/无限)'));
+      expect(info.tierName, equals('Opus'));
       expect(info.active, isTrue);
       expect(info.staminaPercent, equals(95.5));
       expect(info.timeUntilNextPercent, equals(45));

@@ -117,7 +117,7 @@ class AccountStaminaCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'V5 体力池 (Stamina)',
+                'V5 体力',
                 style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
               ),
               Text(
@@ -144,10 +144,10 @@ class AccountStaminaCard extends StatelessWidget {
 
           Text(
             info.timeUntilNextPercent > 0
-                ? '${info.timeUntilNextPercent} 秒后恢复 +1%'
+                ? '${info.timeUntilNextPercent} 秒后 +1%'
                 : info.staminaPercent >= 100
-                    ? '体力已充满'
-                    : '正在自然恢复中',
+                    ? '已满'
+                    : '恢复中',
             style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
           ),
         ],
