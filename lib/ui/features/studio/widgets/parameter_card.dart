@@ -1,0 +1,431 @@
+import 'package:flutter/material.dart';
+import '../../../../data/models/novelai_models.dart';
+import '../../../core/theme/app_theme.dart';
+import '../view_models/studio_view_model.dart';
+import 'account_stamina_card.dart';
+
+class ParameterCard extends StatelessWidget {
+  final StudioViewModel viewModel;
+
+  const ParameterCard({super.key, required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final params = viewModel.params;
+    final isOpusFree = params.isOpusFree;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 标题栏
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppTheme.border)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.tune, size: 16, color: AppTheme.primaryLight),
+                    SizedBox(width: 6),
+                    Text(
+                      '参数设置',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isOpusFree
+                        ? AppTheme.success.withValues(alpha: 0.2)
+                        : AppTheme.warning.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: isOpusFree
+                          ? AppTheme.success.withValues(alpha: 0.6)
+                          : AppTheme.warning.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  child: Text(
+                    isOpusFree ? 'Opus 免费区间' : '消耗点数',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: isOpusFree ? AppTheme.success : AppTheme.warning,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 参数表单内容 (可滚动)
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(12),
+              children: [
+                // 1. 账号与体力信息
+                AccountStaminaCard(viewModel: viewModel),
+                const SizedBox(height: 14),
+
+                // 2. 模型选择
+                _buildSectionHeader('生图模型'),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<NaiModel>(
+                  initialValue: params.model,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                  items: NaiModel.values.map((m) {
+                    return DropdownMenuItem(
+                      value: m,
+                      child: Text(m.label, style: const TextStyle(fontSize: 12)),
+                    );
+                  }).toList(),
+                  onChanged: (m) {
+                    if (m != null) {
+                      viewModel.updateParams(params.copyWith(model: m));
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+
+                // 3. 分辨率预设与尺寸
+                _buildSectionHeader('分辨率 (${params.width} x ${params.height})'),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: ResolutionPreset.values.map((preset) {
+                    final isSelected = params.width == preset.width &&
+                        params.height == preset.height;
+                    return ChoiceChip(
+                      label: Text(
+                        '${preset.label} (${preset.width}x${preset.height})',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isSelected ? Colors.white : AppTheme.textSecondary,
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: AppTheme.primaryDark,
+                      backgroundColor: AppTheme.surfaceElevated,
+                      side: BorderSide(
+                        color: isSelected ? AppTheme.primaryLight : AppTheme.border,
+                      ),
+                      onSelected: (_) => viewModel.selectResolutionPreset(preset),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 10),
+
+                // 自定义宽与高滑动条 (64 对齐)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSliderField(
+                        label: '宽度: ${params.width}',
+                        value: params.width.toDouble(),
+                        min: 512,
+                        max: 1920,
+                        divisions: (1920 - 512) ~/ 64,
+                        onChanged: (val) {
+                          final w = ((val.toInt() ~/ 64) * 64).clamp(64, 2048);
+                          viewModel.updateParams(params.copyWith(width: w));
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSliderField(
+                        label: '高度: ${params.height}',
+                        value: params.height.toDouble(),
+                        min: 512,
+                        max: 1920,
+                        divisions: (1920 - 512) ~/ 64,
+                        onChanged: (val) {
+                          final h = ((val.toInt() ~/ 64) * 64).clamp(64, 2048);
+                          viewModel.updateParams(params.copyWith(height: h));
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // 4. 采样步数与 CFG
+                _buildSliderField(
+                  label: '采样步数: ${params.steps} 步 (<=28 步 Opus 免费)',
+                  value: params.steps.toDouble(),
+                  min: 1,
+                  max: 50,
+                  divisions: 49,
+                  onChanged: (val) {
+                    viewModel.updateParams(params.copyWith(steps: val.toInt()));
+                  },
+                ),
+                const SizedBox(height: 8),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSliderField(
+                        label: 'CFG 强度: ${params.scale.toStringAsFixed(1)}',
+                        value: params.scale,
+                        min: 1.0,
+                        max: 15.0,
+                        divisions: 28,
+                        onChanged: (val) {
+                          viewModel.updateParams(params.copyWith(scale: val));
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSliderField(
+                        label: '抗焦黑修正: ${params.cfgRescale.toStringAsFixed(2)}',
+                        value: params.cfgRescale,
+                        min: 0.0,
+                        max: 1.0,
+                        divisions: 20,
+                        onChanged: (val) {
+                          viewModel.updateParams(params.copyWith(cfgRescale: val));
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // 5. 采样算法与噪声计划
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionHeader('采样算法'),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<NaiSampler>(
+                            initialValue: params.sampler,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            ),
+                            items: NaiSampler.values.map((s) {
+                              return DropdownMenuItem(
+                                value: s,
+                                child: Text(s.label, style: const TextStyle(fontSize: 11)),
+                              );
+                            }).toList(),
+                            onChanged: (s) {
+                              if (s != null) {
+                                viewModel.updateParams(params.copyWith(sampler: s));
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionHeader('噪声调度'),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<NoiseSchedule>(
+                            initialValue: params.noiseSchedule,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            ),
+                            items: NoiseSchedule.values.map((n) {
+                              return DropdownMenuItem(
+                                value: n,
+                                child: Text(n.label, style: const TextStyle(fontSize: 11)),
+                              );
+                            }).toList(),
+                            onChanged: (n) {
+                              if (n != null) {
+                                viewModel.updateParams(params.copyWith(noiseSchedule: n));
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // 6. 随机种子
+                _buildSectionHeader('随机种子'),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        params.seed < 0 ? '每次生图随机生成' : '${params.seed}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textPrimary,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        viewModel.updateParams(params.copyWith(seed: -1));
+                      },
+                      child: const Text('随机', style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // 7. 正向与负面词展开区域
+                ExpansionTile(
+                  title: const Text('固定前缀/后缀与负面词', style: TextStyle(fontSize: 12)),
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(top: 8),
+                  children: [
+                    TextFormField(
+                      initialValue: params.prefixPrompt,
+                      decoration: const InputDecoration(
+                        labelText: '固定前置词 (Prefix)',
+                        labelStyle: TextStyle(fontSize: 11),
+                      ),
+                      style: const TextStyle(fontSize: 11),
+                      maxLines: 2,
+                      onChanged: (val) {
+                        viewModel.updateParams(params.copyWith(prefixPrompt: val));
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      initialValue: params.suffixPrompt,
+                      decoration: const InputDecoration(
+                        labelText: '固定后置词 (Suffix)',
+                        labelStyle: TextStyle(fontSize: 11),
+                      ),
+                      style: const TextStyle(fontSize: 11),
+                      maxLines: 2,
+                      onChanged: (val) {
+                        viewModel.updateParams(params.copyWith(suffixPrompt: val));
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      initialValue: params.negativePrompt,
+                      decoration: const InputDecoration(
+                        labelText: '负面提示词 (Negative Prompt)',
+                        labelStyle: TextStyle(fontSize: 11),
+                      ),
+                      style: const TextStyle(fontSize: 11),
+                      maxLines: 3,
+                      onChanged: (val) {
+                        viewModel.updateParams(params.copyWith(negativePrompt: val));
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // 底部生成按钮
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: AppTheme.border)),
+            ),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              onPressed: viewModel.isGenerating ? null : () => viewModel.generateImage(),
+              icon: viewModel.isGenerating
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.auto_awesome, size: 18),
+              label: Text(
+                viewModel.isGenerating ? '生图中...' : '直接生图 (Generate)',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: AppTheme.textSecondary,
+      ),
+    );
+  }
+
+  Widget _buildSliderField({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required int divisions,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+        SliderTheme(
+          data: SliderThemeData(
+            activeTrackColor: AppTheme.primary,
+            inactiveTrackColor: AppTheme.surfaceElevated,
+            thumbColor: AppTheme.primaryLight,
+            overlayColor: AppTheme.primary.withValues(alpha: 0.2),
+            trackHeight: 3,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+}
