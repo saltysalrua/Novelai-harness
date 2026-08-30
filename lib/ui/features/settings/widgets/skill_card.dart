@@ -6,7 +6,9 @@ import '../../../core/theme/app_theme.dart';
 class SkillCard extends StatelessWidget {
   final Skill skill;
   final bool isEnabled;
-  final ValueChanged<bool> onToggle;
+
+  /// 为空 (内置预设只读) 时点击卡片不切换，仅保留查看入口
+  final ValueChanged<bool>? onToggle;
   final ValueChanged<Skill> onEdit;
   final ValueChanged<Skill>? onExport;
   final VoidCallback? onDelete;
@@ -15,7 +17,7 @@ class SkillCard extends StatelessWidget {
     super.key,
     required this.skill,
     required this.isEnabled,
-    required this.onToggle,
+    this.onToggle,
     required this.onEdit,
     this.onExport,
     this.onDelete,
@@ -24,7 +26,7 @@ class SkillCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => onToggle(!isEnabled),
+      onTap: onToggle == null ? null : () => onToggle!(!isEnabled),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         width: 270,
@@ -56,9 +58,7 @@ class SkillCard extends StatelessWidget {
                       color: isEnabled ? AppTheme.notionBlue : AppTheme.border,
                       width: 1.5,
                     ),
-                    color: isEnabled
-                        ? AppTheme.notionBlue
-                        : Colors.transparent,
+                    color: isEnabled ? AppTheme.notionBlue : Colors.transparent,
                   ),
                   child: isEnabled
                       ? const Icon(Icons.check, size: 11, color: Colors.white)
@@ -81,8 +81,10 @@ class SkillCard extends StatelessWidget {
                 ),
                 // 内置 / 自定义 徽章
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1.5,
+                  ),
                   decoration: BoxDecoration(
                     color: (skill.isBuiltin ? AppTheme.stone : AppTheme.accent)
                         .withValues(alpha: 0.1),
@@ -93,9 +95,7 @@ class SkillCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w600,
-                      color: skill.isBuiltin
-                          ? AppTheme.stone
-                          : AppTheme.accent,
+                      color: skill.isBuiltin ? AppTheme.stone : AppTheme.accent,
                     ),
                   ),
                 ),

@@ -153,6 +153,50 @@ void main() {
       expect(harness.messages.length, equals(4));
     });
 
+    test('每轮工具循环均以 TurnStartEvent 开场 (流式缓冲复位契约)', () async {
+      int turn = 0;
+      final provider = MockLlmProvider((messages, tools) {
+        turn++;
+        if (turn == 1) {
+          return [
+            ContentDeltaEvent('第一轮正文'),
+            ToolCallEvent(
+              const ToolCall(
+                id: 'call_round',
+                name: 'echo_test',
+                arguments: {'text': 'x'},
+              ),
+            ),
+          ];
+        }
+        return [ContentDeltaEvent('第二轮正文')];
+      });
+
+      harness = AgentHarness(tools: tools, provider: provider);
+      final events = await harness.send('multi').toList();
+
+      // 模拟 ViewModel 消费行为：TurnStartEvent 时复位流式缓冲
+      String buffer = '';
+      for (final e in events) {
+        if (e is TurnStartEvent) {
+          buffer = '';
+        } else if (e is ContentDeltaEvent) {
+          buffer += e.delta;
+        }
+      }
+
+      // 两轮各自发出 TurnStartEvent，缓冲里只留最近一轮的正文，
+      // 不会把第一轮文本残留拼接成“重复语句”
+      expect(events.whereType<TurnStartEvent>().length, equals(2));
+      expect(buffer, equals('第二轮正文'));
+      expect(harness.messages.last.content, equals('第二轮正文'));
+      // 两轮分别落盘为独立 assistant 消息，内容不重复
+      final round1 = harness.messages.where(
+        (m) => m.role == AgentRole.assistant && m.content == '第一轮正文',
+      );
+      expect(round1, isNotEmpty);
+    });
+
     test(
       'buildSystemPrompt injects preset prompt and available_skills XML',
       () {

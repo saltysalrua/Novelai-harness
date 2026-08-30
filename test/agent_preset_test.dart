@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
 import 'package:novelai_harness/core/harness/skills/skills.dart';
@@ -21,6 +23,66 @@ void main() {
       expect(v5.isToolEnabled('novelai_generate'), isTrue);
       expect(v5.isParamModifiable('prompt'), isTrue);
     });
+
+    test(
+      'loadConfig refreshes stale persisted builtin presets from code',
+      () async {
+        // 模拟旧版本保存的内置预设：白名单里还没有角色四件套工具
+        final staleBuiltin = AgentPreset(
+          id: BuiltinPresets.v5Architect.id,
+          name: 'V5 自然语言架构师 (旧)',
+          description: '旧版本保存的内置预设',
+          systemPrompt: '旧版系统提示词',
+          enabledSkillIds: ['v5-architect'],
+          enabledToolNames: [PresetToolKeys.generate, PresetToolKeys.askUser],
+          allowedModifiableParams: [PresetParamKeys.prompt],
+          isBuiltin: true,
+        );
+        final customPreset = AgentPreset(
+          id: 'my-custom-preset',
+          name: '我的自定义预设',
+          description: '用户自定义预设',
+          systemPrompt: '自定义提示词',
+          enabledToolNames: [PresetToolKeys.generate],
+          allowedModifiableParams: [PresetParamKeys.prompt],
+        );
+        SharedPreferences.setMockInitialValues({
+          'agent_presets_json': jsonEncode([
+            staleBuiltin.toJson(),
+            customPreset.toJson(),
+          ]),
+        });
+
+        final config = await ConfigService().loadConfig();
+
+        // 内置预设按 id 被当前出厂定义覆盖，新工具白名单自动升级
+        final restored = config.presets.firstWhere(
+          (p) => p.id == BuiltinPresets.v5Architect.id,
+        );
+        expect(
+          restored.systemPrompt,
+          equals(BuiltinPresets.v5Architect.systemPrompt),
+        );
+        expect(restored.isToolEnabled('add_character_prompt'), isTrue);
+        expect(restored.isToolEnabled('update_character_prompt'), isTrue);
+        expect(restored.isToolEnabled('remove_character_prompt'), isTrue);
+        expect(restored.isToolEnabled('list_character_prompts'), isTrue);
+        // 三个内置预设全部存在
+        for (final builtin in BuiltinPresets.all) {
+          expect(
+            config.presets.any((p) => p.id == builtin.id),
+            isTrue,
+            reason: '内置预设 ${builtin.id} 缺失',
+          );
+        }
+        // 用户自定义预设不受刷新影响
+        final keptCustom = config.presets.firstWhere(
+          (p) => p.id == 'my-custom-preset',
+        );
+        expect(keptCustom.systemPrompt, equals('自定义提示词'));
+        expect(keptCustom.isToolEnabled('add_character_prompt'), isFalse);
+      },
+    );
 
     test('AgentPreset toJson and fromJson round-trip', () {
       final preset = AgentPreset(

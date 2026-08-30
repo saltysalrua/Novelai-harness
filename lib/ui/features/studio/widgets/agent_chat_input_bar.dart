@@ -63,6 +63,8 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   }
 
   void _handleSend() {
+    // 流式生成中不重复发送，避免双监听把同一缓冲写出重复文本
+    if (widget.viewModel.isChatStreaming) return;
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
     _inputController.clear();

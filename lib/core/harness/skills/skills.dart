@@ -36,23 +36,22 @@ class Skill {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'systemPrompt': systemPrompt,
-        'disableModelInvocation': disableModelInvocation,
-        'isBuiltin': isBuiltin,
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'systemPrompt': systemPrompt,
+    'disableModelInvocation': disableModelInvocation,
+    'isBuiltin': isBuiltin,
+  };
 
   factory Skill.fromJson(Map<String, dynamic> json) => Skill(
-        id: json['id'] as String? ?? '',
-        name: json['name'] as String? ?? (json['id'] as String? ?? ''),
-        description: json['description'] as String? ?? '',
-        systemPrompt: json['systemPrompt'] as String? ?? '',
-        disableModelInvocation:
-            json['disableModelInvocation'] as bool? ?? false,
-        isBuiltin: json['isBuiltin'] as bool? ?? false,
-      );
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? (json['id'] as String? ?? ''),
+    description: json['description'] as String? ?? '',
+    systemPrompt: json['systemPrompt'] as String? ?? '',
+    disableModelInvocation: json['disableModelInvocation'] as bool? ?? false,
+    isBuiltin: json['isBuiltin'] as bool? ?? false,
+  );
 
   /// 导出为标准 Pi / Agent Skills SKILL.md 格式
   String toSkillMd() {
@@ -79,7 +78,8 @@ class Skill {
     if (!normalized.trimLeft().startsWith('---')) {
       // 无 Frontmatter，直接作为 System Prompt 处理
       final firstLine = normalized.trim().split('\n').first;
-      final fallbackName = defaultId ??
+      final fallbackName =
+          defaultId ??
           (firstLine.startsWith('#')
               ? firstLine.replaceAll('#', '').trim()
               : 'custom-skill');
@@ -105,7 +105,9 @@ class Skill {
       );
     }
 
-    final frontmatterRaw = normalized.substring(startIndex + 3, endIndex).trim();
+    final frontmatterRaw = normalized
+        .substring(startIndex + 3, endIndex)
+        .trim();
     final body = normalized.substring(endIndex + 4).trim();
 
     String parsedName = defaultId ?? 'custom-skill';
@@ -168,21 +170,26 @@ class Skill {
 
   /// 格式化为 Agent Skills 标准 XML 块 (遵循 Pi 规范注入系统提示词)
   static String formatSkillsForSystemPrompt(List<Skill> skills) {
-    final visibleSkills =
-        skills.where((s) => !s.disableModelInvocation).toList();
+    final visibleSkills = skills
+        .where((s) => !s.disableModelInvocation)
+        .toList();
     if (visibleSkills.isEmpty) return '';
 
     final buffer = StringBuffer();
     buffer.writeln(
-        'The following skills provide specialized instructions for specific tasks.');
+      'The following skills provide specialized instructions for specific tasks.',
+    );
     buffer.writeln(
-        'Use the `load_skill` tool to load a skill\'s detailed instructions when the task matches its description.');
+      'Use the `load_skill` tool to load a skill\'s detailed instructions when the task matches its description.',
+    );
     buffer.writeln();
     buffer.writeln('<available_skills>');
     for (final skill in visibleSkills) {
       buffer.writeln('  <skill>');
       buffer.writeln('    <name>${_escapeXml(skill.id)}</name>');
-      buffer.writeln('    <description>${_escapeXml(skill.description)}</description>');
+      buffer.writeln(
+        '    <description>${_escapeXml(skill.description)}</description>',
+      );
       buffer.writeln('  </skill>');
     }
     buffer.writeln('</available_skills>');
@@ -213,11 +220,19 @@ class BuiltinSkills {
 1. 自然语言散文构词：使用富有画面张力、透视与光影细节的英文连续段落。
 2. 漫画多格分镜架构：当用户需要漫画、四格或分镜时，明确声明页面布局 (e.g. A dynamic manga page layout, multiple sequential panels separated by gutters...)，并分步交代起承转合的镜头与动作。
 3. 原生文字与对话框排版：画面需要台词、招牌或印花时，使用官方字形嵌入语法：text, <样式与载体描述> "<精准文字内容>"。
-4. 多角色防串色隔离：当画面出现两个或以上角色时，使用竖线管道符 | 物理分段：[全局环境光影] | [左侧角色A外观姿态] | [右侧角色B外观姿态]。
+4. 多角色防串色隔离：快速方案可在单条提示词内用竖线管道符 | 物理分段：[全局环境光影] | [左侧角色A外观姿态] | [右侧角色B外观姿态]；需要分角色提示词与定位控制时，改用下方【多角色创作工作流】的角色四件套工具。
 5. 负面约束：禁止在正向词中滥用 master piece, 8k 等空洞标签，禁止在正向词中使用大括号 {} 或数字权重。
 
 【工具调用】
-当用户明确要求生图、绘制或确认方案时，请直接调用 `novelai_generate` 工具，传入构建好的 prompt 及相关参数。''',
+当用户明确要求生图、绘制或确认方案时，请直接调用 `novelai_generate` 工具，传入构建好的 prompt 及相关参数。
+
+【多角色创作工作流】
+当画面需要多个角色时，优先使用角色提示词四件套工具在工作台搭建多角色隔离，而不是把所有角色塞进主提示词：
+1. `add_character_prompt` 逐个添加角色 (每角色正词以 girl/boy/other 等人数标签开头，不加数字)；总人数标签如 2girls 写在主提示词。
+2. `update_character_prompt` 按 ID 修改角色的正负提示词、启停与定位坐标 (position_x/position_y 取 0.0~1.0，传入即视为手动定位；use_auto_position 可恢复自动布局)。
+3. 全局位置模式用 `update_studio_parameters` 的 character_ai_position 切换：true 为官方 AI 自动布局，false 为自定义定位 (发送各角色 center 坐标)。
+4. `list_character_prompts` 随时查看当前角色清单与 ID，`remove_character_prompt` 删除不需要的角色。
+角色数量上限：V5 为 22 个，V4/V4.5 为 6 个。''',
     isBuiltin: true,
   );
 
@@ -243,10 +258,10 @@ class BuiltinSkills {
   );
 
   static List<Skill> get all => [
-        v5PromptArchitect,
-        danbooruTagMaster,
-        animeArtDirector,
-      ];
+    v5PromptArchitect,
+    danbooruTagMaster,
+    animeArtDirector,
+  ];
 
   static Skill? findById(String id) {
     for (final skill in all) {
@@ -335,4 +350,3 @@ class SkillRegistry {
     }
   }
 }
-

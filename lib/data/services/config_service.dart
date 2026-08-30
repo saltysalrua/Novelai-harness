@@ -346,9 +346,14 @@ class ConfigService {
     if (presets.isEmpty) {
       presets = List.of(BuiltinPresets.all);
     } else {
-      // 确保出厂内置预设存在（若不存在则自动补充）
+      // 内置预设以代码定义为唯一事实来源：按 id 用当前出厂定义覆盖磁盘上的
+      // 旧副本 (否则新版本新增的工具/参数白名单永远进不了已保存的预设)，
+      // 不存在的自动补充；用户自定义预设保持原样，修改内置预设请先复制。
       for (final builtin in BuiltinPresets.all) {
-        if (!presets.any((p) => p.id == builtin.id)) {
+        final idx = presets.indexWhere((p) => p.id == builtin.id);
+        if (idx >= 0) {
+          presets[idx] = builtin;
+        } else {
           presets.add(builtin);
         }
       }

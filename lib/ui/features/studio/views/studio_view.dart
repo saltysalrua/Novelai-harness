@@ -123,6 +123,9 @@ class _StudioViewState extends State<StudioView> {
         return CallbackShortcuts(
           bindings: <ShortcutActivator, VoidCallback>{
             const SingleActivator(LogicalKeyboardKey.escape): _handleGlobalEsc,
+            // Ctrl+O: 全局展开/折叠对话思考块 (与 Pi TUI 习惯一致)
+            const SingleActivator(LogicalKeyboardKey.keyO, control: true): () =>
+                _viewModel.toggleThinkingExpanded(),
           },
           child: Focus(
             autofocus: true,

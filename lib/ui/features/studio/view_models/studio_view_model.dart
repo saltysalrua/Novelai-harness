@@ -47,6 +47,9 @@ class StudioViewModel extends ChangeNotifier {
   bool _isChatStreaming = false;
   String _currentStreamingThoughts = '';
   String _currentStreamingContent = '';
+
+  /// 思考块全局展开开关 (Ctrl+O 切换，默认折叠只显示单行预览)
+  bool _isThinkingExpanded = false;
   NaiGeneratedImage? _selectedImage;
   bool _hasUnseenLatest = false;
   String? _statusMessage;
@@ -86,6 +89,9 @@ class StudioViewModel extends ChangeNotifier {
   bool get isChatStreaming => _isChatStreaming;
   String get currentStreamingThoughts => _currentStreamingThoughts;
   String get currentStreamingContent => _currentStreamingContent;
+
+  /// 对话卡思考块全局展开开关 (Ctrl+O 切换)
+  bool get isThinkingExpanded => _isThinkingExpanded;
   NaiGeneratedImage? get selectedImage => _selectedImage;
   bool get hasUnseenLatest => _hasUnseenLatest;
   bool get isViewingLatest =>
@@ -1093,6 +1099,9 @@ class StudioViewModel extends ChangeNotifier {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 
+    // 流式进行中禁止重入：并发监听会往同一流式缓冲写入，造成重复文本
+    if (_isChatStreaming) return;
+
     // 1. 处理 Slash 指令
     if (trimmed.startsWith('/')) {
       await _handleSlashCommand(trimmed);
@@ -1122,6 +1131,12 @@ class StudioViewModel extends ChangeNotifier {
             notifyListeners();
           } else if (event is ContentDeltaEvent) {
             _currentStreamingContent += event.delta;
+            notifyListeners();
+          } else if (event is TurnStartEvent) {
+            // 工具循环每轮开始：清空流式气泡，上一轮正文已作为独立消息
+            // 落入列表，若不清会把上一轮文本残留拼进本轮造成“重复语句”
+            _currentStreamingThoughts = '';
+            _currentStreamingContent = '';
             notifyListeners();
           } else if (event is UsageEvent) {
             _recordModelUsage(event.usage);
@@ -1310,6 +1325,12 @@ class StudioViewModel extends ChangeNotifier {
 
   void clearError() {
     _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// Ctrl+O: 切换对话卡思考块全局展开/折叠
+  void toggleThinkingExpanded() {
+    _isThinkingExpanded = !_isThinkingExpanded;
     notifyListeners();
   }
 

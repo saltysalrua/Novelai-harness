@@ -11,7 +11,14 @@ import 'agent_chat_blocks.dart';
 class AgentChatMessageItem extends StatelessWidget {
   final AgentMessage message;
 
-  const AgentChatMessageItem({super.key, required this.message});
+  /// 思考块全局展开开关 (Ctrl+O)，透传给助手消息的思考块
+  final bool thinkingExpanded;
+
+  const AgentChatMessageItem({
+    super.key,
+    required this.message,
+    this.thinkingExpanded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +30,10 @@ class AgentChatMessageItem extends StatelessWidget {
       case AgentRole.tool:
         return ToolResultBlock(message: message);
       case AgentRole.assistant:
-        return AssistantMessageItem(message: message);
+        return AssistantMessageItem(
+          message: message,
+          thinkingExpanded: thinkingExpanded,
+        );
     }
   }
 }
@@ -68,11 +78,18 @@ class UserMessageRow extends StatelessWidget {
   }
 }
 
-/// 助手消息: 思考块 (可折叠) + Markdown 正文 + 工具调用块 (可折叠)
+/// 助手消息: 思考块 (可折叠，Ctrl+O 全局展开) + Markdown 正文 + 工具调用块 (可折叠)
 class AssistantMessageItem extends StatelessWidget {
   final AgentMessage message;
 
-  const AssistantMessageItem({super.key, required this.message});
+  /// 思考块全局展开开关 (Ctrl+O)
+  final bool thinkingExpanded;
+
+  const AssistantMessageItem({
+    super.key,
+    required this.message,
+    this.thinkingExpanded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +100,10 @@ class AssistantMessageItem extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (message.thoughts.isNotEmpty)
-            ThinkingBlock(thoughts: message.thoughts),
+            ThinkingBlock(
+              thoughts: message.thoughts,
+              forceExpanded: thinkingExpanded,
+            ),
           if (message.content.isNotEmpty) ...[
             if (message.thoughts.isNotEmpty) const SizedBox(height: 4),
             MarkdownBody(
@@ -252,10 +272,14 @@ class StreamingMessageBubble extends StatelessWidget {
   final String thoughts;
   final String content;
 
+  /// 思考块全局展开开关 (Ctrl+O)，开启时流式思考不截断行数
+  final bool thinkingExpanded;
+
   const StreamingMessageBubble({
     super.key,
     required this.thoughts,
     required this.content,
+    this.thinkingExpanded = false,
   });
 
   @override
@@ -300,8 +324,10 @@ class StreamingMessageBubble extends StatelessWidget {
               ),
               child: Text(
                 thoughts,
-                maxLines: 6,
-                overflow: TextOverflow.ellipsis,
+                maxLines: thinkingExpanded ? null : 6,
+                overflow: thinkingExpanded
+                    ? TextOverflow.visible
+                    : TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 10.5,
                   fontStyle: FontStyle.italic,

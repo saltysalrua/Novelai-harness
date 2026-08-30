@@ -208,6 +208,8 @@ Novelai-harness/
 
 角色列表持久化在 SharedPreferences (`novelai_character_prompts` + `novelai_character_ai_position` 全局开关)，Agent 通过 `list/add/update/remove_character_prompt` 四个工具增删改查，全局位置模式可经 `update_studio_parameters` 的 `character_ai_position` 参数切换，工具白名单受预设 `enabledToolNames` 控制。人数标签 (如 `2girls`) 写在主提示词，单个角色提示词内用不带数字的 `girl/boy/other`。
 
+内置预设 (BuiltinPresets) 以代码定义为唯一事实来源：`ConfigService.loadConfig` 启动时按 id 用出厂定义覆盖磁盘上的旧副本，保证新版本新增的工具/参数白名单自动升级到已保存的预设；用户自定义预设不受影响。设置页对内置预设只读 (字段 readOnly、开关禁用)，定制需先「复制」生成副本。对话卡思考块默认折叠只显示单行预览，`Ctrl+O` 全局展开/折叠全部思考内容 (流式中的思考不再截断)。
+
 ### 3.6 快捷 Slash 指令集
 
 对话框支持以下快捷指令：

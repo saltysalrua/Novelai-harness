@@ -233,6 +233,7 @@ class AgentChatCardState extends State<AgentChatCard> {
           return StreamingMessageBubble(
             thoughts: widget.viewModel.currentStreamingThoughts,
             content: widget.viewModel.currentStreamingContent,
+            thinkingExpanded: widget.viewModel.isThinkingExpanded,
           );
         }
         if (activePrompt != null &&
@@ -240,7 +241,10 @@ class AgentChatCardState extends State<AgentChatCard> {
           return InlineAgentQuestionCard(prompt: activePrompt);
         }
 
-        return AgentChatMessageItem(message: messages[index]);
+        return AgentChatMessageItem(
+          message: messages[index],
+          thinkingExpanded: widget.viewModel.isThinkingExpanded,
+        );
       },
     );
   }

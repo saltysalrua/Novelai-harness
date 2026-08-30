@@ -6,7 +6,9 @@ import '../../../core/theme/app_theme.dart';
 class ToolCard extends StatelessWidget {
   final AgentTool tool;
   final bool isEnabled;
-  final ValueChanged<bool> onToggle;
+
+  /// 为空 (内置预设只读) 时点击卡片不切换，仅保留查看入口
+  final ValueChanged<bool>? onToggle;
   final ValueChanged<AgentTool> onInspectSchema;
   final ValueChanged<CustomAgentTool>? onEditCustomTool;
   final VoidCallback? onDelete;
@@ -15,7 +17,7 @@ class ToolCard extends StatelessWidget {
     super.key,
     required this.tool,
     required this.isEnabled,
-    required this.onToggle,
+    this.onToggle,
     required this.onInspectSchema,
     this.onEditCustomTool,
     this.onDelete,
@@ -28,7 +30,7 @@ class ToolCard extends StatelessWidget {
         : <dynamic>[];
 
     return InkWell(
-      onTap: () => onToggle(!isEnabled),
+      onTap: onToggle == null ? null : () => onToggle!(!isEnabled),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         width: 270,
@@ -60,9 +62,7 @@ class ToolCard extends StatelessWidget {
                       color: isEnabled ? AppTheme.notionBlue : AppTheme.border,
                       width: 1.5,
                     ),
-                    color: isEnabled
-                        ? AppTheme.notionBlue
-                        : Colors.transparent,
+                    color: isEnabled ? AppTheme.notionBlue : Colors.transparent,
                   ),
                   child: isEnabled
                       ? const Icon(Icons.check, size: 11, color: Colors.white)
@@ -85,8 +85,10 @@ class ToolCard extends StatelessWidget {
                 ),
                 // 内置 / 自定义 徽章
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1.5,
+                  ),
                   decoration: BoxDecoration(
                     color: (tool.isBuiltin ? AppTheme.stone : AppTheme.success)
                         .withValues(alpha: 0.1),
@@ -97,9 +99,7 @@ class ToolCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w600,
-                      color: tool.isBuiltin
-                          ? AppTheme.stone
-                          : AppTheme.success,
+                      color: tool.isBuiltin ? AppTheme.stone : AppTheme.success,
                     ),
                   ),
                 ),
@@ -120,8 +120,7 @@ class ToolCard extends StatelessWidget {
                     ),
                     tooltip: tool is CustomAgentTool ? '编辑工具' : '查看 Schema',
                     onPressed: () {
-                      if (tool is CustomAgentTool &&
-                          onEditCustomTool != null) {
+                      if (tool is CustomAgentTool && onEditCustomTool != null) {
                         onEditCustomTool!(tool as CustomAgentTool);
                       } else {
                         onInspectSchema(tool);
@@ -177,8 +176,10 @@ class ToolCard extends StatelessWidget {
                 runSpacing: 4,
                 children: properties.take(4).map((p) {
                   return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1.5,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.surfaceVariant,
                       borderRadius: BorderRadius.circular(3),

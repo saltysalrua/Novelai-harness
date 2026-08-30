@@ -421,6 +421,22 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
 
         // 2. 预设基础信息与系统提示词
         const SettingsGroupTitle('Preset Profile & System Prompt'),
+        if (currentPreset.isBuiltin) ...[
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: AppTheme.stone.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: const Text(
+              '内置预设为出厂定义，每次启动以代码为准自动刷新，不支持直接修改。需要定制请先点击「复制」生成副本。',
+              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+            ),
+          ),
+        ],
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -439,6 +455,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                       label: '预设显示名称',
                       controller: _draft.nameController,
                       hintText: '如 V5 自然语言架构师',
+                      readOnly: currentPreset.isBuiltin,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -448,6 +465,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                       label: '预设描述',
                       controller: _draft.descController,
                       hintText: '如 擅长 V5 自然语言散文提示词...',
+                      readOnly: currentPreset.isBuiltin,
                     ),
                   ),
                 ],
@@ -465,6 +483,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
               TextField(
                 controller: _draft.promptController,
                 maxLines: 6,
+                readOnly: currentPreset.isBuiltin,
                 style: const TextStyle(
                   fontSize: 11.5,
                   fontFamily: 'monospace',
@@ -519,11 +538,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           runSpacing: 10,
           children: availableSkills.map((skill) {
             final isEnabled = currentPreset.enabledSkillIds.contains(skill.id);
+            final isBuiltinPreset = currentPreset.isBuiltin;
             return SkillCard(
               skill: skill,
               isEnabled: isEnabled,
-              onToggle: (val) =>
-                  setState(() => _draft.toggleSkill(skill.id, val)),
+              onToggle: isBuiltinPreset
+                  ? null
+                  : (val) => setState(() => _draft.toggleSkill(skill.id, val)),
               onEdit: _openEditSkillDialog,
               onExport: _exportSkillMd,
               onDelete: !skill.isBuiltin ? () => _deleteSkill(skill.id) : null,
@@ -551,11 +572,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           runSpacing: 10,
           children: availableTools.map((tool) {
             final isEnabled = currentPreset.isToolEnabled(tool.name);
+            final isBuiltinPreset = currentPreset.isBuiltin;
             return ToolCard(
               tool: tool,
               isEnabled: isEnabled,
-              onToggle: (val) =>
-                  setState(() => _draft.toggleTool(tool.name, val)),
+              onToggle: isBuiltinPreset
+                  ? null
+                  : (val) => setState(() => _draft.toggleTool(tool.name, val)),
               onInspectSchema: _openInspectToolSchemaDialog,
               onEditCustomTool: tool is CustomAgentTool
                   ? _openEditToolDialog
@@ -596,8 +619,9 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   ),
                 ),
                 selected: isAllowed,
-                onSelected: (val) =>
-                    setState(() => _draft.toggleParam(key, val)),
+                onSelected: currentPreset.isBuiltin
+                    ? null
+                    : (val) => setState(() => _draft.toggleParam(key, val)),
                 backgroundColor: AppTheme.surfaceVariant,
                 selectedColor: AppTheme.notionBlue.withValues(alpha: 0.12),
                 checkmarkColor: AppTheme.notionBlue,
@@ -622,6 +646,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     required String label,
     required TextEditingController controller,
     required String hintText,
+    bool readOnly = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -637,6 +662,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
+          readOnly: readOnly,
           style: const TextStyle(fontSize: 12),
           decoration: InputDecoration(
             isDense: true,
