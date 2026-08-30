@@ -82,7 +82,8 @@ Novelai-harness/
 │       │   └── widgets/
 │       │       ├── resizable_split_view.dart   # 可自由拖动分割线的三栏自适应容器
 │       │       ├── custom_title_bar.dart       # 顶部自定义标题栏 (窗口拖拽与三键控制)
-│       │       └── context_menu.dart           # 右键菜单 (Notion 风格，图标+分隔线可扩展)
+│       │       ├── context_menu.dart           # 右键菜单 (Notion 风格，图标+分隔线可扩展)
+│       │       └── smooth_scroll_controller.dart # 平滑滚轮控制器 (重写 pointerScroll 为短滑动)
 │       └── features/
 │           ├── settings/
 │           │   ├── views/
@@ -106,7 +107,7 @@ Novelai-harness/
 │               │   ├── studio_vm_layout.dart    # 布局分部：分割线防抖落盘/侧栏页签 (同库 part+Mixin)
 │               │   ├── studio_vm_harness.dart   # Harness 分部：工具装配/LLM与思考强度切换/预设技能工具 CRUD
 │               │   ├── studio_vm_generation.dart # 生图分部：生图/超分/实时预览/账号 (含 _applyGeneratedImage 统一落图)
-│               │   ├── studio_vm_chat.dart      # 对话分部：对话流/ask_user/付费确认/用量记录
+│               │   ├── studio_vm_chat.dart      # 对话分部：对话流/图片附件/ask_user/付费确认/用量记录/流式通知节流
 │               │   ├── studio_vm_sessions.dart  # 会话分部：会话管理/回溯
 │               │   ├── studio_vm_characters.dart # 角色分部：多角色提示词编辑与画板定位
 │               │   ├── studio_vm_slash.dart     # 斜杠分部：斜杠指令分发
@@ -124,6 +125,7 @@ Novelai-harness/
 │                   ├── prompt_extension_deck.dart # 提示词扩展甲板 (多角色 ↔ 固定词缀左右滑动切换)
 │                   ├── character_card_item.dart # 单角色编辑卡 (名称/启停/位置胶囊+正负词拖拽调高)
 │                   ├── character_position_canvas_view.dart # 中间画板角色位置交互层 (锚点拖拽/5x5 网格/悬浮控制)
+│                   ├── chat_image_attachment.dart  # 对话图片附件 (归一化≤1024px PNG + 缩略图共用组件)
 │                   ├── prompt_editor_card.dart  # 通用提示词编辑卡 (只读灰色标签+输入框+工具条+快捷操作)
 │                   ├── prompt_edit_actions.dart  # 光标标签操作共享工具 (权重增减/禁用/格式化，快捷键与按钮共用)
 │                   ├── prompt_resize_handle.dart # 高度调节手柄 + ResizableTextField 可拖拽调高输入区 (含快捷键与补全挂载)
@@ -182,6 +184,7 @@ Novelai-harness/
 │   ├── tag_autocomplete_overlay_test.dart      # 标签自动补全悬浮窗触发与键盘/鼠标上屏测试
 │   ├── prompt_library_test.dart               # 词组合模型/服务 CRUD/预览图清理/应用与补全建议测试
 │   ├── prompt_library_view_test.dart          # 词库全屏视图与编辑弹窗 Widget 测试
+│   ├── chat_image_attach_test.dart           # 用户图片附件序列化/发送/落盘恢复测试
 │   ├── view_canvas_image_tool_test.dart       # 画板历史图片查看工具按索引与覆盖层渲染测试
 │   ├── window_state_persistence_test.dart      # 窗口尺寸、位置与最大化状态持久化及防抖测试
 │   └── widget_test.dart                        # 核心组件渲染测试
@@ -284,6 +287,25 @@ Novelai-harness/
 
 - **解析侧**：OpenAiCompatibleProvider 按 pi 优先级短路解析思考流字段：`reasoning_content` (llama.cpp/DeepSeek/Qwen) → `reasoning` (OpenRouter/多数网关) → `reasoning_text`，只取第一个非空字段防双字段重复；另保留自研跨 chunk 内嵌思考标签状态机 (国产网关把 think 标签写进 content)。
 - **请求侧**：不同供应商用不同字段开关思维链，格式不匹配时思考会被上游静默丢弃。`LlmProviderConfig.thinkingParamFormat` (设置页 Models 可选，默认 auto 按域名识别)：openai=`reasoning_effort`、deepseek=`thinking:{type}`、qwen=`enable_thinking`、qwen_chat_template=`chat_template_kwargs`、zai=`thinking:{type,clear_thinking}`、openrouter=`reasoning:{effort}`、together=`reasoning:{enabled}`。Qwen/DeepSeek/Z.ai 关闭思考也需显式发送 disabled，因此思考等级始终透传 (含 off)。中转站 (newapi 等) 请按其转发的模型家族手动指定格式。
+
+### 3.9 Agent 对话卡滚动优化与图片附件 (2026-12)
+
+**滚动性能三件套**：
+
+- **平滑滚轮**：`SmoothWheelScrollController` (ui/core/widgets) 重写 `ScrollPosition.pointerScroll`，把桌面端滚轮逐格瞬移改为 160ms easeOutCubic 滑动；滑行中从上次目标累加；DragScrollActivity (滚动条拖动) 时回退默认实现。
+- **消息 Widget 缓存**：AgentChatCardState 按 `messageId|thinkingExpanded` 缓存消息 Widget，itemBuilder 返回同实例时 Element 检测 identical 直接跳过重建，Markdown 只解析一次；会话切换/思考开关切换时清空，超 600 条整体清空。ListView 另设 `scrollCacheExtent: 600`、`addAutomaticKeepAlives: false`。
+- **流式通知节流**：`_StudioChatMixin` 对 Thought/Content 增量按 40ms 批量 notifyListeners (其余事件立即刷新)，避免每个 token 全工作台重刷。
+
+**流式底部跟随**：`maxScrollExtent` 是 SliverList 的懒估算值，新内容的 extent 可能晚 1-3 帧才结算 (Widget 缓存跳过重建时更明显)。跟随跳转 (`_followStreamBottom`) 必须链式 post-frame 校验最多 3 帧、双向夹到 max (补晚结算增量 + 纠正过高估算回落)；用户是否在底部只能在臂时 (build 阶段) 判断，链式回调里用 "低于上次跟随目标 32px 以上" 判定用户主动上翻并停止跟随。
+
+**用户图片附件** (仅多模态模型)：
+
+- 输入栏 Ctrl+V 挂在 `_inputFocusNode.onKeyEvent` (冒泡链最内层，先于 TextField 默认粘贴)：剪贴板有文本按默认插入；无文本时 `Pasteboard.image` 读图 (Windows 返回 BMP 字节)。
+- 📎 按钮调 file_picker 选图；单条消息上限 4 张。
+- `processImageAttachment` (chat_image_attachment.dart) 统一归一化：解码 (instantiateImageCodec 支持 BMP) → 最长边 > 1024 等比缩小 → 重编码 PNG → base64。
+- 发送链路：`AgentMessageImage` (types.dart) → `AgentMessage.images` → `toOpenAiJson` 升级为 text + image_url(data URL) 多模态内容块 → harness.send(images:) 透传；空文本纯图片消息允许发送。
+- 会话落盘：user 消息 JSONL 内容块追加 `{type:'image', mimeType, data}`，恢复时原样回读。
+- 非多模态模型发送带图消息时拦截并提示；工具结果附带图片 (查看画板) 平铺渲染在折叠块外，不藏在内。
 
 ---
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../view_models/studio_view_model.dart';
 import 'agent_chat_input_bar.dart';
 import 'agent_chat_messages.dart';
@@ -26,32 +28,62 @@ class AgentChatCard extends StatefulWidget {
 
 /// 公开 State：供根级全局 ESC (StudioView) 通过 GlobalKey 调起回溯视图
 class AgentChatCardState extends State<AgentChatCard> {
-  final ScrollController _scrollController = ScrollController();
+  /// 平滑滚轮控制器：鼠标滚轮逐格瞬移改为短滑动，消除"一卡一卡"手感
+  final SmoothWheelScrollController _scrollController =
+      SmoothWheelScrollController();
   final FocusNode _cardFocusNode = FocusNode();
   _AgentCardView _currentView = _AgentCardView.chat;
   DateTime? _lastEscPressTime;
+
+  /// 消息 Widget 缓存 (key = messageId|thinkingExpanded)：
+  /// 消息一旦定稿不可变，滚动回视口时复用同一 Widget 实例，
+  /// Element 检测到 identical 直接跳过重建，避免 Markdown 反复解析造成的掉帧。
+  final Map<String, Widget> _messageWidgetCache = {};
+
+  /// 缓存上限 (超过后整体消空，防长会话内存无限增长)
+  static const int _maxCachedMessages = 600;
 
   @override
   void dispose() {
     _scrollController.dispose();
     _cardFocusNode.dispose();
+    _messageWidgetCache.clear();
     super.dispose();
   }
 
   @override
   void didUpdateWidget(AgentChatCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 思考块展开开关切换后旧缓存失效，整体重建
+    if (widget.viewModel.isThinkingExpanded !=
+        oldWidget.viewModel.isThinkingExpanded) {
+      _messageWidgetCache.clear();
+    }
     // 切换会话或 ask_user 提问弹出时滚动到底部
     if (widget.viewModel.currentSessionId !=
             oldWidget.viewModel.currentSessionId ||
         (widget.viewModel.activeQuestionPrompt != null &&
             oldWidget.viewModel.activeQuestionPrompt !=
                 widget.viewModel.activeQuestionPrompt)) {
+      if (widget.viewModel.currentSessionId !=
+          oldWidget.viewModel.currentSessionId) {
+        _messageWidgetCache.clear();
+      }
       _scrollToBottom(animate: false);
     }
   }
 
   void _scrollToBottom({bool animate = true}) {
+    _scrollToBottomAfterFrames(animate: animate, remainingFrames: 3);
+  }
+
+  /// 呖后跳到底部。SliverList 的 maxScrollExtent 是估算值，新内容
+  /// (尤其是被 Widget 缓存跳过重建的那一帧) 的 extent 可能晚一帧才结算，
+  /// 因此跳完后再链式校验最多 [remainingFrames] 帧，直到估算稳定。
+  void _scrollToBottomAfterFrames({
+    required bool animate,
+    required int remainingFrames,
+  }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
       final pos = _scrollController.position;
@@ -65,19 +97,41 @@ class AgentChatCardState extends State<AgentChatCard> {
         } else {
           _scrollController.jumpTo(pos.maxScrollExtent);
         }
+        // 静默跳转同样链式校验后续帧的估算修正 (动画模式由流式跟随逻辑兑底)，
+        // 不论本轮是否跳转都续链，防止估算晚结算导致停在旧位置
+        if (remainingFrames > 0) {
+          _scrollToBottomAfterFrames(
+            animate: animate,
+            remainingFrames: remainingFrames - 1,
+          );
+        }
       }
     });
   }
 
+  /// 上次跟随跳转的目标像素 (链式校验期间判断用户是否主动上翻)
+  double? _lastFollowTarget;
+
   /// 仅在 Agent 正在流式输出时生效：
   /// - 若当前视口已在底部 (距底部 32px 以内)，随新内容输出自动跟随保持在底部；
   /// - 若用户向上滚动翻看历史 (距底部 > 32px)，则保持在原地不打扰，绝不强拉。
+  ///   跟随跳转后链式校验最多 3 帧，兑底 maxScrollExtent 估算延迟结算。
   void _autoScrollOnStream() {
     if (!widget.viewModel.isChatStreaming) return;
     if (!_scrollController.hasClients) return;
-    final isAtBottom = _scrollController.position.extentAfter <= 32.0;
+    // 估算 maxScrollExtent 结算滞后一到两帧，"跳到底"后可能仍差几十像素，
+    // 臂时阈值放宽到 64px；链内用户上翻判定仍按 32px 严格把关
+    final isAtBottom = _scrollController.position.extentAfter <= 64.0;
     if (!isAtBottom) return;
 
+    // 臂定时记录基准：后续帧里像素显著低于它即为用户主动上翻
+    _lastFollowTarget = _scrollController.position.pixels;
+    _followStreamBottom(remainingFrames: 4);
+  }
+
+  /// 流式底部跟随的链式校验：双向夹到 maxScrollExtent
+  /// (既补上晚结算的增量，也纠正跳到过高估算值后的回落)
+  void _followStreamBottom({required int remainingFrames}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
           !widget.viewModel.isChatStreaming ||
@@ -85,8 +139,18 @@ class AgentChatCardState extends State<AgentChatCard> {
         return;
       }
       final pos = _scrollController.position;
-      if (pos.pixels < pos.maxScrollExtent) {
-        _scrollController.jumpTo(pos.maxScrollExtent);
+      // 用户主动向上滚离 (低于上次跟随目标 32px 以上) 则停止跟随，绝不强拉
+      final last = _lastFollowTarget;
+      if (last != null && pos.pixels < last - 32.0) return;
+      final target = pos.maxScrollExtent;
+      if ((pos.pixels - target).abs() > 0.5) {
+        _lastFollowTarget = target;
+        _scrollController.jumpTo(target);
+      }
+      // 只要还在流式且预算未尽就继续校验：估算可能晚一帧才结算，
+      // “本轮无需跳转”不代表下一帧不需要
+      if (remainingFrames > 0) {
+        _followStreamBottom(remainingFrames: remainingFrames - 1);
       }
     });
   }
@@ -318,10 +382,18 @@ class AgentChatCardState extends State<AgentChatCard> {
     final messages = widget.viewModel.messages;
     final isStreaming = widget.viewModel.isChatStreaming;
     final activePrompt = widget.viewModel.activeQuestionPrompt;
+    final thinkingExpanded = widget.viewModel.isThinkingExpanded;
+
+    if (_messageWidgetCache.length > _maxCachedMessages) {
+      _messageWidgetCache.clear();
+    }
 
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(12),
+      // 提高预渲染视口，配合 Widget 缓存让快速滚动不逐帧解析 Markdown
+      scrollCacheExtent: const ScrollCacheExtent.pixels(600),
+      addAutomaticKeepAlives: false,
       itemCount:
           messages.length +
           (isStreaming ? 1 : 0) +
@@ -340,10 +412,17 @@ class AgentChatCardState extends State<AgentChatCard> {
           return InlineAgentQuestionCard(prompt: activePrompt);
         }
 
-        return AgentChatMessageItem(
-          message: messages[index],
-          thinkingExpanded: widget.viewModel.isThinkingExpanded,
+        final message = messages[index];
+        final cacheKey = '${message.id}|$thinkingExpanded';
+        final cached = _messageWidgetCache[cacheKey];
+        if (cached != null) return cached;
+
+        final built = AgentChatMessageItem(
+          message: message,
+          thinkingExpanded: thinkingExpanded,
         );
+        _messageWidgetCache[cacheKey] = built;
+        return built;
       },
     );
   }

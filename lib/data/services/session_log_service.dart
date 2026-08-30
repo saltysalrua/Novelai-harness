@@ -164,9 +164,18 @@ class SessionLogService implements SessionRecorder {
     switch (message.role) {
       case AgentRole.user:
         msg['role'] = 'user';
-        msg['content'] = [
+        // 用户消息内容块: text + 可选 image (内嵌 base64，恢复时原样回读)
+        final userParts = <Map<String, dynamic>>[
           {'type': 'text', 'text': message.content},
         ];
+        for (final img in message.images) {
+          userParts.add({
+            'type': 'image',
+            'mimeType': img.mimeType,
+            'data': img.base64,
+          });
+        }
+        msg['content'] = userParts;
         msg['timestamp'] = message.createdAt.millisecondsSinceEpoch;
 
       case AgentRole.assistant:
@@ -751,10 +760,31 @@ class SessionLogService implements SessionRecorder {
 
     switch (msg['role'] as String?) {
       case 'user':
+        // 用户消息: text 块拼接正文，image 块还原图片附件
+        var userText = '';
+        final restoredImages = <AgentMessageImage>[];
+        final parts = msg['content'];
+        if (parts is List) {
+          for (final part in parts) {
+            if (part is! Map<String, dynamic>) continue;
+            switch (part['type'] as String?) {
+              case 'text':
+                userText += part['text'] as String? ?? '';
+              case 'image':
+                final restored = AgentMessageImage.fromJson(part);
+                if (restored.base64.isNotEmpty) {
+                  restoredImages.add(restored);
+                }
+            }
+          }
+        }
         return AgentMessage(
           id: fallbackId,
           role: AgentRole.user,
-          content: _joinContentText(msg['content']),
+          content: msg['content'] is String
+              ? msg['content'] as String
+              : userText,
+          images: restoredImages,
           createdAt: createdAt,
         );
 

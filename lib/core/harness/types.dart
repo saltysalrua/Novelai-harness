@@ -85,6 +85,32 @@ class ToolCall {
   }
 }
 
+/// 对话消息内嵌图片 (用户上传/粘贴的图片附件，base64 + MIME)
+class AgentMessageImage {
+  /// 图片字节 base64 (不含 data: 前缀)
+  final String base64;
+
+  /// 图片 MIME 类型 (默认 image/png)
+  final String mimeType;
+
+  const AgentMessageImage({required this.base64, this.mimeType = 'image/png'});
+
+  /// OpenAI 多模态 image_url 填充用 data URL
+  String get dataUrl => 'data:$mimeType;base64,$base64';
+
+  Map<String, dynamic> toJson() => {'mimeType': mimeType, 'data': base64};
+
+  factory AgentMessageImage.fromJson(dynamic json) {
+    if (json is! Map) return const AgentMessageImage(base64: '');
+    final data = json['data'] as String? ?? '';
+    if (data.isEmpty) return const AgentMessageImage(base64: '');
+    return AgentMessageImage(
+      base64: data,
+      mimeType: json['mimeType'] as String? ?? 'image/png',
+    );
+  }
+}
+
 /// 工具执行结果
 ///
 /// [imageBase64] / [imageMimeType] 为可选的多模态图片附件：
@@ -131,6 +157,9 @@ class AgentMessage {
 
   /// 工具结果附带图片的 MIME 类型 (默认 image/png)
   final String imageMimeType;
+
+  /// 用户消息附带的图片 (粘贴/选择文件上传，仅 role == user)
+  final List<AgentMessageImage> images;
   final bool isStreaming;
   final DateTime createdAt;
 
@@ -154,6 +183,7 @@ class AgentMessage {
     this.model,
     this.imageBase64,
     this.imageMimeType = 'image/png',
+    this.images = const [],
     this.isStreaming = false,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -174,6 +204,7 @@ class AgentMessage {
     DateTime? createdAt,
     String? imageBase64,
     String? imageMimeType,
+    List<AgentMessageImage>? images,
   }) {
     return AgentMessage(
       id: id ?? this.id,
@@ -189,6 +220,7 @@ class AgentMessage {
       model: model ?? this.model,
       imageBase64: imageBase64 ?? this.imageBase64,
       imageMimeType: imageMimeType ?? this.imageMimeType,
+      images: images ?? this.images,
       isStreaming: isStreaming ?? this.isStreaming,
       createdAt: createdAt ?? this.createdAt,
     );
@@ -213,6 +245,17 @@ class AgentMessage {
           'type': 'image_url',
           'image_url': {'url': 'data:$imageMimeType;base64,$imageBase64'},
         },
+      ];
+    }
+    // 用户消息携带图片时，content 同样升级为多模态内容块数组
+    if (role == AgentRole.user && images.isNotEmpty) {
+      map['content'] = [
+        if (content.isNotEmpty) {'type': 'text', 'text': content},
+        for (final img in images)
+          {
+            'type': 'image_url',
+            'image_url': {'url': img.dataUrl},
+          },
       ];
     }
     return map;

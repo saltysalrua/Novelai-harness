@@ -69,11 +69,14 @@ class AgentHarness {
   }
 
   /// 发送用户消息并启动 Agent 循环流
+  /// [images] 为可选的用户图片附件 (粘贴/上传，随消息发送给视觉模型)
   Stream<HarnessEvent> send(
     String userText, {
     double temperature = 0.7,
+    List<AgentMessageImage>? images,
   }) async* {
-    if (userText.trim().isEmpty) return;
+    final hasImages = images != null && images.isNotEmpty;
+    if (userText.trim().isEmpty && !hasImages) return;
 
     // 1. 记录用户消息
     final userMsgId = 'user_${DateTime.now().millisecondsSinceEpoch}';
@@ -81,6 +84,7 @@ class AgentHarness {
       id: userMsgId,
       role: AgentRole.user,
       content: userText.trim(),
+      images: images ?? const [],
     );
     _messages.add(userMsg);
     recorder?.recordMessage(userMsg);

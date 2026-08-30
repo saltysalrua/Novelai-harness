@@ -2,10 +2,54 @@ part of 'studio_view_model.dart';
 
 /// 对话流 / ask_user 提问 / 付费确认 / Token 用量记录
 mixin _StudioChatMixin on _StudioCore {
-  /// 发送对话消息 (支持 Slash 命令行如 /nai, /tag, /upscale, /account, /clear, /help)
-  Future<void> sendChatMessage(String text) async {
+  /// 流式增量通知节流计时器：Thought/Content 增量按 ~40ms 批量刷新，
+  /// 避免每个 token 触发一次全工作台重建导致的掉帧。
+  Timer? _streamNotifyTimer;
+  bool _streamNotifyPending = false;
+
+  /// 流式增量专用：合并 40ms 窗口内的连续增量后统一 notifyListeners
+  void _notifyStreamDelta() {
+    _streamNotifyPending = true;
+    final timer = _streamNotifyTimer;
+    if (timer == null || !timer.isActive) {
+      _streamNotifyTimer = Timer(
+        const Duration(milliseconds: 40),
+        _flushStreamDeltaNotify,
+      );
+    }
+  }
+
+  void _flushStreamDeltaNotify() {
+    _streamNotifyTimer = null;
+    if (!_streamNotifyPending) return;
+    _streamNotifyPending = false;
+    notifyListeners();
+  }
+
+  /// 立即刷新：取消挂起的节流批次，保证状态即时可见
+  void _notifyNow() {
+    _streamNotifyTimer?.cancel();
+    _streamNotifyTimer = null;
+    _streamNotifyPending = false;
+    notifyListeners();
+  }
+
+  /// 发送对话消息 (支持 Slash 命令行；[images] 为用户粘贴/上传的图片附件，
+  /// 仅普通对话路径生效，斜杠指令不支持附带图片)
+  Future<void> sendChatMessage(
+    String text, {
+    List<AgentMessageImage>? images,
+  }) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    final hasImages = images != null && images.isNotEmpty;
+    if (trimmed.isEmpty && !hasImages) return;
+
+    // 斜杠指令不支持附带图片
+    if (trimmed.startsWith('/') && hasImages) {
+      _errorMessage = '斜杠指令不支持附带图片，请直接发送对话消息';
+      notifyListeners();
+      return;
+    }
 
     // 流式进行中禁止重入：并发监听会往同一流式缓冲写入，造成重复文本
     if (_isChatStreaming) return;
@@ -36,16 +80,17 @@ mixin _StudioChatMixin on _StudioCore {
       final stream = _harness.send(
         trimmed,
         temperature: _config.llmTemperature,
+        images: images,
       );
 
       _chatSubscription = stream.listen(
         (event) {
           if (event is ThoughtDeltaEvent) {
             _currentStreamingThoughts += event.delta;
-            notifyListeners();
+            _notifyStreamDelta();
           } else if (event is ContentDeltaEvent) {
             _currentStreamingContent += event.delta;
-            notifyListeners();
+            _notifyStreamDelta();
           } else if (event is TurnStartEvent) {
             // 工具循环每轮开始：清空流式气泡，上一轮正文已作为独立消息
             // 落入列表，若不清会把上一轮文本残留拼进本轮造成“重复语句”
@@ -59,14 +104,14 @@ mixin _StudioChatMixin on _StudioCore {
                 '请求失败自动重试 (${event.attempt}/${event.maxAttempts}): '
                 '${event.reason} · '
                 '${event.delay.inSeconds > 0 ? '${event.delay.inSeconds} 秒后' : '即将'}重试';
-            notifyListeners();
+            _notifyNow();
           } else if (event is UsageEvent) {
             _recordModelUsage(event.usage);
           } else if (event is ToolResultEvent) {
-            notifyListeners();
+            _notifyNow();
           } else if (event is ErrorEvent) {
             _errorMessage = event.error;
-            notifyListeners();
+            _notifyNow();
           }
         },
         onError: (e) {
@@ -89,7 +134,7 @@ mixin _StudioChatMixin on _StudioCore {
       _currentStreamingContent = '';
       _streamingRetryNotice = null;
       await refreshSessions();
-      notifyListeners();
+      _notifyNow();
     }
   }
 
@@ -104,7 +149,7 @@ mixin _StudioChatMixin on _StudioCore {
     _currentStreamingContent = '';
     _streamingRetryNotice = null;
     _statusMessage = '已强制终止当前生成';
-    notifyListeners();
+    _notifyNow();
   }
 
   // ------------------------- ask_user 与付费确认 -------------------------

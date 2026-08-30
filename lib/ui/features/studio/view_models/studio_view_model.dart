@@ -651,6 +651,7 @@ class StudioViewModel extends ChangeNotifier
     _paramSaveDebounceTimer?.cancel();
     _splitWidthSaveTimer?.cancel();
     _chatSubscription?.cancel();
+    _streamNotifyTimer?.cancel();
     unawaited(_sessionLog.flush());
     super.dispose();
   }

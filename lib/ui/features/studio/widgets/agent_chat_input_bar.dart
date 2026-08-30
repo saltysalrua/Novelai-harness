@@ -1,8 +1,14 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pasteboard/pasteboard.dart';
+import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import '../../../core/theme/app_theme.dart';
+import 'chat_image_attachment.dart';
 import 'slash_command_overlay.dart';
 import '../view_models/studio_view_model.dart';
 
@@ -20,12 +26,25 @@ class AgentChatInputBar extends StatefulWidget {
   State<AgentChatInputBar> createState() => _AgentChatInputBarState();
 }
 
+/// 输入栏待发送图片附件：归一化后的 PNG 字节 (缩略图用) + 消息模型
+class _PendingAttachment {
+  final Uint8List bytes;
+  final AgentMessageImage image;
+  const _PendingAttachment({required this.bytes, required this.image});
+}
+
 class _AgentChatInputBarState extends State<AgentChatInputBar> {
   final TextEditingController _inputController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
   final GlobalKey _inputFieldKey = GlobalKey();
   final LayerLink _layerLink = LayerLink();
   final OverlayPortalController _overlayController = OverlayPortalController();
+
+  /// 待发送图片附件 (粘贴/选择文件后暂存)
+  final List<_PendingAttachment> _pendingAttachments = [];
+
+  /// 图片归一化进行中 (缩略图栏显示处理指示)
+  bool _processingImage = false;
 
   /// 当前展示的斜杠指令补全建议
   List<SlashSuggestion> _suggestions = const [];
@@ -42,6 +61,9 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     super.initState();
     _inputController.addListener(_updateSlashSuggestions);
     _inputFocusNode.addListener(_handleInputFocusChanged);
+    // 焦点节点自身拦截 Ctrl+V：剪贴板无文本时尝试读取图片附件。
+    // 挂在焦点节点 (冒泡链最内层) 保证先于 TextField 默认粘贴快捷键生效。
+    _inputFocusNode.onKeyEvent = _handleInputNodeKeyEvent;
   }
 
   @override
@@ -66,10 +88,165 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     // 流式生成中不重复发送，避免双监听把同一缓冲写出重复文本
     if (widget.viewModel.isChatStreaming) return;
     final text = _inputController.text.trim();
-    if (text.isEmpty) return;
+    final attachments = List<_PendingAttachment>.of(_pendingAttachments);
+    if (text.isEmpty && attachments.isEmpty) return;
+
+    // 图片附件需要当前模型具备视觉能力
+    if (attachments.isNotEmpty && !_isActiveModelMultimodal()) {
+      _showNotice('当前模型不支持图片输入，请先切换到多模态模型');
+      return;
+    }
+
     _inputController.clear();
-    widget.viewModel.sendChatMessage(text);
+    setState(() => _pendingAttachments.clear());
+    widget.viewModel.sendChatMessage(
+      text,
+      images: attachments.isEmpty
+          ? null
+          : [for (final a in attachments) a.image],
+    );
     widget.onSent?.call();
+  }
+
+  /// 当前激活模型是否支持图片输入
+  bool _isActiveModelMultimodal() =>
+      widget.viewModel.config.activeLlmProvider.activeModel.isMultimodal;
+
+  void _showNotice(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message, style: const TextStyle(fontSize: 12.5)),
+          backgroundColor: AppTheme.charcoal,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
+  // ------------------ 图片附件 (粘贴 / 选择文件) ------------------
+
+  /// 焦点节点按键拦截：仅拦截 Ctrl+V，其余交给默认链路
+  KeyEventResult _handleInputNodeKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.keyV &&
+        HardwareKeyboard.instance.isControlPressed) {
+      _handlePaste();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// 粘贴：剪贴板有文本时按默认行为插入光标处；
+  /// 无文本时读取剪贴板图片并加入待发送附件 (截图/网页图片直接 Ctrl+V)
+  Future<void> _handlePaste() async {
+    final textData = await Clipboard.getData('text/plain');
+    final text = textData?.text;
+    if (text != null && text.isNotEmpty) {
+      final value = _inputController.value;
+      final sel = value.selection;
+      String newText;
+      int cursor;
+      if (sel.isValid && !sel.isCollapsed) {
+        newText = value.text.replaceRange(sel.start, sel.end, text);
+        cursor = sel.start + text.length;
+      } else {
+        final offset = sel.isValid ? sel.baseOffset : value.text.length;
+        newText = value.text.replaceRange(offset, offset, text);
+        cursor = offset + text.length;
+      }
+      _inputController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: cursor),
+      );
+      return;
+    }
+
+    final imageBytes = await Pasteboard.image;
+    if (imageBytes == null || imageBytes.isEmpty) return;
+    await _addImageAttachment(imageBytes);
+  }
+
+  /// 📎 按钮选择本地图片文件
+  Future<void> _pickImageFiles() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: true,
+      withData: true,
+    );
+    if (result == null) return;
+    for (final file in result.files) {
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) continue;
+      await _addImageAttachment(bytes);
+    }
+  }
+
+  /// 归一化并加入待发送附件；超上限或解码失败时提示
+  Future<void> _addImageAttachment(Uint8List rawBytes) async {
+    if (_pendingAttachments.length >= kMaxChatImageAttachments) {
+      _showNotice('一次最多附带 $kMaxChatImageAttachments 张图片');
+      return;
+    }
+
+    setState(() => _processingImage = true);
+    final image = await processImageAttachment(rawBytes);
+    if (!mounted) return;
+    setState(() => _processingImage = false);
+
+    if (image == null) {
+      _showNotice('图片解析失败，请换一张图片重试');
+      return;
+    }
+    setState(() {
+      _pendingAttachments.add(
+        _PendingAttachment(bytes: base64Decode(image.base64), image: image),
+      );
+    });
+    if (!_isActiveModelMultimodal()) {
+      _showNotice('当前模型不支持图片输入，发送前请切换到多模态模型');
+    }
+  }
+
+  /// 待发送附件缩略图栏 (输入框上方，有附件或处理中才显示)
+  Widget _buildAttachmentPreview() {
+    if (_pendingAttachments.isEmpty && !_processingImage) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SizedBox(
+        height: 72,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            for (final attachment in _pendingAttachments)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: ChatImageThumbnail(
+                  bytes: attachment.bytes,
+                  onRemove: () {
+                    setState(() => _pendingAttachments.remove(attachment));
+                  },
+                ),
+              ),
+            if (_processingImage)
+              const SizedBox(
+                width: 64,
+                height: 64,
+                child: Center(
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ------------------ 斜杠指令自动补全 ------------------
@@ -233,6 +410,9 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
             overlayChildBuilder: _buildSlashOverlay,
           ),
 
+          // 待发送图片附件缩略图栏 (粘贴/选择文件后显示)
+          _buildAttachmentPreview(),
+
           // 2. 消息输入框与发送按钮 (IntrinsicHeight + stretch 像素级高度对齐)
           IntrinsicHeight(
             child: Row(
@@ -297,6 +477,28 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                               ),
                             ),
                           ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // 📎 选择本地图片文件 (多模态参考图)
+                AspectRatio(
+                  aspectRatio: 1.0,
+                  child: Material(
+                    color: AppTheme.pureWhite,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                    child: InkWell(
+                      onTap: _pickImageFiles,
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusButton,
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.attach_file_rounded,
+                          size: 17,
+                          color: AppTheme.textSecondary,
                         ),
                       ),
                     ),

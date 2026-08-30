@@ -1,10 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Uint8List;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../../../core/harness/types.dart';
 import '../../../core/theme/app_theme.dart';
 import 'agent_chat_blocks.dart';
+import 'chat_image_attachment.dart';
 
 /// 单条对话消息的 Pi 风格平铺渲染入口
 /// (system 隐藏 / user 纯文本 / assistant Markdown / tool 结果块)
@@ -38,7 +40,7 @@ class AgentChatMessageItem extends StatelessWidget {
   }
 }
 
-/// 用户消息: 平铺无气泡，› 前缀 + 纯文本 (与 Pi TUI 一致)
+/// 用户消息: 平铺无气泡，› 前缀 + 纯文本 (与 Pi TUI 一致) + 图片附件缩略图
 class UserMessageRow extends StatelessWidget {
   final AgentMessage message;
 
@@ -46,32 +48,53 @@ class UserMessageRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final images = message.images;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 2),
-            child: Icon(
-              Icons.keyboard_arrow_right,
-              size: 16,
-              color: AppTheme.notionBlue,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(
+                  Icons.keyboard_arrow_right,
+                  size: 16,
+                  color: AppTheme.notionBlue,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: SelectableText(
+                  message.content,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textPrimary,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: SelectableText(
-              message.content,
-              style: const TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w500,
-                color: AppTheme.textPrimary,
-                height: 1.5,
+          if (images.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final img in images)
+                    ChatImageThumbnail(
+                      bytes: Uint8List.fromList(base64Decode(img.base64)),
+                      size: 72,
+                    ),
+                ],
               ),
             ),
-          ),
         ],
       ),
     );
@@ -206,69 +229,55 @@ class ToolResultBlock extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(left: BorderSide(color: AppTheme.border, width: 2)),
       ),
-      child: CollapsibleTile(
-        margin: EdgeInsets.zero,
-        header: Row(
-          children: [
-            Icon(
-              message.isError
-                  ? Icons.error_outline
-                  : Icons.check_circle_outline,
-              size: 14,
-              color: accent,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              message.toolName ?? 'tool',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'monospace',
-                color: accent,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                '$lineCount 行 · $firstLine',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontFamily: 'monospace',
-                  color: AppTheme.textMuted,
-                ),
-              ),
-            ),
-          ],
-        ),
-        body: Container(
-          width: double.infinity,
-          constraints: const BoxConstraints(maxHeight: 320),
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppTheme.paperWarmth,
-            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CollapsibleTile(
+            margin: EdgeInsets.zero,
+            header: Row(
               children: [
-                // 工具结果附带的图片 (如查看画板图片工具)
-                if (message.imageBase64 != null &&
-                    message.imageBase64!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                      child: Image.memory(
-                        base64Decode(message.imageBase64!),
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
+                Icon(
+                  message.isError
+                      ? Icons.error_outline
+                      : Icons.check_circle_outline,
+                  size: 14,
+                  color: accent,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  message.toolName ?? 'tool',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '$lineCount 行 · $firstLine',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontFamily: 'monospace',
+                      color: AppTheme.textMuted,
                     ),
                   ),
-                SelectableText(
+                ),
+              ],
+            ),
+            body: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxHeight: 320),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.paperWarmth,
+                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+              ),
+              child: SingleChildScrollView(
+                child: SelectableText(
                   message.content,
                   style: const TextStyle(
                     fontSize: 12,
@@ -277,10 +286,26 @@ class ToolResultBlock extends StatelessWidget {
                     height: 1.45,
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+          // 工具结果附带的图片 (如查看画板图片工具) 不藏在折叠块里，
+          // 单独平铺在工具结果下方，收起时也直接可见
+          if (message.imageBase64 != null && message.imageBase64!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 2),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                child: Image.memory(
+                  base64Decode(message.imageBase64!),
+                  width: double.infinity,
+                  fit: BoxFit.contain,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
