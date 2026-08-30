@@ -15,6 +15,7 @@ import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/session_log_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
+import 'param_snapshot_journal.dart';
 
 class StudioViewModel extends ChangeNotifier {
   final ConfigService _configService;
@@ -26,6 +27,9 @@ class StudioViewModel extends ChangeNotifier {
 
   /// 本会话内各模型 (provider/model) 的累计 Token 用量 (悬停模型选择器时展示)
   Map<String, TokenUsage> _sessionModelUsage = {};
+
+  /// 工作台参数时间轴快照账本 (回溯历史时刻时一并回滚生图参数)
+  final ParamSnapshotJournal _paramJournal = ParamSnapshotJournal();
 
   /// 已保存的会话列表
   List<SessionInfo> _sessions = [];
@@ -158,6 +162,9 @@ class StudioViewModel extends ChangeNotifier {
       suffixPrompt: _config.suffixPrompt,
       applyFixedPrompts: applyFixed,
     );
+
+    // 参数时间轴基线：后续每轮对话发出前再各记一次快照，供回溯时回滚
+    _paramJournal.reset(_params);
 
     // 设置初始预设
     _harness.setPreset(_config.activePreset);
@@ -664,8 +671,7 @@ class StudioViewModel extends ChangeNotifier {
                 } else {
                   _hasUnseenLatest = true;
                 }
-                _statusMessage =
-                    '生图完成，已保存在 ${newImage.localFilePath ?? '本地'}';
+                _statusMessage = '生图完成，已保存在 ${newImage.localFilePath ?? '本地'}';
               }
               _livePreviewBytes = null;
               _liveProgress = 1.0;
@@ -826,6 +832,8 @@ class StudioViewModel extends ChangeNotifier {
       _harness.setMessages([]);
       _sessionModelUsage = {};
     }
+    // 新时间线：以当前工作台参数为基线重新起算
+    _paramJournal.reset(_params);
     await refreshSessions();
     notifyListeners();
   }
@@ -838,6 +846,7 @@ class StudioViewModel extends ChangeNotifier {
     await _sessionLog.createSession(title: title);
     _harness.setMessages([]);
     _sessionModelUsage = {};
+    _paramJournal.reset(_params);
     _statusMessage = '已创建新会话';
     await refreshSessions();
     notifyListeners();
@@ -868,27 +877,53 @@ class StudioViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 从剩余消息中重新聚合本会话各模型用量 (回溯/清空后调用)
+  void _recomputeSessionUsage() {
+    final updatedUsage = <String, TokenUsage>{};
+    for (final msg in _harness.messages) {
+      if (msg.role == AgentRole.assistant &&
+          msg.providerModelKey != null &&
+          (msg.usage?.total ?? 0) > 0) {
+        final key = msg.providerModelKey!;
+        updatedUsage[key] = (updatedUsage[key] ?? const TokenUsage()).add(
+          msg.usage!,
+        );
+      }
+    }
+    _sessionModelUsage = updatedUsage;
+  }
+
   /// 回退/撤销到指定历史消息时刻 (按两次 ESC 触发选择)
   Future<void> rewindToMessage(String messageId) async {
     if (_isChatStreaming) {
       await abortChat();
     }
+
+    // 截断前先取目标时刻，用于回滚工作台参数
+    DateTime? targetTime;
+    for (final msg in _harness.messages) {
+      if (msg.id == messageId) {
+        targetTime = msg.createdAt;
+        break;
+      }
+    }
+
     final success = _harness.rewindToMessage(messageId);
     if (success) {
-      // 重新聚合本会话各模型剩余用量
-      final updatedUsage = <String, TokenUsage>{};
-      for (final msg in _harness.messages) {
-        if (msg.role == AgentRole.assistant &&
-            msg.providerModelKey != null &&
-            (msg.usage?.total ?? 0) > 0) {
-          final key = msg.providerModelKey!;
-          updatedUsage[key] = (updatedUsage[key] ?? const TokenUsage()).add(
-            msg.usage!,
-          );
-        }
+      // 将工作台参数一并回滚到目标时刻之前最近的状态
+      var paramsRewound = false;
+      final restored = targetTime == null
+          ? null
+          : _paramJournal.stateAt(targetTime);
+      if (restored != null) {
+        _paramJournal.truncateAfter(targetTime!);
+        updateParams(restored);
+        paramsRewound = true;
       }
-      _sessionModelUsage = updatedUsage;
-      _statusMessage = '已回到历史时刻，后续对话与修改已撤回';
+      _recomputeSessionUsage();
+      _statusMessage = paramsRewound
+          ? '已回到历史时刻，后续对话与参数修改已撤回'
+          : '已回到历史时刻，后续对话与修改已撤回';
       await refreshSessions();
       notifyListeners();
     }
@@ -905,11 +940,12 @@ class StudioViewModel extends ChangeNotifier {
       return;
     }
 
-    // 2. 正常 Agent 对话循环
+    // 2. 正常 Agent 对话循环 (发出前记录参数快照，供回溯时回滚)
     _isChatStreaming = true;
     _currentStreamingThoughts = '';
     _currentStreamingContent = '';
     _errorMessage = null;
+    _paramJournal.record(_params);
     notifyListeners();
 
     final completer = Completer<void>();
@@ -980,20 +1016,9 @@ class StudioViewModel extends ChangeNotifier {
         break;
 
       case '/params':
-        final costStatus = _params.isOpusFree
-            ? '符合 Opus 免费区间 (0 Anlas)'
-            : '超出免费区间 (将消耗点数)';
-        _harness.addInfoMessage('''工作台当前生图参数：
-• 正向提示词: ${_params.prompt.isEmpty ? '(空)' : _params.prompt}
-• 负向提示词: ${_params.negativePrompt.isEmpty ? '(空)' : _params.negativePrompt}
-• 绘图模型: ${_params.model.label} (${_params.model.id})
-• 画面尺寸: ${_params.width}x${_params.height}
-• 采样步数: ${_params.steps} 步
-• CFG 强度: ${_params.scale} (Rescale: ${_params.cfgRescale})
-• 采样算法: ${_params.sampler.label} (${_params.sampler.id})
-• 噪声调度: ${_params.noiseSchedule.label} (${_params.noiseSchedule.id})
-• 随机种子: ${_params.seed == -1 ? '随机 (-1)' : _params.seed}
-• Opus 状态: $costStatus''');
+        _harness.addInfoMessage(
+          buildStudioParamsReport(_params, title: '工作台当前生图参数：'),
+        );
         notifyListeners();
         break;
 
@@ -1037,6 +1062,7 @@ class StudioViewModel extends ChangeNotifier {
       case '/clear':
         _harness.clearMessages();
         _sessionModelUsage = {};
+        _paramJournal.reset(_params);
         await refreshSessions();
         notifyListeners();
         break;

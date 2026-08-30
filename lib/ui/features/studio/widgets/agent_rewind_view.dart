@@ -1,23 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../core/harness/types.dart';
 import '../../../core/theme/app_theme.dart';
+import '../view_models/chat_checkpoints.dart';
 import '../view_models/studio_view_model.dart';
-
-/// 对话轮次时刻模型 (由一次 User 提问以及随后的 Assistant/Tool 回复构成)
-class _ChatCheckpoint {
-  final int index;
-  final AgentMessage userMessage;
-  final AgentMessage? assistantMessage;
-  final List<AgentMessage> toolMessages;
-
-  const _ChatCheckpoint({
-    required this.index,
-    required this.userMessage,
-    this.assistantMessage,
-    this.toolMessages = const [],
-  });
-}
 
 /// 全屏覆盖 Agent Card 的历史时刻回溯视图 (按两次 ESC 调出，参考 Pi 的对话时刻回溯)
 class AgentRewindView extends StatefulWidget {
@@ -52,52 +37,8 @@ class _AgentRewindViewState extends State<AgentRewindView> {
     super.dispose();
   }
 
-  List<_ChatCheckpoint> _extractCheckpoints() {
-    final messages = widget.viewModel.messages;
-    final checkpoints = <_ChatCheckpoint>[];
-
-    AgentMessage? currentUser;
-    AgentMessage? currentAssistant;
-    final currentTools = <AgentMessage>[];
-    int turnCount = 0;
-
-    for (final msg in messages) {
-      if (msg.role == AgentRole.user) {
-        if (currentUser != null) {
-          turnCount++;
-          checkpoints.add(
-            _ChatCheckpoint(
-              index: turnCount,
-              userMessage: currentUser,
-              assistantMessage: currentAssistant,
-              toolMessages: List.of(currentTools),
-            ),
-          );
-          currentAssistant = null;
-          currentTools.clear();
-        }
-        currentUser = msg;
-      } else if (msg.role == AgentRole.assistant) {
-        currentAssistant = msg;
-      } else if (msg.role == AgentRole.tool) {
-        currentTools.add(msg);
-      }
-    }
-
-    if (currentUser != null) {
-      turnCount++;
-      checkpoints.add(
-        _ChatCheckpoint(
-          index: turnCount,
-          userMessage: currentUser,
-          assistantMessage: currentAssistant,
-          toolMessages: List.of(currentTools),
-        ),
-      );
-    }
-
-    return checkpoints;
-  }
+  List<ChatCheckpoint> _extractCheckpoints() =>
+      extractChatCheckpoints(widget.viewModel.messages);
 
   String _formatTime(DateTime? dt) {
     if (dt == null) return '';
@@ -105,7 +46,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
     return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
   }
 
-  void _confirmRewind(List<_ChatCheckpoint> checkpoints) {
+  void _confirmRewind(List<ChatCheckpoint> checkpoints) {
     if (_selectedCheckpointIndex == null ||
         _selectedCheckpointIndex! < 0 ||
         _selectedCheckpointIndex! >= checkpoints.length) {
@@ -169,7 +110,10 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                   ),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.stone.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(AppTheme.radiusPill),
@@ -233,17 +177,24 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                           const SizedBox(height: 8),
                           const Text(
                             '当前会话暂无历史对话轮次可回溯',
-                            style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textMuted,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
                             icon: const Icon(Icons.arrow_back, size: 14),
-                            label: const Text('返回对话', style: TextStyle(fontSize: 12)),
+                            label: const Text(
+                              '返回对话',
+                              style: TextStyle(fontSize: 12),
+                            ),
                             style: OutlinedButton.styleFrom(
                               visualDensity: VisualDensity.compact,
                               shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppTheme.radiusButton),
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.radiusButton,
+                                ),
                               ),
                             ),
                             onPressed: widget.onBack,
@@ -254,26 +205,32 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
                       itemCount: checkpoints.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 6),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 6),
                       itemBuilder: (context, index) {
                         final cp = checkpoints[index];
                         final isSelected = _selectedCheckpointIndex == index;
                         final isLastTurn = index == checkpoints.length - 1;
 
                         return InkWell(
-                          onTap: () => setState(() => _selectedCheckpointIndex = index),
+                          onTap: () =>
+                              setState(() => _selectedCheckpointIndex = index),
                           onDoubleTap: () {
                             setState(() => _selectedCheckpointIndex = index);
                             _confirmRewind(checkpoints);
                           },
-                          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusCard,
+                          ),
                           child: Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? AppTheme.skyTint.withValues(alpha: 0.5)
                                   : AppTheme.pureWhite,
-                              borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusCard,
+                              ),
                               border: Border.all(
                                 color: isSelected
                                     ? AppTheme.notionBlue
@@ -294,7 +251,9 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                                       decoration: BoxDecoration(
                                         color: isSelected
                                             ? AppTheme.notionBlue
-                                            : AppTheme.stone.withValues(alpha: 0.15),
+                                            : AppTheme.stone.withValues(
+                                                alpha: 0.15,
+                                              ),
                                         borderRadius: BorderRadius.circular(
                                           AppTheme.radiusPill,
                                         ),
@@ -363,7 +322,10 @@ class _AgentRewindViewState extends State<AgentRewindView> {
 
                                 // 助手回复摘要
                                 if (cp.assistantMessage != null &&
-                                    cp.assistantMessage!.content.isNotEmpty) ...[
+                                    cp
+                                        .assistantMessage!
+                                        .content
+                                        .isNotEmpty) ...[
                                   const SizedBox(height: 4),
                                   Text(
                                     cp.assistantMessage!.content,
@@ -389,8 +351,12 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: AppTheme.paperWarmth,
-                                          borderRadius: BorderRadius.circular(3),
-                                          border: Border.all(color: AppTheme.border),
+                                          borderRadius: BorderRadius.circular(
+                                            3,
+                                          ),
+                                          border: Border.all(
+                                            color: AppTheme.border,
+                                          ),
                                         ),
                                         child: Text(
                                           t.toolName ?? 'tool',
@@ -435,10 +401,15 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                   ),
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       visualDensity: VisualDensity.compact,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusButton,
+                        ),
                       ),
                     ),
                     onPressed: widget.onBack,
@@ -449,10 +420,15 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.notionBlue,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       visualDensity: VisualDensity.compact,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusButton,
+                        ),
                       ),
                     ),
                     onPressed: _selectedCheckpointIndex != null

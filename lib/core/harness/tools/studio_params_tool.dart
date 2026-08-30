@@ -12,48 +12,71 @@ typedef CurrentParamsGetter = NaiGenerationParams Function();
 /// 回调类型：检查参数是否允许修改
 typedef ParamPermissionChecker = bool Function(String paramKey);
 
+/// 构建工作台全部生图参数的可读报表 (get_studio_parameters 工具与 /params 指令共用)
+String buildStudioParamsReport(
+  NaiGenerationParams params, {
+  String title = '工作台全部生图参数：',
+}) {
+  final costStatus = params.isOpusFree
+      ? '符合 Opus 免费区间 (0 Anlas)'
+      : '超出免费区间 (将消耗点数)';
+  final lines = <String>[
+    '• 正向提示词: ${params.prompt.isEmpty ? '(空)' : params.prompt}',
+    '• 负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
+    '• 绘图模型: ${params.model.label} (${params.model.id})',
+    '• 画面尺寸: ${params.width}x${params.height}',
+    '• 采样步数: ${params.steps} 步',
+    '• CFG 强度: ${params.scale} (Rescale: ${params.cfgRescale})',
+    '• 采样算法: ${params.sampler.label} (${params.sampler.id})',
+    '• 噪声调度: ${params.noiseSchedule.label} (${params.noiseSchedule.id})',
+    '• 质量标签: ${params.qualityPreset}',
+    '• 随机种子: ${params.seed == -1 ? '随机 (-1)' : params.seed}',
+    '• Opus 状态: $costStatus',
+  ];
+  return '$title\n${lines.join('\n')}';
+}
+
 /// 工作台当前生图参数读取工具 (按需查询指定参数或查看全部)
 class NovelAiGetStudioParamsTool extends AgentTool {
   final CurrentParamsGetter getCurrentParams;
 
-  NovelAiGetStudioParamsTool({
-    required this.getCurrentParams,
-  }) : super(
-          name: 'get_studio_parameters',
-          label: '读取参数',
-          description:
-              '按需读取工作台当前生效的生图参数。可传入 keys 参数指定要查看的一个或多个参数字段；未指定 keys 或包含 "all" 时返回全部参数。',
-          parameters: const {
-            'type': 'object',
-            'properties': {
-              'keys': {
-                'type': 'array',
-                'items': {
-                  'type': 'string',
-                  'enum': [
-                    'prompt',
-                    'negative_prompt',
-                    'model',
-                    'resolution',
-                    'width',
-                    'height',
-                    'steps',
-                    'scale',
-                    'cfg_rescale',
-                    'sampler',
-                    'noise_schedule',
-                    'quality_preset',
-                    'seed',
-                    'opus_free_status',
-                    'all'
-                  ],
-                },
-                'description':
-                    '要查询的参数键名列表（支持多选，如 ["prompt", "steps"]；留空或包含 "all" 则返回全部）',
+  NovelAiGetStudioParamsTool({required this.getCurrentParams})
+    : super(
+        name: 'get_studio_parameters',
+        label: '读取参数',
+        description:
+            '按需读取工作台当前生效的生图参数。可传入 keys 参数指定要查看的一个或多个参数字段；未指定 keys 或包含 "all" 时返回全部参数。',
+        parameters: const {
+          'type': 'object',
+          'properties': {
+            'keys': {
+              'type': 'array',
+              'items': {
+                'type': 'string',
+                'enum': [
+                  'prompt',
+                  'negative_prompt',
+                  'model',
+                  'resolution',
+                  'width',
+                  'height',
+                  'steps',
+                  'scale',
+                  'cfg_rescale',
+                  'sampler',
+                  'noise_schedule',
+                  'quality_preset',
+                  'seed',
+                  'opus_free_status',
+                  'all',
+                ],
               },
+              'description':
+                  '要查询的参数键名列表（支持多选，如 ["prompt", "steps"]；留空或包含 "all" 则返回全部）',
             },
           },
-        );
+        },
+      );
 
   @override
   Future<ToolResult> execute(
@@ -64,23 +87,34 @@ class NovelAiGetStudioParamsTool extends AgentTool {
     final rawKeys = args['keys'];
     List<String> requestedKeys = [];
     if (rawKeys is List) {
-      requestedKeys =
-          rawKeys.map((e) => e.toString().toLowerCase().trim()).toList();
+      requestedKeys = rawKeys
+          .map((e) => e.toString().toLowerCase().trim())
+          .toList();
     }
 
     final queryAll = requestedKeys.isEmpty || requestedKeys.contains('all');
+
+    if (queryAll) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: buildStudioParamsReport(params),
+      );
+    }
+
     final lines = <String>[];
 
-    if (queryAll || requestedKeys.contains('prompt')) {
+    if (requestedKeys.contains('prompt')) {
       lines.add('• 正向提示词: ${params.prompt.isEmpty ? '(空)' : params.prompt}');
     }
-    if (queryAll || requestedKeys.contains('negative_prompt')) {
-      lines.add('• 负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}');
+    if (requestedKeys.contains('negative_prompt')) {
+      lines.add(
+        '• 负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
+      );
     }
-    if (queryAll || requestedKeys.contains('model')) {
+    if (requestedKeys.contains('model')) {
       lines.add('• 绘图模型: ${params.model.label} (${params.model.id})');
     }
-    if (queryAll || requestedKeys.contains('resolution')) {
+    if (requestedKeys.contains('resolution')) {
       lines.add('• 画面尺寸: ${params.width}x${params.height}');
     } else {
       if (requestedKeys.contains('width')) {
@@ -90,28 +124,30 @@ class NovelAiGetStudioParamsTool extends AgentTool {
         lines.add('• 高度: ${params.height}');
       }
     }
-    if (queryAll || requestedKeys.contains('steps')) {
+    if (requestedKeys.contains('steps')) {
       lines.add('• 采样步数: ${params.steps} 步');
     }
-    if (queryAll || requestedKeys.contains('scale')) {
+    if (requestedKeys.contains('scale')) {
       lines.add('• CFG 强度: ${params.scale}');
     }
-    if (queryAll || requestedKeys.contains('cfg_rescale')) {
+    if (requestedKeys.contains('cfg_rescale')) {
       lines.add('• CFG Rescale: ${params.cfgRescale}');
     }
-    if (queryAll || requestedKeys.contains('sampler')) {
+    if (requestedKeys.contains('sampler')) {
       lines.add('• 采样算法: ${params.sampler.label} (${params.sampler.id})');
     }
-    if (queryAll || requestedKeys.contains('noise_schedule')) {
-      lines.add('• 噪声调度: ${params.noiseSchedule.label} (${params.noiseSchedule.id})');
+    if (requestedKeys.contains('noise_schedule')) {
+      lines.add(
+        '• 噪声调度: ${params.noiseSchedule.label} (${params.noiseSchedule.id})',
+      );
     }
-    if (queryAll || requestedKeys.contains('quality_preset')) {
+    if (requestedKeys.contains('quality_preset')) {
       lines.add('• 质量标签: ${params.qualityPreset}');
     }
-    if (queryAll || requestedKeys.contains('seed')) {
+    if (requestedKeys.contains('seed')) {
       lines.add('• 随机种子: ${params.seed == -1 ? '随机 (-1)' : params.seed}');
     }
-    if (queryAll || requestedKeys.contains('opus_free_status')) {
+    if (requestedKeys.contains('opus_free_status')) {
       final costStatus = params.isOpusFree
           ? '符合 Opus 免费区间 (0 Anlas)'
           : '超出免费区间 (将消耗点数)';
@@ -127,13 +163,9 @@ class NovelAiGetStudioParamsTool extends AgentTool {
       );
     }
 
-    final buf = StringBuffer();
-    buf.writeln(queryAll ? '工作台全部生图参数：' : '工作台查询参数：');
-    buf.write(lines.join('\n'));
-
     return ToolResult(
       toolCallId: toolCallId,
-      content: buf.toString().trim(),
+      content: '工作台查询参数：\n${lines.join('\n')}',
     );
   }
 }
@@ -149,93 +181,92 @@ class NovelAiUpdateParamsTool extends AgentTool {
     required this.onUpdateParams,
     this.permissionChecker,
   }) : super(
-          name: 'update_studio_parameters',
-          label: '修改参数',
-          description:
-              '按需修改工作台的生图参数。只需传入需要修改的一个或多个字段（如 prompt、steps、scale 等），未传入的字段将保持原设置不变。修改后会实时同步更新 UI 界面。',
-          parameters: {
-            'type': 'object',
-            'properties': {
-              'prompt': {
-                'type': 'string',
-                'description': '正向提示词描述',
-              },
-              'negative_prompt': {
-                'type': 'string',
-                'description': '负向提示词 (排除的内容)',
-              },
-              'model': {
-                'type': 'string',
-                'enum': [
-                  'nai-diffusion-5-full',
-                  'nai-diffusion-5-curated',
-                  'nai-diffusion-4-5-full',
-                  'nai-diffusion-4-5-curated',
-                  'nai-diffusion-4-full',
-                  'nai-diffusion-3'
-                ],
-                'description': '生图模型 ID',
-              },
-              'resolution_preset': {
-                'type': 'string',
-                'enum': [
-                  'portrait',
-                  'landscape',
-                  'square',
-                  'wallpaper',
-                  'portrait_large',
-                  'landscape_large'
-                ],
-                'description':
-                    '分辨率预设：portrait(832x1216), landscape(1216x832), square(1024x1024), wallpaper(1920x1088)',
-              },
-              'width': {
-                'type': 'integer',
-                'description': '自定义宽度 (自动64对齐，如 832, 1024, 1216)',
-              },
-              'height': {
-                'type': 'integer',
-                'description': '自定义高度 (自动64对齐，如 1216, 832, 1024)',
-              },
-              'steps': {
-                'type': 'integer',
-                'description': '采样步数 (1~50，Opus 免费生图上限为 28)',
-              },
-              'scale': {
-                'type': 'number',
-                'description': 'CFG 提示词引导强度 (1.0~20.0，默认5.0)',
-              },
-              'cfg_rescale': {
-                'type': 'number',
-                'description': 'CFG Rescale 抗过曝修正 (0.0~1.0)',
-              },
-              'sampler': {
-                'type': 'string',
-                'enum': [
-                  'k_euler',
-                  'k_euler_ancestral',
-                  'k_dpmpp_2m',
-                  'k_dpmpp_sde'
-                ],
-                'description': '采样算法',
-              },
-              'noise_schedule': {
-                'type': 'string',
-                'enum': ['karras', 'exponential', 'polyexponential', 'native'],
-                'description': '噪声调度算法',
-              },
-              'quality_preset': {
-                'type': 'string',
-                'enum': ['Standard', 'Heavy', 'Light', 'Off'],
-                'description': '官方质量标签词缀预设',
-              },
-            },
-          },
-        );
+         name: 'update_studio_parameters',
+         label: '修改参数',
+         description:
+             '按需修改工作台的生图参数。只需传入需要修改的一个或多个字段（如 prompt、steps、scale 等），未传入的字段将保持原设置不变。修改后会实时同步更新 UI 界面。',
+         parameters: {
+           'type': 'object',
+           'properties': {
+             'prompt': {'type': 'string', 'description': '正向提示词描述'},
+             'negative_prompt': {
+               'type': 'string',
+               'description': '负向提示词 (排除的内容)',
+             },
+             'model': {
+               'type': 'string',
+               'enum': [
+                 'nai-diffusion-5-full',
+                 'nai-diffusion-5-curated',
+                 'nai-diffusion-4-5-full',
+                 'nai-diffusion-4-5-curated',
+                 'nai-diffusion-4-full',
+                 'nai-diffusion-3',
+               ],
+               'description': '生图模型 ID',
+             },
+             'resolution_preset': {
+               'type': 'string',
+               'enum': [
+                 'portrait',
+                 'landscape',
+                 'square',
+                 'wallpaper',
+                 'portrait_large',
+                 'landscape_large',
+               ],
+               'description':
+                   '分辨率预设：portrait(832x1216), landscape(1216x832), square(1024x1024), wallpaper(1920x1088)',
+             },
+             'width': {
+               'type': 'integer',
+               'description': '自定义宽度 (自动64对齐，如 832, 1024, 1216)',
+             },
+             'height': {
+               'type': 'integer',
+               'description': '自定义高度 (自动64对齐，如 1216, 832, 1024)',
+             },
+             'steps': {
+               'type': 'integer',
+               'description': '采样步数 (1~50，Opus 免费生图上限为 28)',
+             },
+             'scale': {
+               'type': 'number',
+               'description': 'CFG 提示词引导强度 (1.0~20.0，默认5.0)',
+             },
+             'cfg_rescale': {
+               'type': 'number',
+               'description': 'CFG Rescale 抗过曝修正 (0.0~1.0)',
+             },
+             'sampler': {
+               'type': 'string',
+               'enum': [
+                 'k_euler',
+                 'k_euler_ancestral',
+                 'k_dpmpp_2m',
+                 'k_dpmpp_sde',
+               ],
+               'description': '采样算法',
+             },
+             'noise_schedule': {
+               'type': 'string',
+               'enum': ['karras', 'exponential', 'polyexponential', 'native'],
+               'description': '噪声调度算法',
+             },
+             'quality_preset': {
+               'type': 'string',
+               'enum': ['Standard', 'Heavy', 'Light', 'Off'],
+               'description': '官方质量标签词缀预设',
+             },
+           },
+         },
+       );
 
   @override
   Future<ToolResult> execute(
-      String toolCallId, Map<String, dynamic> args) async {
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
     final current = getCurrentParams();
     final updatedEntries = <String>[];
     final blockedEntries = <String>[];
@@ -415,10 +446,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
           isError: true,
         );
       }
-      return ToolResult(
-        toolCallId: toolCallId,
-        content: '未修改任何参数（传入参数为空）。',
-      );
+      return ToolResult(toolCallId: toolCallId, content: '未修改任何参数（传入参数为空）。');
     }
 
     // 构建新参数并触发 UI 更新
