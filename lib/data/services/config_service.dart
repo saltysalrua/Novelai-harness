@@ -193,8 +193,7 @@ class ConfigService {
       'novelai_enable_tag_dictionary_auto_update';
   static const String _keyEnableImagePersistence =
       'novelai_enable_image_persistence';
-  static const String _keyMaxPersistentImages =
-      'novelai_max_persistent_images';
+  static const String _keyMaxPersistentImages = 'novelai_max_persistent_images';
   static const String _keyPrefix = 'novelai_prefix';
   static const String _keySuffix = 'novelai_suffix';
   static const String _keyNegative = 'novelai_negative';
@@ -207,11 +206,14 @@ class ConfigService {
   // 页面布局持久化 Keys
   static const String _keySplitLeftWidth = 'novelai_layout_split_left_width';
   static const String _keySplitRightWidth = 'novelai_layout_split_right_width';
-  static const String _keySidebarActiveTab = 'novelai_layout_sidebar_active_tab';
-  static const String _keyPromptTabbedMode = 'novelai_layout_prompt_tabbed_mode';
+  static const String _keySidebarActiveTab =
+      'novelai_layout_sidebar_active_tab';
+  static const String _keyPromptTabbedMode =
+      'novelai_layout_prompt_tabbed_mode';
   static const String _keyPromptActiveTab = 'novelai_layout_prompt_active_tab';
   static const String _keyDeckActiveTab = 'novelai_layout_deck_active_tab';
-  static const String _keyCanvasHistoryOpen = 'novelai_layout_canvas_history_open';
+  static const String _keyCanvasHistoryOpen =
+      'novelai_layout_canvas_history_open';
 
   static const String _keyLlmBaseUrl = 'llm_base_url';
   static const String _keyLlmApiKey = 'llm_api_key';
@@ -484,10 +486,7 @@ class ConfigService {
       _keyEnableImagePersistence,
       config.enableImagePersistence,
     );
-    await prefs.setInt(
-      _keyMaxPersistentImages,
-      config.maxPersistentImages,
-    );
+    await prefs.setInt(_keyMaxPersistentImages, config.maxPersistentImages);
     await prefs.setString(_keyPrefix, config.prefixPrompt);
     await prefs.setString(_keySuffix, config.suffixPrompt);
     await prefs.setString(_keyNegative, config.negativePrompt);
@@ -523,10 +522,7 @@ class ConfigService {
     await prefs.setString(_keyLlmBaseUrl, active.baseUrl);
     await prefs.setString(_keyLlmApiKey, active.apiKey);
     await prefs.setString(_keyLlmModel, active.activeModel.id);
-    await prefs.setDouble(
-      _keyLlmTemperature,
-      active.activeModel.temperature,
-    );
+    await prefs.setDouble(_keyLlmTemperature, active.activeModel.temperature);
   }
 
   /// 加载上次保存的草稿提示词
@@ -612,7 +608,9 @@ class ConfigService {
   }
 
   /// 加载侧边栏激活标签
-  Future<String> loadSidebarActiveTab({String defaultTab = 'parameters'}) async {
+  Future<String> loadSidebarActiveTab({
+    String defaultTab = 'parameters',
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keySidebarActiveTab) ?? defaultTab;
   }

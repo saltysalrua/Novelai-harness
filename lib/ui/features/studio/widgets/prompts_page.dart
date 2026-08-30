@@ -103,9 +103,7 @@ class _PromptsPageState extends State<PromptsPage> {
   void _applyUcPreset(String presetKey) {
     setState(() => _ucPreset = presetKey);
     final viewModel = widget.viewModel;
-    viewModel.updateParams(
-      viewModel.params.copyWith(ucPresetKey: presetKey),
-    );
+    viewModel.updateParams(viewModel.params.copyWith(ucPresetKey: presetKey));
   }
 
   /// 切换透明背景，并清理输入框中残留的 transparent / simple background 字样

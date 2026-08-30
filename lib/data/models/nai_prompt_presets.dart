@@ -35,7 +35,6 @@ class NovelAiQualityTagsHelper {
 
 /// NovelAI 官方负面排除词 (Undesired Content) 预设助手 (按模型映射官方最新标准)
 class NovelAiUndesiredContentHelper {
-
   /// V5 / V4.5 全系共用的 Furry Focus 负面词
   static const String _furryFocusUc =
       '{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic';
@@ -67,25 +66,19 @@ class NovelAiUndesiredContentHelper {
 
     return switch (model) {
       NaiModel.v5Full || NaiModel.v5Curated => switch (preset) {
-        'Heavy' =>
-          _heavyUcV5,
+        'Heavy' => _heavyUcV5,
         'Light' =>
           'lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::',
-        'Human Focus' =>
-          _humanFocusUcV5,
-        'Furry Focus' =>
-          _furryFocusUc,
+        'Human Focus' => _humanFocusUcV5,
+        'Furry Focus' => _furryFocusUc,
         _ => '',
       },
       NaiModel.v45Full => switch (preset) {
-        'Heavy' =>
-          _heavyUcV5,
+        'Heavy' => _heavyUcV5,
         'Light' =>
           'lowres, artistic error, scan artifacts, worst quality, bad quality, jpeg artifacts, multiple views, very displeasing, too many watermarks, negative space, blank page',
-        'Human Focus' =>
-          _humanFocusUcV5,
-        'Furry Focus' =>
-          _furryFocusUc,
+        'Human Focus' => _humanFocusUcV5,
+        'Furry Focus' => _furryFocusUc,
         _ => '',
       },
       NaiModel.v45Curated => switch (preset) {
@@ -104,8 +97,7 @@ class NovelAiUndesiredContentHelper {
           'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing',
         'Human Focus' =>
           'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, multiple views, logo, too many watermarks, bad anatomy, bad hands',
-        'Furry Focus' =>
-          _furryFocusUcV4,
+        'Furry Focus' => _furryFocusUcV4,
         _ => '',
       },
       NaiModel.v4Curated => switch (preset) {
@@ -115,8 +107,7 @@ class NovelAiUndesiredContentHelper {
           'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, logo, dated, signature',
         'Human Focus' =>
           'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views, gigantic breasts, bad anatomy, bad hands',
-        'Furry Focus' =>
-          _furryFocusUcV4,
+        'Furry Focus' => _furryFocusUcV4,
         _ => '',
       },
       NaiModel.v3 => switch (preset) {
@@ -126,19 +117,15 @@ class NovelAiUndesiredContentHelper {
           'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing',
         'Human Focus' =>
           'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes',
-        'Furry Focus' =>
-          _furryFocusUcV4,
+        'Furry Focus' => _furryFocusUcV4,
         _ => '',
       },
       NaiModel.v3Furry => switch (preset) {
-        'Heavy' =>
-          _furryFocusUcV4,
+        'Heavy' => _furryFocusUcV4,
         'Light' =>
           '{worst quality}, guide lines, unfinished, bad, url, tall image, widescreen, compression artifacts, unknown text',
-        'Human Focus' =>
-          _furryFocusUcV4,
-        'Furry Focus' =>
-          _furryFocusUcV4,
+        'Human Focus' => _furryFocusUcV4,
+        'Furry Focus' => _furryFocusUcV4,
         _ => '',
       },
     };

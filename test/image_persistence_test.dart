@@ -85,7 +85,10 @@ void main() {
       );
 
       final json = original.toJson();
-      final restored = NaiGeneratedImage.fromJson(json, bytes: Uint8List.fromList([1, 2, 3, 4]));
+      final restored = NaiGeneratedImage.fromJson(
+        json,
+        bytes: Uint8List.fromList([1, 2, 3, 4]),
+      );
 
       expect(restored.id, equals('img_123'));
       expect(restored.localFilePath, equals('/path/to/img.png'));
@@ -102,13 +105,16 @@ void main() {
       SharedPreferences.setMockInitialValues({});
     });
 
-    test('Default config has image persistence enabled and max 50 images', () async {
-      final configService = ConfigService();
-      final config = await configService.loadConfig();
+    test(
+      'Default config has image persistence enabled and max 50 images',
+      () async {
+        final configService = ConfigService();
+        final config = await configService.loadConfig();
 
-      expect(config.enableImagePersistence, isTrue);
-      expect(config.maxPersistentImages, equals(50));
-    });
+        expect(config.enableImagePersistence, isTrue);
+        expect(config.maxPersistentImages, equals(50));
+      },
+    );
 
     test('saveConfig and loadConfig correctly persist new values', () async {
       final configService = ConfigService();
@@ -139,87 +145,97 @@ void main() {
       }
     });
 
-    test('savePersistedHistory and loadPersistedHistory round-trip with file reading', () async {
-      final repo = NovelAiRepository();
-      const params = NaiGenerationParams(prompt: 'persisted test');
+    test(
+      'savePersistedHistory and loadPersistedHistory round-trip with file reading',
+      () async {
+        final repo = NovelAiRepository();
+        const params = NaiGenerationParams(prompt: 'persisted test');
 
-      final imgPath1 = p.join(tempDir.path, 'img1.png');
-      final imgPath2 = p.join(tempDir.path, 'img2.png');
-      File(imgPath1).writeAsBytesSync([10, 20, 30]);
-      File(imgPath2).writeAsBytesSync([40, 50, 60]);
+        final imgPath1 = p.join(tempDir.path, 'img1.png');
+        final imgPath2 = p.join(tempDir.path, 'img2.png');
+        File(imgPath1).writeAsBytesSync([10, 20, 30]);
+        File(imgPath2).writeAsBytesSync([40, 50, 60]);
 
-      final img1 = NaiGeneratedImage(
-        id: 'img1',
-        bytes: [10, 20, 30],
-        localFilePath: imgPath1,
-        params: params,
-        createdAt: DateTime.now(),
-        seed: 100,
-        isOpusFree: true,
-      );
-      final img2 = NaiGeneratedImage(
-        id: 'img2',
-        bytes: [40, 50, 60],
-        localFilePath: imgPath2,
-        params: params,
-        createdAt: DateTime.now(),
-        seed: 200,
-        isOpusFree: true,
-      );
+        final img1 = NaiGeneratedImage(
+          id: 'img1',
+          bytes: [10, 20, 30],
+          localFilePath: imgPath1,
+          params: params,
+          createdAt: DateTime.now(),
+          seed: 100,
+          isOpusFree: true,
+        );
+        final img2 = NaiGeneratedImage(
+          id: 'img2',
+          bytes: [40, 50, 60],
+          localFilePath: imgPath2,
+          params: params,
+          createdAt: DateTime.now(),
+          seed: 200,
+          isOpusFree: true,
+        );
 
-      final repo2 = NovelAiRepository();
-      await repo2.loadPersistedHistory(saveDir: tempDir.path);
-      expect(repo2.history.isEmpty, isTrue);
+        final repo2 = NovelAiRepository();
+        await repo2.loadPersistedHistory(saveDir: tempDir.path);
+        expect(repo2.history.isEmpty, isTrue);
 
-      final historyFile = File(p.join(tempDir.path, 'image_history.json'));
-      historyFile.writeAsStringSync(jsonEncode([img2.toJson(), img1.toJson()]));
+        final historyFile = File(p.join(tempDir.path, 'image_history.json'));
+        historyFile.writeAsStringSync(
+          jsonEncode([img2.toJson(), img1.toJson()]),
+        );
 
-      final loaded = await repo.loadPersistedHistory(
-        saveDir: tempDir.path,
-        maxImages: 50,
-      );
+        final loaded = await repo.loadPersistedHistory(
+          saveDir: tempDir.path,
+          maxImages: 50,
+        );
 
-      expect(loaded.length, equals(2));
-      expect(loaded[0].id, equals('img2'));
-      expect(loaded[0].bytes, equals([40, 50, 60]));
-      expect(loaded[1].id, equals('img1'));
-      expect(loaded[1].bytes, equals([10, 20, 30]));
-    });
+        expect(loaded.length, equals(2));
+        expect(loaded[0].id, equals('img2'));
+        expect(loaded[0].bytes, equals([40, 50, 60]));
+        expect(loaded[1].id, equals('img1'));
+        expect(loaded[1].bytes, equals([10, 20, 30]));
+      },
+    );
 
-    test('loadPersistedHistory skips missing local files without throwing', () async {
-      final repo = NovelAiRepository();
-      const params = NaiGenerationParams(prompt: 'persisted test');
+    test(
+      'loadPersistedHistory skips missing local files without throwing',
+      () async {
+        final repo = NovelAiRepository();
+        const params = NaiGenerationParams(prompt: 'persisted test');
 
-      final imgPathExist = p.join(tempDir.path, 'exist.png');
-      final imgPathMissing = p.join(tempDir.path, 'missing.png');
-      File(imgPathExist).writeAsBytesSync([10, 20, 30]);
+        final imgPathExist = p.join(tempDir.path, 'exist.png');
+        final imgPathMissing = p.join(tempDir.path, 'missing.png');
+        File(imgPathExist).writeAsBytesSync([10, 20, 30]);
 
-      final imgExist = NaiGeneratedImage(
-        id: 'img_exist',
-        bytes: [10, 20, 30],
-        localFilePath: imgPathExist,
-        params: params,
-        createdAt: DateTime.now(),
-        seed: 100,
-        isOpusFree: true,
-      );
-      final imgMissing = NaiGeneratedImage(
-        id: 'img_missing',
-        bytes: [0],
-        localFilePath: imgPathMissing,
-        params: params,
-        createdAt: DateTime.now(),
-        seed: 200,
-        isOpusFree: true,
-      );
+        final imgExist = NaiGeneratedImage(
+          id: 'img_exist',
+          bytes: [10, 20, 30],
+          localFilePath: imgPathExist,
+          params: params,
+          createdAt: DateTime.now(),
+          seed: 100,
+          isOpusFree: true,
+        );
+        final imgMissing = NaiGeneratedImage(
+          id: 'img_missing',
+          bytes: [0],
+          localFilePath: imgPathMissing,
+          params: params,
+          createdAt: DateTime.now(),
+          seed: 200,
+          isOpusFree: true,
+        );
 
-      final historyFile = File(p.join(tempDir.path, 'image_history.json'));
-      historyFile.writeAsStringSync(jsonEncode([imgExist.toJson(), imgMissing.toJson()]));
+        final historyFile = File(p.join(tempDir.path, 'image_history.json'));
+        historyFile.writeAsStringSync(
+          jsonEncode([imgExist.toJson(), imgMissing.toJson()]),
+        );
 
-      final loaded = await repo.loadPersistedHistory(saveDir: tempDir.path);
-      expect(loaded.length, equals(1));
-      expect(loaded.first.id, equals('img_exist'));
-    });
+        final loaded = await repo.loadPersistedHistory(saveDir: tempDir.path);
+        expect(loaded.length, equals(1));
+        expect(loaded.first.id, equals('img_exist'));
+      },
+    );
 
     test('savePersistedHistory trims history to maxImages limit', () async {
       final repo = NovelAiRepository();
@@ -245,7 +261,9 @@ void main() {
         );
       });
 
-      historyFile.writeAsStringSync(jsonEncode(images.map((img) => img.toJson()).toList()));
+      historyFile.writeAsStringSync(
+        jsonEncode(images.map((img) => img.toJson()).toList()),
+      );
       await repo.loadPersistedHistory(saveDir: tempDir.path, maxImages: 3);
 
       expect(repo.history.length, equals(3));
@@ -259,15 +277,18 @@ void main() {
       expect(savedJson.length, equals(2));
     });
 
-    test('clearHistory removes image_history.json file when saveDir provided', () {
-      final repo = NovelAiRepository();
-      final historyFile = File(p.join(tempDir.path, 'image_history.json'));
-      historyFile.writeAsStringSync('[]');
-      expect(historyFile.existsSync(), isTrue);
+    test(
+      'clearHistory removes image_history.json file when saveDir provided',
+      () {
+        final repo = NovelAiRepository();
+        final historyFile = File(p.join(tempDir.path, 'image_history.json'));
+        historyFile.writeAsStringSync('[]');
+        expect(historyFile.existsSync(), isTrue);
 
-      repo.clearHistory(saveDir: tempDir.path);
-      expect(historyFile.existsSync(), isFalse);
-    });
+        repo.clearHistory(saveDir: tempDir.path);
+        expect(historyFile.existsSync(), isFalse);
+      },
+    );
   });
 
   group('GeneralSettingsTab & SettingsDialog UI Tests', () {
@@ -275,12 +296,11 @@ void main() {
       SharedPreferences.setMockInitialValues({});
     });
 
-    testWidgets('GeneralSettingsTab renders persistence switch and dropdown', (tester) async {
+    testWidgets('GeneralSettingsTab renders persistence switch and dropdown', (
+      tester,
+    ) async {
       final draft = GeneralSettingsDraft(
-        const AppConfig(
-          enableImagePersistence: true,
-          maxPersistentImages: 50,
-        ),
+        const AppConfig(enableImagePersistence: true, maxPersistentImages: 50),
       );
 
       await tester.pumpWidget(
@@ -320,25 +340,28 @@ void main() {
       expect(find.text('可持久化图像上限'), findsNothing);
     });
 
-    testWidgets('GeneralSettingsDraft and SettingsDialog save persistence settings', (tester) async {
-      final config = const AppConfig(
-        enableImagePersistence: true,
-        maxPersistentImages: 50,
-      );
-      final draft = GeneralSettingsDraft(config);
-      expect(draft.enableImagePersistence, isTrue);
-      expect(draft.maxPersistentImages, equals(50));
+    testWidgets(
+      'GeneralSettingsDraft and SettingsDialog save persistence settings',
+      (tester) async {
+        final config = const AppConfig(
+          enableImagePersistence: true,
+          maxPersistentImages: 50,
+        );
+        final draft = GeneralSettingsDraft(config);
+        expect(draft.enableImagePersistence, isTrue);
+        expect(draft.maxPersistentImages, equals(50));
 
-      draft.enableImagePersistence = false;
-      draft.maxPersistentImages = 200;
+        draft.enableImagePersistence = false;
+        draft.maxPersistentImages = 200;
 
-      final updated = config.copyWith(
-        enableImagePersistence: draft.enableImagePersistence,
-        maxPersistentImages: draft.maxPersistentImages,
-      );
+        final updated = config.copyWith(
+          enableImagePersistence: draft.enableImagePersistence,
+          maxPersistentImages: draft.maxPersistentImages,
+        );
 
-      expect(updated.enableImagePersistence, isFalse);
-      expect(updated.maxPersistentImages, equals(200));
-    });
+        expect(updated.enableImagePersistence, isFalse);
+        expect(updated.maxPersistentImages, equals(200));
+      },
+    );
   });
 }

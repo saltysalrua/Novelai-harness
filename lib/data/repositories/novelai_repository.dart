@@ -11,7 +11,7 @@ class NovelAiRepository {
   final List<NaiGeneratedImage> _history = [];
 
   NovelAiRepository({NovelAiService? service})
-      : _service = service ?? NovelAiService();
+    : _service = service ?? NovelAiService();
 
   List<NaiGeneratedImage> get history => List.unmodifiable(_history);
 
@@ -39,9 +39,7 @@ class NovelAiRepository {
               if (imgFile.existsSync()) {
                 try {
                   final bytes = await imgFile.readAsBytes();
-                  _history.add(
-                    NaiGeneratedImage.fromJson(item, bytes: bytes),
-                  );
+                  _history.add(NaiGeneratedImage.fromJson(item, bytes: bytes));
                 } catch (_) {}
               }
             }
@@ -159,10 +157,7 @@ class NovelAiRepository {
         );
 
         if (enablePersistence && saveDir.isNotEmpty) {
-          await savePersistedHistory(
-            saveDir: saveDir,
-            maxImages: maxImages,
-          );
+          await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
         }
 
         yield NaiStreamProgress.finalResult(
@@ -217,10 +212,7 @@ class NovelAiRepository {
     }
 
     if (enablePersistence && saveDir.isNotEmpty) {
-      await savePersistedHistory(
-        saveDir: saveDir,
-        maxImages: maxImages,
-      );
+      await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
     }
 
     return results;
@@ -265,10 +257,7 @@ class NovelAiRepository {
     _history.insert(0, upscaledImage);
 
     if (enablePersistence && saveDir.isNotEmpty) {
-      await savePersistedHistory(
-        saveDir: saveDir,
-        maxImages: maxImages,
-      );
+      await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
     }
 
     return upscaledImage;
