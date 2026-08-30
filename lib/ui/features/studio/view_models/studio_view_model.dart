@@ -16,6 +16,7 @@ import '../../../../data/services/config_service.dart';
 import '../../../../data/services/session_log_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import 'param_snapshot_journal.dart';
+import 'slash_command_catalog.dart';
 
 class StudioViewModel extends ChangeNotifier {
   final ConfigService _configService;
@@ -1003,15 +1004,7 @@ class StudioViewModel extends ChangeNotifier {
 
     switch (cmd) {
       case '/help':
-        _harness.addInfoMessage('''快捷指令说明：
-• /preset <名称> : 切换当前 Agent 预设 (例如 /preset V5)
-• /skill <名称> : 按需加载并执行专业技能 (例如 /skill danbooru-tags)
-• /params : 查看工作台当前生效的全部生图参数
-• /nai <提示词> [--landscape|--portrait|--square|--wallpaper] : 快速生成插画
-• /upscale [2|4] : 超分放大当前图片
-• /tag <关键词> : 查询 Danbooru 官方标签联想
-• /account : 查询账号订阅等级与 V5 专属体力池
-• /clear : 清空对话历史''');
+        _harness.addInfoMessage(buildSlashHelpText());
         notifyListeners();
         break;
 

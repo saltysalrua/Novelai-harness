@@ -87,7 +87,8 @@ Novelai-harness/
 │               ├── view_models/
 │               │   ├── studio_view_model.dart  # Studio 状态管理中枢 (MVVM)
 │               │   ├── chat_checkpoints.dart   # 消息树分支检查点 (回溯视图数据结构)
-│               │   └── param_snapshot_journal.dart # 生图参数快照日志 (参数工具差异记录)
+│               │   ├── param_snapshot_journal.dart # 生图参数快照日志 (参数工具差异记录)
+│               │   └── slash_command_catalog.dart # 内置斜杠指令目录单一数据源 (补全+/help 共用)
 │               ├── views/
 │               │   └── studio_view.dart        # 工作台主界面
 │               └── widgets/

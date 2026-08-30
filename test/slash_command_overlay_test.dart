@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
 import 'package:novelai_harness/core/harness/skills/skills.dart';
+import 'package:novelai_harness/ui/features/studio/view_models/slash_command_catalog.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/slash_command_overlay.dart';
 
 Skill _skill(String id, String name) => Skill(
@@ -170,5 +171,19 @@ void main() {
     expect(size.width, 300.0);
     expect(size.height, 204.0);
   });
-}
 
+  test('slash command catalog is well-formed and renders complete help', () {
+    // 指令名必须唯一且以 / 开头
+    final names = kSlashCommands.map((c) => c.name).toList();
+    expect(names.toSet().length, names.length);
+    for (final name in names) {
+      expect(name.startsWith('/'), isTrue);
+    }
+    // help 文本必须覆盖每条指令的名称与说明
+    final help = buildSlashHelpText();
+    for (final cmd in kSlashCommands) {
+      expect(help.contains(cmd.name), isTrue);
+      expect(help.contains(cmd.description), isTrue);
+    }
+  });
+}
