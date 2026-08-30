@@ -115,12 +115,58 @@ void main() {
 
   group('PromptLibraryService Persistence Tests', () {
     test(
-      'loadEntries initializes with builtin presets when file does not exist',
+      'loadEntries returns empty on first launch (no builtin seeding)',
       () async {
         final entries = await service.loadEntries();
-        expect(entries.isNotEmpty, isTrue);
-        expect(entries.any((e) => e.title.contains('初音未来')), isTrue);
-        expect(entries.any((e) => e.category == '风格'), isTrue);
+        expect(entries, isEmpty);
+        expect(service.cachedEntries, isEmpty);
+      },
+    );
+
+    test(
+      'deleteAll then reload stays empty (entries never respawn)',
+      () async {
+        // 先新增两条自定义条目
+        for (var i = 0; i < 2; i++) {
+          await service.addEntry(
+            PromptComboEntry(
+              id: 'e$i',
+              title: '预设$i',
+              category: '风格',
+              prompt: 'prompt $i',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          );
+        }
+        expect((await service.loadEntries()).length, 2);
+
+        // 删空全部条目 (磁盘上保存空数组)
+        final all = await service.loadEntries();
+        for (final e in all) {
+          await service.deleteEntry(e.id);
+        }
+        expect(await service.loadEntries(), isEmpty);
+
+        // 重启语义：重新加载不得有任何条目复活
+        final reloaded = await service.loadEntries();
+        expect(reloaded, isEmpty);
+        expect(service.cachedEntries, isEmpty);
+
+        // 空词库下新增后重启，仅保留新增条目
+        await service.addEntry(
+          PromptComboEntry(
+            id: 'solo_1',
+            title: '唯一预设',
+            category: '风格',
+            prompt: 'solo',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+        final finalList = await service.loadEntries();
+        expect(finalList.length, 1);
+        expect(finalList.first.id, 'solo_1');
       },
     );
 
@@ -217,11 +263,23 @@ void main() {
     );
 
     test('export and import json', () async {
+      // 先准备两条自定义条目再导出
+      await service.saveEntries([
+        PromptComboEntry(
+          id: 'exp_1',
+          title: '导出预设',
+          category: '风格',
+          prompt: 'export prompt',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ]);
+
       final jsonString = await service.exportToJson();
-      expect(jsonString.contains('初音未来'), isTrue);
+      expect(jsonString.contains('导出预设'), isTrue);
 
       final count = await service.importFromJson(jsonString, replaceAll: true);
-      expect(count, greaterThan(0));
+      expect(count, 1);
     });
   });
 
@@ -316,9 +374,31 @@ void main() {
     test(
       'searchAsSuggestions suggests all combos with prompt as insertText and isPromptCombo true',
       () async {
-        await service.loadEntries();
+        // 准备自定义词库条目 (不再有内置预设)
+        final now = DateTime.now();
+        await service.saveEntries([
+          PromptComboEntry(
+            id: 's_watercolor',
+            title: '日系二次元水彩风',
+            category: '风格',
+            prompt: 'watercolor style, pastel',
+            createdAt: now,
+            updatedAt: now,
+            tags: ['watercolor'],
+          ),
+          PromptComboEntry(
+            id: 's_miku',
+            title: '初音未来 (Hatsune Miku)',
+            category: '角色',
+            prompt: '1girl, hatsune miku',
+            negativePrompt: 'lowres',
+            createdAt: now,
+            updatedAt: now,
+            tags: ['miku'],
+          ),
+        ]);
 
-        // 查询水彩 (内置的风格预设)
+        // 查询水彩 (风格条目)
         final styleMatches = service.searchAsSuggestions('水彩');
         expect(styleMatches.isNotEmpty, isTrue);
         final match = styleMatches.first;

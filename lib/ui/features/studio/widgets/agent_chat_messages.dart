@@ -244,21 +244,40 @@ class ToolResultBlock extends StatelessWidget {
         ),
         body: Container(
           width: double.infinity,
-          constraints: const BoxConstraints(maxHeight: 260),
+          constraints: const BoxConstraints(maxHeight: 320),
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: AppTheme.paperWarmth,
             borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
           ),
           child: SingleChildScrollView(
-            child: SelectableText(
-              message.content,
-              style: const TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-                color: AppTheme.textSecondary,
-                height: 1.45,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 工具结果附带的图片 (如查看画板图片工具)
+                if (message.imageBase64 != null &&
+                    message.imageBase64!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                      child: Image.memory(
+                        base64Decode(message.imageBase64!),
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                SelectableText(
+                  message.content,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: AppTheme.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -446,12 +465,7 @@ MarkdownStyleSheet buildAgentMarkdownStyleSheet() {
     h2Padding: const EdgeInsets.only(top: 8, bottom: 4),
     h3Padding: const EdgeInsets.only(top: 6, bottom: 2),
     horizontalRuleDecoration: const BoxDecoration(
-      border: Border(
-        top: BorderSide(
-          color: AppTheme.border,
-          width: 1,
-        ),
-      ),
+      border: Border(top: BorderSide(color: AppTheme.border, width: 1)),
     ),
   );
 }

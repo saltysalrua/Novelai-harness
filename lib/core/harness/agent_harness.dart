@@ -178,7 +178,7 @@ class AgentHarness {
 
         yield ToolResultEvent(result);
 
-        // 记录工具结果消息
+        // 记录工具结果消息 (含可选的图片附件，供视觉模型查看)
         final toolMsg = AgentMessage(
           id: 'tool_${DateTime.now().millisecondsSinceEpoch}_${call.id}',
           role: AgentRole.tool,
@@ -186,6 +186,8 @@ class AgentHarness {
           toolCallId: call.id,
           toolName: call.name,
           isError: result.isError,
+          imageBase64: result.imageBase64,
+          imageMimeType: result.imageMimeType,
         );
         _messages.add(toolMsg);
         recorder?.recordMessage(toolMsg);

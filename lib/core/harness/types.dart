@@ -86,17 +86,29 @@ class ToolCall {
 }
 
 /// 工具执行结果
+///
+/// [imageBase64] / [imageMimeType] 为可选的多模态图片附件：
+/// 携带时工具结果消息会以 OpenAI 多模态内容块 (text + image_url)
+/// 回传给 LLM，供具备视觉能力的模型直接查看图片。
 class ToolResult {
   final String toolCallId;
   final String toolName;
   final String content;
   final bool isError;
 
+  /// 附带给 LLM 查看的图片 (PNG/JPEG 等的 base64 编码，不含 data: 前缀)
+  final String? imageBase64;
+
+  /// 图片 MIME 类型 (默认 image/png)
+  final String imageMimeType;
+
   const ToolResult({
     required this.toolCallId,
     this.toolName = '',
     required this.content,
     this.isError = false,
+    this.imageBase64,
+    this.imageMimeType = 'image/png',
   });
 }
 
@@ -113,6 +125,12 @@ class AgentMessage {
   final TokenUsage? usage; // 本条 assistant 消息的 Token 用量
   final String? provider; // 产生本条消息的供应商标识 (仅 assistant)
   final String? model; // 产生本条消息的模型 ID (仅 assistant)
+
+  /// 工具结果附带的图片 (base64，仅 role == tool，不落盘会话记录)
+  final String? imageBase64;
+
+  /// 工具结果附带图片的 MIME 类型 (默认 image/png)
+  final String imageMimeType;
   final bool isStreaming;
   final DateTime createdAt;
 
@@ -134,6 +152,8 @@ class AgentMessage {
     this.usage,
     this.provider,
     this.model,
+    this.imageBase64,
+    this.imageMimeType = 'image/png',
     this.isStreaming = false,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -152,6 +172,8 @@ class AgentMessage {
     String? model,
     bool? isStreaming,
     DateTime? createdAt,
+    String? imageBase64,
+    String? imageMimeType,
   }) {
     return AgentMessage(
       id: id ?? this.id,
@@ -165,6 +187,8 @@ class AgentMessage {
       usage: usage ?? this.usage,
       provider: provider ?? this.provider,
       model: model ?? this.model,
+      imageBase64: imageBase64 ?? this.imageBase64,
+      imageMimeType: imageMimeType ?? this.imageMimeType,
       isStreaming: isStreaming ?? this.isStreaming,
       createdAt: createdAt ?? this.createdAt,
     );
@@ -177,6 +201,19 @@ class AgentMessage {
     }
     if (toolCallId != null) {
       map['tool_call_id'] = toolCallId;
+    }
+    // 工具结果携带图片时，content 升级为 OpenAI 多模态内容块数组
+    // (text + image_url data URL)，供视觉模型直接查看。
+    if (role == AgentRole.tool &&
+        imageBase64 != null &&
+        imageBase64!.isNotEmpty) {
+      map['content'] = [
+        {'type': 'text', 'text': content},
+        {
+          'type': 'image_url',
+          'image_url': {'url': 'data:$imageMimeType;base64,$imageBase64'},
+        },
+      ];
     }
     return map;
   }

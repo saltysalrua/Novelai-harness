@@ -6,10 +6,12 @@ import '../../../../core/harness/providers/openai_provider.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
+import '../../../../core/harness/tools/canvas_view_tool.dart';
 import '../../../../core/harness/tools/character_prompt_tools.dart';
 import '../../../../core/harness/tools/danbooru_search_tools.dart';
 import '../../../../core/harness/tools/load_skill_tool.dart';
 import '../../../../core/harness/tools/novelai_tools.dart';
+import '../../../../core/harness/tools/prompt_library_tools.dart';
 import '../../../../core/harness/tools/studio_params_tool.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
@@ -344,6 +346,18 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 整体替换角色提示词列表 (Agent 工具与 UI 卡片共用入口)
   void _setCharacterPrompts(List<NaiCharacterPrompt> characters);
+
+  /// 当前词库条目列表 (词库 Agent 工具读取)
+  List<PromptComboEntry> get promptLibraryEntries;
+
+  /// 新增词库条目 (词库 Agent 工具写入)
+  Future<PromptComboEntry> addPromptCombo(PromptComboEntry entry);
+
+  /// 更新词库条目 (词库 Agent 工具写入)
+  Future<void> updatePromptCombo(PromptComboEntry entry);
+
+  /// 删除词库条目 (词库 Agent 工具写入)
+  Future<void> deletePromptCombo(String id);
 }
 
 /// Studio 状态管理中枢 (MVVM)。

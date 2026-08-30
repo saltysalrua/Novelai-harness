@@ -17,8 +17,8 @@ class PromptLibraryService {
   String? _customStorageDir;
   List<PromptComboEntry>? _cachedEntries;
 
-  /// 获取当前已加载的词库条目内存缓存 (未显式加载时回退内置列表)
-  List<PromptComboEntry> get cachedEntries => _cachedEntries ?? builtinPresets;
+  /// 获取当前已加载的词库条目内存缓存 (未显式加载时视为空)
+  List<PromptComboEntry> get cachedEntries => _cachedEntries ?? const [];
 
   /// 用于测试或自定义设置的存储根目录
   void setCustomStorageDirectory(String? dir) {
@@ -53,151 +53,15 @@ class PromptLibraryService {
     }
   }
 
-  /// 内置开箱即用高质量预设种子数据
-  List<PromptComboEntry> get builtinPresets {
-    final now = DateTime(2026, 1, 1);
-    return [
-      // 角色
-      PromptComboEntry(
-        id: 'builtin_char_miku',
-        title: '初音未来 (Hatsune Miku)',
-        category: PromptComboCategories.character,
-        prompt:
-            '1girl, hatsune miku, vocaloid, aqua eyes, aqua hair, very long hair, twin tails, hair ornament, black sleeveless shirt, teal necktie, pleated skirt, detached sleeves, futuristic headset, masterpiece, best quality',
-        negativePrompt:
-            'worst quality, lowres, bad anatomy, bad hands, extra digits, missing fingers',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['vocaloid', 'miku', 'twintails', 'anime'],
-      ),
-      PromptComboEntry(
-        id: 'builtin_char_cyber_cat',
-        title: '赛博朋克猫耳少女',
-        category: PromptComboCategories.character,
-        prompt:
-            '1girl, solo, cat ears, cybernetics, glowing neon accents, futuristic techwear jacket, high ponytail, dynamic lighting, rainy city reflection, depth of field, masterpiece',
-        negativePrompt:
-            'ugly, deformed, disfigured, extra limbs, bad proportions, distorted face',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['cyberpunk', 'cat_ears', 'techwear', 'futuristic'],
-      ),
-      PromptComboEntry(
-        id: 'builtin_char_magical_girl',
-        title: '星空魔法少女',
-        category: PromptComboCategories.character,
-        prompt:
-            '1girl, magical girl, ethereal starry dress, glowing magic wand, floating ribbons, sparkles, cosmic aura, twilight sky, dreamy soft lighting, floating hair',
-        negativePrompt:
-            'low quality, text, watermark, mutated limbs, bad hands, dark gloomy',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['magical_girl', 'stars', 'wand', 'ethereal'],
-      ),
 
-      // 风格
-      PromptComboEntry(
-        id: 'builtin_style_watercolor',
-        title: '日系二次元水彩风',
-        category: PromptComboCategories.style,
-        prompt:
-            'watercolor style, delicate paint splashes, soft pastel colors, loose edges, paper texture, airy atmosphere, artistic illustration, semi-transparent glaze',
-        negativePrompt: '',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['watercolor', 'artistic', 'pastel'],
-      ),
-      PromptComboEntry(
-        id: 'builtin_style_80s_retro',
-        title: '80年代赛璐璐复古风',
-        category: PromptComboCategories.style,
-        prompt:
-            'retro anime style, 1980s cel animation, grainy film texture, vintage aesthetic, bold outlines, saturated colors, classic anime look, nostalgic atmosphere',
-        negativePrompt: '',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['retro', 'vintage', '80s', 'cel_animation'],
-      ),
-      PromptComboEntry(
-        id: 'builtin_style_cinematic',
-        title: '电影级厚涂光影',
-        category: PromptComboCategories.style,
-        prompt:
-            'cinematic lighting, dramatic rim light, volumetric dust particles, highly detailed digital painting, rich color depth, high contrast, atmospheric perspective',
-        negativePrompt: '',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['cinematic', 'lighting', 'masterpiece'],
-      ),
-
-      // 服装
-      PromptComboEntry(
-        id: 'builtin_attire_techwear',
-        title: '机能战术机动服',
-        category: PromptComboCategories.attire,
-        prompt:
-            'tactical techwear, tactical harness, oversized hooded jacket, cargo straps, utility belts, high-collar, futuristic accessories, sleek aesthetic',
-        negativePrompt: '',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['techwear', 'tactical', 'fashion'],
-      ),
-      PromptComboEntry(
-        id: 'builtin_attire_kimono',
-        title: '华丽传统和服',
-        category: PromptComboCategories.attire,
-        prompt:
-            'traditional ornate kimono, intricate gold floral embroidery, wide flowing sleeves, layered obi sash, decorative floral hairpins, elegant draped fabric',
-        negativePrompt: '',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['kimono', 'traditional', 'japan'],
-      ),
-
-      // 构图
-      PromptComboEntry(
-        id: 'builtin_comp_low_angle',
-        title: '动态极低视角仰拍',
-        category: PromptComboCategories.composition,
-        prompt:
-            'dynamic low angle, dramatic upward perspective, wide foreshortening, action pose, floating particles, strong vertical depth, powerful composition',
-        negativePrompt: '',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['low_angle', 'dynamic', 'action'],
-      ),
-      PromptComboEntry(
-        id: 'builtin_comp_fisheye',
-        title: '超广角鱼眼镜头',
-        category: PromptComboCategories.composition,
-        prompt:
-            'fisheye lens view, ultra-wide angle, curved horizon, exaggerated perspective, expansive background environment, barrel distortion',
-        negativePrompt: '',
-        createdAt: now,
-        updatedAt: now,
-        isBuiltin: true,
-        tags: ['fisheye', 'wide_angle', 'perspective'],
-      ),
-    ];
-  }
-
-  /// 加载所有词组合条目 (首次为空时自动初始化内置预设)
+  /// 加载所有词组合条目 (不播种任何默认数据：文件不存在或为空即空词库，
+  /// 用户删除的条目不会以任何形式复活)
   Future<List<PromptComboEntry>> loadEntries() async {
     final file = await _getDataFile();
     if (!file.existsSync()) {
-      final initialList = builtinPresets;
-      await saveEntries(initialList);
-      _cachedEntries = initialList;
-      return initialList;
+      // 返回可增长列表 (addEntry 等会直接在返回值上修改)
+      _cachedEntries = [];
+      return [];
     }
 
     try {
@@ -212,19 +76,13 @@ class PromptLibraryService {
             } catch (_) {}
           }
         }
-        if (list.isEmpty) {
-          final initialList = builtinPresets;
-          await saveEntries(initialList);
-          _cachedEntries = initialList;
-          return initialList;
-        }
         _cachedEntries = list;
         return list;
       }
     } catch (_) {}
 
-    _cachedEntries = builtinPresets;
-    return builtinPresets;
+    _cachedEntries = [];
+    return [];
   }
 
   /// 持久化保存词组合列表

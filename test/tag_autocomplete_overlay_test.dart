@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/data/services/prompt_library_service.dart';
 import 'package:novelai_harness/data/services/tag_dictionary_service.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_resize_handle.dart';
+
+import 'test_library_seeds.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +19,16 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
 ''';
 
   setUp(() async {
+    // 词组合补全建议来自单例词库服务：播种到临时目录，不污染仓库
+    final tempDir = Directory.systemTemp.createTempSync('tag_ac_lib_');
+    PromptLibraryService.instance.setCustomStorageDirectory(tempDir.path);
+    await PromptLibraryService.instance.saveEntries(seedLibraryEntries());
+    addTearDown(() {
+      PromptLibraryService.instance.setCustomStorageDirectory(null);
+      try {
+        tempDir.deleteSync(recursive: true);
+      } catch (_) {}
+    });
     await TagDictionaryService.instance.ensureLoaded(rawTsvContent: sampleTsv);
   });
 

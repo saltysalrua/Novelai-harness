@@ -60,6 +60,11 @@ class PresetToolKeys {
   static const String updateCharacterPrompt = 'update_character_prompt';
   static const String removeCharacterPrompt = 'remove_character_prompt';
   static const String loadSkill = 'load_skill';
+  static const String viewCanvasImage = 'view_canvas_image';
+  static const String searchPromptLibrary = 'search_prompt_library';
+  static const String addPromptLibraryEntry = 'add_prompt_library_entry';
+  static const String updatePromptLibraryEntry = 'update_prompt_library_entry';
+  static const String deletePromptLibraryEntry = 'delete_prompt_library_entry';
 
   static const Map<String, String> labels = {
     generate: '图像生成',
@@ -77,6 +82,11 @@ class PresetToolKeys {
     updateCharacterPrompt: '修改角色',
     removeCharacterPrompt: '删除角色',
     loadSkill: '加载技能',
+    viewCanvasImage: '查看画板图片',
+    searchPromptLibrary: '搜索词库',
+    addPromptLibraryEntry: '新增词库条目',
+    updatePromptLibraryEntry: '修改词库条目',
+    deletePromptLibraryEntry: '删除词库条目',
   };
 
   /// 全部内置工具键 (完整权限预设直接复用)
@@ -100,6 +110,11 @@ const List<String> _fullTools = [
   PresetToolKeys.updateCharacterPrompt,
   PresetToolKeys.removeCharacterPrompt,
   PresetToolKeys.loadSkill,
+  PresetToolKeys.viewCanvasImage,
+  PresetToolKeys.searchPromptLibrary,
+  PresetToolKeys.addPromptLibraryEntry,
+  PresetToolKeys.updatePromptLibraryEntry,
+  PresetToolKeys.deletePromptLibraryEntry,
 ];
 
 const List<String> _coreTools = [
@@ -116,6 +131,11 @@ const List<String> _coreTools = [
   PresetToolKeys.updateCharacterPrompt,
   PresetToolKeys.removeCharacterPrompt,
   PresetToolKeys.loadSkill,
+  PresetToolKeys.viewCanvasImage,
+  PresetToolKeys.searchPromptLibrary,
+  PresetToolKeys.addPromptLibraryEntry,
+  PresetToolKeys.updatePromptLibraryEntry,
+  PresetToolKeys.deletePromptLibraryEntry,
 ];
 
 const List<String> _coreUpscaleTools = [
@@ -133,6 +153,11 @@ const List<String> _coreUpscaleTools = [
   PresetToolKeys.updateCharacterPrompt,
   PresetToolKeys.removeCharacterPrompt,
   PresetToolKeys.loadSkill,
+  PresetToolKeys.viewCanvasImage,
+  PresetToolKeys.searchPromptLibrary,
+  PresetToolKeys.addPromptLibraryEntry,
+  PresetToolKeys.updatePromptLibraryEntry,
+  PresetToolKeys.deletePromptLibraryEntry,
 ];
 
 const List<String> _allParams = [

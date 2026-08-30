@@ -104,6 +104,39 @@ mixin _StudioHarnessMixin on _StudioCore {
       ),
     );
     _toolRegistry.register(
+      ViewCanvasImageTool(
+        getImageBytes: () {
+          final bytes = _selectedImage?.bytes;
+          if (bytes == null) return null;
+          return bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+        },
+        getParams: () => _params,
+        isModelMultimodal: () =>
+            _config.activeLlmProvider.activeModel.isMultimodal,
+      ),
+    );
+    _toolRegistry.register(
+      SearchPromptLibraryTool(getEntries: () => promptLibraryEntries),
+    );
+    _toolRegistry.register(
+      AddPromptLibraryEntryTool(
+        getEntries: () => promptLibraryEntries,
+        addEntry: addPromptCombo,
+      ),
+    );
+    _toolRegistry.register(
+      UpdatePromptLibraryEntryTool(
+        getEntries: () => promptLibraryEntries,
+        updateEntry: updatePromptCombo,
+      ),
+    );
+    _toolRegistry.register(
+      DeletePromptLibraryEntryTool(
+        getEntries: () => promptLibraryEntries,
+        deleteEntry: deletePromptCombo,
+      ),
+    );
+    _toolRegistry.register(
       LoadSkillTool(
         // 仅允许加载当前预设开放的技能，防止越权读取
         skillResolver: (name) {

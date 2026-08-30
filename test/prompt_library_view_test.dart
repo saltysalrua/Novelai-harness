@@ -11,6 +11,8 @@ import 'package:novelai_harness/ui/features/studio/widgets/prompt_library_view.d
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'test_library_seeds.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -23,6 +25,8 @@ void main() {
     tempDir = Directory.systemTemp.createTempSync('prompt_ui_test_');
     service = PromptLibraryService();
     service.setCustomStorageDirectory(tempDir.path);
+    // 词库不再内置默认条目，测试数据显式播种
+    await service.saveEntries(seedLibraryEntries());
 
     viewModel = StudioViewModel(
       configService: ConfigService(),

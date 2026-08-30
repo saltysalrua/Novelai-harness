@@ -3,6 +3,7 @@ part of 'studio_view_model.dart';
 /// 词组合预设库分部 (Prompt Combo Library)
 mixin _StudioLibraryMixin on _StudioCore {
   /// 当前词组合条目列表
+  @override
   List<PromptComboEntry> get promptLibraryEntries =>
       List.unmodifiable(_promptLibraryEntries);
 
@@ -25,6 +26,7 @@ mixin _StudioLibraryMixin on _StudioCore {
   }
 
   /// 添加新词组合条目
+  @override
   Future<PromptComboEntry> addPromptCombo(PromptComboEntry entry) async {
     final created = await _promptLibraryService.addEntry(entry);
     await _reloadPromptLibrary();
@@ -32,12 +34,14 @@ mixin _StudioLibraryMixin on _StudioCore {
   }
 
   /// 更新词组合条目
+  @override
   Future<void> updatePromptCombo(PromptComboEntry entry) async {
     await _promptLibraryService.updateEntry(entry);
     await _reloadPromptLibrary();
   }
 
   /// 删除词组合条目
+  @override
   Future<void> deletePromptCombo(String id) async {
     await _promptLibraryService.deleteEntry(id);
     await _reloadPromptLibrary();
