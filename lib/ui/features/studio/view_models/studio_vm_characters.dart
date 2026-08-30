@@ -101,16 +101,27 @@ mixin _StudioCharactersMixin on _StudioCore {
   }
 
   /// 添加一个角色提示词 (UI 入口，自动命名)
+  ///
+  /// [gender] 官方三预设之一 (女/男/其他)：传入后按当前模型填充初始正向
+  /// 提示词与默认负面 lowres, aliasing, ；留空则保持空白角色，
+  /// 与旧版无性别按钮行为一致。
   void addCharacterPrompt({
     String? name,
-    String prompt = '',
-    String negativePrompt = '',
+    NaiCharacterGender? gender,
+    String? prompt,
+    String? negativePrompt,
   }) {
     if (isCharacterPromptFull) return;
+    final initialPrompt =
+        prompt ??
+        (gender == null ? '' : _params.model.initialCharacterPrompt(gender));
+    final initialNegative =
+        negativePrompt ??
+        (gender == null ? '' : NaiCharacterPrompt.presetNegativePrompt);
     final character = NaiCharacterPrompt.create(
       name: name ?? '角色 ${_params.characterPrompts.length + 1}',
-      prompt: prompt,
-      negativePrompt: negativePrompt,
+      prompt: initialPrompt,
+      negativePrompt: initialNegative,
     );
     _selectedCharacterId = character.id;
     _setCharacterPrompts([..._params.characterPrompts, character]);

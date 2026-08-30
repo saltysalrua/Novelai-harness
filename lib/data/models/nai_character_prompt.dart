@@ -66,6 +66,24 @@ abstract final class NaiCharacterPositionLayout {
   static double clamp(double value) => value.clamp(0.0, 1.0);
 }
 
+/// 角色性别预设 (官方添加角色的三个预设：女 / 男 / 其他)
+enum NaiCharacterGender {
+  female('女'),
+  male('男'),
+  other('其他');
+
+  final String label;
+  const NaiCharacterGender(this.label);
+
+  /// 解析持久化/工具传回的性别名，未知值回退到 other
+  static NaiCharacterGender fromName(String? name) {
+    return NaiCharacterGender.values.firstWhere(
+      (g) => g.name == name,
+      orElse: () => NaiCharacterGender.other,
+    );
+  }
+}
+
 /// 单个角色提示词 (V4+ 多角色物理防串色隔离)
 ///
 /// 仅 V4 及以上模型生效：发送 characterPrompts 与 v4_prompt 的
@@ -96,6 +114,9 @@ class NaiCharacterPrompt {
 
   /// 自定义坐标 Y (0.0=最上 1.0=最下)
   final double positionY;
+
+  /// 官方三预设添加角色时的默认角色负面提示词 (与 Aaalice 启动器一致)
+  static const String presetNegativePrompt = 'lowres, aliasing, ';
 
   const NaiCharacterPrompt({
     required this.id,

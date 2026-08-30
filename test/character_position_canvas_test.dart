@@ -26,8 +26,8 @@ void main() {
       await tester.drag(promptsTitle, const Offset(0, -450));
       await tester.pumpAndSettle();
 
-      // 3. 找到添加角色按钮并添加两个角色
-      final addBtn = find.text('添加角色');
+      // 3. 找到添加角色三预设按钮并添加两个角色
+      final addBtn = find.text('女');
       expect(addBtn, findsOneWidget);
       await tester.tap(addBtn);
       await tester.pumpAndSettle();

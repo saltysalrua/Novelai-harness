@@ -99,57 +99,56 @@ void main() {
       expect(resetBox.size.height, closeTo(initialHeight, 2.0));
     });
 
-    testWidgets('+0.1 and -0.1 buttons adjust tag weight in x.x::tag:: format', (
-      WidgetTester tester,
-    ) async {
-      final controller = TextEditingController(
-        text: '1girl, solo',
-      );
-      addTearDown(controller.dispose);
+    testWidgets(
+      '+0.1 and -0.1 buttons adjust tag weight in x.x::tag:: format',
+      (WidgetTester tester) async {
+        final controller = TextEditingController(text: '1girl, solo');
+        addTearDown(controller.dispose);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.lightTheme,
-          home: Scaffold(
-            body: PromptEditorCard(
-              controller: controller,
-              onChanged: (_) {},
-              hintText: 'Enter prompt',
-              tokenEstimate: 5,
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: Scaffold(
+              body: PromptEditorCard(
+                controller: controller,
+                onChanged: (_) {},
+                hintText: 'Enter prompt',
+                tokenEstimate: 5,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      // 把光标置于 "1girl" (offset 2)
-      controller.selection = const TextSelection.collapsed(offset: 2);
-      await tester.pump();
+        // 把光标置于 "1girl" (offset 2)
+        controller.selection = const TextSelection.collapsed(offset: 2);
+        await tester.pump();
 
-      // 点击 +0.1 按钮
-      final plusButton = find.text('+0.1');
-      expect(plusButton, findsOneWidget);
-      await tester.tap(plusButton);
-      await tester.pumpAndSettle();
+        // 点击 +0.1 按钮
+        final plusButton = find.text('+0.1');
+        expect(plusButton, findsOneWidget);
+        await tester.tap(plusButton);
+        await tester.pumpAndSettle();
 
-      expect(controller.text, '1.1::1girl::, solo');
+        expect(controller.text, '1.1::1girl::, solo');
 
-      // 再次点击 +0.1 按钮 -> 1.2::1girl::
-      await tester.tap(plusButton);
-      await tester.pumpAndSettle();
-      expect(controller.text, '1.2::1girl::, solo');
+        // 再次点击 +0.1 按钮 -> 1.2::1girl::
+        await tester.tap(plusButton);
+        await tester.pumpAndSettle();
+        expect(controller.text, '1.2::1girl::, solo');
 
-      // 点击 -0.1 按钮 -> 1.1::1girl::
-      final minusButton = find.text('-0.1');
-      expect(minusButton, findsOneWidget);
-      await tester.tap(minusButton);
-      await tester.pumpAndSettle();
-      expect(controller.text, '1.1::1girl::, solo');
+        // 点击 -0.1 按钮 -> 1.1::1girl::
+        final minusButton = find.text('-0.1');
+        expect(minusButton, findsOneWidget);
+        await tester.tap(minusButton);
+        await tester.pumpAndSettle();
+        expect(controller.text, '1.1::1girl::, solo');
 
-      // 再次点击 -0.1 按钮 -> 1girl, solo (归一化为 1.0)
-      await tester.tap(minusButton);
-      await tester.pumpAndSettle();
-      expect(controller.text, '1girl, solo');
-    });
+        // 再次点击 -0.1 按钮 -> 1girl, solo (归一化为 1.0)
+        await tester.tap(minusButton);
+        await tester.pumpAndSettle();
+        expect(controller.text, '1girl, solo');
+      },
+    );
   });
 
   group('PromptExtensionDeck Tests', () {
@@ -206,7 +205,9 @@ void main() {
         expect(find.text('Character Prompts'), findsOneWidget);
         expect(find.text('Fixed Affixes'), findsOneWidget);
         expect(find.text('银发少女'), findsOneWidget);
-        expect(find.text('添加角色'), findsOneWidget);
+        expect(find.text('女'), findsOneWidget);
+        expect(find.text('男'), findsOneWidget);
+        expect(find.text('其他'), findsOneWidget);
 
         // 点击切换到 Fixed Affixes 标签
         await tester.tap(find.text('Fixed Affixes'));

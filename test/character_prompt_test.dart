@@ -483,4 +483,51 @@ void main() {
       expect(result.content, contains('自定义定位'));
     });
   });
+
+  group('Character Preset Tests', () {
+    test('initialCharacterPrompt per model and gender', () {
+      // V5 与 V4/V4.5 统一为标签开头
+      expect(
+        NaiModel.v5Full.initialCharacterPrompt(NaiCharacterGender.female),
+        'girl, ',
+      );
+      expect(
+        NaiModel.v5Curated.initialCharacterPrompt(NaiCharacterGender.male),
+        'boy, ',
+      );
+      expect(
+        NaiModel.v45Full.initialCharacterPrompt(NaiCharacterGender.female),
+        'girl, ',
+      );
+      expect(
+        NaiModel.v4Curated.initialCharacterPrompt(NaiCharacterGender.male),
+        'boy, ',
+      );
+      expect(
+        NaiModel.v5Full.initialCharacterPrompt(NaiCharacterGender.other),
+        '',
+      );
+
+      // v3 不支持角色提示词
+      for (final gender in NaiCharacterGender.values) {
+        expect(NaiModel.v3.initialCharacterPrompt(gender), '');
+        expect(NaiModel.v3Furry.initialCharacterPrompt(gender), '');
+      }
+    });
+
+    test('NaiCharacterGender label and fromName', () {
+      expect(NaiCharacterGender.female.label, '女');
+      expect(NaiCharacterGender.male.label, '男');
+      expect(NaiCharacterGender.other.label, '其他');
+      expect(NaiCharacterGender.fromName('female'), NaiCharacterGender.female);
+      expect(NaiCharacterGender.fromName('male'), NaiCharacterGender.male);
+      expect(NaiCharacterGender.fromName('other'), NaiCharacterGender.other);
+      expect(NaiCharacterGender.fromName('alien'), NaiCharacterGender.other);
+      expect(NaiCharacterGender.fromName(null), NaiCharacterGender.other);
+    });
+
+    test('presetNegativePrompt matches Aaalice launcher default', () {
+      expect(NaiCharacterPrompt.presetNegativePrompt, 'lowres, aliasing, ');
+    });
+  });
 }

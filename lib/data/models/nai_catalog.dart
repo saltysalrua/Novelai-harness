@@ -1,6 +1,8 @@
 /// NovelAI 官方模型、采样器、噪声调度与分辨率预设目录。
 library;
 
+import 'nai_character_prompt.dart';
+
 /// NovelAI 官方支持的模型列表
 enum NaiModel {
   v5Full('nai-diffusion-5-full', 'NAI-Diffusion-v5-Full'),
@@ -59,6 +61,18 @@ enum NaiModel {
 
   /// 自定义角色定位是否为自由连续坐标 (V5 画布自由拖动，V4/V4.5 限制 5x5 网格)
   bool get supportsFreeCharacterPositioning => isV5;
+
+  /// 官方三预设 (女/男/其他) 添加角色时的初始正向提示词：
+  /// 统一为 Danbooru 标签开头 (不带数字的人数标签写在角色提示词，
+  /// 总人数如 2girls 写在主提示词)，v3 不支持角色提示词，返回空串。
+  String initialCharacterPrompt(NaiCharacterGender gender) {
+    if (!isV4OrAbove) return '';
+    return switch (gender) {
+      NaiCharacterGender.female => 'girl, ',
+      NaiCharacterGender.male => 'boy, ',
+      NaiCharacterGender.other => '',
+    };
+  }
 
   /// 是否支持 `text:` 原生文字渲染段 (官网能力位 `text`，V4 起为 true)。
   /// 质量词等自动追加的内容必须留在 `text:` 之前，否则会被画进图里的文字。

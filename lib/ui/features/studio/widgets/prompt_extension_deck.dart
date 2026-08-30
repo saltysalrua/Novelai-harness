@@ -200,14 +200,34 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
               '独立角色物理隔离',
               style: TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
             ),
-          _AddCharacterDeckButton(
-            enabled: supported && !isFull,
-            onTap: supported && !isFull
-                ? () => viewModel.addCharacterPrompt()
-                : null,
-          ),
+          _buildAddCharacterButtons(viewModel, supported, isFull),
         ],
       ),
+    );
+  }
+
+  /// 添加角色按钮组：官方三预设 (女/男/其他)，禁用时降级为单个上限胶囊
+  Widget _buildAddCharacterButtons(
+    StudioViewModel viewModel,
+    bool supported,
+    bool isFull,
+  ) {
+    final enabled = supported && !isFull;
+    if (!enabled) {
+      return const _AddCharacterLimitChip();
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final gender in NaiCharacterGender.values) ...[
+          _AddGenderDeckButton(
+            gender: gender,
+            onTap: () => viewModel.addCharacterPrompt(gender: gender),
+          ),
+          if (gender != NaiCharacterGender.values.last)
+            const SizedBox(width: 4),
+        ],
+      ],
     );
   }
 
@@ -290,7 +310,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
             ),
             const SizedBox(height: 4),
             const Text(
-              '点击右上角「+ 添加角色」即可开启多角色防串色隔离生图',
+              '点击右上角「女 / 男 / 其他」预设按钮即可开启多角色防串色隔离生图',
               style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
               textAlign: TextAlign.center,
             ),
@@ -480,10 +500,7 @@ class _CanvasEditDeckButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTheme.radiusPill),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 4,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: isCanvasEditing
                 ? AppTheme.notionBlue
@@ -501,9 +518,7 @@ class _CanvasEditDeckButton extends StatelessWidget {
               Icon(
                 Icons.control_camera_rounded,
                 size: 11.5,
-                color: isCanvasEditing
-                    ? Colors.white
-                    : AppTheme.textSecondary,
+                color: isCanvasEditing ? Colors.white : AppTheme.textSecondary,
               ),
               const SizedBox(width: 3.5),
               Text(
@@ -584,48 +599,98 @@ class _PositionToggleOption extends StatelessWidget {
   }
 }
 
-/// 添加角色胶囊按钮
-class _AddCharacterDeckButton extends StatelessWidget {
-  final bool enabled;
-  final VoidCallback? onTap;
+/// 添加角色胶囊按钮 (官方三预设：女/男/其他，各带性别色)
+class _AddGenderDeckButton extends StatelessWidget {
+  final NaiCharacterGender gender;
+  final VoidCallback onTap;
 
-  const _AddCharacterDeckButton({required this.enabled, this.onTap});
+  const _AddGenderDeckButton({required this.gender, required this.onTap});
+
+  Color get _color => switch (gender) {
+    NaiCharacterGender.female => const Color(0xFFEC4899),
+    NaiCharacterGender.male => const Color(0xFF3B82F6),
+    NaiCharacterGender.other => const Color(0xFF8B5CF6),
+  };
+
+  IconData get _icon => switch (gender) {
+    NaiCharacterGender.female => Icons.female_rounded,
+    NaiCharacterGender.male => Icons.male_rounded,
+    NaiCharacterGender.other => Icons.transgender_rounded,
+  };
+
+  String get _tooltip => switch (gender) {
+    NaiCharacterGender.female => '添加女角色 (初始提示词 girl)',
+    NaiCharacterGender.male => '添加男角色 (初始提示词 boy)',
+    NaiCharacterGender.other => '添加其他角色 (初始提示词留空)',
+  };
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-        decoration: BoxDecoration(
-          color: enabled ? AppTheme.skyTint : AppTheme.surfaceMuted,
-          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-          border: Border.all(
-            color: enabled
-                ? AppTheme.notionBlue.withValues(alpha: 0.5)
-                : AppTheme.border,
+    return Tooltip(
+      message: _tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: _color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+            border: Border.all(color: _color.withValues(alpha: 0.45)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_icon, size: 13, color: _color),
+              const SizedBox(width: 4),
+              Text(
+                gender.label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _color,
+                ),
+              ),
+            ],
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.person_add_alt_rounded,
-              size: 12.5,
-              color: enabled ? AppTheme.notionBlue : AppTheme.textMuted,
+      ),
+    );
+  }
+}
+
+/// 不支持或已达上限时的禁用胶囊
+
+class _AddCharacterLimitChip extends StatelessWidget {
+  const _AddCharacterLimitChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.person_add_alt_rounded,
+            size: 12.5,
+            color: AppTheme.textMuted,
+          ),
+          SizedBox(width: 4),
+          Text(
+            '已达上限',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textMuted,
             ),
-            const SizedBox(width: 4),
-            Text(
-              enabled ? '添加角色' : '已达上限',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: enabled ? AppTheme.notionBlue : AppTheme.textMuted,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
