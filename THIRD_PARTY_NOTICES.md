@@ -4,17 +4,14 @@
 
 ---
 
-## 📜 许可证兼容性与合规性审查 (License Audit Report)
+## 📜 开源许可证与引用说明 (License & References)
 
-本项目自身基于 **[MIT License](LICENSE)** 开源。经全面审查，本项目所使用的全部直接依赖与嵌入资产均属于宽松型开源协议（Permissive Licenses）或免费商用许可，**未引入任何传染性开源许可证（如 GPL / AGPL / LGPL 等）的代码依赖**：
+本项目自身基于 **[MIT License](LICENSE)** 开源。本项目所使用的依赖库、字体、数据集与参考项目遵循各自的开源授权或商用许可：
 
-- **Dart / Flutter 依赖库**：全部采用 **MIT**、**BSD-3-Clause** 或 **Apache-2.0** 许可证，完全兼容 MIT 主项目分发。
-- **字体资产 (MiSans)**：遵循小米官方免费商用字体授权，允许自由嵌入与分发。
-- **离线词库 (Danbooru TSV)**：属于公开整理的事实性标签映射数据库，无代码级许可证传染性。
-- **参考项目说明**：
-  - 参考了 GPL-3.0 项目（如 `DanbooruSearch`、`Plana-App`）的思路与接口规范：
-    - `DanbooruSearch` 仅作为云端公共 Web API 经 HTTP 网络调用，客户端未编译、链接或打包任何其服务端 GPL 源码。
-    - `Plana-App` 仅作功能设计思路与交互概念参考，本项目的 AST 引擎、解析器与 UI 组件均为独立编写的原创 Dart 实现，未直接复制代码。
+- **Dart / Flutter 依赖库**：采用 MIT、BSD-3-Clause 或 Apache-2.0 许可证。
+- **字体资产 (MiSans)**：遵循《MiSans 字体知识产权许可协议》，允许免费商用与嵌入。
+- **离线词库 (Danbooru TSV)**：来源于公开整理的社区标签数据集。
+- **参考项目**：涉及的所有参考项目均已在此声明出处并致谢。
 
 ---
 
