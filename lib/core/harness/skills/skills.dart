@@ -1,16 +1,202 @@
-/// 技能模型
+/// 技能模型 (按标准 Pi / Agent Skills 规范定义)
 class Skill {
   final String id;
   final String name;
   final String description;
   final String systemPrompt;
+  final bool disableModelInvocation;
+  final bool isBuiltin;
 
   const Skill({
     required this.id,
     required this.name,
     required this.description,
     required this.systemPrompt,
+    this.disableModelInvocation = false,
+    this.isBuiltin = false,
   });
+
+  Skill copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? systemPrompt,
+    bool? disableModelInvocation,
+    bool? isBuiltin,
+  }) {
+    return Skill(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      systemPrompt: systemPrompt ?? this.systemPrompt,
+      disableModelInvocation:
+          disableModelInvocation ?? this.disableModelInvocation,
+      isBuiltin: isBuiltin ?? this.isBuiltin,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'systemPrompt': systemPrompt,
+        'disableModelInvocation': disableModelInvocation,
+        'isBuiltin': isBuiltin,
+      };
+
+  factory Skill.fromJson(Map<String, dynamic> json) => Skill(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? (json['id'] as String? ?? ''),
+        description: json['description'] as String? ?? '',
+        systemPrompt: json['systemPrompt'] as String? ?? '',
+        disableModelInvocation:
+            json['disableModelInvocation'] as bool? ?? false,
+        isBuiltin: json['isBuiltin'] as bool? ?? false,
+      );
+
+  /// 导出为标准 Pi / Agent Skills SKILL.md 格式
+  String toSkillMd() {
+    final buffer = StringBuffer();
+    buffer.writeln('---');
+    buffer.writeln('name: $id');
+    buffer.writeln('description: ${_escapeYaml(description)}');
+    if (name != id) {
+      buffer.writeln('label: ${_escapeYaml(name)}');
+    }
+    if (disableModelInvocation) {
+      buffer.writeln('disable-model-invocation: true');
+    }
+    buffer.writeln('---');
+    buffer.writeln();
+    buffer.writeln(systemPrompt.trim());
+    return buffer.toString();
+  }
+
+  /// 从标准 Pi / Agent Skills SKILL.md 字符串导入
+  factory Skill.fromSkillMd(String content, {String? defaultId}) {
+    final normalized = content.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+
+    if (!normalized.trimLeft().startsWith('---')) {
+      // 无 Frontmatter，直接作为 System Prompt 处理
+      final firstLine = normalized.trim().split('\n').first;
+      final fallbackName = defaultId ??
+          (firstLine.startsWith('#')
+              ? firstLine.replaceAll('#', '').trim()
+              : 'custom-skill');
+      return Skill(
+        id: defaultId ?? 'custom-skill',
+        name: fallbackName,
+        description: '从文本导入的自定义技能',
+        systemPrompt: normalized.trim(),
+        isBuiltin: false,
+      );
+    }
+
+    final startIndex = normalized.indexOf('---');
+    final endIndex = normalized.indexOf('\n---', startIndex + 3);
+
+    if (endIndex == -1) {
+      return Skill(
+        id: defaultId ?? 'custom-skill',
+        name: defaultId ?? 'Custom Skill',
+        description: '',
+        systemPrompt: normalized.trim(),
+        isBuiltin: false,
+      );
+    }
+
+    final frontmatterRaw = normalized.substring(startIndex + 3, endIndex).trim();
+    final body = normalized.substring(endIndex + 4).trim();
+
+    String parsedName = defaultId ?? 'custom-skill';
+    String parsedLabel = '';
+    String parsedDesc = '';
+    bool parsedDisableInvocation = false;
+
+    for (final line in frontmatterRaw.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+
+      final colonIdx = trimmed.indexOf(':');
+      if (colonIdx <= 0) continue;
+
+      final key = trimmed.substring(0, colonIdx).trim().toLowerCase();
+      var val = trimmed.substring(colonIdx + 1).trim();
+
+      // 去除首尾引号
+      if ((val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.substring(1, val.length - 1);
+      }
+
+      switch (key) {
+        case 'name':
+          parsedName = val;
+          break;
+        case 'label':
+        case 'display_name':
+        case 'title':
+          parsedLabel = val;
+          break;
+        case 'description':
+        case 'desc':
+          parsedDesc = val;
+          break;
+        case 'disable-model-invocation':
+        case 'disable_model_invocation':
+          parsedDisableInvocation = val.toLowerCase() == 'true';
+          break;
+      }
+    }
+
+    return Skill(
+      id: parsedName,
+      name: parsedLabel.isNotEmpty ? parsedLabel : parsedName,
+      description: parsedDesc,
+      systemPrompt: body,
+      disableModelInvocation: parsedDisableInvocation,
+      isBuiltin: false,
+    );
+  }
+
+  static String _escapeYaml(String value) {
+    if (value.contains('\n') || value.contains(':') || value.contains('"')) {
+      return '"${value.replaceAll('"', '\\"')}"';
+    }
+    return value;
+  }
+
+  /// 格式化为 Agent Skills 标准 XML 块 (遵循 Pi 规范注入系统提示词)
+  static String formatSkillsForSystemPrompt(List<Skill> skills) {
+    final visibleSkills =
+        skills.where((s) => !s.disableModelInvocation).toList();
+    if (visibleSkills.isEmpty) return '';
+
+    final buffer = StringBuffer();
+    buffer.writeln(
+        'The following skills provide specialized instructions for specific tasks.');
+    buffer.writeln(
+        'Use the `load_skill` tool to load a skill\'s detailed instructions when the task matches its description.');
+    buffer.writeln();
+    buffer.writeln('<available_skills>');
+    for (final skill in visibleSkills) {
+      buffer.writeln('  <skill>');
+      buffer.writeln('    <name>${_escapeXml(skill.id)}</name>');
+      buffer.writeln('    <description>${_escapeXml(skill.description)}</description>');
+      buffer.writeln('  </skill>');
+    }
+    buffer.writeln('</available_skills>');
+    return buffer.toString().trim();
+  }
+
+  static String _escapeXml(String value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
+  }
 }
 
 /// 内置技能库
@@ -32,6 +218,7 @@ class BuiltinSkills {
 
 【工具调用】
 当用户明确要求生图、绘制或确认方案时，请直接调用 `novelai_generate` 工具，传入构建好的 prompt 及相关参数。''',
+    isBuiltin: true,
   );
 
   /// 2. Danbooru 标签
@@ -42,6 +229,7 @@ class BuiltinSkills {
     systemPrompt: '''你是一名精通 Danbooru 标签体系的助手。
 你的任务是将用户的描述重构为规范的 Danbooru 标签序列（逗号分隔）。
 在用户需要时，可直接调用 `novelai_generate` 生成画面。''',
+    isBuiltin: true,
   );
 
   /// 3. 艺术总监
@@ -51,6 +239,7 @@ class BuiltinSkills {
     description: '专注于镜头机位、光影色调与画面构图建议。',
     systemPrompt: '''你是一名插画与动画艺术总监。
 你善于从电影级镜头视角、主光源方向、边缘光、环境色与构图等维度，为用户提供专业的画面构思建议，并转化为绘图指令。''',
+    isBuiltin: true,
   );
 
   static List<Skill> get all => [
@@ -58,4 +247,92 @@ class BuiltinSkills {
         danbooruTagMaster,
         animeArtDirector,
       ];
+
+  static Skill? findById(String id) {
+    for (final skill in all) {
+      if (skill.id.toLowerCase() == id.toLowerCase() ||
+          skill.name.toLowerCase() == id.toLowerCase()) {
+        return skill;
+      }
+    }
+    return null;
+  }
 }
+
+/// 动态 Skill 注册中心 (运行时管理内置 + 用户导入/创建的所有技能)
+class SkillRegistry {
+  final Map<String, Skill> _skills = {};
+
+  SkillRegistry({List<Skill>? initialSkills}) {
+    // 默认注入出厂内置技能
+    for (final skill in BuiltinSkills.all) {
+      _skills[skill.id] = skill;
+    }
+    if (initialSkills != null) {
+      for (final skill in initialSkills) {
+        _skills[skill.id] = skill;
+      }
+    }
+  }
+
+  /// 获取所有可用技能列表 (排序：内置在前，自定义在后)
+  List<Skill> getAll() {
+    final list = _skills.values.toList();
+    list.sort((a, b) {
+      if (a.isBuiltin && !b.isBuiltin) return -1;
+      if (!a.isBuiltin && b.isBuiltin) return 1;
+      return a.name.compareTo(b.name);
+    });
+    return List.unmodifiable(list);
+  }
+
+  /// 仅获取用户自定义技能列表
+  List<Skill> getCustomSkills() {
+    return _skills.values.where((s) => !s.isBuiltin).toList();
+  }
+
+  /// 根据 ID 或名称查找技能
+  Skill? get(String idOrName) {
+    if (_skills.containsKey(idOrName)) {
+      return _skills[idOrName];
+    }
+    for (final skill in _skills.values) {
+      if (skill.id.toLowerCase() == idOrName.toLowerCase() ||
+          skill.name.toLowerCase() == idOrName.toLowerCase()) {
+        return skill;
+      }
+    }
+    return null;
+  }
+
+  /// 注册/更新技能
+  void register(Skill skill) {
+    _skills[skill.id] = skill;
+  }
+
+  /// 批量注册技能
+  void registerAll(Iterable<Skill> skills) {
+    for (final skill in skills) {
+      _skills[skill.id] = skill;
+    }
+  }
+
+  /// 移除自定义技能 (内置技能不可注销)
+  bool unregister(String id) {
+    final target = _skills[id];
+    if (target != null && !target.isBuiltin) {
+      _skills.remove(id);
+      return true;
+    }
+    return false;
+  }
+
+  /// 重置为出厂技能
+  void resetToBuiltin() {
+    _skills.clear();
+    for (final skill in BuiltinSkills.all) {
+      _skills[skill.id] = skill;
+    }
+  }
+}
+

@@ -33,11 +33,13 @@ class AppTheme {
   static const Color surface = pureWhite;
   static const Color surfaceElevated = Color(0xFFFAFAF9);
   static const Color surfaceMuted = Color(0xFFF0EFEB);
+  static const Color surfaceVariant = paperWarmth;
   static const Color border = Color(0x14000000); // 1px hairline border (rgba(0,0,0,0.08))
   static const Color borderSubtle = Color(0x0A000000);
   static const Color borderHover = Color(0x26000000);
 
   static const Color primary = notionBlue;
+  static const Color accent = notionBlue;
   static const Color primaryLight = skyWash;
   static const Color primaryDark = signalBlue;
   static const Color primaryTint = skyTint;

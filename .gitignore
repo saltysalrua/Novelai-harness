@@ -25,6 +25,9 @@ migrate_working_dir/
 # Design drafts and assets
 /design/
 
+# Reference repositories (external projects for feature reference only)
+/reference/
+
 # Local Output & Configurations
 /NovelAI_Output/
 *.local.json

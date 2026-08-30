@@ -32,27 +32,6 @@ class StudioSidebar extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // 顶部应用 Logo
-          Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 8),
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppTheme.skyTint,
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                border: Border.all(
-                  color: AppTheme.notionBlue.withValues(alpha: 0.25),
-                ),
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                size: 16,
-                color: AppTheme.notionBlue,
-              ),
-            ),
-          ),
-          const Divider(height: 1, color: AppTheme.border),
           const SizedBox(height: 8),
 
           // 导航分类项：参数

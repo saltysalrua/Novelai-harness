@@ -10,14 +10,21 @@ class OpenAiCompatibleProvider implements LlmProvider {
   final String baseUrl;
   final String apiKey;
   final String model;
+  final bool reasoning;
+  final String? thinkingEffort;
   final http.Client _client;
 
   OpenAiCompatibleProvider({
     required this.baseUrl,
     required this.apiKey,
     required this.model,
+    this.reasoning = false,
+    this.thinkingEffort,
     http.Client? client,
   }) : _client = client ?? http.Client();
+
+  @override
+  String get modelId => model;
 
   @override
   Stream<HarnessEvent> streamChat({
@@ -31,7 +38,9 @@ class OpenAiCompatibleProvider implements LlmProvider {
     }
 
     String endpoint = baseUrl.trim();
-    if (!endpoint.endsWith('/chat/completions')) {
+    if (!endpoint.endsWith('/chat/completions') &&
+        !endpoint.endsWith('/responses') &&
+        !endpoint.endsWith('/messages')) {
       if (endpoint.endsWith('/')) {
         endpoint = '${endpoint}chat/completions';
       } else {
@@ -46,13 +55,26 @@ class OpenAiCompatibleProvider implements LlmProvider {
       'temperature': temperature,
     };
 
+    if (reasoning && thinkingEffort != null && thinkingEffort!.isNotEmpty) {
+      requestBody['reasoning_effort'] = thinkingEffort;
+    }
+
     if (tools.isNotEmpty) {
       requestBody['tools'] = tools.map((t) => t.toOpenAiFunction()).toList();
       requestBody['tool_choice'] = 'auto';
     }
 
+    // OpenAI 兼容端点：请求在最后一个 chunk 里携带 usage 统计
+    if (endpoint.endsWith('/chat/completions')) {
+      requestBody['stream_options'] = {'include_usage': true};
+    }
+
     final request = http.Request('POST', Uri.parse(endpoint));
     request.headers['Content-Type'] = 'application/json';
+    if (endpoint.endsWith('/messages')) {
+      request.headers['x-api-key'] = apiKey.trim();
+      request.headers['anthropic-version'] = '2023-06-01';
+    }
     request.headers['Authorization'] = 'Bearer ${apiKey.trim()}';
     request.body = jsonEncode(requestBody);
 
@@ -66,7 +88,9 @@ class OpenAiCompatibleProvider implements LlmProvider {
 
     if (streamedResponse.statusCode != 200) {
       final errBody = await streamedResponse.stream.bytesToString();
-      yield ErrorEvent('LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody');
+      yield ErrorEvent(
+        'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
+      );
       return;
     }
 
@@ -95,6 +119,16 @@ class OpenAiCompatibleProvider implements LlmProvider {
         }
 
         final choices = json['choices'] as List<dynamic>?;
+
+        // usage chunk (include_usage 时最后一个 chunk 的 choices 为空)
+        final usageJson = json['usage'];
+        if (usageJson is Map<String, dynamic>) {
+          final usage = TokenUsage.fromJson(usageJson);
+          if (usage.total > 0) {
+            yield UsageEvent(usage);
+          }
+        }
+
         if (choices == null || choices.isEmpty) continue;
 
         final delta = choices[0]['delta'] as Map<String, dynamic>?;
@@ -153,7 +187,9 @@ class OpenAiCompatibleProvider implements LlmProvider {
             final index = tc['index'] as int? ?? 0;
             if (!toolCallsAccumulator.containsKey(index)) {
               toolCallsAccumulator[index] = {
-                'id': tc['id'] ?? 'call_${DateTime.now().millisecondsSinceEpoch}_$index',
+                'id':
+                    tc['id'] ??
+                    'call_${DateTime.now().millisecondsSinceEpoch}_$index',
                 'name': '',
                 'arguments': '',
               };
@@ -190,9 +226,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
         } catch (_) {}
 
         if (name.isNotEmpty) {
-          yield ToolCallEvent(
-            ToolCall(id: id, name: name, arguments: args),
-          );
+          yield ToolCallEvent(ToolCall(id: id, name: name, arguments: args));
         }
       }
     } catch (e) {

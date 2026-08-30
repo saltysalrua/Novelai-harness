@@ -170,13 +170,12 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
         child: Container(
           width: 8,
           alignment: Alignment.center,
+          color: Colors.transparent,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: isDragging ? 3 : 1,
+            width: isDragging ? 2 : 0,
             height: double.infinity,
-            color: isDragging
-                ? AppTheme.primary
-                : AppTheme.border.withValues(alpha: 0.8),
+            color: isDragging ? AppTheme.primary : Colors.transparent,
           ),
         ),
       ),

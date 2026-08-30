@@ -8,90 +8,36 @@ import 'agent_tool.dart';
 
 /// 回调类型，用于生图成功后通知 UI 刷新画板
 typedef OnImageGeneratedCallback = void Function(NaiGeneratedImage image);
+typedef OnParamsUsedCallback = void Function(NaiGenerationParams params);
 
-/// 1. 生图工具
+/// 付费生图确认回调：当生图参数超出 Opus 免费区间时，向用户申请确认；返回 true 则继续生成，false 则取消
+typedef OnConfirmPaidGenerationCallback = Future<bool> Function({
+  required NaiGenerationParams params,
+  required List<String> reasons,
+});
+
+/// 1. 生图工具 (以工作台当前参数直接触发 NovelAI 官方绘图)
 class NovelAiGenerateTool extends AgentTool {
-  final NovelAiRepository _repository;
-  final ConfigService _configService;
-  final OnImageGeneratedCallback? _onGenerated;
+  final NovelAiRepository repository;
+  final ConfigService configService;
+  final NaiGenerationParams Function() getCurrentParams;
+  final OnImageGeneratedCallback? onGenerated;
+  final OnConfirmPaidGenerationCallback? onConfirmPaidGeneration;
 
   NovelAiGenerateTool({
-    required this._repository,
-    required this._configService,
-    this._onGenerated,
-  })  : super(
+    required this.repository,
+    required this.configService,
+    required this.getCurrentParams,
+    this.onGenerated,
+    this.onConfirmPaidGeneration,
+  }) : super(
           name: 'novelai_generate',
-          label: 'NovelAI 图像生成',
+          label: '图像生成',
           description:
-              '调用 NovelAI 官方绘图接口生成插画。支持自然语言散文、Danbooru 标签、漫画分镜构图以及多角色 | 隔离语法。',
-          parameters: {
+              '以工作台当前的参数配置（提示词、尺寸、步数、CFG、模型等）直接触发 NovelAI 官方绘图。在调用此工具前，如需构思或调整生图提示词与尺寸，必须先通过 update_studio_parameters 工具修改工作台参数。若参数超出 Opus 免费范围，将自动向用户发出点数消耗申请。',
+          parameters: const {
             'type': 'object',
-            'properties': {
-              'prompt': {
-                'type': 'string',
-                'description': '正向提示词描述（支持自然语言、漫画分镜描述、Danbooru 标签或多角色隔离语法）',
-              },
-              'resolution_preset': {
-                'type': 'string',
-                'enum': [
-                  'portrait',
-                  'landscape',
-                  'square',
-                  'wallpaper',
-                  'portrait_large',
-                  'landscape_large'
-                ],
-                'description':
-                    '分辨率预设：portrait(832x1216, Opus免费), landscape(1216x832, Opus免费), square(1024x1024, Opus免费), wallpaper(1920x1088)',
-              },
-              'width': {
-                'type': 'integer',
-                'description': '自定义宽度 (自动64对齐，如 832, 1024, 1216)',
-              },
-              'height': {
-                'type': 'integer',
-                'description': '自定义高度 (自动64对齐，如 1216, 832, 1024)',
-              },
-              'model': {
-                'type': 'string',
-                'enum': [
-                  'nai-diffusion-5-full',
-                  'nai-diffusion-5-curated',
-                  'nai-diffusion-4-5-full',
-                  'nai-diffusion-4-5-curated',
-                  'nai-diffusion-4-full',
-                  'nai-diffusion-3'
-                ],
-                'description': '指定绘画模型 (默认 nai-diffusion-5-full)',
-              },
-              'steps': {
-                'type': 'integer',
-                'description': '采样步数 (1~50，默认28，<=28符合Opus免费区间)',
-              },
-              'scale': {
-                'type': 'number',
-                'description': 'CFG Scale 提示词引导强度 (1.0~15.0，默认5.0)',
-              },
-              'cfg_rescale': {
-                'type': 'number',
-                'description': 'CFG Rescale 色彩过曝抗焦黑修正 (0.0~1.0，推荐0.0或0.15)',
-              },
-              'sampler': {
-                'type': 'string',
-                'enum': [
-                  'k_euler',
-                  'k_euler_ancestral',
-                  'k_dpmpp_2m',
-                  'k_dpmpp_sde'
-                ],
-                'description': '采样算法',
-              },
-              'seed': {
-                'type': 'integer',
-                'description': '随机种子 (留空则随机生成)',
-              },
-            },
-            'required': ['prompt'],
+            'properties': {},
           },
         );
 
@@ -99,7 +45,7 @@ class NovelAiGenerateTool extends AgentTool {
   Future<ToolResult> execute(
       String toolCallId, Map<String, dynamic> args) async {
     try {
-      final config = await _configService.loadConfig();
+      final config = await configService.loadConfig();
       if (config.novelAiKey.trim().isEmpty) {
         return ToolResult(
           toolCallId: toolCallId,
@@ -108,68 +54,46 @@ class NovelAiGenerateTool extends AgentTool {
         );
       }
 
-      final prompt = args['prompt'] as String? ?? '';
-      if (prompt.trim().isEmpty) {
+      final params = getCurrentParams();
+      if (params.prompt.trim().isEmpty) {
         return ToolResult(
           toolCallId: toolCallId,
-          content: '错误：生图提示词不能为空。',
+          content: '错误：工作台提示词为空。请先调用 update_studio_parameters 填入提示词后再触发生成。',
           isError: true,
         );
       }
 
-      // 解析分辨率
-      int w = config.customWidth;
-      int h = config.customHeight;
-      final presetKey = args['resolution_preset'] as String?;
-      if (presetKey != null) {
-        final preset = ResolutionPreset.fromKey(presetKey);
-        w = preset.width;
-        h = preset.height;
-      } else {
-        if (args['width'] is num) {
-          w = ((args['width'] as num).toInt() ~/ 64) * 64;
+      // 检查是否超出 Opus 免费区间
+      if (!params.isOpusFree) {
+        final reasons = <String>[];
+        if (params.width * params.height > 1048576) {
+          reasons.add('尺寸 ${params.width}x${params.height}（像素数超出 1,048,576 限制）');
         }
-        if (args['height'] is num) {
-          h = ((args['height'] as num).toInt() ~/ 64) * 64;
+        if (params.steps > 28) {
+          reasons.add('采样步数 ${params.steps} 步（超出 28 步限制）');
+        }
+        if (params.nSamples > 1) {
+          reasons.add('生成张数 ${params.nSamples} 张（超出 1 张限制）');
+        }
+
+        if (onConfirmPaidGeneration != null) {
+          final confirmed = await onConfirmPaidGeneration!(
+            params: params,
+            reasons: reasons,
+          );
+          if (!confirmed) {
+            final reasonText = reasons.join('，');
+            return ToolResult(
+              toolCallId: toolCallId,
+              content: '已取消生成：本次生图参数（$reasonText）需消耗 Anlas 点数，用户已拒绝扣费。'
+                  '请先调用 update_studio_parameters 将参数调整到免费区间（如尺寸 <= 832x1216 且 步数 <= 28）或征求用户进一步指示。',
+              isError: true,
+            );
+          }
         }
       }
-      w = w.clamp(64, 2048);
-      h = h.clamp(64, 2048);
 
-      final modelStr = args['model'] as String?;
-      final model = modelStr != null
-          ? NaiModel.fromId(modelStr)
-          : config.defaultModel;
-
-      final steps = (args['steps'] as num?)?.toInt() ?? config.defaultSteps;
-      final scale = (args['scale'] as num?)?.toDouble() ?? config.defaultScale;
-      final cfgRescale =
-          (args['cfg_rescale'] as num?)?.toDouble() ?? config.defaultCfgRescale;
-
-      final samplerStr = args['sampler'] as String?;
-      final sampler = samplerStr != null
-          ? NaiSampler.fromId(samplerStr)
-          : config.defaultSampler;
-
-      final seed = (args['seed'] as num?)?.toInt() ?? -1;
-
-      final params = NaiGenerationParams(
-        prompt: prompt,
-        negativePrompt: config.negativePrompt,
-        model: model,
-        width: w,
-        height: h,
-        steps: steps,
-        scale: scale,
-        cfgRescale: cfgRescale,
-        sampler: sampler,
-        noiseSchedule: config.defaultNoiseSchedule,
-        seed: seed,
-        prefixPrompt: config.prefixPrompt,
-        suffixPrompt: config.suffixPrompt,
-      );
-
-      final generatedList = await _repository.generate(
+      final generatedList = await repository.generate(
         apiKey: config.novelAiKey,
         params: params,
         saveDir: config.saveDirectory,
@@ -184,23 +108,23 @@ class NovelAiGenerateTool extends AgentTool {
       }
 
       final image = generatedList.first;
-      _onGenerated?.call(image);
+      onGenerated?.call(image);
 
       final costText = image.isOpusFree
-          ? '0 Anlas (Opus 免费区间)'
-          : '消耗 Anlas 点数 (超出免费尺寸或步数)';
+          ? '0 Anlas (Opus 免费)'
+          : '消耗点数';
 
       final resultBuffer = StringBuffer();
       resultBuffer.writeln('生图完成：');
       if (image.localFilePath != null) {
         resultBuffer.writeln('保存路径: ${image.localFilePath}');
       }
-      resultBuffer.writeln('模型: ${model.label}');
-      resultBuffer.writeln('尺寸: ${w}x$h');
-      resultBuffer.writeln('步数: $steps 步');
-      resultBuffer.writeln('CFG: $scale (Rescale: $cfgRescale)');
+      resultBuffer.writeln('模型: ${params.model.label}');
+      resultBuffer.writeln('尺寸: ${params.width}x${params.height}');
+      resultBuffer.writeln('步数: ${params.steps} 步');
+      resultBuffer.writeln('CFG: ${params.scale} (Rescale: ${params.cfgRescale})');
       resultBuffer.writeln('随机种子: ${image.seed}');
-      resultBuffer.writeln('点数消耗: $costText');
+      resultBuffer.writeln('点数状态: $costText');
 
       return ToolResult(
         toolCallId: toolCallId,
