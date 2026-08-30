@@ -34,6 +34,9 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 按 Esc 后记录当前输入，避免同类补全立即重新弹出
   String _dismissedToken = '';
 
+  /// 输入框实测宽度 (帧后回调中缓存，禁止在 build/layout 阶段读 size)
+  double _fieldWidth = 320.0;
+
   @override
   void initState() {
     super.initState();
@@ -93,7 +96,19 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       _suggestions = suggestions;
       if (_selectedIndex >= suggestions.length) _selectedIndex = 0;
     });
+    _measureFieldWidth();
     if (!_overlayController.isShowing) _overlayController.show();
+  }
+
+  /// 帖后回调里测量输入框宽度并缓存 (size 只能在布局完成后读取)
+  void _measureFieldWidth() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final width = _inputFieldKey.currentContext?.size?.width;
+      if (width != null && width > 0 && width != _fieldWidth) {
+        setState(() => _fieldWidth = width);
+      }
+    });
   }
 
   void _hideSuggestions() {
@@ -156,7 +171,6 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 悬浮于输入框上方的补全面板 (Overlay + Follower 锚定)
   Widget _buildSlashOverlay(BuildContext overlayContext) {
     if (_suggestions.isEmpty) return const SizedBox.shrink();
-    final width = _inputFieldKey.currentContext?.size?.width ?? 320.0;
     return CompositedTransformFollower(
       link: _layerLink,
       targetAnchor: Alignment.topLeft,
@@ -164,7 +178,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       offset: const Offset(0, -6),
       showWhenUnlinked: false,
       child: SizedBox(
-        width: width,
+        width: _fieldWidth,
         child: SlashSuggestionPanel(
           suggestions: _suggestions,
           selectedIndex: _selectedIndex,
