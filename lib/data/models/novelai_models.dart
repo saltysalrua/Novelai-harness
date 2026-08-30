@@ -53,6 +53,12 @@ enum NaiModel {
   /// Native 噪声调度是否可选 (官网仅在 v3 及更早提供)
   bool get allowsNativeNoiseSchedule => !isV4OrAbove;
 
+  /// 多角色提示词数量上限 (官方文档: V5 为 22、V4/V4.5 为 6，v3 不支持)
+  int get maxCharacterPrompts => isV5 ? 22 : (isV4OrAbove ? 6 : 0);
+
+  /// 自定义角色定位是否为自由连续坐标 (V5 画布自由拖动，V4/V4.5 限制 5x5 网格)
+  bool get supportsFreeCharacterPositioning => isV5;
+
   /// 是否支持 `text:` 原生文字渲染段 (官网能力位 `text`，V4 起为 true)。
   /// 质量词等自动追加的内容必须留在 `text:` 之前，否则会被画进图里的文字。
   bool get supportsTextRendering => isV4OrAbove;
@@ -240,6 +246,203 @@ enum ResolutionPreset {
   }
 }
 
+/// 多角色自动布局 (归一化坐标 X=水平 Y=垂直，与 Aaalice NAI Launcher 的
+/// CharacterPositionLayout 规则一致)
+abstract final class NaiCharacterPositionLayout {
+  /// V4/V4.5 官方网格定位的量化步长 (5x5 网格 → 1/4 步长)
+  static double gridQuantize(double value) {
+    return ((value.clamp(0.0, 1.0) * 4).round() / 4);
+  }
+
+  /// 按启用角色数量返回稳定的默认位置列表
+  static List<({double x, double y})> positionsForCount(int count) {
+    switch (count) {
+      case <= 0:
+        return const [];
+      case 1:
+        return const [(x: 0.5, y: 0.5)];
+      case 2:
+        return const [(x: 0.25, y: 0.5), (x: 0.75, y: 0.5)];
+      case 3:
+        return const [(x: 0.2, y: 0.5), (x: 0.5, y: 0.5), (x: 0.8, y: 0.5)];
+      case 4:
+        return const [
+          (x: 0.25, y: 0.25),
+          (x: 0.75, y: 0.25),
+          (x: 0.25, y: 0.75),
+          (x: 0.75, y: 0.75),
+        ];
+      case 5:
+        return const [
+          (x: 0.2, y: 0.2),
+          (x: 0.8, y: 0.2),
+          (x: 0.5, y: 0.5),
+          (x: 0.2, y: 0.8),
+          (x: 0.8, y: 0.8),
+        ];
+      case 6:
+        return const [
+          (x: 0.2, y: 0.25),
+          (x: 0.5, y: 0.25),
+          (x: 0.8, y: 0.25),
+          (x: 0.2, y: 0.75),
+          (x: 0.5, y: 0.75),
+          (x: 0.8, y: 0.75),
+        ];
+      default:
+        return List.generate(count, (index) {
+          const columns = 3;
+          final rows = (count / columns).ceil();
+          final row = index ~/ columns;
+          final column = index % columns;
+          return (x: (column + 1) / (columns + 1), y: (row + 1) / (rows + 1));
+        });
+    }
+  }
+
+  /// 取第 index 个 (共 total 个) 角色的自动位置
+  static ({double x, double y}) positionForIndex(int index, int total) {
+    final positions = positionsForCount(total);
+    if (index >= 0 && index < positions.length) return positions[index];
+    return const (x: 0.5, y: 0.5);
+  }
+
+  /// 钨制到 [0.0, 1.0] 区间
+  static double clamp(double value) => value.clamp(0.0, 1.0);
+}
+
+/// 单个角色提示词 (V4+ 多角色物理防串色隔离)
+///
+/// 仅 V4 及以上模型生效：发送 characterPrompts 与 v4_prompt 的
+/// char_captions，v3 模型会直接忽略。位置默认由 AI 自动布局，
+/// 开启自定义后按 5x5 网格坐标发送。
+class NaiCharacterPrompt {
+  /// 8 位十六进制短 ID，供 UI 与 Agent 工具稳定引用
+  final String id;
+
+  /// 显示名 (不进入 payload，仅本地标识)
+  final String name;
+
+  /// 角色正向提示词
+  final String prompt;
+
+  /// 角色专属负面提示词
+  final String negativePrompt;
+
+  /// 是否参与生成
+  final bool enabled;
+
+  /// 是否被手动指定过坐标 (仅当全局关闭 AI 自动布局时生效；
+  /// 官方 AI's Choice 下角色定位全部由模型自行安排)
+  final bool useCustomPosition;
+
+  /// 自定义坐标 X (0.0=最左 1.0=最右，仅 useCustomPosition 为 true 时生效)
+  final double positionX;
+
+  /// 自定义坐标 Y (0.0=最上 1.0=最下)
+  final double positionY;
+
+  const NaiCharacterPrompt({
+    required this.id,
+    required this.name,
+    this.prompt = '',
+    this.negativePrompt = '',
+    this.enabled = true,
+    this.useCustomPosition = false,
+    this.positionX = 0.5,
+    this.positionY = 0.5,
+  });
+
+  static int _idCounter = 0;
+
+  /// 生成新角色的 8-hex 短 ID
+  static String generateId() {
+    final ms = DateTime.now().millisecondsSinceEpoch & 0xFFFFFF;
+    return ((ms << 8) | ((++_idCounter) & 0xFF))
+        .toRadixString(16)
+        .padLeft(8, '0');
+  }
+
+  /// 新建角色 (自动命名 + 自动布局)
+  factory NaiCharacterPrompt.create({
+    String? name,
+    String prompt = '',
+    String negativePrompt = '',
+  }) {
+    return NaiCharacterPrompt(
+      id: generateId(),
+      name: name ?? 'Character',
+      prompt: prompt,
+      negativePrompt: negativePrompt,
+    );
+  }
+
+  /// 解析该角色实际发送的坐标：自定义坐标优先，否则按启用顺序自动布局
+  ({double x, double y}) resolveCenter(int enabledIndex, int enabledTotal) {
+    if (useCustomPosition) {
+      return (
+        x: NaiCharacterPositionLayout.clamp(positionX),
+        y: NaiCharacterPositionLayout.clamp(positionY),
+      );
+    }
+    return NaiCharacterPositionLayout.positionForIndex(
+      enabledIndex,
+      enabledTotal,
+    );
+  }
+
+  NaiCharacterPrompt copyWith({
+    String? id,
+    String? name,
+    String? prompt,
+    String? negativePrompt,
+    bool? enabled,
+    bool? useCustomPosition,
+    double? positionX,
+    double? positionY,
+  }) {
+    return NaiCharacterPrompt(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      prompt: prompt ?? this.prompt,
+      negativePrompt: negativePrompt ?? this.negativePrompt,
+      enabled: enabled ?? this.enabled,
+      useCustomPosition: useCustomPosition ?? this.useCustomPosition,
+      positionX: positionX ?? this.positionX,
+      positionY: positionY ?? this.positionY,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'prompt': prompt,
+    'negativePrompt': negativePrompt,
+    'enabled': enabled,
+    'useCustomPosition': useCustomPosition,
+    'positionX': positionX,
+    'positionY': positionY,
+  };
+
+  factory NaiCharacterPrompt.fromJson(Map<String, dynamic> json) {
+    double parseDouble(String key, double fallback) {
+      final raw = json[key];
+      return raw is num ? raw.toDouble() : fallback;
+    }
+
+    return NaiCharacterPrompt(
+      id: json['id'] as String? ?? NaiCharacterPrompt.generateId(),
+      name: json['name'] as String? ?? 'Character',
+      prompt: json['prompt'] as String? ?? '',
+      negativePrompt: json['negativePrompt'] as String? ?? '',
+      enabled: json['enabled'] as bool? ?? true,
+      useCustomPosition: json['useCustomPosition'] as bool? ?? false,
+      positionX: parseDouble('positionX', 0.5),
+      positionY: parseDouble('positionY', 0.5),
+    );
+  }
+}
+
 /// 图像生成请求参数
 class NaiGenerationParams {
   final String prompt;
@@ -263,6 +466,13 @@ class NaiGenerationParams {
   final String? suffixPrompt;
   final bool applyFixedPrompts;
 
+  /// 多角色提示词列表 (仅 V4+ 模型生效，V5 最多 22 个、V4/V4.5 最多 6 个)
+  final List<NaiCharacterPrompt> characterPrompts;
+
+  /// 全局角色位置模式：true = AI 自动布局 (官方 AI's Choice，不发送任何位置参数)，
+  /// false = 自定义定位 (发送 use_coords=true 与各角色 center)
+  final bool characterAiPosition;
+
   const NaiGenerationParams({
     required this.prompt,
     this.negativePrompt = '',
@@ -284,6 +494,8 @@ class NaiGenerationParams {
     this.prefixPrompt,
     this.suffixPrompt,
     this.applyFixedPrompts = true,
+    this.characterPrompts = const [],
+    this.characterAiPosition = true,
   });
 
   /// 组合最终正向词 (词缀 + 核心词 + 透明背景标签)
@@ -345,6 +557,16 @@ class NaiGenerationParams {
     }
     return effective;
   }
+
+  /// 参与生成的角色列表 (启用且提示词非空)
+  List<NaiCharacterPrompt> get enabledCharacterPrompts => characterPrompts
+      .where((c) => c.enabled && c.prompt.trim().isNotEmpty)
+      .toList();
+
+  /// 是否下发自定义坐标：关闭全局 AI 自动布局且存在启用角色时才为 true。
+  /// 官方 AI's Choice (characterAiPosition=true) 下不发任何位置参数，由模型自行安排。
+  bool get useCoords =>
+      !characterAiPosition && enabledCharacterPrompts.isNotEmpty;
 
   /// 官方质量预设字符串 ID (params_version 4 用字符串而非旧版布尔开关)
   String get _qualityPresetId {
@@ -422,6 +644,54 @@ class NaiGenerationParams {
     };
 
     if (isV4OrAbove) {
+      // 多角色隔离: characterPrompts + v4_prompt 的 char_captions (仅启用角色)。
+      // 官方 AI's Choice (characterAiPosition=true) 不发送任何位置参数；
+      // 自定义定位时发送 use_coords=true 与各角色 center——手动指定过的角色
+      // 用其坐标，未指定的按启用顺序自动布局；V4/V4.5 官方限制 5x5 网格，
+      // 坐标量化到 1/4 步长，V5 为自由连续小数坐标。
+      final enabledCharacters = enabledCharacterPrompts;
+      final useCoords = this.useCoords;
+      final quantize = model.isV5
+          ? (double v) => v.clamp(0.0, 1.0)
+          : NaiCharacterPositionLayout.gridQuantize;
+
+      final charCaptions = <Map<String, dynamic>>[];
+      final negativeCharCaptions = <Map<String, dynamic>>[];
+      final characterPromptEntries = <Map<String, dynamic>>[];
+      for (var i = 0; i < enabledCharacters.length; i++) {
+        final character = enabledCharacters[i];
+        if (useCoords) {
+          final raw = character.resolveCenter(i, enabledCharacters.length);
+          final center = (x: quantize(raw.x), y: quantize(raw.y));
+          charCaptions.add({
+            'centers': [
+              {'x': center.x, 'y': center.y},
+            ],
+            'char_caption': character.prompt,
+          });
+          negativeCharCaptions.add({
+            'centers': [
+              {'x': center.x, 'y': center.y},
+            ],
+            'char_caption': character.negativePrompt,
+          });
+          characterPromptEntries.add({
+            'center': {'x': center.x, 'y': center.y},
+            'prompt': character.prompt,
+            'uc': character.negativePrompt,
+            'enabled': true,
+          });
+        } else {
+          charCaptions.add({'char_caption': character.prompt});
+          negativeCharCaptions.add({'char_caption': character.negativePrompt});
+          characterPromptEntries.add({
+            'prompt': character.prompt,
+            'uc': character.negativePrompt,
+            'enabled': true,
+          });
+        }
+      }
+
       return {
         'input': apiPrompt,
         'model': model.id,
@@ -429,17 +699,23 @@ class NaiGenerationParams {
         'parameters': {
           ...baseParameters,
           'params_version': 4,
-          'use_coords': false,
+          'use_coords': useCoords,
           'legacy_v3_extend': false,
           'legacy_uc': false,
-          'characterPrompts': [],
+          'characterPrompts': characterPromptEntries,
           'v4_prompt': {
-            'caption': {'base_caption': apiPrompt, 'char_captions': []},
-            'use_coords': false,
+            'caption': {
+              'base_caption': apiPrompt,
+              'char_captions': charCaptions,
+            },
+            'use_coords': useCoords,
             'use_order': true,
           },
           'v4_negative_prompt': {
-            'caption': {'base_caption': apiNegative, 'char_captions': []},
+            'caption': {
+              'base_caption': apiNegative,
+              'char_captions': negativeCharCaptions,
+            },
             'legacy_uc': false,
           },
         },
@@ -476,6 +752,8 @@ class NaiGenerationParams {
     String? prefixPrompt,
     String? suffixPrompt,
     bool? applyFixedPrompts,
+    List<NaiCharacterPrompt>? characterPrompts,
+    bool? characterAiPosition,
   }) {
     return NaiGenerationParams(
       prompt: prompt ?? this.prompt,
@@ -498,6 +776,8 @@ class NaiGenerationParams {
       prefixPrompt: prefixPrompt ?? this.prefixPrompt,
       suffixPrompt: suffixPrompt ?? this.suffixPrompt,
       applyFixedPrompts: applyFixedPrompts ?? this.applyFixedPrompts,
+      characterPrompts: characterPrompts ?? this.characterPrompts,
+      characterAiPosition: characterAiPosition ?? this.characterAiPosition,
     );
   }
 }

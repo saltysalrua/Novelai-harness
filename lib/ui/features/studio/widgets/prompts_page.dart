@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
+import 'character_prompts_section.dart';
 import 'fixed_affixes_panel.dart';
 import 'pill_widgets.dart';
 import 'prompt_editor_card.dart';
@@ -243,6 +244,10 @@ class _PromptsPageState extends State<PromptsPage> {
         const PageHeader(title: '提示词管理', subtitle: '正向提示词、负面排除词与全局固定词缀'),
         const SizedBox(height: 16),
         if (_isTabbedMode) _buildTabbedSection() else _buildStackedSection(),
+
+        // 多角色提示词区块 (两种模式共用，仅 V4+ 模型生效)
+        const SizedBox(height: 18),
+        CharacterPromptsSection(viewModel: viewModel),
 
         // 全局固定词缀开关与编辑面板 (两种模式共用，常驻页底)
         const SizedBox(height: 18),

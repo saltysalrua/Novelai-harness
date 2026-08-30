@@ -2,6 +2,7 @@ import '../../../data/models/novelai_models.dart';
 import '../presets/agent_preset.dart';
 import '../types.dart';
 import 'agent_tool.dart';
+import 'character_prompt_tools.dart' show buildCharacterPromptsReport;
 
 /// 回调类型：更新生图参数
 typedef OnStudioParamsUpdate = void Function(NaiGenerationParams newParams);
@@ -33,7 +34,13 @@ String buildStudioParamsReport(
     '• 随机种子: ${params.seed == -1 ? '随机 (-1)' : params.seed}',
     '• Opus 状态: $costStatus',
   ];
-  return '$title\n${lines.join('\n')}';
+  var report = '$title\n${lines.join('\n')}';
+  if (params.characterPrompts.isNotEmpty) {
+    report +=
+        '\n\n角色提示词详情：\n'
+        '${buildCharacterPromptsReport(params.characterPrompts, aiPosition: params.characterAiPosition)}';
+  }
+  return report;
 }
 
 /// 工作台当前生图参数读取工具 (按需查询指定参数或查看全部)
@@ -258,6 +265,11 @@ class NovelAiUpdateParamsTool extends AgentTool {
                'enum': ['Standard', 'Heavy', 'Light', 'Off'],
                'description': '官方质量标签词缀预设',
              },
+             'character_ai_position': {
+               'type': 'boolean',
+               'description':
+                   '全局角色位置模式：true = AI 自动布局 (AI\'s Choice，不发送位置参数)，false = 自定义定位 (发送各角色 center，需先用 add_character_prompt 配置角色与坐标)',
+             },
            },
          },
        );
@@ -282,6 +294,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
     NaiSampler sampler = current.sampler;
     NoiseSchedule noiseSchedule = current.noiseSchedule;
     String qualityPreset = current.qualityPreset;
+    bool characterAiPosition = current.characterAiPosition;
 
     bool isAllowed(String key) {
       final checker = permissionChecker;
@@ -438,6 +451,19 @@ class NovelAiUpdateParamsTool extends AgentTool {
       }
     }
 
+    // 11. 全局角色位置模式
+    if (args.containsKey('character_ai_position')) {
+      if (isAllowed(PresetParamKeys.characterAiPosition)) {
+        final cap = args['character_ai_position'];
+        if (cap is bool) {
+          characterAiPosition = cap;
+          updatedEntries.add('角色定位模式: ${cap ? 'AI 自动布局' : '自定义定位'}');
+        }
+      } else {
+        blockedEntries.add('角色定位模式');
+      }
+    }
+
     if (updatedEntries.isEmpty) {
       if (blockedEntries.isNotEmpty) {
         return ToolResult(
@@ -462,6 +488,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
       sampler: sampler,
       noiseSchedule: noiseSchedule,
       qualityPreset: qualityPreset,
+      characterAiPosition: characterAiPosition,
     );
 
     onUpdateParams(newParams);

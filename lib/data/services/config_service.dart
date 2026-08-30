@@ -127,10 +127,11 @@ class AppConfig {
         llmApiKey != null ||
         llmModel != null ||
         llmTemperature != null) {
-      final currentList = (updatedProviders.isNotEmpty
-              ? updatedProviders
-              : LlmProviderConfig.defaultProviders)
-          .toList();
+      final currentList =
+          (updatedProviders.isNotEmpty
+                  ? updatedProviders
+                  : LlmProviderConfig.defaultProviders)
+              .toList();
       final index = currentList.indexWhere((p) => p.id == targetActiveId);
       if (index >= 0) {
         final current = currentList[index];
@@ -191,6 +192,8 @@ class ConfigService {
   static const String _keySaveDir = 'novelai_save_dir';
   static const String _keyLastPrompt = 'novelai_last_prompt';
   static const String _keyApplyFixedPrompts = 'novelai_apply_fixed_prompts';
+  static const String _keyCharacterPrompts = 'novelai_character_prompts';
+  static const String _keyCharacterAiPosition = 'novelai_character_ai_position';
 
   static const String _keyLlmBaseUrl = 'llm_base_url';
   static const String _keyLlmApiKey = 'llm_api_key';
@@ -434,24 +437,28 @@ class ConfigService {
     await prefs.setString(_keySaveDir, config.saveDirectory);
 
     // 保存多供应商配置
-    final providersJson =
-        jsonEncode(config.llmProviders.map((p) => p.toJson()).toList());
+    final providersJson = jsonEncode(
+      config.llmProviders.map((p) => p.toJson()).toList(),
+    );
     await prefs.setString(_keyLlmProviders, providersJson);
     await prefs.setString(_keyActiveLlmProviderId, config.activeLlmProviderId);
 
     // 保存 Agent 预设配置
-    final presetsJson =
-        jsonEncode(config.presets.map((p) => p.toJson()).toList());
+    final presetsJson = jsonEncode(
+      config.presets.map((p) => p.toJson()).toList(),
+    );
     await prefs.setString(_keyPresets, presetsJson);
     await prefs.setString(_keyActivePresetId, config.activePresetId);
 
     // 保存自定义 Skills 与 Tools
-    final customSkillsJson =
-        jsonEncode(config.customSkills.map((s) => s.toJson()).toList());
+    final customSkillsJson = jsonEncode(
+      config.customSkills.map((s) => s.toJson()).toList(),
+    );
     await prefs.setString(_keyCustomSkills, customSkillsJson);
 
-    final customToolsJson =
-        jsonEncode(config.customTools.map((t) => t.toJson()).toList());
+    final customToolsJson = jsonEncode(
+      config.customTools.map((t) => t.toJson()).toList(),
+    );
     await prefs.setString(_keyCustomTools, customToolsJson);
 
     // 兼容保存活跃供应商基础字段
@@ -484,6 +491,44 @@ class ConfigService {
   Future<void> saveApplyFixedPrompts(bool apply) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyApplyFixedPrompts, apply);
+  }
+
+  /// 加载多角色提示词列表
+  Future<List<NaiCharacterPrompt>> loadCharacterPrompts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyCharacterPrompts);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(NaiCharacterPrompt.fromJson)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 保存多角色提示词列表
+  Future<void> saveCharacterPrompts(List<NaiCharacterPrompt> characters) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _keyCharacterPrompts,
+      jsonEncode(characters.map((c) => c.toJson()).toList()),
+    );
+  }
+
+  /// 加载全局角色位置模式 (true = AI 自动布局，false = 自定义定位)
+  Future<bool> loadCharacterAiPosition() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyCharacterAiPosition) ?? true;
+  }
+
+  /// 保存全局角色位置模式
+  Future<void> saveCharacterAiPosition(bool aiPosition) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyCharacterAiPosition, aiPosition);
   }
 
   Map<String, dynamic>? _tryLoadLocalPiNovelAiJson() {

@@ -14,6 +14,7 @@ class PresetParamKeys {
   static const String sampler = 'sampler';
   static const String noiseSchedule = 'noise_schedule';
   static const String qualityPreset = 'quality_preset';
+  static const String characterAiPosition = 'character_ai_position';
 
   /// 所有支持的生图参数列表与中文标签映射
   static const Map<String, String> labels = {
@@ -29,6 +30,7 @@ class PresetParamKeys {
     sampler: '采样器',
     noiseSchedule: '噪声调度',
     qualityPreset: '质量标签',
+    characterAiPosition: '角色定位模式',
   };
 
   /// 全部内置生图参数键 (完整权限预设直接复用)
@@ -50,6 +52,10 @@ class PresetToolKeys {
   static const String askUser = 'ask_user';
   static const String getParams = 'get_studio_parameters';
   static const String updateParams = 'update_studio_parameters';
+  static const String listCharacterPrompts = 'list_character_prompts';
+  static const String addCharacterPrompt = 'add_character_prompt';
+  static const String updateCharacterPrompt = 'update_character_prompt';
+  static const String removeCharacterPrompt = 'remove_character_prompt';
   static const String loadSkill = 'load_skill';
 
   static const Map<String, String> labels = {
@@ -60,6 +66,10 @@ class PresetToolKeys {
     askUser: '向用户提问',
     getParams: '读取参数',
     updateParams: '修改参数',
+    listCharacterPrompts: '角色列表',
+    addCharacterPrompt: '添加角色',
+    updateCharacterPrompt: '修改角色',
+    removeCharacterPrompt: '删除角色',
     loadSkill: '加载技能',
   };
 
@@ -76,6 +86,10 @@ const List<String> _fullTools = [
   PresetToolKeys.askUser,
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
+  PresetToolKeys.listCharacterPrompts,
+  PresetToolKeys.addCharacterPrompt,
+  PresetToolKeys.updateCharacterPrompt,
+  PresetToolKeys.removeCharacterPrompt,
   PresetToolKeys.loadSkill,
 ];
 
@@ -85,6 +99,10 @@ const List<String> _coreTools = [
   PresetToolKeys.askUser,
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
+  PresetToolKeys.listCharacterPrompts,
+  PresetToolKeys.addCharacterPrompt,
+  PresetToolKeys.updateCharacterPrompt,
+  PresetToolKeys.removeCharacterPrompt,
   PresetToolKeys.loadSkill,
 ];
 
@@ -95,6 +113,10 @@ const List<String> _coreUpscaleTools = [
   PresetToolKeys.askUser,
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
+  PresetToolKeys.listCharacterPrompts,
+  PresetToolKeys.addCharacterPrompt,
+  PresetToolKeys.updateCharacterPrompt,
+  PresetToolKeys.removeCharacterPrompt,
   PresetToolKeys.loadSkill,
 ];
 

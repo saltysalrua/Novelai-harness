@@ -6,6 +6,7 @@ import '../../../../core/harness/providers/openai_provider.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
+import '../../../../core/harness/tools/character_prompt_tools.dart';
 import '../../../../core/harness/tools/load_skill_tool.dart';
 import '../../../../core/harness/tools/novelai_tools.dart';
 import '../../../../core/harness/tools/studio_params_tool.dart';
@@ -162,6 +163,8 @@ class StudioViewModel extends ChangeNotifier {
       prefixPrompt: _config.prefixPrompt,
       suffixPrompt: _config.suffixPrompt,
       applyFixedPrompts: applyFixed,
+      characterPrompts: await _configService.loadCharacterPrompts(),
+      characterAiPosition: await _configService.loadCharacterAiPosition(),
     );
 
     // 参数时间轴基线：后续每轮对话发出前再各记一次快照，供回溯时回滚
@@ -267,6 +270,31 @@ class StudioViewModel extends ChangeNotifier {
         onUpdateParams: updateParams,
         permissionChecker: (key) =>
             _harness.currentPreset.isParamModifiable(key),
+      ),
+    );
+    _toolRegistry.register(
+      NovelAiListCharacterPromptsTool(
+        getCharacterPrompts: () => _params.characterPrompts,
+        getAiPosition: () => _params.characterAiPosition,
+      ),
+    );
+    _toolRegistry.register(
+      NovelAiAddCharacterPromptTool(
+        getCharacterPrompts: () => _params.characterPrompts,
+        updateCharacterPrompts: _setCharacterPrompts,
+        getCharacterLimit: () => _params.model.maxCharacterPrompts,
+      ),
+    );
+    _toolRegistry.register(
+      NovelAiUpdateCharacterPromptTool(
+        getCharacterPrompts: () => _params.characterPrompts,
+        updateCharacterPrompts: _setCharacterPrompts,
+      ),
+    );
+    _toolRegistry.register(
+      NovelAiRemoveCharacterPromptTool(
+        getCharacterPrompts: () => _params.characterPrompts,
+        updateCharacterPrompts: _setCharacterPrompts,
       ),
     );
     _toolRegistry.register(
@@ -401,6 +429,8 @@ class StudioViewModel extends ChangeNotifier {
     _paramSaveDebounceTimer = Timer(const Duration(milliseconds: 300), () {
       _configService.saveLastPrompt(_params.prompt);
       _configService.saveApplyFixedPrompts(_params.applyFixedPrompts);
+      _configService.saveCharacterPrompts(_params.characterPrompts);
+      _configService.saveCharacterAiPosition(_params.characterAiPosition);
       if (_params.negativePrompt != _config.negativePrompt ||
           _params.prefixPrompt != _config.prefixPrompt ||
           _params.suffixPrompt != _config.suffixPrompt) {
@@ -413,6 +443,54 @@ class StudioViewModel extends ChangeNotifier {
         _configService.saveConfig(updatedConfig);
       }
     });
+  }
+
+  /// 整体替换角色提示词列表 (Agent 工具与 UI 卡片共用入口)
+  void _setCharacterPrompts(List<NaiCharacterPrompt> characters) {
+    updateParams(_params.copyWith(characterPrompts: characters));
+  }
+
+  /// 当前模型的角色提示词数量上限 (V5=22，V4/V4.5=6，v3=0 不支持)
+  int get characterPromptLimit => _params.model.maxCharacterPrompts;
+
+  /// 当前角色提示词是否已达当前模型上限
+  bool get isCharacterPromptFull =>
+      _params.model.maxCharacterPrompts == 0 ||
+      _params.characterPrompts.length >= _params.model.maxCharacterPrompts;
+
+  /// 切换全局角色位置模式 (AI 自动布局 / 自定义定位)
+  void setCharacterAiPosition(bool aiPosition) {
+    updateParams(_params.copyWith(characterAiPosition: aiPosition));
+  }
+
+  /// 添加一个角色提示词 (UI 入口，自动命名)
+  void addCharacterPrompt({
+    String? name,
+    String prompt = '',
+    String negativePrompt = '',
+  }) {
+    if (isCharacterPromptFull) return;
+    final character = NaiCharacterPrompt.create(
+      name: name ?? '角色 ${_params.characterPrompts.length + 1}',
+      prompt: prompt,
+      negativePrompt: negativePrompt,
+    );
+    _setCharacterPrompts([..._params.characterPrompts, character]);
+  }
+
+  /// 更新单个角色提示词 (按 ID 替换)
+  void updateCharacterPrompt(NaiCharacterPrompt updated) {
+    _setCharacterPrompts([
+      for (final c in _params.characterPrompts)
+        if (c.id == updated.id) updated else c,
+    ]);
+  }
+
+  /// 删除单个角色提示词 (按 ID)
+  void removeCharacterPrompt(String id) {
+    _setCharacterPrompts(
+      _params.characterPrompts.where((c) => c.id != id).toList(),
+    );
   }
 
   /// 切换模型并跟随官方出厂默认值。

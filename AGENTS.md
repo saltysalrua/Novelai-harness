@@ -39,6 +39,7 @@ Novelai-harness/
 │   │       ├── tools/
 │   │       │   ├── agent_tool.dart             # 工具抽象基类与工具注册中心
 │   │       │   ├── ask_user_tool.dart          # 向用户提出结构化问题 (选项+自定义回答)
+│   │       │   ├── character_prompt_tools.dart  # 多角色提示词增删改查四件套工具
 │   │       │   ├── load_skill_tool.dart        # Pi 标准按需加载专业技能工具 (Progressive Disclosure)
 │   │       │   ├── studio_params_tool.dart     # 实时同步修改工作台 UI 生图参数工具
 │   │       │   └── novelai_tools.dart          # 生图、放大、标签联想与账号查询工具实现
@@ -96,6 +97,7 @@ Novelai-harness/
 │                   ├── parameter_card.dart      # 左侧面板薄壳：双页 IndexedStack + 生成坞
 │                   ├── parameters_page.dart     # 页面一：模型/分辨率/采样属性/高级选项
 │                   ├── prompts_page.dart        # 页面二：正负提示词双模式与固定词缀
+│                   ├── character_prompts_section.dart # 多角色提示词区块 (卡片+5x5 位置网格)
 │                   ├── prompt_editor_card.dart  # 通用提示词编辑卡 (只读灰色标签+输入框+工具条)
 │                   ├── fixed_affixes_panel.dart # 固定词缀面板 (总开关 + Prefix/Suffix 编辑)
 │                   ├── generate_dock.dart       # 底部操作坞：账号/体力/免点 + 生成按钮
@@ -120,6 +122,7 @@ Novelai-harness/
 │
 ├── test/                                       # 单元测试与 Widget 测试
 │   ├── novelai_models_test.dart                # 参数构建、Opus 免费算法与 JSON 解析测试
+│   ├── character_prompt_test.dart              # 角色提示词模型、payload 构建与增删改工具测试
 │   ├── novelai_stream_test.dart                # 流式生图预览的分块解码与进度测试
 │   ├── agent_harness_test.dart                 # Harness 对话循环与工具调度测试
 │   ├── agent_preset_test.dart                  # 预设权限白名单与 JSON 往返测试
@@ -188,7 +191,19 @@ Novelai-harness/
 - **原生文字排版**：包含对话气泡或招牌时，使用语法：`text, <样式> "<文字内容>"`。
 - **多角色物理防串色隔离**：多角色画面使用管道符 `|` 分隔：`[全局环境与光影] | [左侧角色A] | [右侧角色B]`。
 
-### 3.5 快捷 Slash 指令集
+### 3.5 多角色提示词
+
+仅 V4 及以上模型生效，数量上限按模型区分 (官方文档：V5 为 22、V4/V4.5 为 6，v3 不支持)。参与生成的角色按启用顺序构建官方协议三件套：
+
+- `characterPrompts`: `[{prompt, uc, enabled}]`，自定义定位时追加 `center: {x, y}`。
+- `v4_prompt.caption.char_captions` 与 `v4_negative_prompt.caption.char_captions`: `[{char_caption}]`，自定义定位时追加 `centers: [{x, y}]`。
+- `use_coords`: 仅在全局关闭 AI 自动布局且存在启用角色时为 true。
+
+角色定位是区块级全局开关 (官方 AI's Choice / Custom)：开启时**不发送任何位置参数**，由模型自行安排；关闭时发送 use_coords=true 与各角色 center，手动定位过的角色用其坐标，未手动定位的按启用顺序自动布局。V5 为自由连续小数坐标 (画布拖拽 + 直接输入)，V4/V4.5 官方限制 5x5 网格 (坐标量化到 1/4 步长)。各角色位置数据在 AI 模式下保留，切回自定义原样恢复。
+
+角色列表持久化在 SharedPreferences (`novelai_character_prompts` + `novelai_character_ai_position` 全局开关)，Agent 通过 `list/add/update/remove_character_prompt` 四个工具增删改查，全局位置模式可经 `update_studio_parameters` 的 `character_ai_position` 参数切换，工具白名单受预设 `enabledToolNames` 控制。人数标签 (如 `2girls`) 写在主提示词，单个角色提示词内用不带数字的 `girl/boy/other`。
+
+### 3.6 快捷 Slash 指令集
 
 对话框支持以下快捷指令：
 
