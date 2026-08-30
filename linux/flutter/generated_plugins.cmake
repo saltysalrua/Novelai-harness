@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   pasteboard
   screen_retriever_linux
+  sqlite3_flutter_libs
   window_manager
 )
 

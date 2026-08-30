@@ -56,6 +56,8 @@ class FixedAffixesCardContent extends StatelessWidget {
               minHeight: 44,
               maxHeight: 400,
               resizeTooltip: '拖动调整前置词高度 (双击重置)',
+              enableAutocomplete: viewModel.config.enableTagAutocomplete,
+              showTranslation: viewModel.config.showTagTranslations,
               style: const TextStyle(
                 fontSize: 13.5,
                 height: 1.48,
@@ -82,6 +84,8 @@ class FixedAffixesCardContent extends StatelessWidget {
               minHeight: 38,
               maxHeight: 300,
               resizeTooltip: '拖动调整后缀词高度 (双击重置)',
+              enableAutocomplete: viewModel.config.enableTagAutocomplete,
+              showTranslation: viewModel.config.showTagTranslations,
               style: const TextStyle(
                 fontSize: 13.5,
                 height: 1.48,

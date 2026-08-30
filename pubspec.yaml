@@ -9,13 +9,17 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # followed by an optional build number separated by a +.
 # Both the version and the builder number may be overridden in flutter
 # build by specifying --build-name and --build-number, respectively.
-# In Android, build-name is used as versionName while build-number used as versionCode.
-# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
-# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# In Android, build-name is used as versionName while
+# build-number used as versionCode.
+# Read more about Android versioning at
+# https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while
+# build-number is used as CFBundleVersion.
 # Read more about iOS versioning at
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
-# of the product and file versions while build-number is used as the build suffix.
+# of the product and file versions while build-number is used as
+# the build suffix.
 version: 1.0.0+1
 
 environment:
@@ -46,6 +50,8 @@ dependencies:
   pasteboard: ^0.5.0
   flutter_markdown: ^0.7.7+1
   msgpack_dart: ^1.0.1
+  sqlite3: ^2.4.6
+  sqlite3_flutter_libs: ^0.5.24
 
 dev_dependencies:
   flutter_test:
@@ -67,6 +73,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/danbooru.tsv
 
   fonts:
     - family: MiSans

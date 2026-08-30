@@ -5,6 +5,7 @@ import '../view_models/studio_view_model.dart';
 import 'pill_widgets.dart';
 import 'prompt_editor_card.dart';
 import 'prompt_extension_deck.dart';
+import 'rich_prompt_text_controller.dart';
 import 'studio_shared.dart';
 
 /// 侧边栏页面二：提示词管理
@@ -19,10 +20,10 @@ class PromptsPage extends StatefulWidget {
 }
 
 class _PromptsPageState extends State<PromptsPage> {
-  late final TextEditingController _promptController;
-  late final TextEditingController _negativeController;
-  late final TextEditingController _prefixController;
-  late final TextEditingController _suffixController;
+  late final RichPromptTextController _promptController;
+  late final RichPromptTextController _negativeController;
+  late final RichPromptTextController _prefixController;
+  late final RichPromptTextController _suffixController;
 
   bool _isTabbedMode = false;
   int _activeTab = 0; // 0: Prompt, 1: Undesired Content
@@ -35,10 +36,14 @@ class _PromptsPageState extends State<PromptsPage> {
     final params = widget.viewModel.params;
     _qualityPreset = params.qualityPreset;
     _ucPreset = params.ucPresetKey;
-    _promptController = TextEditingController(text: params.prompt);
-    _prefixController = TextEditingController(text: params.prefixPrompt);
-    _suffixController = TextEditingController(text: params.suffixPrompt);
-    _negativeController = TextEditingController(text: params.negativePrompt);
+    _promptController = RichPromptTextController(text: params.prompt);
+    _prefixController = RichPromptTextController(
+      text: params.prefixPrompt ?? '',
+    );
+    _suffixController = RichPromptTextController(
+      text: params.suffixPrompt ?? '',
+    );
+    _negativeController = RichPromptTextController(text: params.negativePrompt);
   }
 
   @override
@@ -237,6 +242,18 @@ class _PromptsPageState extends State<PromptsPage> {
   @override
   Widget build(BuildContext context) {
     final viewModel = widget.viewModel;
+
+    // 同步设置项：标签分类着色开关 (设置弹窗保存后 viewModel 通知重建)
+    final showCategoryColors = viewModel.config.showTagCategoryColors;
+    for (final c in [
+      _promptController,
+      _negativeController,
+      _prefixController,
+      _suffixController,
+    ]) {
+      c.setHighlightOptions(categoryColors: showCategoryColors);
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -287,6 +304,8 @@ class _PromptsPageState extends State<PromptsPage> {
           headerTags: _promptHeaderTags(params),
           footerTags: _promptFooterTags(params),
           toolbar: _promptToolbar(params),
+          enableAutocomplete: viewModel.config.enableTagAutocomplete,
+          showTranslation: viewModel.config.showTagTranslations,
           tokenEstimate: estimatePromptTokens(
             _promptController.text,
             limit: params.model.tokenLimit,
@@ -332,6 +351,8 @@ class _PromptsPageState extends State<PromptsPage> {
           maxLines: 8,
           footerTags: _negativeFooterTags(params),
           toolbar: _negativeToolbar(params),
+          enableAutocomplete: viewModel.config.enableTagAutocomplete,
+          showTranslation: viewModel.config.showTagTranslations,
           tokenEstimate: estimatePromptTokens(
             _negativeController.text,
             limit: params.model.tokenLimit,
@@ -409,6 +430,8 @@ class _PromptsPageState extends State<PromptsPage> {
             headerTags: _promptHeaderTags(params),
             footerTags: _promptFooterTags(params),
             toolbar: _promptToolbar(params),
+            enableAutocomplete: viewModel.config.enableTagAutocomplete,
+            showTranslation: viewModel.config.showTagTranslations,
             tokenEstimate: estimatePromptTokens(
               _promptController.text,
               limit: params.model.tokenLimit,
@@ -424,6 +447,8 @@ class _PromptsPageState extends State<PromptsPage> {
             maxLines: 16,
             footerTags: _negativeFooterTags(params),
             toolbar: _negativeToolbar(params),
+            enableAutocomplete: viewModel.config.enableTagAutocomplete,
+            showTranslation: viewModel.config.showTagTranslations,
             tokenEstimate: estimatePromptTokens(
               _negativeController.text,
               limit: params.model.tokenLimit,

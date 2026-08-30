@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import 'data/services/tag_dictionary_service.dart';
 import 'ui/core/theme/app_theme.dart';
 import 'ui/features/studio/views/studio_view.dart';
 
@@ -9,6 +10,9 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 异步预热 Danbooru 词库索引 (后台 isolate，零阻塞 UI)
+  TagDictionaryService.instance.ensureLoaded();
 
   if (!kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||

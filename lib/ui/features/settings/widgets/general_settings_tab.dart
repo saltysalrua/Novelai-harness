@@ -1,6 +1,9 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../../data/services/config_service.dart';
+import '../../../../data/services/tag_dictionary_service.dart';
+import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../core/theme/app_theme.dart';
 import 'settings_shared.dart';
 
@@ -10,12 +13,20 @@ class GeneralSettingsDraft {
     : naiKeyController = TextEditingController(text: config.novelAiKey),
       saveDirController = TextEditingController(text: config.saveDirectory),
       opusFreeMode = config.opusFreeMode,
-      enableStreamPreview = config.enableStreamPreview;
+      enableStreamPreview = config.enableStreamPreview,
+      enableTagAutocomplete = config.enableTagAutocomplete,
+      showTagTranslations = config.showTagTranslations,
+      showTagCategoryColors = config.showTagCategoryColors,
+      enableTagDictionaryAutoUpdate = config.enableTagDictionaryAutoUpdate;
 
   final TextEditingController naiKeyController;
   final TextEditingController saveDirController;
   bool opusFreeMode;
   bool enableStreamPreview;
+  bool enableTagAutocomplete;
+  bool showTagTranslations;
+  bool showTagCategoryColors;
+  bool enableTagDictionaryAutoUpdate;
 
   void dispose() {
     naiKeyController.dispose();
@@ -23,7 +34,7 @@ class GeneralSettingsDraft {
   }
 }
 
-/// General 页：NovelAI 服务凭证、本地存储与保护开关
+/// General 页：NovelAI 服务凭证、本地存储、标签补全与保护开关
 class GeneralSettingsTab extends StatefulWidget {
   final GeneralSettingsDraft draft;
 
@@ -35,6 +46,56 @@ class GeneralSettingsTab extends StatefulWidget {
 
 class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
   GeneralSettingsDraft get _draft => widget.draft;
+
+  TagDictMeta? _dictMeta;
+  bool _dictUpdating = false;
+  String _dictStatus = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshDictInfo();
+  }
+
+  Future<void> _refreshDictInfo() async {
+    final meta = await TagDictionaryUpdateService.instance.loadMeta();
+    if (!mounted) return;
+    setState(() => _dictMeta = meta);
+  }
+
+  Future<void> _updateDictionary() async {
+    if (_dictUpdating) return;
+    setState(() {
+      _dictUpdating = true;
+      _dictStatus = '';
+    });
+    try {
+      final result = await TagDictionaryUpdateService.instance.updateNow(
+        onStatus: (stage) {
+          if (mounted) setState(() => _dictStatus = stage);
+        },
+      );
+      if (!mounted) return;
+      setState(() => _dictStatus = result.message);
+      await _refreshDictInfo();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _dictStatus = '更新失败: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _dictUpdating = false);
+    }
+  }
+
+  String _dictInfoText() {
+    final count = TagDictionaryService.instance.count;
+    final meta = _dictMeta;
+    if (meta != null) {
+      final date = DateFormat('yyyy-MM-dd HH:mm').format(meta.installedAt);
+      return '在线词库 ${meta.entryCount} 条 · 更新于 $date';
+    }
+    return count > 0 ? '内置词库 $count 条' : '内置词库 (加载中)';
+  }
 
   Future<void> _pickDirectory() async {
     final selected = await FilePicker.platform.getDirectoryPath();
@@ -95,6 +156,65 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
             activeThumbColor: AppTheme.notionBlue,
             onChanged: (val) =>
                 setState(() => _draft.enableStreamPreview = val),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const SettingsGroupTitle('Danbooru Tag Autocomplete'),
+        SettingsCard(
+          title: '标签智能自动补全',
+          subtitle: '输入提示词时自动弹出 32万+ Danbooru 词库悬浮联想建议',
+          control: Switch(
+            value: _draft.enableTagAutocomplete,
+            activeThumbColor: AppTheme.notionBlue,
+            onChanged: (val) =>
+                setState(() => _draft.enableTagAutocomplete = val),
+          ),
+        ),
+        SettingsCard(
+          title: '词库在线更新',
+          subtitle: _dictUpdating
+              ? _dictStatus
+              : (_dictStatus.isNotEmpty ? _dictStatus : _dictInfoText()),
+          control: _dictUpdating
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : SettingsActionButton(
+                  icon: Icons.cloud_download_rounded,
+                  label: '立即更新',
+                  onPressed: _updateDictionary,
+                ),
+        ),
+        SettingsCard(
+          title: '启动时自动检查更新',
+          subtitle: '每日一次后台拉取最新词库 (ffdkj 每日构建，含新标签与中文翻译)',
+          control: Switch(
+            value: _draft.enableTagDictionaryAutoUpdate,
+            activeThumbColor: AppTheme.notionBlue,
+            onChanged: (val) =>
+                setState(() => _draft.enableTagDictionaryAutoUpdate = val),
+          ),
+        ),
+        SettingsCard(
+          title: '显示标签中文释义',
+          subtitle: '在补全候选词列表与灵感库中展示对应的中文翻译释义',
+          control: Switch(
+            value: _draft.showTagTranslations,
+            activeThumbColor: AppTheme.notionBlue,
+            onChanged: (val) =>
+                setState(() => _draft.showTagTranslations = val),
+          ),
+        ),
+        SettingsCard(
+          title: '标签分类着色高亮',
+          subtitle: '在提示词输入框中对画师、角色、作品、通用等标签施加分类色彩高亮',
+          control: Switch(
+            value: _draft.showTagCategoryColors,
+            activeThumbColor: AppTheme.notionBlue,
+            onChanged: (val) =>
+                setState(() => _draft.showTagCategoryColors = val),
           ),
         ),
         const SizedBox(height: 12),

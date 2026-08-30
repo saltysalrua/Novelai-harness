@@ -7,6 +7,7 @@ import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
 import '../../../../core/harness/tools/character_prompt_tools.dart';
+import '../../../../core/harness/tools/danbooru_search_tools.dart';
 import '../../../../core/harness/tools/load_skill_tool.dart';
 import '../../../../core/harness/tools/novelai_tools.dart';
 import '../../../../core/harness/tools/studio_params_tool.dart';
@@ -16,6 +17,7 @@ import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/session_log_service.dart';
+import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import 'param_snapshot_journal.dart';
 import 'slash_command_catalog.dart';
@@ -223,6 +225,14 @@ class StudioViewModel extends ChangeNotifier {
     if (_config.novelAiKey.isNotEmpty) {
       await refreshAccountInfo();
     }
+
+    // 后台应用已安装的在线词库并按开关静默检查更新 (24 小时节流，不阻塞启动)
+    unawaited(() async {
+      await TagDictionaryUpdateService.instance.applyInstalledAtStartup();
+      await TagDictionaryUpdateService.instance.maybeAutoUpdate(
+        enabled: _config.enableTagDictionaryAutoUpdate,
+      );
+    }());
   }
 
   void _setupHarnessAndTools() {
@@ -284,6 +294,9 @@ class StudioViewModel extends ChangeNotifier {
         configService: _configService,
       ),
     );
+    _toolRegistry.register(DanbooruSearchTagsTool());
+    _toolRegistry.register(DanbooruRelatedTagsTool());
+    _toolRegistry.register(DanbooruRecommendArtistsTool());
     _toolRegistry.register(
       NovelAiAccountInfoTool(
         repository: _repository,

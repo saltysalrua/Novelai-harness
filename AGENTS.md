@@ -48,14 +48,17 @@ Novelai-harness/
 │   │
 │   ├── data/                                   # 数据层
 │   │   ├── models/
-│   │   │   └── novelai_models.dart             # 模型、采样器、分辨率预设、请求/响应与账号结构
+│   │   │   ├── novelai_models.dart             # 模型、采样器、分辨率预设、请求/响应与账号结构
+│   │   │   └── tag_models.dart                 # Danbooru 标签分类、联想条目与 NovelAI Token 结构
 │   │   ├── services/
 │   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与 Zip 解包
 │   │   │   ├── config_service.dart             # 本地配置与 ~/.pi/agent/novelai.json 自动识别
 │   │   │   ├── session_log_service.dart        # Pi 官方会话格式 JSONL 记录与恢复
 │   │   │   ├── usage_ledger_service.dart       # Token 用量增量账本 (pi-bill 式按天/供应商/模型聚合)
 │   │   │   ├── llm_model_fetcher.dart          # 在线拉取远程 LLM 模型列表与能力元数据解析
-│   │   │   └── models_dev_catalog.dart         # models.dev 在线模型能力目录 (拉取/缓存/模糊匹配)
+│   │   │   ├── models_dev_catalog.dart         # models.dev 在线模型能力目录 (拉取/缓存/模糊匹配)
+│   │   │   ├── tag_dictionary_service.dart     # 14万+ Danbooru 离线词库检索、多模态反查与缓存服务
+│   │   │   └── prompt_ast_engine.dart          # NovelAI 提示词 AST 分词、权重增减与 SD 语法转换引擎
 │   │   └── repositories/
 │   │       └── novelai_repository.dart         # 图片落盘存储、历史记录与业务聚合
 │   │
@@ -100,8 +103,15 @@ Novelai-harness/
 │                   ├── prompt_extension_deck.dart # 提示词扩展甲板 (多角色 ↔ 固定词缀左右滑动切换)
 │                   ├── character_card_item.dart # 单角色编辑卡 (名称/启停/位置胶囊+正负词拖拽调高)
 │                   ├── character_position_canvas_view.dart # 中间画板角色位置交互层 (锚点拖拽/5x5 网格/悬浮控制)
-│                   ├── prompt_editor_card.dart  # 通用提示词编辑卡 (只读灰色标签+输入框+工具条)
-│                   ├── prompt_resize_handle.dart # 高度调节手柄 + ResizableTextField 可拖拽调高输入区
+│                   ├── prompt_editor_card.dart  # 通用提示词编辑卡 (只读灰色标签+输入框+工具条+快捷操作)
+│                   ├── prompt_edit_actions.dart  # 光标标签操作共享工具 (权重增减/禁用/格式化，快捷键与按钮共用)
+│                   ├── prompt_resize_handle.dart # 高度调节手柄 + ResizableTextField 可拖拽调高输入区 (含快捷键与补全挂载)
+│                   ├── rich_prompt_text_controller.dart # NovelAI 富文本语法高亮控制器 (权重/记号淡显/分类着色/删除线)
+│                   ├── tag_autocomplete_overlay.dart # 补全悬浮锚点 (光标跟随定位/键盘导航/防抖搜索)
+│                   ├── tag_autocomplete_card.dart   # Danbooru 浮动补全建议卡片 (分类胶囊/中英双语/热度/选中滚动置顶)
+│                   ├── tag_suggestion_tile.dart  # 标签分类胶囊与热度计数共享小组件
+│                   ├── tag_browser_dialog.dart  # Danbooru 标签灵感库与分类速查浏览器弹窗
+│                   ├── tag_inspiration_presets.dart # 标签灵感库内置分类与精选标签数据源
 │                   ├── fixed_affixes_panel.dart # 固定词缀编辑卡内容 (Prefix/Suffix 拖拽调高)
 │                   ├── generate_dock.dart       # 底部操作坞：账号/体力/免点 + 生成按钮
 │                   ├── resolution_pad_picker.dart # 2D 可视化分辨率画板
@@ -142,6 +152,10 @@ Novelai-harness/
 │   ├── settings_dialog_test.dart               # 设置弹窗五标签页渲染冒烟测试
 │   ├── character_position_canvas_test.dart    # 画板角色位置编辑全流程集成测试
 │   ├── prompt_ui_resize_test.dart              # 调高手柄/编辑卡/甲板切换 Widget 测试
+│   ├── tag_dictionary_test.dart                # Danbooru 词库解析、中英多模态检索与热度排序测试
+│   ├── prompt_ast_engine_test.dart             # 提示词 AST 分词、权重增减、禁用切换与 SD 语法转换测试
+│   ├── rich_prompt_controller_test.dart        # 富文本语法高亮控制器 TextSpan 渲染测试
+│   ├── tag_autocomplete_overlay_test.dart      # 标签自动补全悬浮窗触发与键盘/鼠标上屏测试
 │   └── widget_test.dart                        # 核心组件渲染测试
 │
 ├── pubspec.yaml                                # 项目依赖配置文件

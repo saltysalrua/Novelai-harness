@@ -1,0 +1,405 @@
+import '../models/tag_models.dart';
+
+/// NovelAI 提示词 AST 分词与语法变换引擎
+class PromptAstEngine {
+  static const Set<String> separators = {',', '，', '\n', '|'};
+
+  static bool _isSpace(String c) =>
+      c == ' ' || c == '\t' || c == '\n' || c == '\r';
+
+  static int _trimL(String text, int a, int b) {
+    while (a < b && _isSpace(text[a])) {
+      a++;
+    }
+    return a;
+  }
+
+  static int _trimR(String text, int a, int b) {
+    while (b > a && _isSpace(text[b - 1])) {
+      b--;
+    }
+    return b;
+  }
+
+  /// 解析整段文本为 `NaiPromptToken` 列表
+  static List<NaiPromptToken> parsePromptTokens(
+    String text, {
+    String? Function(String tagName)? translationLookup,
+    DanbooruTagCategory? Function(String tagName)? categoryLookup,
+  }) {
+    if (text.isEmpty) return const [];
+
+    final tokens = <NaiPromptToken>[];
+    var start = 0;
+
+    void processSegment(int rawStart, int rawEnd) {
+      var a = _trimL(text, rawStart, rawEnd);
+      var b = _trimR(text, a, rawEnd);
+      if (b <= a) return;
+
+      final segS = a;
+      final segE = b;
+
+      // 1. 剥除禁用符 ~
+      var disabled = false;
+      if (text[a] == '~') {
+        disabled = true;
+        a++;
+        if (b > a && text[b - 1] == '~') b--;
+        a = _trimL(text, a, b);
+        b = _trimR(text, a, b);
+      }
+      final coreS = a;
+      final coreE = b;
+
+      // 2. 剥除外层括号 (统计净档数: {} 为正, [] 为负)
+      var braceLevel = 0;
+      var ia = a;
+      var ib = b;
+      while (ib - ia >= 2) {
+        if (text[ia] == '{' && text[ib - 1] == '}') {
+          braceLevel++;
+        } else if (text[ia] == '[' && text[ib - 1] == ']') {
+          braceLevel--;
+        } else {
+          break;
+        }
+        ia++;
+        ib--;
+        ia = _trimL(text, ia, ib);
+        ib = _trimR(text, ia, ib);
+      }
+      final innerS = ia;
+      final innerE = ib;
+
+      // 3. 剥除内层数值 N::name::
+      var numMult = 1.0;
+      var nameS = ia;
+      var nameE = ib;
+      final inner = text.substring(ia, ib);
+      final di = inner.indexOf('::');
+      final dj = inner.lastIndexOf('::');
+
+      if (di > 0 && dj > di && dj == inner.length - 2) {
+        final num = double.tryParse(inner.substring(0, di));
+        if (num != null) {
+          numMult = num;
+          nameS = _trimL(text, ia + di + 2, ib);
+          nameE = _trimR(text, nameS, ia + dj);
+        }
+      } else if (di > 0 && dj == di) {
+        // 单个 :: 开头未闭合 (如 1.5::tag)
+        final num = double.tryParse(inner.substring(0, di));
+        if (num != null) {
+          numMult = num;
+          nameS = _trimL(text, ia + di + 2, ib);
+          nameE = ib;
+        }
+      }
+
+      final name = text.substring(nameS, nameE);
+      final normalizedName = name.replaceAll('_', ' ').trim().toLowerCase();
+
+      final token = NaiPromptToken(
+        segStart: segS,
+        segEnd: segE,
+        coreStart: coreS,
+        coreEnd: coreE,
+        innerStart: innerS,
+        innerEnd: innerE,
+        nameStart: nameS,
+        nameEnd: nameE,
+        name: name,
+        braceLevel: braceLevel,
+        numMult: numMult,
+        disabled: disabled,
+        translation: translationLookup?.call(normalizedName),
+        category: categoryLookup?.call(normalizedName),
+      );
+
+      tokens.add(token);
+    }
+
+    for (var k = 0; k < text.length; k++) {
+      final c = text[k];
+      if (separators.contains(c)) {
+        processSegment(start, k);
+        start = k + 1;
+      }
+    }
+    processSegment(start, text.length);
+
+    return tokens;
+  }
+
+  /// 获取光标所在位置的 Token 索引 (无则返回 -1)
+  static int tokIndexAt(
+    String text,
+    int offset, [
+    List<NaiPromptToken>? tokens,
+  ]) {
+    final toks = tokens ?? parsePromptTokens(text);
+    for (var i = 0; i < toks.length; i++) {
+      if (offset >= toks[i].segStart && offset <= toks[i].segEnd) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /// 倍率格式化 (去除末尾多余的 0，如 1.30 -> "1.3", 1.00 -> "1", -0.50 -> "-0.5")
+  static String formatMultiplier(double m) {
+    if (m.abs() < 0.0001) return '0';
+    var s = m.toStringAsFixed(2);
+    if (s.contains('.')) {
+      s = s.replaceFirst(RegExp(r'0+$'), '');
+      s = s.replaceFirst(RegExp(r'\.$'), '');
+    }
+    return s;
+  }
+
+  /// 括号包裹操作：给 core 外套一层 `{}` (up: true) 或 `[]` (up: false)
+  static String wrapBracket(String text, NaiPromptToken t, {required bool up}) {
+    final core = text.substring(t.coreStart, t.coreEnd);
+    final s = up ? '{$core}' : '[$core]';
+    return text.replaceRange(t.coreStart, t.coreEnd, s);
+  }
+
+  /// 步进调整数值权重 (格式为 `x.x::tag::`，步长 step 默认 0.1) -> (新文本, 推荐光标位置)
+  ///
+  /// 例如：
+  /// - `1girl` -> `1.1::1girl::` -> `1.2::1girl::`
+  /// - `1.1::1girl::` (down) -> `1girl` (归一化为 1.0) -> `0.9::1girl::`
+  /// - `{masterpiece}` (up) -> `1.1::masterpiece::`
+  static (String, int) adjustNumericWeight(
+    String text,
+    NaiPromptToken t, {
+    required bool up,
+    double step = 0.1,
+    int cursorOffset = -1,
+  }) {
+    var currentMult = t.numMult;
+    if (t.numMult == 1.0 && t.braceLevel != 0) {
+      currentMult = t.effectiveMultiplier;
+    }
+
+    var newMult = up ? currentMult + step : currentMult - step;
+    newMult = (newMult * 10).roundToDouble() / 10;
+    newMult = newMult.clamp(-5.0, 5.0);
+
+    final isDefault = (newMult - 1.0).abs() < 0.005;
+    final replacement = isDefault
+        ? t.name
+        : '${formatMultiplier(newMult)}::${t.name}::';
+
+    final newText = text.replaceRange(t.coreStart, t.coreEnd, replacement);
+    final delta = replacement.length - (t.coreEnd - t.coreStart);
+    final newCursor = cursorOffset >= 0
+        ? (cursorOffset + delta).clamp(0, newText.length)
+        : (t.coreStart + replacement.length).clamp(0, newText.length);
+
+    return (newText, newCursor);
+  }
+
+  /// 修改数值倍率：只修改内层 `N::name::`
+  static String setNumericMultiplier(
+    String text,
+    NaiPromptToken t,
+    double newMult,
+  ) {
+    final m = (newMult * 100).roundToDouble() / 100;
+    final inner = (m - 1.0).abs() < 0.005
+        ? t.name
+        : '${formatMultiplier(m)}::${t.name}::';
+    return text.replaceRange(t.innerStart, t.innerEnd, inner);
+  }
+
+  /// 清除全部权重：剥离所有括号与数值，回归纯 tag 名
+  static String clearWeight(String text, NaiPromptToken t) {
+    return text.replaceRange(t.coreStart, t.coreEnd, t.name);
+  }
+
+  /// 切换标签禁用状态：整枚套/剥 `~`
+  static String toggleDisabled(String text, NaiPromptToken t) {
+    return t.disabled
+        ? text.replaceRange(
+            t.segStart,
+            t.segEnd,
+            text.substring(t.coreStart, t.coreEnd),
+          )
+        : text.replaceRange(
+            t.segStart,
+            t.segEnd,
+            '~${text.substring(t.segStart, t.segEnd)}~',
+          );
+  }
+
+  /// 删除单个标签 (智能清理相邻的逗号与空格) -> (新文本, 推荐光标位置)
+  static (String, int) deleteToken(String text, NaiPromptToken t) {
+    var a = t.segStart;
+    var b = t.segEnd;
+    var e = b;
+
+    // 优先吞掉右侧逗号
+    while (e < text.length && (text[e] == ' ' || text[e] == '\t')) {
+      e++;
+    }
+    if (e < text.length && (text[e] == ',' || text[e] == '，')) {
+      e++;
+      while (e < text.length && text[e] == ' ') {
+        e++;
+      }
+      b = e;
+    } else {
+      // 否则吞掉左侧逗号
+      var st = a;
+      while (st > 0 && text[st - 1] == ' ') {
+        st--;
+      }
+      if (st > 0 && (text[st - 1] == ',' || text[st - 1] == '，')) {
+        st--;
+        while (st > 0 && text[st - 1] == ' ') {
+          st--;
+        }
+        a = st;
+      }
+    }
+
+    final newText = text.replaceRange(a, b, '');
+    return (newText, a.clamp(0, newText.length));
+  }
+
+  /// 从当前光标位置提取正在编辑的查询词与替换范围
+  ///
+  /// 例如：`1girl, long h|` -> query: `long h`, replaceStart: 7, replaceEnd: 13
+  static ({String query, int replaceStart, int replaceEnd})? extractActiveQuery(
+    String text,
+    int cursorOffset,
+  ) {
+    if (text.isEmpty || cursorOffset < 0 || cursorOffset > text.length) {
+      return null;
+    }
+
+    // 往左寻找词界 (逗号、换行、竖线、括号或起始)
+    var start = cursorOffset;
+    while (start > 0) {
+      final prevChar = text[start - 1];
+      if (separators.contains(prevChar) ||
+          prevChar == '{' ||
+          prevChar == '[' ||
+          prevChar == '~') {
+        break;
+      }
+      start--;
+    }
+
+    // 往右寻找词界 (逗号、换行、竖线、闭括号或末尾)
+    var end = cursorOffset;
+    while (end < text.length) {
+      final nextChar = text[end];
+      if (separators.contains(nextChar) ||
+          nextChar == '}' ||
+          nextChar == ']' ||
+          nextChar == '~') {
+        break;
+      }
+      end++;
+    }
+
+    final slice = text.substring(start, end);
+    final trimmedStart = start + (slice.length - slice.trimLeft().length);
+    final trimmedEnd = end - (slice.length - slice.trimRight().length);
+
+    if (trimmedStart > cursorOffset || trimmedEnd < trimmedStart) {
+      return null;
+    }
+
+    final rawQuery = text.substring(trimmedStart, cursorOffset).trim();
+    if (rawQuery.isEmpty) return null;
+
+    // 剥离可能存在的数值权重前缀 (如 1.2::)
+    var query = rawQuery;
+    var actualStart = trimmedStart;
+    final colonIdx = query.indexOf('::');
+    if (colonIdx >= 0) {
+      actualStart += colonIdx + 2;
+      query = query.substring(colonIdx + 2).trim();
+    }
+
+    if (query.isEmpty) return null;
+
+    return (query: query, replaceStart: actualStart, replaceEnd: trimmedEnd);
+  }
+
+  /// 将 SD WebUI 权重语法转换为 NovelAI 官方标准语法
+  ///
+  /// `(tag:1.2)` -> `1.2::tag::`
+  /// `(tag)` -> `{tag}`
+  /// `((tag))` -> `{{tag}}`
+  /// `[tag]` -> `[tag]`
+  static String sdToNaiPrompt(String text) {
+    var result = text;
+
+    // 1. (tag:weight) -> weight::tag::
+    result = result.replaceAllMapped(
+      RegExp(r'\(([^():]+):(-?\d+(?:\.\d+)?)\)'),
+      (m) {
+        final tag = m.group(1)!.trim().replaceAll('_', ' ');
+        final w = double.tryParse(m.group(2)!) ?? 1.0;
+        if ((w - 1.0).abs() < 0.01) return tag;
+        return '${formatMultiplier(w)}::$tag::';
+      },
+    );
+
+    // 2. 连续外括号 (tag) -> {tag} (循环处理多层嵌套)
+    while (result.contains(RegExp(r'\(([^():]+)\)'))) {
+      result = result.replaceAllMapped(
+        RegExp(r'\(([^():]+)\)'),
+        (m) => '{${m.group(1)!.trim().replaceAll('_', ' ')}}',
+      );
+    }
+
+    return result;
+  }
+
+  /// 格式化与美化提示词：
+  /// - 中文逗号 `，` 归一化为 `, `
+  /// - 多重逗号合并为单个 `, `
+  /// - 清理首尾空格与多余逗号
+  /// - 多角色隔离竖线 `|` 原样保留
+  /// - 自动执行 SD -> NAI 语法转换
+  static String formatAndBeautify(String text) {
+    if (text.trim().isEmpty) return '';
+
+    var out = sdToNaiPrompt(text);
+
+    // 中文逗号与分号归一化
+    out = out.replaceAll('，', ',');
+    out = out.replaceAll('；', ',');
+    out = out.replaceAll(';', ',');
+
+    // 逐段重组：普通分隔符归一为 ", "，竖线分隔符保留为 " | "
+    final tokens = parsePromptTokens(out);
+    if (tokens.isEmpty) return '';
+
+    final buf = StringBuffer();
+    var lastEnd = 0;
+    for (final t in tokens) {
+      final gap = out.substring(lastEnd, t.segStart);
+      if (buf.isEmpty) {
+        // 首个词条：保留前导分隔符中可能存在的竖线 (多角色布局以 | 开头时)
+        if (gap.contains('|')) buf.write('| ');
+      } else {
+        buf.write(gap.contains('|') ? ' | ' : ', ');
+      }
+      buf.write(out.substring(t.segStart, t.segEnd).trim());
+      lastEnd = t.segEnd;
+    }
+
+    // 尾部残余分隔符：仅保留其中的竖线
+    final tail = out.substring(lastEnd);
+    if (tail.contains('|')) buf.write(' |');
+
+    return buf.toString().trim();
+  }
+}

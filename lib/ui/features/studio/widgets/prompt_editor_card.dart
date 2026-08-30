@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import 'prompt_edit_actions.dart';
 import 'prompt_resize_handle.dart';
 import 'studio_shared.dart';
+import 'tag_browser_dialog.dart';
 
 /// 只读灰色标签数据 (PREFIX / SUFFIX / QUALITY / BG / UC 预设词展示)
 class GrayTag {
@@ -11,7 +13,7 @@ class GrayTag {
   const GrayTag(this.label, this.text);
 }
 
-/// 提示词编辑卡：只读标签头 + 主输入框 (支持上下拖拽调节高度) + 调节手柄 + 只读标签脚 + 工具条 + Token 进度条。
+/// 提示词编辑卡：只读标签头 + 主输入框 (支持上下拖拽调节高度) + 调节手柄 + 只读标签脚 + 工具条 + 快捷标签操作 + Token 进度条。
 /// 正向提示词与负面排除词、垂直堆叠与标签页两种布局共用同一张卡。
 class PromptEditorCard extends StatelessWidget {
   final TextEditingController controller;
@@ -35,11 +37,20 @@ class PromptEditorCard extends StatelessWidget {
   /// 底部工具条 (胶囊开关与预设下拉等)
   final Widget? toolbar;
 
+  /// 是否显示快捷标签工具条 (加权/降权/禁用/格式化/标签库)
+  final bool showQuickActions;
+
   /// Token 估算值，用于底部进度条
   final int tokenEstimate;
 
   /// Token 上限 (按模型分词器区分)
   final int tokenLimit;
+
+  /// 是否启用 Danbooru 自动补全 (设置项控制)
+  final bool enableAutocomplete;
+
+  /// 标签库与补全建议中是否显示中文释义 (设置项控制)
+  final bool showTranslation;
 
   const PromptEditorCard({
     super.key,
@@ -53,13 +64,35 @@ class PromptEditorCard extends StatelessWidget {
     this.headerTags = const [],
     this.footerTags = const [],
     this.toolbar,
+    this.showQuickActions = true,
     required this.tokenEstimate,
     this.tokenLimit = 225,
+    this.enableAutocomplete = true,
+    this.showTranslation = true,
   });
 
   /// 按行数参考推导的默认输入区高度 (布局模式切换时变化)
   double get _defaultInputHeight =>
       (minLines * 24.0 + 20.0).clamp(minHeight, maxHeight);
+
+  void _openTagBrowser(BuildContext context) {
+    TagBrowserDialog.show(
+      context,
+      showTranslation: showTranslation,
+      onTagSelected: (tag) {
+        final text = controller.text;
+        final trimmed = text.trim();
+        final newText = trimmed.isEmpty
+            ? tag
+            : (trimmed.endsWith(',') ? '$trimmed $tag' : '$trimmed, $tag');
+        controller.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newText.length),
+        );
+        onChanged(newText);
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +115,8 @@ class PromptEditorCard extends StatelessWidget {
             minHeight: minHeight,
             maxHeight: maxHeight,
             resizeTooltip: '拖动调整提示词输入区高度 (双击重置)',
+            enableAutocomplete: enableAutocomplete,
+            showTranslation: showTranslation,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             style: const TextStyle(
               fontSize: 13.5,
@@ -95,13 +130,122 @@ class PromptEditorCard extends StatelessWidget {
             ),
           ),
           if (footerTags.isNotEmpty) _TagPanel(tags: footerTags, atTop: false),
-          if (toolbar != null)
+          if (toolbar != null || showQuickActions)
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-              child: toolbar,
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (toolbar != null) ...[
+                    toolbar!,
+                    if (showQuickActions) const SizedBox(height: 4),
+                  ],
+                  if (showQuickActions)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        _QuickActionButton(
+                          tooltip: '增加标签数值权重 (Ctrl+↑，格式 x.x::tag::)',
+                          label: '+0.1',
+                          onTap: () => PromptEditActions.adjustWeight(
+                            controller,
+                            onChanged,
+                            up: true,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        _QuickActionButton(
+                          tooltip: '降低标签数值权重 (Ctrl+↓，格式 x.x::tag::)',
+                          label: '-0.1',
+                          onTap: () => PromptEditActions.adjustWeight(
+                            controller,
+                            onChanged,
+                            up: false,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        _QuickActionButton(
+                          tooltip: '切换禁用状态 (Ctrl+/)',
+                          label: '~',
+                          onTap: () => PromptEditActions.toggleDisabled(
+                            controller,
+                            onChanged,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        _QuickActionButton(
+                          tooltip: '格式化与SD语法转换 (Ctrl+Shift+F)',
+                          icon: Icons.auto_fix_high_outlined,
+                          onTap: () => PromptEditActions.formatPrompt(
+                            controller,
+                            onChanged,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        _QuickActionButton(
+                          tooltip: '打开 Danbooru 标签灵感库',
+                          icon: Icons.style_outlined,
+                          onTap: () => _openTagBrowser(context),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
             ),
           TokenProgressBar(tokens: tokenEstimate, tokenLimit: tokenLimit),
         ],
+      ),
+    );
+  }
+}
+
+/// 快捷小按钮
+class _QuickActionButton extends StatelessWidget {
+  final String? label;
+  final IconData? icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _QuickActionButton({
+    this.label,
+    this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 400),
+      child: Material(
+        color: AppTheme.paperWarmth,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+          hoverColor: AppTheme.notionBlue.withValues(alpha: 0.1),
+          child: Container(
+            height: 24,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(color: AppTheme.borderSubtle),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+            ),
+            child: icon != null
+                ? Icon(icon, size: 13, color: AppTheme.textSecondary)
+                : Text(
+                    label ?? '',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+          ),
+        ),
       ),
     );
   }

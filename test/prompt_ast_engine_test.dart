@@ -1,0 +1,294 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/data/services/prompt_ast_engine.dart';
+
+void main() {
+  group('PromptAstEngine tokenization and parsing tests', () {
+    test('parses simple comma separated tags accurately', () {
+      const text = '1girl, solo, long hair, blue eyes';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      expect(tokens.length, 4);
+      expect(tokens[0].name, '1girl');
+      expect(tokens[1].name, 'solo');
+      expect(tokens[2].name, 'long hair');
+      expect(tokens[3].name, 'blue eyes');
+      expect(tokens[0].braceLevel, 0);
+      expect(tokens[0].numMult, 1.0);
+      expect(tokens[0].disabled, false);
+      expect(tokens[0].effectiveMultiplier, 1.0);
+    });
+
+    test('parses brace and bracket weights accurately', () {
+      const text = '{masterpiece}, {{best quality}}, [bad anatomy], [[blurry]]';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      expect(tokens.length, 4);
+      expect(tokens[0].name, 'masterpiece');
+      expect(tokens[0].braceLevel, 1);
+      expect(tokens[0].effectiveMultiplier, closeTo(1.05, 0.001));
+
+      expect(tokens[1].name, 'best quality');
+      expect(tokens[1].braceLevel, 2);
+      expect(tokens[1].effectiveMultiplier, closeTo(1.1025, 0.001));
+
+      expect(tokens[2].name, 'bad anatomy');
+      expect(tokens[2].braceLevel, -1);
+      expect(tokens[2].effectiveMultiplier, closeTo(1.0 / 1.05, 0.001));
+
+      expect(tokens[3].name, 'blurry');
+      expect(tokens[3].braceLevel, -2);
+      expect(
+        tokens[3].effectiveMultiplier,
+        closeTo(1.0 / (1.05 * 1.05), 0.001),
+      );
+    });
+
+    test('parses numeric weights N::tag:: accurately', () {
+      const text = '1.2::silver hair::, 0.7::artist_name::, -0.5::bad hands::';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      expect(tokens.length, 3);
+      expect(tokens[0].name, 'silver hair');
+      expect(tokens[0].numMult, 1.2);
+      expect(tokens[0].effectiveMultiplier, closeTo(1.2, 0.001));
+
+      expect(tokens[1].name, 'artist_name');
+      expect(tokens[1].numMult, 0.7);
+      expect(tokens[1].effectiveMultiplier, closeTo(0.7, 0.001));
+
+      expect(tokens[2].name, 'bad hands');
+      expect(tokens[2].numMult, -0.5);
+      expect(tokens[2].effectiveMultiplier, closeTo(-0.5, 0.001));
+    });
+
+    test('parses disabled tags ~tag~ accurately', () {
+      const text = '~1girl~, ~{smile}~, solo';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      expect(tokens.length, 3);
+      expect(tokens[0].name, '1girl');
+      expect(tokens[0].disabled, true);
+
+      expect(tokens[1].name, 'smile');
+      expect(tokens[1].braceLevel, 1);
+      expect(tokens[1].disabled, true);
+
+      expect(tokens[2].name, 'solo');
+      expect(tokens[2].disabled, false);
+    });
+
+    test('parses multi-character pipe delimiters and newlines', () {
+      const text = 'scenery | 1girl, solo | 1boy\nnight sky';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      expect(tokens.length, 5);
+      expect(tokens[0].name, 'scenery');
+      expect(tokens[1].name, '1girl');
+      expect(tokens[2].name, 'solo');
+      expect(tokens[3].name, '1boy');
+      expect(tokens[4].name, 'night sky');
+    });
+  });
+
+  group('PromptAstEngine manipulation methods', () {
+    test('wrapBracket increments and decrements brace layers', () {
+      const text = '1girl, solo';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      // Up wrap
+      final up1 = PromptAstEngine.wrapBracket(text, tokens[0], up: true);
+      expect(up1, '{1girl}, solo');
+
+      // Up wrap again
+      final tokensUp1 = PromptAstEngine.parsePromptTokens(up1);
+      final up2 = PromptAstEngine.wrapBracket(up1, tokensUp1[0], up: true);
+      expect(up2, '{{1girl}}, solo');
+
+      // Down wrap
+      final down = PromptAstEngine.wrapBracket(text, tokens[1], up: false);
+      expect(down, '1girl, [solo]');
+    });
+
+    test(
+      'adjustNumericWeight increments and decrements in x.x::tag:: format',
+      () {
+        const text = '1girl, solo';
+        final tokens = PromptAstEngine.parsePromptTokens(text);
+
+        // 1.0 -> 1.1::1girl::
+        final (up1, _) = PromptAstEngine.adjustNumericWeight(
+          text,
+          tokens[0],
+          up: true,
+        );
+        expect(up1, '1.1::1girl::, solo');
+
+        // 1.1 -> 1.2::1girl::
+        final tokensUp1 = PromptAstEngine.parsePromptTokens(up1);
+        final (up2, _) = PromptAstEngine.adjustNumericWeight(
+          up1,
+          tokensUp1[0],
+          up: true,
+        );
+        expect(up2, '1.2::1girl::, solo');
+
+        // 1.2 -> 1.1::1girl::
+        final tokensUp2 = PromptAstEngine.parsePromptTokens(up2);
+        final (down1, _) = PromptAstEngine.adjustNumericWeight(
+          up2,
+          tokensUp2[0],
+          up: false,
+        );
+        expect(down1, '1.1::1girl::, solo');
+
+        // 1.1 -> 1girl (normalizes to default 1.0)
+        final tokensDown1 = PromptAstEngine.parsePromptTokens(down1);
+        final (down2, _) = PromptAstEngine.adjustNumericWeight(
+          down1,
+          tokensDown1[0],
+          up: false,
+        );
+        expect(down2, '1girl, solo');
+
+        // 1.0 -> 0.9::1girl::
+        final tokensDown2 = PromptAstEngine.parsePromptTokens(down2);
+        final (down3, _) = PromptAstEngine.adjustNumericWeight(
+          down2,
+          tokensDown2[0],
+          up: false,
+        );
+        expect(down3, '0.9::1girl::, solo');
+
+        // 0.1 -> 0 -> -0.1::1girl:: (supports negative weights)
+        final (negZero, _) = PromptAstEngine.adjustNumericWeight(
+          '0.1::1girl::',
+          PromptAstEngine.parsePromptTokens('0.1::1girl::')[0],
+          up: false,
+        );
+        expect(negZero, '0::1girl::');
+
+        final (negOne, _) = PromptAstEngine.adjustNumericWeight(
+          negZero,
+          PromptAstEngine.parsePromptTokens(negZero)[0],
+          up: false,
+        );
+        expect(negOne, '-0.1::1girl::');
+
+        final (negTwo, _) = PromptAstEngine.adjustNumericWeight(
+          negOne,
+          PromptAstEngine.parsePromptTokens(negOne)[0],
+          up: false,
+        );
+        expect(negTwo, '-0.2::1girl::');
+      },
+    );
+
+    test('parses negative numeric multipliers correctly', () {
+      const text = '-0.5::bad anatomy::, -1.2::lowres::';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      expect(tokens.length, 2);
+      expect(tokens[0].name, 'bad anatomy');
+      expect(tokens[0].numMult, -0.5);
+      expect(tokens[0].effectiveMultiplier, -0.5);
+
+      expect(tokens[1].name, 'lowres');
+      expect(tokens[1].numMult, -1.2);
+    });
+
+    test('setNumericMultiplier changes inner weight', () {
+      const text = '1girl, solo';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      final weighted = PromptAstEngine.setNumericMultiplier(
+        text,
+        tokens[0],
+        1.25,
+      );
+      expect(weighted, '1.25::1girl::, solo');
+
+      final tokensW = PromptAstEngine.parsePromptTokens(weighted);
+      final reset = PromptAstEngine.setNumericMultiplier(
+        weighted,
+        tokensW[0],
+        1.0,
+      );
+      expect(reset, '1girl, solo');
+    });
+
+    test('toggleDisabled toggles ~ markers', () {
+      const text = '1girl, solo';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      final disabled = PromptAstEngine.toggleDisabled(text, tokens[0]);
+      expect(disabled, '~1girl~, solo');
+
+      final tokensD = PromptAstEngine.parsePromptTokens(disabled);
+      final enabled = PromptAstEngine.toggleDisabled(disabled, tokensD[0]);
+      expect(enabled, '1girl, solo');
+    });
+
+    test('deleteToken cleanly removes token and comma', () {
+      const text = '1girl, solo, long hair';
+      final tokens = PromptAstEngine.parsePromptTokens(text);
+
+      final (deletedMiddle, _) = PromptAstEngine.deleteToken(text, tokens[1]);
+      expect(deletedMiddle, '1girl, long hair');
+
+      final tokens2 = PromptAstEngine.parsePromptTokens(deletedMiddle);
+      final (deletedFirst, _) = PromptAstEngine.deleteToken(
+        deletedMiddle,
+        tokens2[0],
+      );
+      expect(deletedFirst, 'long hair');
+    });
+  });
+
+  group('PromptAstEngine autocomplete query extraction', () {
+    test('extracts active query from cursor position', () {
+      const text = '1girl, long h';
+      final q = PromptAstEngine.extractActiveQuery(text, text.length);
+
+      expect(q, isNotNull);
+      expect(q!.query, 'long h');
+      expect(q.replaceStart, 7);
+      expect(q.replaceEnd, 13);
+    });
+
+    test('extracts query within brackets', () {
+      const text = '1girl, {blu}';
+      final q = PromptAstEngine.extractActiveQuery(text, 11);
+
+      expect(q, isNotNull);
+      expect(q!.query, 'blu');
+      expect(q.replaceStart, 8);
+      expect(q.replaceEnd, 11);
+    });
+  });
+
+  group('PromptAstEngine SD format and beautify', () {
+    test('converts SD WebUI weights to NovelAI syntax', () {
+      const sdPrompt = '(masterpiece:1.2), (best quality), ((highres))';
+      final naiPrompt = PromptAstEngine.sdToNaiPrompt(sdPrompt);
+
+      expect(naiPrompt, '1.2::masterpiece::, {best quality}, {{highres}}');
+    });
+
+    test(
+      'formatAndBeautify normalizes full-width commas and removes duplicate commas',
+      () {
+        const messy = '1girl， solo,,  (masterpiece:1.2) ； long hair, ';
+        final clean = PromptAstEngine.formatAndBeautify(messy);
+
+        expect(clean, '1girl, solo, 1.2::masterpiece::, long hair');
+      },
+    );
+
+    test('formatAndBeautify preserves multi-character pipe separators', () {
+      const multiRole = 'masterpiece，| 1girl, smile | solo,,';
+      final clean = PromptAstEngine.formatAndBeautify(multiRole);
+
+      expect(clean, 'masterpiece | 1girl, smile | solo');
+    });
+  });
+}

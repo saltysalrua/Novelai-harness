@@ -1,0 +1,13 @@
+# gitleaks 配置：在默认规则基础上放行第三方参考克隆中的测试夹具假密钥
+# reference/ 为只读的第三方开源项目浅克隆 (Aaalice_NAI_Launcher / Plana-App /
+# DanbooruSearchOnline 等)，其中的 "密钥" 全部是单元测试中的假数据，并非真实凭证。
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Third-party reference clones and local data tools"
+paths = [
+  '''reference/''',
+  '''tools/''',
+]

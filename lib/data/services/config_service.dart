@@ -23,6 +23,10 @@ class AppConfig {
   final double defaultCfgRescale;
   final bool opusFreeMode;
   final bool enableStreamPreview;
+  final bool enableTagAutocomplete;
+  final bool showTagTranslations;
+  final bool showTagCategoryColors;
+  final bool enableTagDictionaryAutoUpdate;
   final String prefixPrompt;
   final String suffixPrompt;
   final String negativePrompt;
@@ -79,6 +83,10 @@ class AppConfig {
     this.defaultCfgRescale = 0.0,
     this.opusFreeMode = true,
     this.enableStreamPreview = true,
+    this.enableTagAutocomplete = true,
+    this.showTagTranslations = true,
+    this.showTagCategoryColors = true,
+    this.enableTagDictionaryAutoUpdate = true,
     this.prefixPrompt = '',
     this.suffixPrompt = '',
     this.negativePrompt = '',
@@ -104,6 +112,10 @@ class AppConfig {
     double? defaultCfgRescale,
     bool? opusFreeMode,
     bool? enableStreamPreview,
+    bool? enableTagAutocomplete,
+    bool? showTagTranslations,
+    bool? showTagCategoryColors,
+    bool? enableTagDictionaryAutoUpdate,
     String? prefixPrompt,
     String? suffixPrompt,
     String? negativePrompt,
@@ -158,6 +170,13 @@ class AppConfig {
       defaultCfgRescale: defaultCfgRescale ?? this.defaultCfgRescale,
       opusFreeMode: opusFreeMode ?? this.opusFreeMode,
       enableStreamPreview: enableStreamPreview ?? this.enableStreamPreview,
+      enableTagAutocomplete:
+          enableTagAutocomplete ?? this.enableTagAutocomplete,
+      showTagTranslations: showTagTranslations ?? this.showTagTranslations,
+      showTagCategoryColors:
+          showTagCategoryColors ?? this.showTagCategoryColors,
+      enableTagDictionaryAutoUpdate:
+          enableTagDictionaryAutoUpdate ?? this.enableTagDictionaryAutoUpdate,
       prefixPrompt: prefixPrompt ?? this.prefixPrompt,
       suffixPrompt: suffixPrompt ?? this.suffixPrompt,
       negativePrompt: negativePrompt ?? this.negativePrompt,
@@ -186,6 +205,13 @@ class ConfigService {
   static const String _keyCfgRescale = 'novelai_cfg_rescale';
   static const String _keyOpusFreeMode = 'novelai_opus_free_mode';
   static const String _keyEnableStreamPreview = 'novelai_enable_stream_preview';
+  static const String _keyEnableTagAutocomplete =
+      'novelai_enable_tag_autocomplete';
+  static const String _keyShowTagTranslations = 'novelai_show_tag_translations';
+  static const String _keyShowTagCategoryColors =
+      'novelai_show_tag_category_colors';
+  static const String _keyEnableTagDictAutoUpdate =
+      'novelai_enable_tag_dictionary_auto_update';
   static const String _keyPrefix = 'novelai_prefix';
   static const String _keySuffix = 'novelai_suffix';
   static const String _keyNegative = 'novelai_negative';
@@ -225,6 +251,11 @@ class ConfigService {
     double rescale = prefs.getDouble(_keyCfgRescale) ?? 0.0;
     bool opusFree = prefs.getBool(_keyOpusFreeMode) ?? true;
     bool enableStream = prefs.getBool(_keyEnableStreamPreview) ?? true;
+    bool enableTagAc = prefs.getBool(_keyEnableTagAutocomplete) ?? true;
+    bool showTagTrans = prefs.getBool(_keyShowTagTranslations) ?? true;
+    bool showTagCatColors = prefs.getBool(_keyShowTagCategoryColors) ?? true;
+    bool enableTagDictAutoUpdate =
+        prefs.getBool(_keyEnableTagDictAutoUpdate) ?? true;
     String saveDir = prefs.getString(_keySaveDir) ?? '';
 
     // 首次启动且无配置时，尝试自动读取本地 ~/.pi/agent/novelai.json
@@ -407,6 +438,10 @@ class ConfigService {
       defaultCfgRescale: rescale,
       opusFreeMode: opusFree,
       enableStreamPreview: enableStream,
+      enableTagAutocomplete: enableTagAc,
+      showTagTranslations: showTagTrans,
+      showTagCategoryColors: showTagCatColors,
+      enableTagDictionaryAutoUpdate: enableTagDictAutoUpdate,
       prefixPrompt: prefix,
       suffixPrompt: suffix,
       negativePrompt: negative,
@@ -436,6 +471,19 @@ class ConfigService {
     await prefs.setDouble(_keyCfgRescale, config.defaultCfgRescale);
     await prefs.setBool(_keyOpusFreeMode, config.opusFreeMode);
     await prefs.setBool(_keyEnableStreamPreview, config.enableStreamPreview);
+    await prefs.setBool(
+      _keyEnableTagAutocomplete,
+      config.enableTagAutocomplete,
+    );
+    await prefs.setBool(_keyShowTagTranslations, config.showTagTranslations);
+    await prefs.setBool(
+      _keyShowTagCategoryColors,
+      config.showTagCategoryColors,
+    );
+    await prefs.setBool(
+      _keyEnableTagDictAutoUpdate,
+      config.enableTagDictionaryAutoUpdate,
+    );
     await prefs.setString(_keyPrefix, config.prefixPrompt);
     await prefs.setString(_keySuffix, config.suffixPrompt);
     await prefs.setString(_keyNegative, config.negativePrompt);

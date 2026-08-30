@@ -98,6 +98,58 @@ void main() {
       final resetBox = tester.renderObject<RenderBox>(find.byType(TextField));
       expect(resetBox.size.height, closeTo(initialHeight, 2.0));
     });
+
+    testWidgets('+0.1 and -0.1 buttons adjust tag weight in x.x::tag:: format', (
+      WidgetTester tester,
+    ) async {
+      final controller = TextEditingController(
+        text: '1girl, solo',
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: PromptEditorCard(
+              controller: controller,
+              onChanged: (_) {},
+              hintText: 'Enter prompt',
+              tokenEstimate: 5,
+            ),
+          ),
+        ),
+      );
+
+      // 把光标置于 "1girl" (offset 2)
+      controller.selection = const TextSelection.collapsed(offset: 2);
+      await tester.pump();
+
+      // 点击 +0.1 按钮
+      final plusButton = find.text('+0.1');
+      expect(plusButton, findsOneWidget);
+      await tester.tap(plusButton);
+      await tester.pumpAndSettle();
+
+      expect(controller.text, '1.1::1girl::, solo');
+
+      // 再次点击 +0.1 按钮 -> 1.2::1girl::
+      await tester.tap(plusButton);
+      await tester.pumpAndSettle();
+      expect(controller.text, '1.2::1girl::, solo');
+
+      // 点击 -0.1 按钮 -> 1.1::1girl::
+      final minusButton = find.text('-0.1');
+      expect(minusButton, findsOneWidget);
+      await tester.tap(minusButton);
+      await tester.pumpAndSettle();
+      expect(controller.text, '1.1::1girl::, solo');
+
+      // 再次点击 -0.1 按钮 -> 1girl, solo (归一化为 1.0)
+      await tester.tap(minusButton);
+      await tester.pumpAndSettle();
+      expect(controller.text, '1girl, solo');
+    });
   });
 
   group('PromptExtensionDeck Tests', () {

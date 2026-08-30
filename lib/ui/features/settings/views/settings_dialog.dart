@@ -63,6 +63,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
       saveDirectory: _generalDraft.saveDirController.text.trim(),
       opusFreeMode: _generalDraft.opusFreeMode,
       enableStreamPreview: _generalDraft.enableStreamPreview,
+      enableTagAutocomplete: _generalDraft.enableTagAutocomplete,
+      showTagTranslations: _generalDraft.showTagTranslations,
+      showTagCategoryColors: _generalDraft.showTagCategoryColors,
+      enableTagDictionaryAutoUpdate:
+          _generalDraft.enableTagDictionaryAutoUpdate,
       llmProviders: _modelsDraft.providers,
       activeLlmProviderId: _modelsDraft.selectedProviderId,
       presets: _presetsDraft.presets,

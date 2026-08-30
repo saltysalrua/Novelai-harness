@@ -5,6 +5,7 @@ import '../view_models/studio_view_model.dart';
 import 'character_position_canvas_view.dart';
 import 'pill_widgets.dart';
 import 'prompt_resize_handle.dart';
+import 'rich_prompt_text_controller.dart';
 
 /// 单个角色编辑卡：一体化卡片容器 (无嵌套边框) + 名称/启停/位置 + 正负提示词独立垂直拖拽调节。
 ///
@@ -33,15 +34,15 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
   static const double _defaultNegativeHeight = 54.0;
 
   late final TextEditingController _nameController;
-  late final TextEditingController _promptController;
-  late final TextEditingController _negativeController;
+  late final RichPromptTextController _promptController;
+  late final RichPromptTextController _negativeController;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.character.name);
-    _promptController = TextEditingController(text: widget.character.prompt);
-    _negativeController = TextEditingController(
+    _promptController = RichPromptTextController(text: widget.character.prompt);
+    _negativeController = RichPromptTextController(
       text: widget.character.negativePrompt,
     );
   }
@@ -121,6 +122,11 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
 
   @override
   Widget build(BuildContext context) {
+    // 同步设置项：标签分类着色开关 (设置弹窗保存后 viewModel 通知重建)
+    final showCategoryColors = widget.viewModel.config.showTagCategoryColors;
+    _promptController.setHighlightOptions(categoryColors: showCategoryColors);
+    _negativeController.setHighlightOptions(categoryColors: showCategoryColors);
+
     final character = widget.character;
     final viewModel = widget.viewModel;
     final customMode = !viewModel.params.characterAiPosition;
@@ -267,6 +273,8 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
               minHeight: 44,
               maxHeight: 400,
               resizeTooltip: '拖动调整正向提示词高度 (双击重置)',
+              enableAutocomplete: viewModel.config.enableTagAutocomplete,
+              showTranslation: viewModel.config.showTagTranslations,
               style: const TextStyle(
                 fontSize: 13.5,
                 height: 1.48,
@@ -294,6 +302,8 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
               minHeight: 36,
               maxHeight: 300,
               resizeTooltip: '拖动调整负面提示词高度 (双击重置)',
+              enableAutocomplete: viewModel.config.enableTagAutocomplete,
+              showTranslation: viewModel.config.showTagTranslations,
               style: const TextStyle(
                 fontSize: 13,
                 height: 1.45,

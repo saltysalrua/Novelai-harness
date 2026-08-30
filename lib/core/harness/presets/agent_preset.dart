@@ -48,6 +48,9 @@ class PresetToolKeys {
   static const String generate = 'novelai_generate';
   static const String upscale = 'novelai_upscale';
   static const String suggestTags = 'novelai_suggest_tags';
+  static const String danbooruSearch = 'danbooru_search_tags';
+  static const String danbooruRelated = 'danbooru_related_tags';
+  static const String danbooruArtists = 'danbooru_recommend_artists';
   static const String accountInfo = 'novelai_account_info';
   static const String askUser = 'ask_user';
   static const String getParams = 'get_studio_parameters';
@@ -62,6 +65,9 @@ class PresetToolKeys {
     generate: '图像生成',
     upscale: '图像放大',
     suggestTags: '标签联想',
+    danbooruSearch: '语义搜词',
+    danbooruRelated: '关联推荐',
+    danbooruArtists: '画师推荐',
     accountInfo: '账号查询',
     askUser: '向用户提问',
     getParams: '读取参数',
@@ -82,6 +88,9 @@ const List<String> _fullTools = [
   PresetToolKeys.generate,
   PresetToolKeys.upscale,
   PresetToolKeys.suggestTags,
+  PresetToolKeys.danbooruSearch,
+  PresetToolKeys.danbooruRelated,
+  PresetToolKeys.danbooruArtists,
   PresetToolKeys.accountInfo,
   PresetToolKeys.askUser,
   PresetToolKeys.getParams,
@@ -96,6 +105,9 @@ const List<String> _fullTools = [
 const List<String> _coreTools = [
   PresetToolKeys.generate,
   PresetToolKeys.suggestTags,
+  PresetToolKeys.danbooruSearch,
+  PresetToolKeys.danbooruRelated,
+  PresetToolKeys.danbooruArtists,
   PresetToolKeys.askUser,
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
@@ -110,6 +122,9 @@ const List<String> _coreUpscaleTools = [
   PresetToolKeys.generate,
   PresetToolKeys.upscale,
   PresetToolKeys.suggestTags,
+  PresetToolKeys.danbooruSearch,
+  PresetToolKeys.danbooruRelated,
+  PresetToolKeys.danbooruArtists,
   PresetToolKeys.askUser,
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
