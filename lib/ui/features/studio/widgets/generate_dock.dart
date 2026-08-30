@@ -8,11 +8,36 @@ class GenerateDock extends StatelessWidget {
 
   const GenerateDock({super.key, required this.viewModel});
 
+  String _buildButtonLabel(int cost) {
+    if (viewModel.isGenerating) {
+      if (viewModel.liveTotalSteps > 0 && viewModel.liveCurrentStep > 0) {
+        return '终止生成 (${viewModel.liveCurrentStep}/${viewModel.liveTotalSteps})';
+      }
+      return '终止生成';
+    }
+    if (cost > 0) {
+      return '生成图片 ($cost Anlas)';
+    }
+    if (cost < 0) {
+      return '生成图片 (需点数)';
+    }
+    return '生成图片';
+  }
+
+  Color _buildButtonColor(int cost) {
+    if (viewModel.isGenerating) {
+      return AppTheme.error;
+    }
+    if (cost != 0) {
+      return AppTheme.warning;
+    }
+    return AppTheme.notionBlue;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final params = viewModel.params;
     final info = viewModel.accountInfo;
-    final isOpusFree = params.isOpusFree;
+    final estimatedCost = viewModel.estimatedGenerationCost;
 
     final percent = info != null
         ? (info.staminaPercent / 100.0).clamp(0.0, 1.0)
@@ -46,13 +71,12 @@ class GenerateDock extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                _OpusBadge(isOpusFree: isOpusFree),
                 const SizedBox(width: 6),
                 _RefreshButton(viewModel: viewModel),
               ],
             )
           else ...[
-            // 等级、点数、免点胶囊与刷新
+            // 等级、点数与刷新
             Row(
               children: [
                 Container(
@@ -85,68 +109,56 @@ class GenerateDock extends StatelessWidget {
                     color: AppTheme.textPrimary,
                   ),
                 ),
-                const SizedBox(width: 8),
-                _OpusBadge(isOpusFree: isOpusFree),
                 const Spacer(),
                 _RefreshButton(viewModel: viewModel),
               ],
             ),
-            const SizedBox(height: 8),
 
-            // V5 体力进度条
-            Row(
-              children: [
-                const Text(
-                  'V5 体力',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                    child: LinearProgressIndicator(
-                      value: percent,
-                      backgroundColor: const Color(0xFFEFEFEF),
-                      valueColor: AlwaysStoppedAnimation<Color>(staminaColor),
-                      minHeight: 5,
+            // 仅在当前选择 V5 系列模型时展示体力进度条
+            if (viewModel.params.model.isV5) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text(
+                    'V5 体力',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textSecondary,
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${info.staminaPercent.toStringAsFixed(0)}%',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: staminaColor,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                      child: LinearProgressIndicator(
+                        value: percent,
+                        backgroundColor: const Color(0xFFEFEFEF),
+                        valueColor: AlwaysStoppedAnimation<Color>(staminaColor),
+                        minHeight: 5,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  info.timeUntilNextPercent > 0
-                      ? '(${info.timeUntilNextPercent}s)'
-                      : (info.staminaPercent >= 100 ? '(满)' : ''),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppTheme.textMuted,
+                  const SizedBox(width: 8),
+                  Text(
+                    '${info.staminaPercent.toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: staminaColor,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
 
           const SizedBox(height: 12),
 
-          // 生成按钮 (Primary CTA / 生成中可点击终止)
+          // 生成按钮 (Primary CTA / 结合预计点数 / 生成中可点击终止)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: viewModel.isGenerating
-                  ? AppTheme.error
-                  : AppTheme.notionBlue,
+              backgroundColor: _buildButtonColor(estimatedCost),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 13),
               elevation: 0,
@@ -161,11 +173,7 @@ class GenerateDock extends StatelessWidget {
                 ? const Icon(Icons.stop_circle_outlined, size: 17)
                 : const Icon(Icons.auto_awesome, size: 17),
             label: Text(
-              viewModel.isGenerating
-                  ? (viewModel.liveTotalSteps > 0 && viewModel.liveCurrentStep > 0
-                      ? '终止生成 (${viewModel.liveCurrentStep}/${viewModel.liveTotalSteps})'
-                      : '终止生成')
-                  : '生成图片',
+              _buildButtonLabel(estimatedCost),
               style: const TextStyle(
                 fontSize: 14.5,
                 fontWeight: FontWeight.w700,
@@ -173,39 +181,6 @@ class GenerateDock extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Opus 免点 / 需点数 标识胶囊
-class _OpusBadge extends StatelessWidget {
-  final bool isOpusFree;
-
-  const _OpusBadge({required this.isOpusFree});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-      decoration: BoxDecoration(
-        color: isOpusFree
-            ? AppTheme.success.withValues(alpha: 0.12)
-            : AppTheme.warning.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-        border: Border.all(
-          color: isOpusFree
-              ? AppTheme.success.withValues(alpha: 0.4)
-              : AppTheme.warning.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Text(
-        isOpusFree ? 'Opus 免费' : '需点数',
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: isOpusFree ? AppTheme.success : AppTheme.warning,
-        ),
       ),
     );
   }

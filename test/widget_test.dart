@@ -26,7 +26,7 @@ void main() {
     expect(find.text('参数设置'), findsOneWidget);
     expect(find.text('模型'), findsOneWidget);
     expect(find.text('画板暂无图像'), findsOneWidget);
-    expect(find.text('生成图片'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, '生成图片 (30 Anlas)'), findsOneWidget);
     expect(find.textContaining('未获取账号信息'), findsOneWidget);
 
     // 3. 点击切换至提示词页
@@ -41,7 +41,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Fixed Affixes'), findsOneWidget);
     // 验证生成图片和账号卡片仍然常驻显示
-    expect(find.text('生成图片'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, '生成图片 (30 Anlas)'), findsOneWidget);
     expect(find.textContaining('未获取账号信息'), findsOneWidget);
 
     // 4. 点击设置按钮弹出全局配置弹窗

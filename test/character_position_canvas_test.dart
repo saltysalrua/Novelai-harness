@@ -78,6 +78,20 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CharacterPositionOverlay), findsNothing);
+
+      // 9. 再次进入“画板编辑”，点击“AI 自动”胶囊切换模式，验证画板编辑自动退出
+      await tester.tap(canvasEditBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CharacterPositionOverlay), findsOneWidget);
+
+      final aiAutoBtn = find.text('AI 自动');
+      expect(aiAutoBtn, findsOneWidget);
+      await tester.tap(aiAutoBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CharacterPositionOverlay), findsNothing);
+      expect(find.byType(CanvasPositionFloatingControls), findsNothing);
     },
   );
 }

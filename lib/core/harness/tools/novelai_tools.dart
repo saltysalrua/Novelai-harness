@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../types.dart';
 import '../../../data/models/novelai_models.dart';
 import '../../../data/repositories/novelai_repository.dart';
+import '../../../data/services/anlas_calculator.dart';
 import '../../../data/services/config_service.dart';
 import 'agent_tool.dart';
 
@@ -11,11 +12,46 @@ typedef OnImageGeneratedCallback = void Function(NaiGeneratedImage image);
 typedef OnStreamProgressCallback = void Function(NaiStreamProgress progress);
 typedef OnParamsUsedCallback = void Function(NaiGenerationParams params);
 
-/// 付费生图确认回调：当生图参数超出 Opus 免费区间时，向用户申请确认；返回 true 则继续生成，false 则取消
-typedef OnConfirmPaidGenerationCallback = Future<bool> Function({
-  required NaiGenerationParams params,
-  required List<String> reasons,
-});
+/// 回调类型：获取当前已缓存的账号信息 (可能为 null，表示未加载)
+typedef CurrentAccountInfoGetter = NaiAccountInfo? Function();
+
+/// 付费生图确认回调：当预计消耗非零时，向用户申请确认；返回 true 则继续生成，false 则取消
+typedef OnConfirmPaidGenerationCallback =
+    Future<bool> Function({
+      required NaiGenerationParams params,
+      required int estimatedCost,
+    });
+
+/// 付费超分确认回调：当超分预计消耗非零时，向用户申请确认；返回 true 则继续，false 则取消
+typedef OnConfirmPaidUpscaleCallback =
+    Future<bool> Function({
+      required int estimatedCost,
+      required int inputWidth,
+      required int inputHeight,
+      required int scale,
+    });
+
+/// 构建付费生图的原因说明 (供确认弹问与取消提示共用)
+///
+/// 参数超出 Opus 免费区间时列出具体原因；参数在免费区间内但仍需扣费时
+/// (非 Opus 订阅或 V5 体力透支)，返回空列表由调用方补充说明。
+List<String> buildPaidGenerationReasons(NaiGenerationParams params) {
+  final reasons = <String>[];
+  if (params.width * params.height > AnlasCalculator.opusFreeMaxPixels) {
+    reasons.add(
+      '尺寸 ${params.width}x${params.height}（像素数超出 ${AnlasCalculator.opusFreeMaxPixels} 限制）',
+    );
+  }
+  if (params.steps > AnlasCalculator.opusFreeMaxSteps) {
+    reasons.add(
+      '采样步数 ${params.steps} 步（超出 ${AnlasCalculator.opusFreeMaxSteps} 步限制）',
+    );
+  }
+  if (params.nSamples > 1) {
+    reasons.add('生成张数 ${params.nSamples} 张（超出 1 张限制）');
+  }
+  return reasons;
+}
 
 /// 1. 生图工具 (以工作台当前参数直接触发 NovelAI 官方绘图)
 class NovelAiGenerateTool extends AgentTool {
@@ -25,6 +61,7 @@ class NovelAiGenerateTool extends AgentTool {
   final OnImageGeneratedCallback? onGenerated;
   final OnStreamProgressCallback? onProgress;
   final OnConfirmPaidGenerationCallback? onConfirmPaidGeneration;
+  final CurrentAccountInfoGetter? getAccountInfo;
 
   NovelAiGenerateTool({
     required this.repository,
@@ -33,20 +70,20 @@ class NovelAiGenerateTool extends AgentTool {
     this.onGenerated,
     this.onProgress,
     this.onConfirmPaidGeneration,
+    this.getAccountInfo,
   }) : super(
-          name: 'novelai_generate',
-          label: '图像生成',
-          description:
-              '以工作台当前的参数配置（提示词、尺寸、步数、CFG、模型等）直接触发 NovelAI 官方绘图。在调用此工具前，如需构思或调整生图提示词与尺寸，必须先通过 update_studio_parameters 工具修改工作台参数。若参数超出 Opus 免费范围，将自动向用户发出点数消耗申请。',
-          parameters: const {
-            'type': 'object',
-            'properties': {},
-          },
-        );
+         name: 'novelai_generate',
+         label: '图像生成',
+         description:
+             '以工作台当前的参数配置（提示词、尺寸、步数、CFG、模型等）直接触发 NovelAI 官方绘图。在调用此工具前，如需构思或调整生图提示词与尺寸，必须先通过 update_studio_parameters 工具修改工作台参数。若预计消耗非零（超出 Opus 免费区间、非 Opus 订阅或 V5 体力透支），将自动向用户发出点数消耗申请。',
+         parameters: const {'type': 'object', 'properties': {}},
+       );
 
   @override
   Future<ToolResult> execute(
-      String toolCallId, Map<String, dynamic> args) async {
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
     try {
       final config = await configService.loadConfig();
       if (config.novelAiKey.trim().isEmpty) {
@@ -66,29 +103,42 @@ class NovelAiGenerateTool extends AgentTool {
         );
       }
 
-      // 检查是否超出 Opus 免费区间
-      if (!params.isOpusFree) {
-        final reasons = <String>[];
-        if (params.width * params.height > 1048576) {
-          reasons.add('尺寸 ${params.width}x${params.height}（像素数超出 1,048,576 限制）');
+      // 预计消耗闸门: 账号信息未加载且参数超出免费区间时先在线拉取，避免误判
+      var account = getAccountInfo?.call();
+      if (account == null && !params.isOpusFree) {
+        try {
+          account = await repository.fetchAccountInfo(
+            apiKey: config.novelAiKey,
+          );
+        } catch (_) {
+          // 拉取失败时按保守策略继续 (走参数区间判定)
         }
-        if (params.steps > 28) {
-          reasons.add('采样步数 ${params.steps} 步（超出 28 步限制）');
-        }
-        if (params.nSamples > 1) {
-          reasons.add('生成张数 ${params.nSamples} 张（超出 1 张限制）');
-        }
+      }
+      final estimatedCost = account != null
+          ? AnlasCalculator.estimateGenerationCost(
+              params: params,
+              isOpus: account.isOpus,
+              opusQuotaExhausted: account.v5QuotaExhausted,
+            )
+          : (params.isOpusFree ? 0 : AnlasCalculator.invalidCost);
 
+      // 检查是否需要扣费: 预计消耗非零时向用户申请确认
+      if (estimatedCost != 0) {
         if (onConfirmPaidGeneration != null) {
           final confirmed = await onConfirmPaidGeneration!(
             params: params,
-            reasons: reasons,
+            estimatedCost: estimatedCost,
           );
           if (!confirmed) {
-            final reasonText = reasons.join('，');
+            final reasons = buildPaidGenerationReasons(params);
+            final reasonText = estimatedCost > 0
+                ? (reasons.isEmpty ? '当前账号无 Opus 免费额度' : reasons.join('，'))
+                : '无法估算点数消耗';
             return ToolResult(
               toolCallId: toolCallId,
-              content: '已取消生成：本次生图参数（$reasonText）需消耗 Anlas 点数，用户已拒绝扣费。'
+              content:
+                  '已取消生成：本次生图（$reasonText）预计消耗 '
+                  '${estimatedCost > 0 ? '$estimatedCost Anlas 点数' : 'Anlas 点数'}，用户已拒绝扣费。'
                   '请先调用 update_studio_parameters 将参数调整到免费区间（如尺寸 <= 832x1216 且 步数 <= 28）或征求用户进一步指示。',
               isError: true,
             );
@@ -133,9 +183,9 @@ class NovelAiGenerateTool extends AgentTool {
       final image = resultImage;
       onGenerated?.call(image);
 
-      final costText = image.isOpusFree
-          ? '0 Anlas (Opus 免费)'
-          : '消耗点数';
+      final costText = estimatedCost > 0
+          ? '预计 $estimatedCost Anlas'
+          : (estimatedCost == 0 ? '0 Anlas (Opus 免费)' : '消耗点数 (未能获取账号信息)');
 
       final resultBuffer = StringBuffer();
       resultBuffer.writeln('生图完成：');
@@ -145,7 +195,9 @@ class NovelAiGenerateTool extends AgentTool {
       resultBuffer.writeln('模型: ${params.model.label}');
       resultBuffer.writeln('尺寸: ${params.width}x${params.height}');
       resultBuffer.writeln('步数: ${params.steps} 步');
-      resultBuffer.writeln('CFG: ${params.scale} (Rescale: ${params.cfgRescale})');
+      resultBuffer.writeln(
+        'CFG: ${params.scale} (Rescale: ${params.cfgRescale})',
+      );
       resultBuffer.writeln('随机种子: ${image.seed}');
       resultBuffer.writeln('点数状态: $costText');
 
@@ -168,34 +220,42 @@ class NovelAiUpscaleTool extends AgentTool {
   final NovelAiRepository _repository;
   final ConfigService _configService;
   final OnImageGeneratedCallback? _onUpscaled;
+  final CurrentAccountInfoGetter? getAccountInfo;
+  final OnConfirmPaidUpscaleCallback? onConfirmPaidUpscale;
 
   NovelAiUpscaleTool({
     required this._repository,
     required this._configService,
     this._onUpscaled,
-  })  : super(
-          name: 'novelai_upscale',
-          label: 'NovelAI 图像超分放大',
-          description: '调用 NovelAI 官方超分算法将指定图片无损放大 2 倍或 4 倍。',
-          parameters: {
-            'type': 'object',
-            'properties': {
-              'image_path': {
-                'type': 'string',
-                'description': '待放大的本地图片路径（留空则默认放大画板中的最新图像）',
-              },
-              'scale': {
-                'type': 'integer',
-                'enum': [2, 4],
-                'description': '放大倍数 (2 或 4，默认 4)',
-              },
-            },
-          },
-        );
+    this.getAccountInfo,
+    this.onConfirmPaidUpscale,
+  }) : super(
+         name: 'novelai_upscale',
+         label: 'NovelAI 图像超分放大',
+         description:
+             '调用 NovelAI 官方超分算法将指定图片无损放大 2 倍或 4 倍。'
+             '按输入面积分档计费（Opus 用户输入不超 640x640 免费），预计消耗非零时会先向用户确认。',
+         parameters: {
+           'type': 'object',
+           'properties': {
+             'image_path': {
+               'type': 'string',
+               'description': '待放大的本地图片路径（留空则默认放大画板中的最新图像）',
+             },
+             'scale': {
+               'type': 'integer',
+               'enum': [2, 4],
+               'description': '放大倍数 (2 或 4，默认 4)',
+             },
+           },
+         },
+       );
 
   @override
   Future<ToolResult> execute(
-      String toolCallId, Map<String, dynamic> args) async {
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
     try {
       final config = await _configService.loadConfig();
       if (config.novelAiKey.trim().isEmpty) {
@@ -238,6 +298,46 @@ class NovelAiUpscaleTool extends AgentTool {
         );
       }
 
+      // 付费闸门: 按输入面积分档计费，预计消耗非零时先向用户确认
+      final dims = await AnlasCalculator.decodeImageDimensions(
+        targetImage.bytes,
+      );
+      var account = getAccountInfo?.call();
+      if (account == null) {
+        try {
+          account = await _repository.fetchAccountInfo(
+            apiKey: config.novelAiKey,
+          );
+        } catch (_) {
+          // 拉取失败时按非 Opus 保守估算
+        }
+      }
+      final upscaleCost = dims == null
+          ? AnlasCalculator.invalidCost
+          : AnlasCalculator.estimateUpscaleCost(
+              inputWidth: dims.width,
+              inputHeight: dims.height,
+              scale: scale,
+              isOpus: account?.isOpus ?? false,
+            );
+      if (upscaleCost > 0 && onConfirmPaidUpscale != null) {
+        final confirmed = await onConfirmPaidUpscale!(
+          estimatedCost: upscaleCost,
+          inputWidth: dims!.width,
+          inputHeight: dims.height,
+          scale: scale,
+        );
+        if (!confirmed) {
+          return ToolResult(
+            toolCallId: toolCallId,
+            content:
+                '已取消放大：将输入尺寸 ${dims.width}x${dims.height} 的图片放大 '
+                '${scale}x 预计消耗 $upscaleCost Anlas，用户已拒绝扣费。',
+            isError: true,
+          );
+        }
+      }
+
       final upscaled = await _repository.upscale(
         apiKey: config.novelAiKey,
         sourceImage: targetImage,
@@ -247,9 +347,16 @@ class NovelAiUpscaleTool extends AgentTool {
 
       _onUpscaled?.call(upscaled);
 
+      final costSuffix = dims == null
+          ? ''
+          : '\n点数消耗: ${AnlasCalculator.describeCost(upscaleCost)}';
+
       return ToolResult(
         toolCallId: toolCallId,
-        content: '图像超分放大完成 (${scale}x)\n保存路径: ${upscaled.localFilePath ?? '内存中'}',
+        content:
+            '图像超分放大完成 (${scale}x)\n'
+            '保存路径: ${upscaled.localFilePath ?? '内存中'}'
+            '$costSuffix',
       );
     } catch (e) {
       return ToolResult(
@@ -269,25 +376,27 @@ class NovelAiSuggestTagsTool extends AgentTool {
   NovelAiSuggestTagsTool({
     required this._repository,
     required this._configService,
-  })  : super(
-          name: 'novelai_suggest_tags',
-          label: 'NovelAI 标签联想',
-          description: '查询官方 Danbooru Tag 联想补全与使用频次。',
-          parameters: {
-            'type': 'object',
-            'properties': {
-              'query': {
-                'type': 'string',
-                'description': '要查询的标签前缀或关键词（例如 silver hair, cat ears）',
-              },
-            },
-            'required': ['query'],
-          },
-        );
+  }) : super(
+         name: 'novelai_suggest_tags',
+         label: 'NovelAI 标签联想',
+         description: '查询官方 Danbooru Tag 联想补全与使用频次。',
+         parameters: {
+           'type': 'object',
+           'properties': {
+             'query': {
+               'type': 'string',
+               'description': '要查询的标签前缀或关键词（例如 silver hair, cat ears）',
+             },
+           },
+           'required': ['query'],
+         },
+       );
 
   @override
   Future<ToolResult> execute(
-      String toolCallId, Map<String, dynamic> args) async {
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
     try {
       final config = await _configService.loadConfig();
       final query = args['query'] as String? ?? '';
@@ -314,7 +423,9 @@ class NovelAiSuggestTagsTool extends AgentTool {
       final buffer = StringBuffer();
       buffer.writeln('找到以下标签建议：');
       for (final t in tags.take(10)) {
-        buffer.writeln('- ${t.tag} (用量: ${t.count}, 匹配度: ${(t.confidence * 100).toStringAsFixed(1)}%)');
+        buffer.writeln(
+          '- ${t.tag} (用量: ${t.count}, 匹配度: ${(t.confidence * 100).toStringAsFixed(1)}%)',
+        );
       }
 
       return ToolResult(
@@ -339,19 +450,18 @@ class NovelAiAccountInfoTool extends AgentTool {
   NovelAiAccountInfoTool({
     required this._repository,
     required this._configService,
-  })  : super(
-          name: 'novelai_account_info',
-          label: 'NovelAI 账号与体力查询',
-          description: '查询当前 NovelAI 账号的订阅等级、Anlas 点数余额以及 V5 专属体力池余量。',
-          parameters: {
-            'type': 'object',
-            'properties': {},
-          },
-        );
+  }) : super(
+         name: 'novelai_account_info',
+         label: 'NovelAI 账号与体力查询',
+         description: '查询当前 NovelAI 账号的订阅等级、Anlas 点数余额以及 V5 专属体力池余量。',
+         parameters: {'type': 'object', 'properties': {}},
+       );
 
   @override
   Future<ToolResult> execute(
-      String toolCallId, Map<String, dynamic> args) async {
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
     try {
       final config = await _configService.loadConfig();
       if (config.novelAiKey.trim().isEmpty) {
@@ -362,20 +472,29 @@ class NovelAiAccountInfoTool extends AgentTool {
         );
       }
 
-      final info = await _repository.fetchAccountInfo(apiKey: config.novelAiKey);
+      final info = await _repository.fetchAccountInfo(
+        apiKey: config.novelAiKey,
+      );
 
       final buffer = StringBuffer();
       buffer.writeln('NovelAI 账号状态：');
       buffer.writeln('• 订阅等级: ${info.tierName}');
       buffer.writeln('• 账号状态: ${info.active ? '激活中' : '未激活'}');
       if (info.expiresAt != null) {
-        buffer.writeln('• 会员到期时间: ${DateFormat('yyyy-MM-dd HH:mm').format(info.expiresAt!)}');
+        buffer.writeln(
+          '• 会员到期时间: ${DateFormat('yyyy-MM-dd HH:mm').format(info.expiresAt!)}',
+        );
       }
       buffer.writeln('• V5 专属体力池: ${info.staminaPercent.toStringAsFixed(1)}%');
+      if (info.v5QuotaExhausted) {
+        buffer.writeln('• V5 体力配额已透支，生图将按正常价消耗 Anlas');
+      }
       if (info.timeUntilNextPercent > 0) {
         buffer.writeln('• 体力恢复: ${info.timeUntilNextPercent} 秒后 +1%');
       }
-      buffer.writeln('• 总可用 Anlas: ${info.totalAnlas} (赠送: ${info.fixedAnlas}, 购买: ${info.purchasedAnlas})');
+      buffer.writeln(
+        '• 总可用 Anlas: ${info.totalAnlas} (赠送: ${info.fixedAnlas}, 购买: ${info.purchasedAnlas})',
+      );
 
       return ToolResult(
         toolCallId: toolCallId,

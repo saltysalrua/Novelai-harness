@@ -13,6 +13,7 @@ import '../../../../core/harness/tools/studio_params_tool.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/repositories/novelai_repository.dart';
+import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/session_log_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
@@ -63,9 +64,17 @@ class StudioViewModel extends ChangeNotifier {
   DateTime? _generationStartTime;
   StreamSubscription<NaiStreamProgress>? _generationSubscription;
 
-  StudioViewModel({ConfigService? configService, NovelAiRepository? repository})
-    : _configService = configService ?? ConfigService(),
-      _repository = repository ?? NovelAiRepository() {
+  /// 测试注入用：会话日志根目录 (默认走系统 Documents/NovelAI_Sessions)
+  final String? _sessionLogBaseDir;
+
+  StudioViewModel({
+    ConfigService? configService,
+    NovelAiRepository? repository,
+    String? sessionLogBaseDir,
+  }) : _configService = configService ?? ConfigService(),
+       _repository = repository ?? NovelAiRepository(),
+       // ignore: prefer_initializing_formals
+       _sessionLogBaseDir = sessionLogBaseDir {
     _toolRegistry = ToolRegistry();
     _harness = AgentHarness(
       tools: _toolRegistry,
@@ -73,7 +82,6 @@ class StudioViewModel extends ChangeNotifier {
       initialPreset: BuiltinPresets.v5Architect,
     );
   }
-
   // 动态注册中心
   final SkillRegistry _skillRegistry = SkillRegistry();
   SkillRegistry get skillRegistry => _skillRegistry;
@@ -84,6 +92,19 @@ class StudioViewModel extends ChangeNotifier {
   AppConfig get config => _config;
   NaiGenerationParams get params => _params;
   NaiAccountInfo? get accountInfo => _accountInfo;
+
+  @visibleForTesting
+  void setAccountInfoForTest(NaiAccountInfo? info) {
+    _accountInfo = info;
+    notifyListeners();
+  }
+
+  /// 当前工作台参数的预计 Anlas 消耗 (账号未加载时按非 Opus 保守估算)
+  int get estimatedGenerationCost => AnlasCalculator.estimateGenerationCost(
+    params: _params,
+    isOpus: _accountInfo?.isOpus ?? false,
+    opusQuotaExhausted: _accountInfo?.v5QuotaExhausted ?? false,
+  );
   bool get isLoadingAccount => _isLoadingAccount;
   bool get isGenerating => _isGenerating;
   bool get isChatStreaming => _isChatStreaming;
@@ -182,7 +203,7 @@ class StudioViewModel extends ChangeNotifier {
     _setupHarnessAndTools();
 
     // 初始化会话日志并续接上次对话 (Pi --continue 语义)
-    await _sessionLog.init();
+    await _sessionLog.init(baseDir: _sessionLogBaseDir);
     await _usageLedger.init(baseDir: _sessionLog.baseDirPath);
     final snapshot = _sessionLog.loadLatestSession();
     if (snapshot != null && snapshot.messages.isNotEmpty) {
@@ -242,6 +263,7 @@ class StudioViewModel extends ChangeNotifier {
           refreshAccountInfo();
         },
         onConfirmPaidGeneration: _confirmPaidGeneration,
+        getAccountInfo: () => _accountInfo,
       ),
     );
     _toolRegistry.register(
@@ -252,6 +274,8 @@ class StudioViewModel extends ChangeNotifier {
           _selectedImage = image;
           notifyListeners();
         },
+        getAccountInfo: () => _accountInfo,
+        onConfirmPaidUpscale: _confirmPaidUpscale,
       ),
     );
     _toolRegistry.register(
@@ -428,6 +452,9 @@ class StudioViewModel extends ChangeNotifier {
 
   /// 更新侧边栏参数
   void updateParams(NaiGenerationParams newParams) {
+    if (newParams.characterAiPosition && _isEditingCharacterPositions) {
+      _isEditingCharacterPositions = false;
+    }
     _params = newParams;
     notifyListeners();
 
@@ -476,13 +503,18 @@ class StudioViewModel extends ChangeNotifier {
   void setEditingCharacterPositions(bool editing) {
     if (_isEditingCharacterPositions == editing) return;
     _isEditingCharacterPositions = editing;
-    if (editing &&
-        (_selectedCharacterId == null ||
-            !_params.characterPrompts.any(
-              (c) => c.id == _selectedCharacterId,
-            )) &&
-        _params.characterPrompts.isNotEmpty) {
-      _selectedCharacterId = _params.characterPrompts.first.id;
+    if (editing) {
+      if (_params.characterAiPosition) {
+        _params = _params.copyWith(characterAiPosition: false);
+        _configService.saveCharacterAiPosition(false);
+      }
+      if ((_selectedCharacterId == null ||
+              !_params.characterPrompts.any(
+                (c) => c.id == _selectedCharacterId,
+              )) &&
+          _params.characterPrompts.isNotEmpty) {
+        _selectedCharacterId = _params.characterPrompts.first.id;
+      }
     }
     notifyListeners();
   }
@@ -539,6 +571,9 @@ class StudioViewModel extends ChangeNotifier {
 
   /// 切换全局角色位置模式 (AI 自动布局 / 自定义定位)
   void setCharacterAiPosition(bool aiPosition) {
+    if (aiPosition && _isEditingCharacterPositions) {
+      _isEditingCharacterPositions = false;
+    }
     updateParams(_params.copyWith(characterAiPosition: aiPosition));
   }
 
@@ -796,6 +831,24 @@ class StudioViewModel extends ChangeNotifier {
       return;
     }
 
+    // 付费闸门: 预计消耗非零时先向用户确认 (覆盖非 Opus 订阅与 V5 体力透支场景)
+    if (_accountInfo == null) {
+      await refreshAccountInfo();
+    }
+    final estimatedCost = estimatedGenerationCost;
+    if (estimatedCost > 0) {
+      final confirmed = await _confirmPaidGeneration(
+        params: _params,
+        estimatedCost: estimatedCost,
+      );
+      if (!confirmed) {
+        _statusMessage = '已取消生成 (预计消耗 $estimatedCost Anlas)';
+        _errorMessage = null;
+        notifyListeners();
+        return;
+      }
+    }
+
     final wasViewingLatest = isViewingLatest;
 
     _isGenerating = true;
@@ -915,6 +968,36 @@ class StudioViewModel extends ChangeNotifier {
       _errorMessage = '未配置 NovelAI API Key。';
       notifyListeners();
       return;
+    }
+
+    // 付费闸门: 官方超分按输入面积分档计费，非零消耗时先向用户确认
+    final dims = await AnlasCalculator.decodeImageDimensions(
+      _selectedImage!.bytes,
+    );
+    if (dims != null) {
+      if (_accountInfo == null) {
+        await refreshAccountInfo();
+      }
+      final upscaleCost = AnlasCalculator.estimateUpscaleCost(
+        inputWidth: dims.width,
+        inputHeight: dims.height,
+        scale: scale,
+        isOpus: _accountInfo?.isOpus ?? false,
+      );
+      if (upscaleCost > 0) {
+        final confirmed = await _confirmPaidUpscale(
+          estimatedCost: upscaleCost,
+          inputWidth: dims.width,
+          inputHeight: dims.height,
+          scale: scale,
+        );
+        if (!confirmed) {
+          _statusMessage = '已取消放大 (预计消耗 $upscaleCost Anlas)';
+          _errorMessage = null;
+          notifyListeners();
+          return;
+        }
+      }
     }
 
     _isGenerating = true;
@@ -1237,11 +1320,14 @@ class StudioViewModel extends ChangeNotifier {
         await refreshAccountInfo();
         if (_accountInfo != null) {
           final info = _accountInfo!;
+          final quotaLine = info.v5QuotaExhausted
+              ? '\n• V5 体力配额已透支，生图将按正常价消耗 Anlas'
+              : '';
           _harness.addInfoMessage(
             '''NovelAI 账号状态：
 • 订阅等级: ${info.tierName}
 • V5 专属体力池: ${info.staminaPercent.toStringAsFixed(1)}%
-• 可用 Anlas: ${info.totalAnlas} (赠送: ${info.fixedAnlas}, 购买: ${info.purchasedAnlas})''',
+• 可用 Anlas: ${info.totalAnlas} (赠送: ${info.fixedAnlas}, 购买: ${info.purchasedAnlas})$quotaLine''',
           );
         } else {
           _harness.addInfoMessage('查询账号信息失败，请检查 API Key 设置。');
@@ -1357,13 +1443,17 @@ class StudioViewModel extends ChangeNotifier {
   /// 付费生图申请确认 (内嵌于对话流，纯选择按钮，禁止自定义文本框)
   Future<bool> _confirmPaidGeneration({
     required NaiGenerationParams params,
-    required List<String> reasons,
+    required int estimatedCost,
   }) async {
-    final reasonText = reasons.join('、');
+    final reasons = buildPaidGenerationReasons(params);
+    final reasonText = reasons.isEmpty ? '当前账号无 Opus 免费额度' : reasons.join('、');
+    final costText = estimatedCost > 0
+        ? '预计消耗 $estimatedCost Anlas 点数'
+        : '将消耗 Anlas 点数';
     final answer = await _presentQuestionsToUser([
       AgentQuestion(
         header: '点数消耗申请',
-        question: '本次生图参数（$reasonText）超出了 Opus 免费区间，将消耗 Anlas 点数。是否确认生成？',
+        question: '本次生图参数（$reasonText）$costText。是否确认生成？',
         allowCustomInput: false,
         options: const [
           AgentQuestionOption(label: '确认生成', description: '使用当前参数直接生图并扣除点数'),
@@ -1374,6 +1464,31 @@ class StudioViewModel extends ChangeNotifier {
 
     if (answer == null || answer.isEmpty) return false;
     return answer.first.contains('确认生成');
+  }
+
+  /// 付费超分确认 (内嵌于对话流，纯选择按钮)
+  Future<bool> _confirmPaidUpscale({
+    required int estimatedCost,
+    required int inputWidth,
+    required int inputHeight,
+    required int scale,
+  }) async {
+    final answer = await _presentQuestionsToUser([
+      AgentQuestion(
+        header: '点数消耗申请',
+        question:
+            '将输入尺寸 ${inputWidth}x$inputHeight 的图片放大 ${scale}x，'
+            '预计消耗 $estimatedCost Anlas 点数。是否确认放大？',
+        allowCustomInput: false,
+        options: const [
+          AgentQuestionOption(label: '确认放大', description: '执行官方超分并扣除点数'),
+          AgentQuestionOption(label: '取消放大', description: '取消本次超分操作'),
+        ],
+      ),
+    ]);
+
+    if (answer == null || answer.isEmpty) return false;
+    return answer.first.contains('确认放大');
   }
 
   /// 记录一次模型响应的 Token 用量: 会话内聚合 + 持久化账本

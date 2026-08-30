@@ -1,4 +1,5 @@
 import '../../../data/models/novelai_models.dart';
+import '../../../data/services/anlas_calculator.dart';
 import '../presets/agent_preset.dart';
 import '../types.dart';
 import 'agent_tool.dart';
@@ -13,14 +14,29 @@ typedef CurrentParamsGetter = NaiGenerationParams Function();
 /// 回调类型：检查参数是否允许修改
 typedef ParamPermissionChecker = bool Function(String paramKey);
 
+/// 构建点数预估状态文本 (Opus 免费/精确预估，供报表与单键查询共用)
+String buildCostEstimateStatus(NaiGenerationParams params) {
+  if (params.isOpusFree) {
+    final plainCost = AnlasCalculator.estimateGenerationCost(
+      params: params,
+      isOpus: false,
+    );
+    return '符合 Opus 免费区间 (0 Anlas；无订阅 $plainCost Anlas)';
+  }
+  final cost = AnlasCalculator.estimateGenerationCost(
+    params: params,
+    isOpus: true,
+  );
+  if (cost < 0) return '超出计费上限 (无法估算)';
+  return '超出免费区间 (预计 $cost Anlas)';
+}
+
 /// 构建工作台全部生图参数的可读报表 (get_studio_parameters 工具与 /params 指令共用)
 String buildStudioParamsReport(
   NaiGenerationParams params, {
   String title = '工作台全部生图参数：',
 }) {
-  final costStatus = params.isOpusFree
-      ? '符合 Opus 免费区间 (0 Anlas)'
-      : '超出免费区间 (将消耗点数)';
+  final costStatus = buildCostEstimateStatus(params);
   final lines = <String>[
     '• 正向提示词: ${params.prompt.isEmpty ? '(空)' : params.prompt}',
     '• 负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
@@ -32,7 +48,7 @@ String buildStudioParamsReport(
     '• 噪声调度: ${params.noiseSchedule.label} (${params.noiseSchedule.id})',
     '• 质量标签: ${params.qualityPreset}',
     '• 随机种子: ${params.seed == -1 ? '随机 (-1)' : params.seed}',
-    '• Opus 状态: $costStatus',
+    '• 点数预估: $costStatus',
   ];
   var report = '$title\n${lines.join('\n')}';
   if (params.characterPrompts.isNotEmpty) {
@@ -155,10 +171,7 @@ class NovelAiGetStudioParamsTool extends AgentTool {
       lines.add('• 随机种子: ${params.seed == -1 ? '随机 (-1)' : params.seed}');
     }
     if (requestedKeys.contains('opus_free_status')) {
-      final costStatus = params.isOpusFree
-          ? '符合 Opus 免费区间 (0 Anlas)'
-          : '超出免费区间 (将消耗点数)';
-      lines.add('• Opus 状态: $costStatus');
+      lines.add('• 点数预估: ${buildCostEstimateStatus(params)}');
     }
 
     if (lines.isEmpty) {

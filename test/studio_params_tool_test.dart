@@ -19,7 +19,8 @@ void main() {
       expect(report, contains('噪声调度:'));
       expect(report, contains('质量标签:'));
       expect(report, contains('随机种子: 随机 (-1)'));
-      expect(report, contains('Opus 状态:'));
+      // 默认 832x1216@28 在免费区间内: 显示精确点数预估
+      expect(report, contains('点数预估: 符合 Opus 免费区间 (0 Anlas；无订阅 30 Anlas)'));
     });
 
     test('自定义标题生效 (区分工具查询与 /params 指令场景)', () {

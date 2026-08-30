@@ -189,6 +189,15 @@ Novelai-harness/
 
 当用户开启 `opusFreeMode` 时，UI 与参数构建应自动限制尺寸与步数在此区间内。
 
+### 3.3b 预计 Anlas 消耗计算 (AnlasCalculator)
+
+`lib/data/services/anlas_calculator.dart` 移植自 Aaalice_NAI_Launcher 的 AnlasCalculator，所有预估接入点共用这一份单一事实源：
+
+- **基础公式 (现代计费，V3+ 全系适用)**：`ceil(2.951823174884865e-6 × 像素数 + 5.753298233447344e-7 × 像素数 × 步数)`，再乘模型倍率 (`NaiModel.anlasMultiplier`，仅 V5 为 1.5，其余 1.0)，单张下限 2 Anlas、上限 140 Anlas (超出返回 `invalidCost = -3`)。
+- **Opus 折扣**：`isOpus && 步数 <= 28 && 像素 <= 1,048,576` 时首张免费；仅 V5 受体力配额池限制 (`NaiAccountInfo.v5QuotaExhausted`，来自 `subscription.usage.isNegative`，透支后不再抵扣)；单次请求多张 (`n_samples > 1`) 只有第一张享受免费折扣。
+- **官方超分**：按输入面积分档计费，放大倍数不参与价格：`<= 1,048,576 → 1 Anlas`、`<= 1,747,627 → 2`、`<= 2,446,678 → 3`、`<= 3,145,728 → 4`，超过最高档返回 `invalidCost`；Opus 用户输入不超过 `640x640` 时免费。输入尺寸用 `AnlasCalculator.decodeImageDimensions` 从图片字节解码 (不信任 params 上的宽高，可能是文件加载的假参数)。
+- **接入点**：GenerateDock 生成按钮点数标识与提示 (`StudioViewModel.estimatedGenerationCost`)、手动生成/超分的付费确认闸门 (预计非零时先弹问)、Agent 生图/超分工具的确认与结果文本、`get_studio_parameters` 报表 (无账号信息时按 Opus/无订阅双价位展示)。服务端计费仍是最终依据。
+
 ### 3.4 NovelAI V5 自然语言提示词架构
 
 - **连续自然语言散文**：单人或单场景使用连贯英文散文，禁止堆叠标签，禁止使用 `{}`、`()` 权重修饰符。

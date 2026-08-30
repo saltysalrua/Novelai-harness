@@ -147,92 +147,107 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 头部：序号 + 名称 + 启停 + 位置 + 删除 (一体化平铺，无内部多重框)
+            // 头部：序号 + 名称 (弹性自适应占满) + 删除，下层为启停 + 位置胶囊 (流式防溢出)
             Container(
               color: isSelectedInCanvas
                   ? AppTheme.skyTint.withValues(alpha: 0.45)
                   : AppTheme.surfaceElevated,
-              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-              child: Row(
+              padding: const EdgeInsets.fromLTRB(10, 7, 8, 7),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelectedInCanvas
-                          ? AppTheme.notionBlue
-                          : AppTheme.borderSubtle,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${widget.index + 1}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isSelectedInCanvas
-                            ? Colors.white
-                            : AppTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _nameController,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        hintText: '角色名称',
-                        hintStyle: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.normal,
-                          color: AppTheme.textMuted,
+                  // 第一行：角色序号 + 名称输入框 (自适应弹性填充) + 删除按钮
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
                         ),
-                        contentPadding: EdgeInsets.zero,
+                        decoration: BoxDecoration(
+                          color: isSelectedInCanvas
+                              ? AppTheme.notionBlue
+                              : AppTheme.borderSubtle,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${widget.index + 1}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isSelectedInCanvas
+                                ? Colors.white
+                                : AppTheme.textSecondary,
+                          ),
+                        ),
                       ),
-                      // 输入中不做 trim，避免末尾空格被吞导致无法输入带空格的名称
-                      onChanged: (value) =>
-                          _update(character.copyWith(name: value)),
-                      onSubmitted: (value) =>
-                          _update(character.copyWith(name: value.trim())),
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _nameController,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            hintText: '角色名称 (可选)',
+                            hintStyle: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.normal,
+                              color: AppTheme.textMuted,
+                            ),
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          // 输入中不做 trim，避免末尾空格被吞导致无法输入带空格的名称
+                          onChanged: (value) =>
+                              _update(character.copyWith(name: value)),
+                          onSubmitted: (value) =>
+                              _update(character.copyWith(name: value.trim())),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      _DeleteIcon(
+                        onTap: () =>
+                            viewModel.removeCharacterPrompt(character.id),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 6),
-                  ToggleChip(
-                    isActive: character.enabled,
-                    icon: character.enabled
-                        ? Icons.visibility_rounded
-                        : Icons.visibility_off_rounded,
-                    label: character.enabled ? '启用' : '停用',
-                    onTap: () => _update(
-                      character.copyWith(enabled: !character.enabled),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  _PositionPill(
-                    label: _positionLabel,
-                    isCustom: customMode,
-                    isSelected: isSelectedInCanvas,
-                    onTap: () {
-                      if (viewModel.params.characterAiPosition) {
-                        viewModel.setCharacterAiPosition(false);
-                      }
-                      viewModel.selectCharacterId(character.id);
-                      viewModel.setEditingCharacterPositions(true);
-                    },
-                  ),
-                  const SizedBox(width: 4),
-                  _DeleteIcon(
-                    onTap: () => viewModel.removeCharacterPrompt(character.id),
+                  const SizedBox(height: 6),
+                  // 第二行：启停状态胶囊 + 位置胶囊 (流式防溢出，自适应窄屏)
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      ToggleChip(
+                        isActive: character.enabled,
+                        icon: character.enabled
+                            ? Icons.visibility_rounded
+                            : Icons.visibility_off_rounded,
+                        label: character.enabled ? '启用' : '停用',
+                        onTap: () => _update(
+                          character.copyWith(enabled: !character.enabled),
+                        ),
+                      ),
+                      _PositionPill(
+                        label: _positionLabel,
+                        isCustom: customMode,
+                        isSelected: isSelectedInCanvas,
+                        onTap: () {
+                          if (viewModel.params.characterAiPosition) {
+                            viewModel.setCharacterAiPosition(false);
+                          }
+                          viewModel.selectCharacterId(character.id);
+                          viewModel.setEditingCharacterPositions(true);
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),

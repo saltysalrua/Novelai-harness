@@ -130,9 +130,12 @@ class _AffixFieldHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),

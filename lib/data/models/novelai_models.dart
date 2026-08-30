@@ -62,6 +62,12 @@ enum NaiModel {
   /// 是否支持 `text:` 原生文字渲染段 (官网能力位 `text`，V4 起为 true)。
   /// 质量词等自动追加的内容必须留在 `text:` 之前，否则会被画进图里的文字。
   bool get supportsTextRendering => isV4OrAbove;
+
+  /// Anlas 基础价倍率 (V5 正式版在现代公式之上乘 1.5，其余模型为 1.0)
+  double get anlasMultiplier => isV5 ? 1.5 : 1.0;
+
+  /// Opus 免费生成是否受 V5 体力配额池限制 (透支后不再抵扣，按正常价扣点)
+  bool get hasOpusUsageLimit => isV5;
 }
 
 /// 采样算法
@@ -822,6 +828,9 @@ class NaiAccountInfo {
   final DateTime? nextRefillAt;
   final bool unlimitedFree;
 
+  /// V5 体力配额池是否已透支 (透支后 Opus 免费额度失效，生图按正常价扣 Anlas)
+  final bool v5QuotaExhausted;
+
   const NaiAccountInfo({
     required this.tierName,
     required this.tier,
@@ -835,6 +844,7 @@ class NaiAccountInfo {
     required this.taskPriority,
     this.nextRefillAt,
     required this.unlimitedFree,
+    this.v5QuotaExhausted = false,
   });
 
   factory NaiAccountInfo.fromJson(Map<String, dynamic> json) {
@@ -875,8 +885,12 @@ class NaiAccountInfo {
           ? DateTime.fromMillisecondsSinceEpoch(refillTimestamp * 1000)
           : null,
       unlimitedFree: perks['unlimitedMaxPriority'] as bool? ?? false,
+      v5QuotaExhausted: usage['isNegative'] as bool? ?? false,
     );
   }
+
+  /// 账号是否拥有有效的 Opus 订阅权益 (决定生图免费折扣)
+  bool get isOpus => tier >= 3 && active;
 }
 
 /// 官方 Danbooru Tag 联想数据

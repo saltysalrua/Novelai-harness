@@ -169,16 +169,18 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          if (characters.isNotEmpty)
-            _DualPositionToggle(
+          if (characters.isNotEmpty) ...[
+            _PositionModeSegment(
               isAiPosition: params.characterAiPosition,
               onChanged: (isAi) => viewModel.setCharacterAiPosition(isAi),
+            ),
+            _CanvasEditDeckButton(
               isCanvasEditing: viewModel.isEditingCharacterPositions,
-              onToggleCanvasEdit: () => viewModel.setEditingCharacterPositions(
+              onTap: () => viewModel.setEditingCharacterPositions(
                 !viewModel.isEditingCharacterPositions,
               ),
-            )
-          else
+            ),
+          ] else
             const Text(
               '独立角色物理隔离',
               style: TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
@@ -403,18 +405,14 @@ class _DeckSegmentTab extends StatelessWidget {
   }
 }
 
-/// 一体化定位模式双选胶囊 (AI 自动 ↔ 自定义 + 画板编辑)
-class _DualPositionToggle extends StatelessWidget {
+/// 定位模式双选胶囊 (AI 自动 ↔ 自定义)
+class _PositionModeSegment extends StatelessWidget {
   final bool isAiPosition;
   final ValueChanged<bool> onChanged;
-  final bool isCanvasEditing;
-  final VoidCallback onToggleCanvasEdit;
 
-  const _DualPositionToggle({
+  const _PositionModeSegment({
     required this.isAiPosition,
     required this.onChanged,
-    required this.isCanvasEditing,
-    required this.onToggleCanvasEdit,
   });
 
   @override
@@ -442,53 +440,72 @@ class _DualPositionToggle extends StatelessWidget {
             isActive: !isAiPosition,
             onTap: () => onChanged(false),
           ),
-          const SizedBox(width: 2),
-          Tooltip(
-            message: isCanvasEditing ? '退出画板位置编辑' : '在中间画板编辑角色位置',
-            child: InkWell(
-              onTap: onToggleCanvasEdit,
-              borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 7,
-                  vertical: 3.5,
-                ),
-                decoration: BoxDecoration(
-                  color: isCanvasEditing
-                      ? AppTheme.notionBlue
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.control_camera_rounded,
-                      size: 11.5,
-                      color: isCanvasEditing
-                          ? Colors.white
-                          : AppTheme.textSecondary,
-                    ),
-                    const SizedBox(width: 3.5),
-                    Text(
-                      isCanvasEditing ? '编辑中' : '画板编辑',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: isCanvasEditing
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        color: isCanvasEditing
-                            ? Colors.white
-                            : AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 画板位置编辑独立胶囊按钮 (流式排版自适应)
+class _CanvasEditDeckButton extends StatelessWidget {
+  final bool isCanvasEditing;
+  final VoidCallback onTap;
+
+  const _CanvasEditDeckButton({
+    required this.isCanvasEditing,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: isCanvasEditing ? '退出画板位置编辑' : '在中间画板编辑角色位置',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 4,
+          ),
+          decoration: BoxDecoration(
+            color: isCanvasEditing
+                ? AppTheme.notionBlue
+                : AppTheme.surfaceMuted,
+            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+            border: Border.all(
+              color: isCanvasEditing
+                  ? AppTheme.notionBlue
+                  : AppTheme.borderSubtle,
             ),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.control_camera_rounded,
+                size: 11.5,
+                color: isCanvasEditing
+                    ? Colors.white
+                    : AppTheme.textSecondary,
+              ),
+              const SizedBox(width: 3.5),
+              Text(
+                isCanvasEditing ? '编辑中' : '画板编辑',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: isCanvasEditing
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                  color: isCanvasEditing
+                      ? Colors.white
+                      : AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

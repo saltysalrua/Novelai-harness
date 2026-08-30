@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
@@ -7,15 +8,23 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late StudioViewModel viewModel;
+  late Directory sessionBase;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    viewModel = StudioViewModel();
+    // 注入一次性干净会话目录：避免续接共享临时目录里历次运行残留的探针消息
+    sessionBase = Directory.systemTemp.createTempSync('nai_reentry_test_');
+    viewModel = StudioViewModel(sessionLogBaseDir: sessionBase.path);
     await viewModel.init();
   });
 
   tearDown(() {
     viewModel.dispose();
+    try {
+      sessionBase.deleteSync(recursive: true);
+    } catch (_) {
+      // 目录清理失败不影响断言
+    }
   });
 
   // 注意：init() 会按 pi 语义续接磁盘上最新的会话文件，历史消息可能非空，

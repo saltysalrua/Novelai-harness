@@ -466,7 +466,7 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
         SharedPreferences.setMockInitialValues({'novelai_key': 'test-token'});
 
         bool confirmationRequested = false;
-        List<String> recordedReasons = [];
+        int recordedCost = 0;
 
         final configService = ConfigService();
         await configService.saveConfig(
@@ -482,16 +482,30 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
             height: 1088, // 超过 1048576 像素限制
             steps: 35, // 超过 28 步限制
           ),
-          onConfirmPaidGeneration: ({required params, required reasons}) async {
-            confirmationRequested = true;
-            recordedReasons = reasons;
-            return false; // 用户拒绝
-          },
+          // Paper 账号: 无 Opus 免费折扣，预计消耗非零
+          getAccountInfo: () => NaiAccountInfo(
+            tierName: 'Paper',
+            tier: 0,
+            active: true,
+            staminaPercent: 100,
+            timeUntilNextPercent: 0,
+            totalAnlas: 0,
+            fixedAnlas: 0,
+            purchasedAnlas: 0,
+            taskPriority: 10,
+            unlimitedFree: false,
+          ),
+          onConfirmPaidGeneration:
+              ({required params, required estimatedCost}) async {
+                confirmationRequested = true;
+                recordedCost = estimatedCost;
+                return false; // 用户拒绝
+              },
         );
 
         final result = await tool.execute('call_gen_paid', {});
         expect(confirmationRequested, isTrue);
-        expect(recordedReasons.length, equals(2));
+        expect(recordedCost, greaterThan(0));
         expect(result.isError, isTrue);
         expect(result.content, contains('已取消生成'));
         expect(result.content, contains('用户已拒绝扣费'));
