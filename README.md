@@ -65,114 +65,30 @@
 
 ---
 
-## ⚠️ 第三方提醒与免责声明 (Third-Party Notices & Disclaimers)
+## ⚠️ 第三方提醒与免责声明 (Notices & Disclaimers)
 
-> [!IMPORTANT]
-> **非官方产品声明 (Non-Official Disclaimer)**
-> - 本项目（NovelAI Harness）是由社区开发者自主构建的第三方开源客户端与 AI 工作台，**并非 NovelAI（Anlatan, Inc.）的官方产品，亦未获得官方的赞助或授权**。
-> - “NovelAI”及其相关标志均为 Anlatan, Inc. 的注册商标或服务标志。
-> - 使用本软件前，请确保您拥有合法有效的 NovelAI 账号与 API Key，并在使用过程中严格遵守 [NovelAI 官方服务条款 (Terms of Service)](https://novelai.net/terms)。
-
-> [!WARNING]
-> **第三方 API 凭证与费用提示 (API Credentials & Billing)**
-> - **NovelAI Anlas 消耗**：图像生成与超分可能消耗您 NovelAI 账号中的 Anlas 点数。尽管本软件内置了精准的 Anlas 预估与 Opus 免点数保护拦截，**但实际计费仍以 NovelAI 官方服务器为最终依据**。
-> - **LLM 供应商费用**：AI 对话与 Agent 功能需要连接第三方大语言模型提供商（如 OpenAI、Anthropic、DeepSeek、Google 等）。调用大模型 API 所产生的 Token 用量与账单费用由用户所配置的供应商账号自行承担。
-> - **凭证安全**：您的 NovelAI API Key 与第三方 LLM API Key 均仅加密/明文保存在您本地设备上（通过 `shared_preferences` / 本地配置文件），本软件绝不会向任何未经授权的第三方服务器上传您的密钥。
-
-> [!NOTE]
-> **在线数据与网络服务说明 (Online Services Availability)**
-> - 本软件集成的部分在线服务（如 `DanbooruSearch` HuggingFace Space、`models.dev` 模型元数据库、`Danbooru` 官方 API、`GitHub` 每日词库构建源）均属于第三方独立维护的公共或免费资源。
-> - 第三方服务的可用性、响应速度、接口稳定性以及数据准确性受其各自运维方与网络环境影响，本软件不对此做任何明示或暗示的保证。
-
-> [!NOTE]
-> **字体与开源资产授权 (Font & Open Source Assets)**
-> - 本项目内置的 **MiSans** 字体遵循小米官方《MiSans 字体知识产权许可协议》（允许免费商用、嵌入与分发）。
-> - 本项目内置的 Danbooru 标签翻译数据来源于开源社区公开整理的数据集，版权归原整理者与社区共同所有。
+- **非官方产品**：本项目为第三方非官方开源工作台，与 **NovelAI (Anlatan, Inc.)** 官方无从属关系。使用前请自备合法 NovelAI 账号并遵守其服务条款。
+- **费用提示**：NovelAI Anlas 点数扣除与第三方 LLM API Token 消耗均由用户各自账号承担，请合理配置。
+- **凭证安全**：所有 API 密钥均仅保存在本地设备，绝不上传至任何第三方服务器。
+- **完整声明**：关于在线服务可用性、数据源版权与字体许可的完整声明，请参阅 [**THIRD_PARTY_NOTICES.md**](THIRD_PARTY_NOTICES.md)。
 
 ---
 
-## 📦 直接使用的第三方资源清单 (Direct Third-Party Resources & Assets)
+## 📦 第三方资源与开源致谢 (Third-Party & Acknowledgments)
 
-本项目在开发与运行过程中，直接引入和使用了以下第三方开源资产、数据集、网络服务与依赖库：
+本项目基于 **[MIT License](LICENSE)** 开源，经审查全部直接依赖与内嵌资产均为宽松协议（Permissive Licenses）或免费商用许可，**不包含任何传染性开源许可证（如 GPL / AGPL 等）的代码依赖**。
 
-### 1. 字体资源 (Fonts)
-- **[MiSans](https://hyperos.mi.com/font/zh/)** (小米开源字体)
-  - 路径：`MiSans/ttf/` (`MiSans-Regular.ttf`, `MiSans-Medium.ttf`, `MiSans-Demibold.ttf`, `MiSans-Bold.ttf`)
-  - 授权：MiSans 免费商用版权授权协议。
+- 🔤 **字体资产**：**[MiSans](https://hyperos.mi.com/font/zh/)**（小米开源字体，免费商用）。
+- 🗄️ **离线词库**：**[Danbooru 32万+ 标签中英对照表](https://github.com/ffdkj/Danbooru_Tag-Chinese-English-Translation-Table)**（ffdkj 每日构建 + Danbooru 官方别名）。
+- 🌐 **在线 API**：NovelAI 官方服务、[models.dev](https://models.dev) 元数据目录、[DanbooruSearch](https://huggingface.co/spaces/SAkizuki/DanbooruSearch) 语义检索。
+- 🙏 **核心架构与设计参考**：
+  - **[Pi (@earendil-works)](https://pi.dev)**：极简 AI Harness 内核哲学、`SKILL.md` 渐进式技能加载、JSONL 会话落盘与 `pi-bill` 账本思想。
+  - **[Aaalice_NAI_Launcher (Aaalice233)](https://github.com/Aaalice233/Aaalice_NAI_Launcher)**：Anlas 消耗算法 (`AnlasCalculator`)、多角色归一化坐标排版与官方协议封装。
+  - **[DanbooruSearch (SAkizuki)](https://github.com/SuzumiyaAkizuki/DanbooruSearch)**：语义向量匹配、标签共现与画师推荐 API 接入。
+  - **[Plana-App (mc5024)](https://github.com/mc5024/Plana-App)**：Prompt AST 语法解析引擎、SD ⇄ NAI 语法转换与富文本分类高亮设计。
+  - **[NovelAI Prompt Autocomplete & nai5-prompting (Miint-Sunny)](https://github.com/Miint-Sunny/nai-autocomplete)**：标签补全浮动交互、V5 散文提示词指南与词组合预设库。
 
-### 2. 离线数据集与词典 (Offline Datasets)
-- **Danbooru 中英文对照标签库 (`assets/danbooru.tsv`)**
-  - 数据源：来源于 **[ffdkj/Danbooru_Tag-Chinese-English-Translation-Table](https://github.com/ffdkj/Danbooru_Tag-Chinese-English-Translation-Table)** 每日构建的 `tag.sqlite` 数据表，以及 **Danbooru 官方 API** (`https://danbooru.donmai.us/tag_aliases.json`) 的活跃别名数据。
-  - 数据规模：收录超过 324,000 条包含中英文名称、使用频次、别名及 Danbooru 官方分类代码（General/Artist/Copyright/Character/Meta）的标签词条。
-
-### 3. 在线 API 与网络服务 (Online APIs & Services)
-- **[NovelAI 官方服务](https://novelai.net)**：图像生成 API (`https://image.novelai.net/ai/generate-image`)、新版超分 API (`https://image.novelai.net/ai/upscale`)、标签联想 API 与用户账号订阅状态 API。
-- **[models.dev](https://models.dev)**：社区维护的权威 LLM 能力元数据目录 (`https://models.dev/api.json`)，用于自动识别大模型的上下文窗口尺寸、思考参数配置（Reasoning Effort / Budget）等能力。
-- **[DanbooruSearch (HuggingFace Space)](https://huggingface.co/spaces/SAkizuki/DanbooruSearch)**：基于语义向量匹配的在线 Danbooru 标签搜索引擎（由 SAkizuki / SuzumiyaAkizuki 提供），提供模糊自然语言转标签、标签共现推荐及擅长画师（NPMI）推荐 API。
-- **[Danbooru 官方站点](https://danbooru.donmai.us)**：官方标签别名同步服务。
-
-### 4. 主要 Dart / Flutter 开源依赖 (Pub Packages)
-
-| 依赖包 (Package) | 用途说明 |
-| :--- | :--- |
-| **`http`** (`^1.2.1`) | 处理与 NovelAI、LLM 供应商、models.dev 及 DanbooruSearch 的 HTTP / SSE 通信 |
-| **`archive`** (`^3.6.1`) | 纯内存解压 NovelAI 官方返回的 ZIP 格式图像与元数据流 |
-| **`sqlite3`** & **`sqlite3_flutter_libs`** | 本地 SQLite 引擎，用于极速解析与更新 Danbooru 离线标签库 |
-| **`window_manager`** (`^0.5.2`) | 桌面端无边框窗口控制、窗口大小/位置监听与持久化 |
-| **`pasteboard`** (`^0.5.0`) | 桌面端剪贴板原生图片与文本复制交互 |
-| **`flutter_markdown`** (`^0.7.7+1`) | AI 对话消息、思考链与 Skill 规范的 Markdown 渲染 |
-| **`msgpack_dart`** (`^1.0.1`) | MessagePack 二进制数据流编解码 |
-| **`shared_preferences`** (`^2.2.3`) | 本地用户配置、生图参数与界面状态持久化 |
-| **`file_picker`** (`^8.0.0`) | 跨平台文件、图片与词组合预设库导入导出选取器 |
-| **`path`** & **`path_provider`** | 跨平台文件路径拼接与系统专属存储目录定位 |
-| **`intl`** (`^0.19.0`) | 国际化、时间日期格式化与数值格式化 |
-| **`crypto`** (`^3.0.3`) | SHA-256 哈希校验与数据完整性校验 |
-
----
-
-## 🙏 致谢与参考项目 (Acknowledgments & References)
-
-NovelAI Harness 的诞生离不开开源社区优秀项目的启发与技术积累。在此向以下开源项目、开发者及社区贡献者致以崇高的敬意与由衷的感谢（排名不分先后）：
-
-### 1. [Pi Agent Harness (@earendil-works)](https://pi.dev)
-- **项目仓库**：[`pi`](https://github.com/earendil-works/pi) (`@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`)
-- **参考与借鉴内容**：
-  - **极简 AI Harness 架构哲学**：借鉴 Pi 的 Minimalist Harness 理念，构建了轻量级、低耦合的 Agent 事件流循环调度器 (`agent_harness.dart`)。
-  - **渐进式技能加载体系 (Progressive Disclosure)**：实现了标准 `SKILL.md` 规范与 `load_skill` 动态按需加载机制，避免长上下文污染。
-  - **会话持久化与分支回溯规范**：会话日志记录器 (`session_log_service.dart`) 采用 Pi 官方 JSONL 结构，支持消息树分支回溯与状态恢复。
-  - **增量用量账本机制**：借鉴 `pi-bill` 账本设计思路，实现基于本地日志的增量 Token 用量统计与按天/供应商聚合。
-  - **统一模型能力元数据源**：引入与 Pi 一致的 `models.dev` 目录解析与启发式能力推断逻辑。
-
-### 2. [Aaalice_NAI_Launcher (Aaalice233)](https://github.com/Aaalice233/Aaalice_NAI_Launcher)
-- **项目仓库**：[`Aaalice_NAI_Launcher`](https://github.com/Aaalice233/Aaalice_NAI_Launcher)
-- **参考与借鉴内容**：
-  - **Anlas 预计消耗算法 (`AnlasCalculator`)**：完整移植了针对 NovelAI V3/V4/V4.5/V5 的现代计费公式、Opus 免费生图判定逻辑、V5 专属体力配额透支检测以及新版超分接口的分档计费规则。
-  - **多角色归一化坐标与自动布局体系**：参考了角色在 `[0.0, 1.0]` 归一化坐标系下的自动网格排版算法与默认负面词预设。
-  - **NovelAI 官方协议封装细节**：参考了多角色参数（`characterPrompts`、`v4_prompt.caption.char_captions`、`centers`、`use_coords`）在不同模型版本下的构建与传递规则。
-
-### 3. [DanbooruSearch (SAkizuki / SuzumiyaAkizuki)](https://github.com/SuzumiyaAkizuki/DanbooruSearch)
-- **项目仓库**：[`DanbooruSearch`](https://github.com/SuzumiyaAkizuki/DanbooruSearch) / [`ComfyUI-DanbooruSearcher`](https://github.com/SuzumiyaAkizuki/ComfyUI-DanbooruSearcher) / [HuggingFace Space](https://huggingface.co/spaces/SAkizuki/DanbooruSearch)
-- **参考与借鉴内容**：
-  - **在线语义检索与标签推荐 API**：集成了 DanbooruSearch 的语义向量搜索接口 (`/search`)、标签共现关联接口 (`/related`) 以及基于 NPMI 的擅长画师推荐接口 (`/artists`)，并封装为 Agent 工具与在线补全增强。
-
-### 4. [Plana-App (mc5024)](https://github.com/mc5024/Plana-App)
-- **项目仓库**：[`Plana-App`](https://github.com/mc5024/Plana-App)
-- **参考与借鉴内容**：
-  - **提示词 AST 解析与权重引擎 (`PromptAstEngine`)**：参考了其对 NovelAI `{}`/`[]` 与 SD `(tag:weight)` 语法的 AST 分词、权重增减、语法双向转换及注释禁用（`#` / 删除线）算法。
-  - **中文标签首段提取逻辑 (`cnHead`)**：参考了在中英多模态检索中对中文别名首段的高效截取与匹配算法。
-  - **富文本标签语法高亮视觉设计**：参考了按 Danbooru 官方分类为 Prompt 标签着色及权重透明度淡显的视觉呈现方案。
-
-### 5. [NovelAI Prompt Autocomplete & nai5-prompting (Miint-Sunny / saltysalrua)](https://github.com/Miint-Sunny/nai-autocomplete)
-- **项目仓库**：[`nai-autocomplete`](https://github.com/Miint-Sunny/nai-autocomplete) / [`nai5-prompting`](https://github.com/Miint-Sunny/nai5-prompting)
-- **参考与借鉴内容**：
-  - **标签自动补全悬浮窗交互**：参考了光标跟随悬浮卡片、分类色条指示、热度展示与无缝键盘选词上屏的交互体验。
-  - **NovelAI V5 提示词指南与内置 Skills**：参考了 `nai5-prompting` 关于 V5 散文提示词架构、漫画多格分镜排版、文字嵌入以及管道符 `|` 物理防串色隔离的系统提示词设计。
-  - **词库预设与组合管理思想**：参考了常用 Prompt 词组合的分类存储与复用设计。
-
-### 6. [Danbooru Tag Chinese Translation Table (ffdkj)](https://github.com/ffdkj/Danbooru_Tag-Chinese-English-Translation-Table)
-- **项目仓库**：[`ffdkj-Danbooru_Tag-Chinese-English-Translation-Table`](https://github.com/ffdkj/Danbooru_Tag-Chinese-English-Translation-Table)
-- **参考与借鉴内容**：
-  - **32万+ 离线标签中英对照数据库**：为本项目的离线词库提供了高质量的 Danbooru 标签中英对照、使用计数与分类基础数据，并支持通过应用内更新服务无缝同步每日最新构建。
+> 📄 详细的许可证合规报告、开源包清单及完整版权信息，请查阅 [**THIRD_PARTY_NOTICES.md**](THIRD_PARTY_NOTICES.md)。
 
 ---
 
