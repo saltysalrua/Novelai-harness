@@ -41,6 +41,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late TextEditingController _naiKeyController;
   late TextEditingController _saveDirController;
   late bool _opusFreeMode;
+  late bool _enableStreamPreview;
 
   // LLM Providers State
   late List<LlmProviderConfig> _providers;
@@ -85,6 +86,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _naiKeyController = TextEditingController(text: cfg.novelAiKey);
     _saveDirController = TextEditingController(text: cfg.saveDirectory);
     _opusFreeMode = cfg.opusFreeMode;
+    _enableStreamPreview = cfg.enableStreamPreview;
 
     // 初始化供应商列表
     _providers =
@@ -553,6 +555,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       novelAiKey: _naiKeyController.text.trim(),
       saveDirectory: _saveDirController.text.trim(),
       opusFreeMode: _opusFreeMode,
+      enableStreamPreview: _enableStreamPreview,
       llmProviders: _providers,
       activeLlmProviderId: _selectedProviderId,
       presets: _presets,
@@ -1492,6 +1495,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 ),
               ),
             ],
+          ),
+        ),
+
+        _buildSettingCard(
+          title: '实时生图预览',
+          subtitle: '生图过程中接收并实时渲染中间去噪步数预览图 (Stream Preview)',
+          control: Switch(
+            value: _enableStreamPreview,
+            activeThumbColor: AppTheme.notionBlue,
+            onChanged: (val) => setState(() => _enableStreamPreview = val),
           ),
         ),
 

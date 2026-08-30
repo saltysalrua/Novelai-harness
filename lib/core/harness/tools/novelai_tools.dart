@@ -8,6 +8,7 @@ import 'agent_tool.dart';
 
 /// 回调类型，用于生图成功后通知 UI 刷新画板
 typedef OnImageGeneratedCallback = void Function(NaiGeneratedImage image);
+typedef OnStreamProgressCallback = void Function(NaiStreamProgress progress);
 typedef OnParamsUsedCallback = void Function(NaiGenerationParams params);
 
 /// 付费生图确认回调：当生图参数超出 Opus 免费区间时，向用户申请确认；返回 true 则继续生成，false 则取消
@@ -22,6 +23,7 @@ class NovelAiGenerateTool extends AgentTool {
   final ConfigService configService;
   final NaiGenerationParams Function() getCurrentParams;
   final OnImageGeneratedCallback? onGenerated;
+  final OnStreamProgressCallback? onProgress;
   final OnConfirmPaidGenerationCallback? onConfirmPaidGeneration;
 
   NovelAiGenerateTool({
@@ -29,6 +31,7 @@ class NovelAiGenerateTool extends AgentTool {
     required this.configService,
     required this.getCurrentParams,
     this.onGenerated,
+    this.onProgress,
     this.onConfirmPaidGeneration,
   }) : super(
           name: 'novelai_generate',
@@ -93,13 +96,33 @@ class NovelAiGenerateTool extends AgentTool {
         }
       }
 
-      final generatedList = await repository.generate(
-        apiKey: config.novelAiKey,
-        params: params,
-        saveDir: config.saveDirectory,
-      );
+      NaiGeneratedImage? resultImage;
 
-      if (generatedList.isEmpty) {
+      if (config.enableStreamPreview) {
+        final stream = repository.generateStream(
+          apiKey: config.novelAiKey,
+          params: params,
+          saveDir: config.saveDirectory,
+        );
+
+        await for (final p in stream) {
+          onProgress?.call(p);
+          if (p.isFinal && p.generatedImage != null) {
+            resultImage = p.generatedImage;
+          }
+        }
+      } else {
+        final generatedList = await repository.generate(
+          apiKey: config.novelAiKey,
+          params: params,
+          saveDir: config.saveDirectory,
+        );
+        if (generatedList.isNotEmpty) {
+          resultImage = generatedList.first;
+        }
+      }
+
+      if (resultImage == null) {
         return ToolResult(
           toolCallId: toolCallId,
           content: '错误：未能生成有效图像。',
@@ -107,7 +130,7 @@ class NovelAiGenerateTool extends AgentTool {
         );
       }
 
-      final image = generatedList.first;
+      final image = resultImage;
       onGenerated?.call(image);
 
       final costText = image.isOpusFree

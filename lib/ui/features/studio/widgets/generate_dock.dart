@@ -141,10 +141,12 @@ class GenerateDock extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // 生成按钮 (Primary CTA)
+          // 生成按钮 (Primary CTA / 生成中可点击终止)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.notionBlue,
+              backgroundColor: viewModel.isGenerating
+                  ? AppTheme.error
+                  : AppTheme.notionBlue,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 13),
               elevation: 0,
@@ -153,20 +155,17 @@ class GenerateDock extends StatelessWidget {
               ),
             ),
             onPressed: viewModel.isGenerating
-                ? null
+                ? () => viewModel.abortGeneration()
                 : () => viewModel.generateImage(),
             icon: viewModel.isGenerating
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
+                ? const Icon(Icons.stop_circle_outlined, size: 17)
                 : const Icon(Icons.auto_awesome, size: 17),
             label: Text(
-              viewModel.isGenerating ? '生成中...' : '生成图片',
+              viewModel.isGenerating
+                  ? (viewModel.liveTotalSteps > 0 && viewModel.liveCurrentStep > 0
+                      ? '终止生成 (${viewModel.liveCurrentStep}/${viewModel.liveTotalSteps})'
+                      : '终止生成')
+                  : '生成图片',
               style: const TextStyle(
                 fontSize: 14.5,
                 fontWeight: FontWeight.w700,

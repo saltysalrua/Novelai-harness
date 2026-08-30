@@ -22,6 +22,7 @@ class AppConfig {
   final double defaultScale;
   final double defaultCfgRescale;
   final bool opusFreeMode;
+  final bool enableStreamPreview;
   final String prefixPrompt;
   final String suffixPrompt;
   final String negativePrompt;
@@ -77,6 +78,7 @@ class AppConfig {
     this.defaultScale = 5.0,
     this.defaultCfgRescale = 0.0,
     this.opusFreeMode = true,
+    this.enableStreamPreview = true,
     this.prefixPrompt = '',
     this.suffixPrompt = '',
     this.negativePrompt = '',
@@ -101,6 +103,7 @@ class AppConfig {
     double? defaultScale,
     double? defaultCfgRescale,
     bool? opusFreeMode,
+    bool? enableStreamPreview,
     String? prefixPrompt,
     String? suffixPrompt,
     String? negativePrompt,
@@ -153,6 +156,7 @@ class AppConfig {
       defaultScale: defaultScale ?? this.defaultScale,
       defaultCfgRescale: defaultCfgRescale ?? this.defaultCfgRescale,
       opusFreeMode: opusFreeMode ?? this.opusFreeMode,
+      enableStreamPreview: enableStreamPreview ?? this.enableStreamPreview,
       prefixPrompt: prefixPrompt ?? this.prefixPrompt,
       suffixPrompt: suffixPrompt ?? this.suffixPrompt,
       negativePrompt: negativePrompt ?? this.negativePrompt,
@@ -180,6 +184,7 @@ class ConfigService {
   static const String _keyScale = 'novelai_scale';
   static const String _keyCfgRescale = 'novelai_cfg_rescale';
   static const String _keyOpusFreeMode = 'novelai_opus_free_mode';
+  static const String _keyEnableStreamPreview = 'novelai_enable_stream_preview';
   static const String _keyPrefix = 'novelai_prefix';
   static const String _keySuffix = 'novelai_suffix';
   static const String _keyNegative = 'novelai_negative';
@@ -216,6 +221,7 @@ class ConfigService {
     double scale = prefs.getDouble(_keyScale) ?? 5.0;
     double rescale = prefs.getDouble(_keyCfgRescale) ?? 0.0;
     bool opusFree = prefs.getBool(_keyOpusFreeMode) ?? true;
+    bool enableStream = prefs.getBool(_keyEnableStreamPreview) ?? true;
     String saveDir = prefs.getString(_keySaveDir) ?? '';
 
     // 首次启动且无配置时，尝试自动读取本地 ~/.pi/agent/novelai.json
@@ -392,6 +398,7 @@ class ConfigService {
       defaultScale: scale,
       defaultCfgRescale: rescale,
       opusFreeMode: opusFree,
+      enableStreamPreview: enableStream,
       prefixPrompt: prefix,
       suffixPrompt: suffix,
       negativePrompt: negative,
@@ -420,6 +427,7 @@ class ConfigService {
     await prefs.setDouble(_keyScale, config.defaultScale);
     await prefs.setDouble(_keyCfgRescale, config.defaultCfgRescale);
     await prefs.setBool(_keyOpusFreeMode, config.opusFreeMode);
+    await prefs.setBool(_keyEnableStreamPreview, config.enableStreamPreview);
     await prefs.setString(_keyPrefix, config.prefixPrompt);
     await prefs.setString(_keySuffix, config.suffixPrompt);
     await prefs.setString(_keyNegative, config.negativePrompt);

@@ -46,6 +46,14 @@ class StudioViewModel extends ChangeNotifier {
   String? _statusMessage;
   String? _errorMessage;
 
+  /// 实时生图预览状态
+  Uint8List? _livePreviewBytes;
+  int _liveCurrentStep = 0;
+  int _liveTotalSteps = 28;
+  double _liveProgress = 0.0;
+  DateTime? _generationStartTime;
+  StreamSubscription<NaiStreamProgress>? _generationSubscription;
+
   StudioViewModel({ConfigService? configService, NovelAiRepository? repository})
     : _configService = configService ?? ConfigService(),
       _repository = repository ?? NovelAiRepository() {
@@ -85,6 +93,13 @@ class StudioViewModel extends ChangeNotifier {
       _config.presets.isNotEmpty ? _config.presets : BuiltinPresets.all;
   String? get statusMessage => _statusMessage;
   String? get errorMessage => _errorMessage;
+
+  /// 实时生图预览 Getters
+  Uint8List? get livePreviewBytes => _livePreviewBytes;
+  int get liveCurrentStep => _liveCurrentStep;
+  int get liveTotalSteps => _liveTotalSteps;
+  double get liveProgress => _liveProgress;
+  DateTime? get generationStartTime => _generationStartTime;
 
   /// 已保存的全部会话列表
   List<SessionInfo> get sessions => List.unmodifiable(_sessions);
@@ -182,7 +197,24 @@ class StudioViewModel extends ChangeNotifier {
         repository: _repository,
         configService: _configService,
         getCurrentParams: () => _params,
+        onProgress: (progress) {
+          if (progress.isFinal) {
+            _livePreviewBytes = null;
+            _liveProgress = 1.0;
+          } else {
+            _isGenerating = true;
+            _livePreviewBytes = progress.previewImage;
+            _liveCurrentStep = progress.currentStep;
+            _liveTotalSteps = progress.totalSteps;
+            _liveProgress = progress.progress;
+            _statusMessage =
+                '生成中 · 步数: $_liveCurrentStep / $_liveTotalSteps (${(_liveProgress * 100).toInt()}%)';
+          }
+          notifyListeners();
+        },
         onGenerated: (image) {
+          _isGenerating = false;
+          _livePreviewBytes = null;
           if (isViewingLatest) {
             _selectedImage = image;
             _hasUnseenLatest = false;
@@ -566,7 +598,19 @@ class StudioViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 手动快速生图 (使用左侧面板参数)
+  /// 强行中止当前正在执行的生图流
+  Future<void> abortGeneration() async {
+    if (!_isGenerating) return;
+    await _generationSubscription?.cancel();
+    _generationSubscription = null;
+    _isGenerating = false;
+    _livePreviewBytes = null;
+    _liveProgress = 0.0;
+    _statusMessage = '已终止生成';
+    notifyListeners();
+  }
+
+  /// 手动快速生图 (使用左侧面板参数，支持实时流式去噪步数预览)
   Future<void> generateImage() async {
     if (_params.prompt.trim().isEmpty) {
       _errorMessage = '提示词不能为空，请先在左侧或对话框中输入描述。';
@@ -583,37 +627,108 @@ class StudioViewModel extends ChangeNotifier {
     final wasViewingLatest = isViewingLatest;
 
     _isGenerating = true;
+    _livePreviewBytes = null;
+    _liveCurrentStep = 0;
+    _liveTotalSteps = _params.steps;
+    _liveProgress = 0.0;
+    _generationStartTime = DateTime.now();
     _errorMessage = null;
     _statusMessage =
         '正在请求 NovelAI 生图 (${_params.width}x${_params.height}, ${_params.steps}步)...';
     notifyListeners();
 
-    try {
-      final results = await _repository.generate(
-        apiKey: _config.novelAiKey,
-        params: _params,
-        saveDir: _config.saveDirectory,
-      );
+    if (_config.enableStreamPreview) {
+      final completer = Completer<void>();
+      try {
+        final stream = _repository.generateStream(
+          apiKey: _config.novelAiKey,
+          params: _params,
+          saveDir: _config.saveDirectory,
+        );
 
-      if (results.isNotEmpty) {
-        final newImage = results.first;
-        if (wasViewingLatest) {
-          _selectedImage = newImage;
-          _hasUnseenLatest = false;
-        } else {
-          // 当前在查看历史图片，不强行跳转，在 UI 给出新图生成提醒
-          _hasUnseenLatest = true;
-        }
-        _statusMessage = '生图完成，已保存在 ${newImage.localFilePath ?? '本地'}';
+        _generationSubscription = stream.listen(
+          (progress) {
+            if (progress.errorMessage != null &&
+                progress.errorMessage!.isNotEmpty) {
+              _errorMessage = progress.errorMessage;
+              notifyListeners();
+              return;
+            }
+
+            if (progress.isFinal) {
+              final newImage = progress.generatedImage;
+              if (newImage != null) {
+                if (wasViewingLatest) {
+                  _selectedImage = newImage;
+                  _hasUnseenLatest = false;
+                } else {
+                  _hasUnseenLatest = true;
+                }
+                _statusMessage =
+                    '生图完成，已保存在 ${newImage.localFilePath ?? '本地'}';
+              }
+              _livePreviewBytes = null;
+              _liveProgress = 1.0;
+              notifyListeners();
+            } else {
+              _livePreviewBytes = progress.previewImage;
+              _liveCurrentStep = progress.currentStep;
+              _liveTotalSteps = progress.totalSteps;
+              _liveProgress = progress.progress;
+              _statusMessage =
+                  '生成中 · 步数: $_liveCurrentStep / $_liveTotalSteps (${(_liveProgress * 100).toInt()}%)';
+              notifyListeners();
+            }
+          },
+          onError: (e) {
+            _errorMessage = '生图失败: $e';
+            _statusMessage = null;
+            if (!completer.isCompleted) completer.complete();
+          },
+          onDone: () {
+            if (!completer.isCompleted) completer.complete();
+          },
+          cancelOnError: true,
+        );
+
+        await completer.future;
+      } catch (e) {
+        _errorMessage = '生图失败: $e';
+        _statusMessage = null;
+      } finally {
+        _generationSubscription = null;
+        _isGenerating = false;
+        _livePreviewBytes = null;
+        notifyListeners();
+        refreshAccountInfo();
       }
-    } catch (e) {
-      _errorMessage = '生图失败: $e';
-      _statusMessage = null;
-    } finally {
-      _isGenerating = false;
-      notifyListeners();
-      // 生图后异步刷新体力与点数
-      refreshAccountInfo();
+    } else {
+      try {
+        final results = await _repository.generate(
+          apiKey: _config.novelAiKey,
+          params: _params,
+          saveDir: _config.saveDirectory,
+        );
+
+        if (results.isNotEmpty) {
+          final newImage = results.first;
+          if (wasViewingLatest) {
+            _selectedImage = newImage;
+            _hasUnseenLatest = false;
+          } else {
+            _hasUnseenLatest = true;
+          }
+          _statusMessage = '生图完成，已保存在 ${newImage.localFilePath ?? '本地'}';
+        }
+      } catch (e) {
+        _errorMessage = '生图失败: $e';
+        _statusMessage = null;
+      } finally {
+        _isGenerating = false;
+        _livePreviewBytes = null;
+        notifyListeners();
+        refreshAccountInfo();
+      }
     }
   }
 
@@ -1086,6 +1201,7 @@ class StudioViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _generationSubscription?.cancel();
     _paramSaveDebounceTimer?.cancel();
     _chatSubscription?.cancel();
     unawaited(_sessionLog.flush());

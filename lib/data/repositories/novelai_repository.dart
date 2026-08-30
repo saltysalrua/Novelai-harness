@@ -14,6 +14,65 @@ class NovelAiRepository {
 
   List<NaiGeneratedImage> get history => List.unmodifiable(_history);
 
+  /// 执行流式生图 (实时输出中间去噪步数帧并在最终完成时落盘存入历史)
+  Stream<NaiStreamProgress> generateStream({
+    required String apiKey,
+    required NaiGenerationParams params,
+    required String saveDir,
+  }) async* {
+    final effectiveSeed = params.seed < 0
+        ? (DateTime.now().millisecondsSinceEpoch % 4294967295)
+        : params.seed;
+
+    final requestParams = params.copyWith(seed: effectiveSeed);
+
+    final stream = _service.generateImageStream(
+      apiKey: apiKey,
+      params: requestParams,
+    );
+
+    await for (final progress in stream) {
+      if (progress.isFinal && progress.finalImage != null) {
+        final now = DateTime.now();
+        final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
+        final id = '${now.millisecondsSinceEpoch}_0';
+        String? filePath;
+
+        if (saveDir.isNotEmpty) {
+          final dir = Directory(saveDir);
+          if (!dir.existsSync()) {
+            dir.createSync(recursive: true);
+          }
+          final fileName = 'nai_${timeStr}_$effectiveSeed.png';
+          filePath = p.join(saveDir, fileName);
+          try {
+            File(filePath).writeAsBytesSync(progress.finalImage!);
+          } catch (_) {}
+        }
+
+        final generatedImage = NaiGeneratedImage(
+          id: id,
+          bytes: progress.finalImage!,
+          localFilePath: filePath,
+          params: requestParams,
+          createdAt: now,
+          seed: effectiveSeed,
+          isOpusFree: requestParams.isOpusFree,
+        );
+
+        _history.insert(0, generatedImage);
+
+        yield NaiStreamProgress.finalResult(
+          finalImage: progress.finalImage!,
+          generatedImage: generatedImage,
+          totalSteps: requestParams.steps,
+        );
+      } else {
+        yield progress;
+      }
+    }
+  }
+
   /// 执行生图并自动写入本地文件
   Future<List<NaiGeneratedImage>> generate({
     required String apiKey,

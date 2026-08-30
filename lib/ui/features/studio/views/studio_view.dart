@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
@@ -37,9 +38,21 @@ class _StudioViewState extends State<StudioView> {
     return ListenableBuilder(
       listenable: _viewModel,
       builder: (context, _) {
-        return Scaffold(
-          backgroundColor: AppTheme.background,
-          body: Column(
+        return CallbackShortcuts(
+          bindings: <ShortcutActivator, VoidCallback>{
+            const SingleActivator(LogicalKeyboardKey.escape): () {
+              if (_viewModel.isGenerating) {
+                _viewModel.abortGeneration();
+              } else if (_viewModel.isChatStreaming) {
+                _viewModel.abortChat();
+              }
+            },
+          },
+          child: Focus(
+            autofocus: true,
+            child: Scaffold(
+              backgroundColor: AppTheme.background,
+              body: Column(
             children: [
               // 顶部自定义 Notion 风格标题栏 (支持窗口拖拽与三键控制)
               const CustomTitleBar(),
@@ -128,8 +141,10 @@ class _StudioViewState extends State<StudioView> {
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
+  },
+);
   }
 }

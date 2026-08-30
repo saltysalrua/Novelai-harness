@@ -382,7 +382,8 @@ class NaiGenerationParams {
       width * height <= 1048576 && steps <= 28 && nSamples == 1;
 
   /// 构建发送给 NovelAI 官方的 JSON 请求体
-  Map<String, dynamic> toApiPayload() {
+  /// [streaming] 为 true 时附带 stream=msgpack 参数，请求流式中间帧 (仅 V4+ 模型支持)
+  Map<String, dynamic> toApiPayload({bool streaming = false}) {
     final apiPrompt = effectivePrompt;
     final apiNegative = effectiveNegativePrompt;
     final isV4OrAbove = model.isV4OrAbove;
@@ -409,6 +410,8 @@ class NaiGenerationParams {
       'legacy': false,
       'add_original_image': false,
       'image_format': 'png',
+      // 流式端点必须显式声明 msgpack 分帧，否则服务端不会输出 intermediate 中间帧
+      if (streaming) 'stream': 'msgpack',
       // 官网在负面词为空时改发 uc 空串
       if (apiNegative.isEmpty) 'uc': '' else 'negative_prompt': apiNegative,
       'seed': seed,
@@ -928,7 +931,8 @@ class LlmModelConfig {
       name: name ?? this.name,
       reasoning: reasoning ?? this.reasoning,
       input: input ?? this.input,
-      supportedThinkingLevels: supportedThinkingLevels ??
+      supportedThinkingLevels:
+          supportedThinkingLevels ??
           (thinkingEffort != null && thinkingEffort != ThinkingEffort.off
               ? [thinkingEffort]
               : this.supportedThinkingLevels),
@@ -943,8 +947,9 @@ class LlmModelConfig {
     'name': name,
     'reasoning': reasoning,
     'input': input,
-    'supportedThinkingLevels':
-        supportedThinkingLevels.map((e) => e.id).toList(),
+    'supportedThinkingLevels': supportedThinkingLevels
+        .map((e) => e.id)
+        .toList(),
     'contextWindow': contextWindow,
     'maxTokens': maxTokens,
     'temperature': temperature,
@@ -962,14 +967,17 @@ class LlmModelConfig {
 
     List<String> inputs = const ['text'];
     if (json['input'] is List) {
-      inputs = (json['input'] as List<dynamic>).map((e) => e.toString()).toList();
+      inputs = (json['input'] as List<dynamic>)
+          .map((e) => e.toString())
+          .toList();
     }
 
     final isReasoning = json['reasoning'] as bool? ?? levels.isNotEmpty;
 
     return LlmModelConfig(
       id: json['id'] as String? ?? 'deepseek-chat',
-      name: json['name'] as String? ?? (json['id'] as String? ?? 'Custom Model'),
+      name:
+          json['name'] as String? ?? (json['id'] as String? ?? 'Custom Model'),
       reasoning: isReasoning,
       input: inputs,
       supportedThinkingLevels: levels,
@@ -1044,13 +1052,11 @@ class LlmProviderConfig {
     var targetActiveModelId = activeModelId ?? this.activeModelId;
 
     if (model != null || temperature != null) {
-      final list = (updatedModels.isNotEmpty ? updatedModels : [activeModel]).toList();
+      final list = (updatedModels.isNotEmpty ? updatedModels : [activeModel])
+          .toList();
       final idx = list.indexWhere((m) => m.id == targetActiveModelId);
       if (idx >= 0) {
-        list[idx] = list[idx].copyWith(
-          id: model,
-          temperature: temperature,
-        );
+        list[idx] = list[idx].copyWith(id: model, temperature: temperature);
       }
       updatedModels = list;
     }
@@ -1091,19 +1097,17 @@ class LlmProviderConfig {
       final oldModel = json['model'] as String? ?? 'deepseek-chat';
       final oldTemp = (json['temperature'] as num?)?.toDouble() ?? 0.7;
       parsedModels = [
-        LlmModelConfig(
-          id: oldModel,
-          name: oldModel,
-          temperature: oldTemp,
-        ),
+        LlmModelConfig(id: oldModel, name: oldModel, temperature: oldTemp),
       ];
     }
 
-    final activeId = json['activeModelId'] as String? ??
+    final activeId =
+        json['activeModelId'] as String? ??
         (json['model'] as String? ?? parsedModels.first.id);
 
     return LlmProviderConfig(
-      id: json['id'] as String? ??
+      id:
+          json['id'] as String? ??
           'provider_${DateTime.now().millisecondsSinceEpoch}',
       name: json['name'] as String? ?? 'Custom Provider',
       baseUrl: json['baseUrl'] as String? ?? 'https://api.deepseek.com/v1',
@@ -1369,4 +1373,68 @@ class LlmProviderConfig {
       ],
     ),
   ];
+}
+
+/// 实时生图流式进度数据模型 (中间去噪步数帧与最终成图)
+class NaiStreamProgress {
+  final Uint8List? previewImage;
+  final int currentStep;
+  final int totalSteps;
+  final double progress; // 0.0 ~ 1.0
+  final bool isFinal;
+  final Uint8List? finalImage;
+  final NaiGeneratedImage? generatedImage;
+  final String? errorMessage;
+
+  const NaiStreamProgress({
+    this.previewImage,
+    this.currentStep = 0,
+    this.totalSteps = 28,
+    this.progress = 0.0,
+    this.isFinal = false,
+    this.finalImage,
+    this.generatedImage,
+    this.errorMessage,
+  });
+
+  factory NaiStreamProgress.intermediate({
+    required Uint8List previewImage,
+    required int currentStep,
+    required int totalSteps,
+  }) {
+    final progress = totalSteps > 0
+        ? (currentStep / totalSteps).clamp(0.0, 0.99)
+        : 0.0;
+    return NaiStreamProgress(
+      previewImage: previewImage,
+      currentStep: currentStep,
+      totalSteps: totalSteps,
+      progress: progress,
+      isFinal: false,
+    );
+  }
+
+  factory NaiStreamProgress.finalResult({
+    required Uint8List finalImage,
+    NaiGeneratedImage? generatedImage,
+    int totalSteps = 28,
+  }) {
+    return NaiStreamProgress(
+      previewImage: finalImage,
+      currentStep: totalSteps,
+      totalSteps: totalSteps,
+      progress: 1.0,
+      isFinal: true,
+      finalImage: finalImage,
+      generatedImage: generatedImage,
+    );
+  }
+
+  factory NaiStreamProgress.error(String message) {
+    return NaiStreamProgress(
+      progress: 0.0,
+      isFinal: false,
+      errorMessage: message,
+    );
+  }
 }
