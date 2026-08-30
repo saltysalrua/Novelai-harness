@@ -3,7 +3,7 @@ import '../../../../data/models/tag_models.dart';
 import '../../../core/theme/app_theme.dart';
 import 'tag_suggestion_tile.dart';
 
-/// 自动补全浮动卡片视图 (Notion 极简风格，无多余头部，当前项自动滚动置顶 alignment: 0.0)
+/// 自动补全浮动卡片视图 (Notion 极简风格，无多余头部，支持键盘自然平滑可视导航)
 class TagAutocompleteCard extends StatefulWidget {
   final List<TagSuggestion> suggestions;
   final int selectedIndex;
@@ -11,6 +11,9 @@ class TagAutocompleteCard extends StatefulWidget {
 
   /// 是否显示中文释义 (设置项控制)
   final bool showTranslation;
+
+  /// 是否为键盘按键导航触发 (键盘导航时平滑滚动入视野，鼠标 hover 绝不触发滚动)
+  final bool isKeyboardNavigated;
 
   final ValueChanged<TagSuggestion> onSelect;
   final ValueChanged<int> onHover;
@@ -21,6 +24,7 @@ class TagAutocompleteCard extends StatefulWidget {
     required this.selectedIndex,
     required this.query,
     this.showTranslation = true,
+    this.isKeyboardNavigated = false,
     required this.onSelect,
     required this.onHover,
   });
@@ -45,7 +49,9 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
     if (oldWidget.suggestions.length != widget.suggestions.length) {
       _updateKeys();
     }
-    if (oldWidget.selectedIndex != widget.selectedIndex) {
+    // 仅在键盘上下键导航时才检查滚动入视野，鼠标 hover 绝不触发滚动
+    if (oldWidget.selectedIndex != widget.selectedIndex &&
+        widget.isKeyboardNavigated) {
       _scrollToIndex(widget.selectedIndex);
     }
   }
@@ -65,9 +71,8 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
         if (keyContext != null) {
           Scrollable.ensureVisible(
             keyContext,
-            alignment: 0.0, // 将当前选中的项平滑滚到列表第一位 (顶部)
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOutCubic,
+            duration: const Duration(milliseconds: 60),
+            curve: Curves.easeOut,
           );
         }
       }

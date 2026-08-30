@@ -269,10 +269,21 @@ class PromptAstEngine {
     return (newText, a.clamp(0, newText.length));
   }
 
-  /// 从当前光标位置提取正在编辑的查询词与替换范围
+  /// 从当前光标位置提取正在编辑的查询词与替换范围 (支持所有括号权重、数值权重与禁用标记)
   ///
-  /// 例如：`1girl, long h|` -> query: `long h`, replaceStart: 7, replaceEnd: 13
-  static ({String query, int replaceStart, int replaceEnd})? extractActiveQuery(
+  /// 例如：
+  /// - `1girl, long h|` -> query: `long h`, replaceStart: 7, replaceEnd: 13, fullSegmentEnd: 13
+  /// - `1girl, {1gi|}` -> query: `1gi`, replaceStart: 8, replaceEnd: 11, syntaxPrefix: '{', syntaxSuffix: '}', fullSegmentEnd: 12
+  /// - `1.2::silv|::` -> query: `silv`, replaceStart: 5, replaceEnd: 9, syntaxPrefix: '1.2::', syntaxSuffix: '::', fullSegmentEnd: 11
+  /// - `(masterpiece:1.2)` -> query: `masterpiece`, replaceStart: 1, replaceEnd: 12, syntaxPrefix: '(', syntaxSuffix: ':1.2)', fullSegmentEnd: 17
+  static ({
+    String query,
+    int replaceStart,
+    int replaceEnd,
+    String syntaxPrefix,
+    String syntaxSuffix,
+    int fullSegmentEnd,
+  })? extractActiveQuery(
     String text,
     int cursorOffset,
   ) {
@@ -280,55 +291,132 @@ class PromptAstEngine {
       return null;
     }
 
-    // 往左寻找词界 (逗号、换行、竖线、括号或起始)
-    var start = cursorOffset;
-    while (start > 0) {
-      final prevChar = text[start - 1];
-      if (separators.contains(prevChar) ||
-          prevChar == '{' ||
-          prevChar == '[' ||
-          prevChar == '~') {
-        break;
-      }
-      start--;
+    // 1. 寻找逗号、分号、换行或竖线分隔符界限
+    var segStart = cursorOffset;
+    while (segStart > 0) {
+      final prev = text[segStart - 1];
+      if (separators.contains(prev)) break;
+      segStart--;
     }
 
-    // 往右寻找词界 (逗号、换行、竖线、闭括号或末尾)
-    var end = cursorOffset;
-    while (end < text.length) {
-      final nextChar = text[end];
-      if (separators.contains(nextChar) ||
-          nextChar == '}' ||
-          nextChar == ']' ||
-          nextChar == '~') {
-        break;
-      }
-      end++;
+    var segEnd = cursorOffset;
+    while (segEnd < text.length) {
+      final next = text[segEnd];
+      if (separators.contains(next)) break;
+      segEnd++;
     }
 
-    final slice = text.substring(start, end);
-    final trimmedStart = start + (slice.length - slice.trimLeft().length);
-    final trimmedEnd = end - (slice.length - slice.trimRight().length);
+    // 2. 剥离段落外层空白
+    final tokenStart = _trimL(text, segStart, segEnd);
+    final tokenEnd = _trimR(text, tokenStart, segEnd);
 
-    if (trimmedStart > cursorOffset || trimmedEnd < trimmedStart) {
+    if (tokenStart >= tokenEnd) {
       return null;
     }
 
-    final rawQuery = text.substring(trimmedStart, cursorOffset).trim();
-    if (rawQuery.isEmpty) return null;
-
-    // 剥离可能存在的数值权重前缀 (如 1.2::)
-    var query = rawQuery;
-    var actualStart = trimmedStart;
-    final colonIdx = query.indexOf('::');
-    if (colonIdx >= 0) {
-      actualStart += colonIdx + 2;
-      query = query.substring(colonIdx + 2).trim();
+    // 如果光标在开头的空白区之前，或者段落有效范围之外
+    if (cursorOffset < tokenStart || cursorOffset > segEnd) {
+      return null;
     }
 
-    if (query.isEmpty) return null;
+    // 3. 循环剥离语法前缀与语法后缀
+    var curStart = tokenStart;
+    var curEnd = tokenEnd;
+    var changed = true;
 
-    return (query: query, replaceStart: actualStart, replaceEnd: trimmedEnd);
+    while (changed && curStart < curEnd) {
+      changed = false;
+      final currentChunk = text.substring(curStart, curEnd);
+
+      // 3.1 NAI 官方数值权重前缀 (如 1.2::, -0.5::)
+      final weightPrefixMatch =
+          RegExp(r'^-?\d+(?:\.\d+)?::').firstMatch(currentChunk);
+      if (weightPrefixMatch != null) {
+        final len = weightPrefixMatch.group(0)!.length;
+        curStart += len;
+        changed = true;
+        continue;
+      }
+
+      // 3.2 开括号与波浪线前缀
+      if (curStart < curEnd) {
+        final firstChar = text[curStart];
+        if (firstChar == '{' ||
+            firstChar == '[' ||
+            firstChar == '(' ||
+            firstChar == '~') {
+          curStart += 1;
+          changed = true;
+          continue;
+        }
+      }
+
+      // 3.3 NAI 官方数值权重后缀 (末尾 ::)
+      if (curEnd - curStart >= 2 &&
+          text.substring(curEnd - 2, curEnd) == '::') {
+        curEnd -= 2;
+        changed = true;
+        continue;
+      }
+
+      // 3.4 SD 冒号权重后缀 (如 :1.2, :1.2))
+      final sdWeightMatch =
+          RegExp(r':-?\d+(?:\.\d+)?\)?$').firstMatch(currentChunk);
+      if (sdWeightMatch != null && sdWeightMatch.start > 0) {
+        curEnd = curStart + sdWeightMatch.start;
+        changed = true;
+        continue;
+      }
+
+      // 3.5 闭括号与波浪线后缀
+      if (curEnd > curStart) {
+        final lastChar = text[curEnd - 1];
+        if (lastChar == '}' ||
+            lastChar == ']' ||
+            lastChar == ')' ||
+            lastChar == '~') {
+          curEnd -= 1;
+          changed = true;
+          continue;
+        }
+      }
+    }
+
+    final syntaxPrefix = text.substring(tokenStart, curStart);
+    final syntaxSuffix = text.substring(curEnd, tokenEnd);
+
+    // 4. 剥离核心区域两端的空格
+    final coreStart = _trimL(text, curStart, curEnd);
+    final coreEnd = _trimR(text, coreStart, curEnd);
+
+    if (coreStart >= coreEnd) {
+      return null;
+    }
+
+    // 5. 提取当前正在编辑的 query 文本
+    final wholeCore = text.substring(coreStart, coreEnd);
+
+    // 计算有效 query
+    final queryEnd = cursorOffset.clamp(coreStart, coreEnd);
+    var query = text.substring(coreStart, queryEnd).trim();
+
+    // 若光标在词首或 query 为空，则以整个核心词为 query
+    if (query.isEmpty) {
+      query = wholeCore.trim();
+    }
+
+    if (query.isEmpty) {
+      return null;
+    }
+
+    return (
+      query: query,
+      replaceStart: coreStart,
+      replaceEnd: coreEnd,
+      syntaxPrefix: syntaxPrefix,
+      syntaxSuffix: syntaxSuffix,
+      fullSegmentEnd: tokenEnd,
+    );
   }
 
   /// 将 SD WebUI 权重语法转换为 NovelAI 官方标准语法

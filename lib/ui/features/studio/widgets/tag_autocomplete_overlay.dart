@@ -49,6 +49,9 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
   String _activeQuery = '';
   int _replaceStart = 0;
   int _replaceEnd = 0;
+  int _fullSegmentEnd = 0;
+  bool _isKeyboardNavigating = false;
+  double _cachedCaretY = 0.0;
 
   Timer? _debounceTimer;
 
@@ -86,12 +89,21 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
   }
 
   void _onFocusChanged() {
-    // 延迟 100ms 检查失焦，避免鼠标点击建议项瞬间被隐藏阻断
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted && !widget.focusNode.hasFocus && _overlayEntry != null) {
-        _hideOverlay();
-      }
-    });
+    if (widget.focusNode.hasFocus) {
+      // 获得焦点时，等待一帧光标就绪后立即触发自动补全检查
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.focusNode.hasFocus) {
+          _onTextChanged();
+        }
+      });
+    } else {
+      // 延迟 120ms 检查失焦，避免鼠标点击建议项瞬间被隐藏阻断
+      Future.delayed(const Duration(milliseconds: 120), () {
+        if (mounted && !widget.focusNode.hasFocus && _overlayEntry != null) {
+          _hideOverlay();
+        }
+      });
+    }
   }
 
   void _onTextChanged() {
@@ -116,6 +128,8 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
     final q = queryData.query;
     _replaceStart = queryData.replaceStart;
     _replaceEnd = queryData.replaceEnd;
+    _fullSegmentEnd = queryData.fullSegmentEnd;
+    _cachedCaretY = _getCaretLocalY();
 
     if (q == _activeQuery && _overlayEntry != null) {
       _overlayEntry?.markNeedsBuild();
@@ -124,7 +138,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
 
     _activeQuery = q;
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
+    _debounceTimer = Timer(const Duration(milliseconds: 80), () {
       _searchAndShow(q);
     });
   }
@@ -157,11 +171,13 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
       setState(() {
         _suggestions = const [];
         _selectedIndex = 0;
+        _isKeyboardNavigating = false;
       });
     } else {
       setState(() {
         _suggestions = List.of(offline);
         _selectedIndex = 0;
+        _isKeyboardNavigating = false;
       });
       _showOverlay();
     }
@@ -169,7 +185,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
     if (!wantsOnline) return;
 
     // 在线慢路径防抖：等用户停止输入 400ms 再发请求，
-    // 避免连续古键时每个中间态都打一发 10~30s 的语义检索
+    // 避免连续击键时每个中间态都打一发 10~30s 的语义检索
     await Future<void>.delayed(const Duration(milliseconds: 400));
     if (!mounted || _activeQuery != query) return;
 
@@ -198,6 +214,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
       setState(() {
         _suggestions = merged.take(12).toList();
         _selectedIndex = 0;
+        _isKeyboardNavigating = false;
       });
       _showOverlay();
     } catch (_) {
@@ -268,7 +285,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
         final renderBox = this.context.findRenderObject() as RenderBox?;
         final screenSize = MediaQuery.sizeOf(context);
         bool placeOnRight = true;
-        double caretY = _getCaretLocalY();
+        double caretY = _cachedCaretY;
 
         if (renderBox != null && renderBox.hasSize) {
           final globalOffset = renderBox.localToGlobal(Offset.zero);
@@ -303,10 +320,14 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
               selectedIndex: _selectedIndex,
               query: _activeQuery,
               showTranslation: widget.showTranslation,
+              isKeyboardNavigated: _isKeyboardNavigating,
               onSelect: _applySuggestion,
               onHover: (idx) {
                 if (_selectedIndex != idx) {
-                  setState(() => _selectedIndex = idx);
+                  setState(() {
+                    _selectedIndex = idx;
+                    _isKeyboardNavigating = false;
+                  });
                   _overlayEntry?.markNeedsBuild();
                 }
               },
@@ -321,23 +342,58 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
     final text = widget.controller.text;
     final tag = suggestion.tag;
 
-    // 智能上屏：替换当前词段，并自动追加逗号与空格
-    final before = text.substring(0, _replaceStart);
-    final after = text.substring(_replaceEnd.clamp(0, text.length));
-
-    // 检查 after 是否已有逗号
-    final needsComma = !after.trimLeft().startsWith(',');
-    final insertion = needsComma ? '$tag, ' : tag;
-
-    final newText = '$before$insertion$after';
-    final newCursorPos = _replaceStart + insertion.length;
-
-    widget.controller.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newCursorPos),
+    // 重新提取当前光标处的最新 query 信息
+    final queryData = PromptAstEngine.extractActiveQuery(
+      text,
+      widget.controller.selection.start,
     );
 
-    widget.onChanged?.call(newText);
+    final replaceStart = queryData?.replaceStart ?? _replaceStart;
+    final replaceEnd = queryData?.replaceEnd ?? _replaceEnd;
+    final fullSegmentEnd = queryData?.fullSegmentEnd ?? _fullSegmentEnd;
+
+    // 核心标签替换 (保留外部的括号或数值权重结构)
+    final clampedStart = replaceStart.clamp(0, text.length);
+    final clampedEnd = replaceEnd.clamp(clampedStart, text.length);
+    final beforeCore = text.substring(0, clampedStart);
+    final afterCore = text.substring(clampedEnd);
+    final coreReplaced = '$beforeCore$tag$afterCore';
+
+    // 计算替换后的 segment 结束位置 (即闭合括号/:: 之后)
+    final delta = tag.length - (clampedEnd - clampedStart);
+    final clampedFullEnd = fullSegmentEnd.clamp(clampedEnd, text.length);
+    final newFullSegmentEnd =
+        (clampedFullEnd + delta).clamp(0, coreReplaced.length);
+
+    // 检查闭合符号外部后面是否已有逗号
+    final textAfterSegment = coreReplaced.substring(newFullSegmentEnd);
+    final needsComma = !textAfterSegment.trimLeft().startsWith(',');
+
+    String finalText;
+    int newCursorPos;
+
+    if (needsComma) {
+      final beforeTail = coreReplaced.substring(0, newFullSegmentEnd);
+      final tail = coreReplaced.substring(newFullSegmentEnd);
+      // 逗号只加在整个权重结构的最外侧
+      final textWithComma = '$beforeTail, $tail';
+      final cursor = beforeTail.length + 2;
+      finalText = textWithComma;
+      newCursorPos = cursor;
+    } else {
+      // 后面已有逗号：若有语法包裹，光标跳到闭合符号之后；若是普通标签，光标在标签后
+      finalText = coreReplaced;
+      newCursorPos = newFullSegmentEnd;
+    }
+
+    widget.controller.value = TextEditingValue(
+      text: finalText,
+      selection: TextSelection.collapsed(
+        offset: newCursorPos.clamp(0, finalText.length),
+      ),
+    );
+
+    widget.onChanged?.call(finalText);
     _hideOverlay();
 
     // 保持焦点在输入框
@@ -355,6 +411,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
         if (_selectedIndex < _suggestions.length - 1) {
           setState(() {
             _selectedIndex++;
+            _isKeyboardNavigating = true;
           });
           _overlayEntry?.markNeedsBuild();
         }
@@ -365,6 +422,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
         if (_selectedIndex > 0) {
           setState(() {
             _selectedIndex--;
+            _isKeyboardNavigating = true;
           });
           _overlayEntry?.markNeedsBuild();
         }

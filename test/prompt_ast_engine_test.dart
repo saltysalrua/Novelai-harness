@@ -253,9 +253,12 @@ void main() {
       expect(q!.query, 'long h');
       expect(q.replaceStart, 7);
       expect(q.replaceEnd, 13);
+      expect(q.syntaxPrefix, '');
+      expect(q.syntaxSuffix, '');
+      expect(q.fullSegmentEnd, 13);
     });
 
-    test('extracts query within brackets', () {
+    test('extracts query within single and multi-level braces', () {
       const text = '1girl, {blu}';
       final q = PromptAstEngine.extractActiveQuery(text, 11);
 
@@ -263,6 +266,85 @@ void main() {
       expect(q!.query, 'blu');
       expect(q.replaceStart, 8);
       expect(q.replaceEnd, 11);
+      expect(q.syntaxPrefix, '{');
+      expect(q.syntaxSuffix, '}');
+      expect(q.fullSegmentEnd, 12);
+
+      const nestedText = '1girl, {{master}}';
+      // 光标在中间 (mast 后面)
+      final q2 = PromptAstEngine.extractActiveQuery(nestedText, 13);
+      expect(q2, isNotNull);
+      expect(q2!.query, 'mast');
+      expect(q2.replaceStart, 9);
+      expect(q2.replaceEnd, 15);
+      expect(q2.syntaxPrefix, '{{');
+      expect(q2.syntaxSuffix, '}}');
+      expect(q2.fullSegmentEnd, 17);
+
+      // 光标在整个词末尾
+      final q3 = PromptAstEngine.extractActiveQuery(nestedText, 15);
+      expect(q3, isNotNull);
+      expect(q3!.query, 'master');
+    });
+
+    test('extracts query within brackets and disabled tildes', () {
+      const bracketText = '1girl, [blurry]';
+      // 光标在词尾
+      final q = PromptAstEngine.extractActiveQuery(bracketText, 14);
+      expect(q, isNotNull);
+      expect(q!.query, 'blurry');
+      expect(q.syntaxPrefix, '[');
+      expect(q.syntaxSuffix, ']');
+
+      const disabledText = '1girl, ~bad hands~';
+      final q2 = PromptAstEngine.extractActiveQuery(disabledText, 17);
+      expect(q2, isNotNull);
+      expect(q2!.query, 'bad hands');
+      expect(q2.syntaxPrefix, '~');
+      expect(q2.syntaxSuffix, '~');
+    });
+
+    test('extracts query within NAI numeric weights', () {
+      const text = '1girl, 1.2::silver hair::';
+      // 光标在词尾
+      final q = PromptAstEngine.extractActiveQuery(text, 23);
+
+      expect(q, isNotNull);
+      expect(q!.query, 'silver hair');
+      expect(q.replaceStart, 12);
+      expect(q.replaceEnd, 23);
+      expect(q.syntaxPrefix, '1.2::');
+      expect(q.syntaxSuffix, '::');
+      expect(q.fullSegmentEnd, 25);
+
+      // 正在输入中 (未闭合 ::)
+      const typingText = '1girl, 1.2::silv';
+      final q2 = PromptAstEngine.extractActiveQuery(typingText, typingText.length);
+      expect(q2, isNotNull);
+      expect(q2!.query, 'silv');
+      expect(q2.syntaxPrefix, '1.2::');
+      expect(q2.replaceStart, 12);
+      expect(q2.replaceEnd, 16);
+    });
+
+    test('extracts query within SD colon weights', () {
+      const text = '1girl, (masterpiece:1.2)';
+      // 光标在 masterpiece 词尾
+      final q = PromptAstEngine.extractActiveQuery(text, 19);
+
+      expect(q, isNotNull);
+      expect(q!.query, 'masterpiece');
+      expect(q.syntaxPrefix, '(');
+      expect(q.syntaxSuffix, ':1.2)');
+      expect(q.replaceStart, 8);
+      expect(q.replaceEnd, 19);
+      expect(q.fullSegmentEnd, 24);
+    });
+
+    test('returns null when cursor is at empty space after comma', () {
+      const text = '1girl, ';
+      final q = PromptAstEngine.extractActiveQuery(text, text.length);
+      expect(q, isNull);
     });
   });
 

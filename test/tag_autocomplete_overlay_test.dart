@@ -118,7 +118,7 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
     expect(controller.text, 'long hair, ');
   });
 
-  testWidgets('ArrowDown rotates next item to top position 0 and Enter applies it', (tester) async {
+  testWidgets('ArrowDown navigates items naturally and Enter applies it', (tester) async {
     final controller = TextEditingController();
 
     await tester.pumpWidget(
@@ -158,5 +158,75 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
     // 验证成功上屏
     expect(controller.text.isNotEmpty, isTrue);
     expect(controller.text.endsWith(', '), isTrue);
+  });
+
+  testWidgets('applies suggestions within braces without inserting comma inside', (tester) async {
+    final controller = TextEditingController(text: '{lo}');
+    controller.selection = const TextSelection.collapsed(offset: 3); // 光标在 "lo" 后面
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(20),
+            child: ResizableTextField(
+              controller: controller,
+              onChanged: (val) {},
+              hintText: '输入提示词...',
+              defaultHeight: 120,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final textFieldFinder = find.byType(TextField);
+    await tester.tap(textFieldFinder);
+    await tester.pump();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(find.textContaining('long hair'), findsOneWidget);
+
+    // 点击建议项
+    await tester.tap(find.textContaining('long hair'));
+    await tester.pumpAndSettle();
+
+    // 验证：花括号内部保留 long hair，逗号追加在花括号外部
+    expect(controller.text, '{long hair}, ');
+  });
+
+  testWidgets('applies suggestions within NAI numeric weights accurately', (tester) async {
+    final controller = TextEditingController(text: '1.2::lo::');
+    controller.selection = const TextSelection.collapsed(offset: 7); // 光标在 "lo" 后面
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(20),
+            child: ResizableTextField(
+              controller: controller,
+              onChanged: (val) {},
+              hintText: '输入提示词...',
+              defaultHeight: 120,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final textFieldFinder = find.byType(TextField);
+    await tester.tap(textFieldFinder);
+    await tester.pump();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(find.textContaining('long hair'), findsOneWidget);
+
+    // 点击建议项
+    await tester.tap(find.textContaining('long hair'));
+    await tester.pumpAndSettle();
+
+    // 验证：数值权重语法保持合法，逗号在 :: 之后
+    expect(controller.text, '1.2::long hair::, ');
   });
 }
