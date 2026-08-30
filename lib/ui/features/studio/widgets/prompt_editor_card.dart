@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import 'prompt_resize_handle.dart';
 import 'studio_shared.dart';
 
 /// 只读灰色标签数据 (PREFIX / SUFFIX / QUALITY / BG / UC 预设词展示)
@@ -10,16 +11,20 @@ class GrayTag {
   const GrayTag(this.label, this.text);
 }
 
-/// 提示词编辑卡：只读标签头 + 主输入框 + 只读标签脚 + 工具条 + Token 进度条。
+/// 提示词编辑卡：只读标签头 + 主输入框 (支持上下拖拽调节高度) + 调节手柄 + 只读标签脚 + 工具条 + Token 进度条。
 /// 正向提示词与负面排除词、垂直堆叠与标签页两种布局共用同一张卡。
 class PromptEditorCard extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final String hintText;
 
-  /// 输入框行数范围 (堆叠模式较矮，标签页模式较高)
+  /// 输入框行数参考 (用于推导初始默认高度)
   final int minLines;
   final int maxLines;
+
+  /// 最小高度与最大高度限制
+  final double minHeight;
+  final double maxHeight;
 
   /// 输入框上方只读标签 (如 PREFIX 前置词)
   final List<GrayTag> headerTags;
@@ -43,12 +48,18 @@ class PromptEditorCard extends StatelessWidget {
     required this.hintText,
     this.minLines = 4,
     this.maxLines = 10,
+    this.minHeight = 70.0,
+    this.maxHeight = 600.0,
     this.headerTags = const [],
     this.footerTags = const [],
     this.toolbar,
     required this.tokenEstimate,
     this.tokenLimit = 225,
   });
+
+  /// 按行数参考推导的默认输入区高度 (布局模式切换时变化)
+  double get _defaultInputHeight =>
+      (minLines * 24.0 + 20.0).clamp(minHeight, maxHeight);
 
   @override
   Widget build(BuildContext context) {
@@ -63,36 +74,30 @@ class PromptEditorCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (headerTags.isNotEmpty) _TagPanel(tags: headerTags, atTop: true),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              controller: controller,
-              minLines: minLines,
-              maxLines: maxLines,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.45,
-                color: AppTheme.textPrimary,
-              ),
-              decoration: InputDecoration(
-                hintText: hintText,
-                hintStyle: const TextStyle(
-                  fontSize: 12.5,
-                  color: AppTheme.textMuted,
-                ),
-                contentPadding: EdgeInsets.zero,
-                isDense: true,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-              ),
-              onChanged: onChanged,
+          ResizableTextField(
+            controller: controller,
+            onChanged: onChanged,
+            hintText: hintText,
+            defaultHeight: _defaultInputHeight,
+            minHeight: minHeight,
+            maxHeight: maxHeight,
+            resizeTooltip: '拖动调整提示词输入区高度 (双击重置)',
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            style: const TextStyle(
+              fontSize: 13.5,
+              height: 1.48,
+              color: AppTheme.textPrimary,
+            ),
+            hintStyle: const TextStyle(
+              fontSize: 13,
+              height: 1.48,
+              color: AppTheme.textMuted,
             ),
           ),
           if (footerTags.isNotEmpty) _TagPanel(tags: footerTags, atTop: false),
           if (toolbar != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
               child: toolbar,
             ),
           TokenProgressBar(tokens: tokenEstimate, tokenLimit: tokenLimit),
@@ -144,7 +149,7 @@ class _TagRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          margin: const EdgeInsets.only(top: 1, right: 6),
+          margin: const EdgeInsets.only(top: 1.5, right: 6),
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
           decoration: BoxDecoration(
             color: AppTheme.borderSubtle,
@@ -153,7 +158,7 @@ class _TagRow extends StatelessWidget {
           child: Text(
             tag.label,
             style: const TextStyle(
-              fontSize: 9.5,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
               color: AppTheme.textMuted,
             ),
@@ -163,7 +168,7 @@ class _TagRow extends StatelessWidget {
           child: Text(
             tag.text,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 12.5,
               height: 1.4,
               color: AppTheme.textMuted,
             ),

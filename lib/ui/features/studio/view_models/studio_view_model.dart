@@ -458,6 +458,79 @@ class StudioViewModel extends ChangeNotifier {
       _params.model.maxCharacterPrompts == 0 ||
       _params.characterPrompts.length >= _params.model.maxCharacterPrompts;
 
+  /// 是否正在画板上交互式编辑角色位置
+  bool _isEditingCharacterPositions = false;
+  bool get isEditingCharacterPositions => _isEditingCharacterPositions;
+
+  /// 当前选中的角色 ID (用于高亮锚点及左侧卡片)
+  String? _selectedCharacterId;
+  String? get selectedCharacterId => _selectedCharacterId;
+
+  /// 开启或关闭角色位置画板编辑模式
+  void setEditingCharacterPositions(bool editing) {
+    if (_isEditingCharacterPositions == editing) return;
+    _isEditingCharacterPositions = editing;
+    if (editing &&
+        (_selectedCharacterId == null ||
+            !_params.characterPrompts.any(
+              (c) => c.id == _selectedCharacterId,
+            )) &&
+        _params.characterPrompts.isNotEmpty) {
+      _selectedCharacterId = _params.characterPrompts.first.id;
+    }
+    notifyListeners();
+  }
+
+  /// 选中指定角色
+  void selectCharacterId(String? id) {
+    if (_selectedCharacterId == id) return;
+    _selectedCharacterId = id;
+    notifyListeners();
+  }
+
+  /// 循环切换选中角色 (用于画板滚轮与键盘左右键快捷切换，delta: -1 向前，+1 向后)
+  void cycleSelectedCharacter(int delta) {
+    final characters = _params.characterPrompts;
+    if (characters.length <= 1) return;
+
+    final currentIndex = characters.indexWhere(
+      (c) => c.id == _selectedCharacterId,
+    );
+    final baseIndex = currentIndex >= 0 ? currentIndex : 0;
+
+    // Dart 的 % 对正除数恒返回非负结果，天然支持负向回绕
+    final targetIndex = (baseIndex + delta) % characters.length;
+
+    selectCharacterId(characters[targetIndex].id);
+  }
+
+  /// 更新指定角色的坐标 (自动切换到自定义定位，并按模型能力支持自由坐标或 5x5 网格量化)
+  void updateCharacterCoordinates(String id, double x, double y) {
+    final model = _params.model;
+    final finalX = model.supportsFreeCharacterPositioning
+        ? x.clamp(0.0, 1.0)
+        : NaiCharacterPositionLayout.gridQuantize(x);
+    final finalY = model.supportsFreeCharacterPositioning
+        ? y.clamp(0.0, 1.0)
+        : NaiCharacterPositionLayout.gridQuantize(y);
+
+    final updated = [
+      for (final c in _params.characterPrompts)
+        if (c.id == id)
+          c.copyWith(
+            useCustomPosition: true,
+            positionX: finalX,
+            positionY: finalY,
+          )
+        else
+          c,
+    ];
+
+    updateParams(
+      _params.copyWith(characterPrompts: updated, characterAiPosition: false),
+    );
+  }
+
   /// 切换全局角色位置模式 (AI 自动布局 / 自定义定位)
   void setCharacterAiPosition(bool aiPosition) {
     updateParams(_params.copyWith(characterAiPosition: aiPosition));
@@ -475,6 +548,7 @@ class StudioViewModel extends ChangeNotifier {
       prompt: prompt,
       negativePrompt: negativePrompt,
     );
+    _selectedCharacterId = character.id;
     _setCharacterPrompts([..._params.characterPrompts, character]);
   }
 
@@ -488,6 +562,12 @@ class StudioViewModel extends ChangeNotifier {
 
   /// 删除单个角色提示词 (按 ID)
   void removeCharacterPrompt(String id) {
+    if (_selectedCharacterId == id) {
+      final remaining = _params.characterPrompts
+          .where((c) => c.id != id)
+          .toList();
+      _selectedCharacterId = remaining.isNotEmpty ? remaining.first.id : null;
+    }
     _setCharacterPrompts(
       _params.characterPrompts.where((c) => c.id != id).toList(),
     );

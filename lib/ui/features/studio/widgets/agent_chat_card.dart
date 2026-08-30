@@ -82,6 +82,10 @@ class AgentChatCardState extends State<AgentChatCard> {
     }
 
     _lastEscPressTime = now;
+    if (widget.viewModel.isEditingCharacterPositions) {
+      widget.viewModel.setEditingCharacterPositions(false);
+      return;
+    }
     if (widget.viewModel.isChatStreaming) {
       widget.viewModel.abortChat();
     }

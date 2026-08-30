@@ -32,12 +32,56 @@ class _StudioViewState extends State<StudioView> {
     super.initState();
     _viewModel = StudioViewModel();
     _viewModel.init();
+    HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvents);
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvents);
     _viewModel.dispose();
     super.dispose();
+  }
+
+  bool _isTypingText() {
+    final currentFocus = FocusManager.instance.primaryFocus;
+    if (currentFocus == null || currentFocus.context == null) return false;
+    final widget = currentFocus.context!.widget;
+    if (widget is EditableText) return true;
+    return currentFocus.context!
+            .findAncestorWidgetOfExactType<EditableText>() !=
+        null;
+  }
+
+  bool _handleGlobalKeyEvents(KeyEvent event) {
+    // 仅处理按下与长按重复；ESC 重复必须一并吞掉，否则会穿透到根级
+    // 双击 ESC 判定，长按 ESC 误触发回溯视图
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
+
+    // 当处于角色位置编辑模式时：
+    if (_viewModel.isEditingCharacterPositions) {
+      if (_isTypingText()) return false;
+
+      final key = event.logicalKey;
+      if (key == LogicalKeyboardKey.arrowLeft ||
+          key == LogicalKeyboardKey.arrowUp) {
+        _viewModel.cycleSelectedCharacter(-1);
+        return true;
+      }
+      if (key == LogicalKeyboardKey.arrowRight ||
+          key == LogicalKeyboardKey.arrowDown) {
+        _viewModel.cycleSelectedCharacter(1);
+        return true;
+      }
+      if (key == LogicalKeyboardKey.escape) {
+        // 仅首次按下退出，重复事件只消费不动作
+        if (event is KeyDownEvent) {
+          _viewModel.setEditingCharacterPositions(false);
+        }
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /// 根级 ESC：双击 400ms 内进入回溯视图；单击中断生成/流式
@@ -56,6 +100,11 @@ class _StudioViewState extends State<StudioView> {
         _viewModel.abortChat();
       }
       _chatCardKey.currentState?.openRewindView();
+      return;
+    }
+
+    if (_viewModel.isEditingCharacterPositions) {
+      _viewModel.setEditingCharacterPositions(false);
       return;
     }
 

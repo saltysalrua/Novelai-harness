@@ -96,10 +96,13 @@ Novelai-harness/
 │                   ├── studio_sidebar.dart      # 最左侧导航栏 (参数/提示词双页切换)
 │                   ├── parameter_card.dart      # 左侧面板薄壳：双页 IndexedStack + 生成坞
 │                   ├── parameters_page.dart     # 页面一：模型/分辨率/采样属性/高级选项
-│                   ├── prompts_page.dart        # 页面二：正负提示词双模式与固定词缀
-│                   ├── character_prompts_section.dart # 多角色提示词区块 (卡片+5x5 位置网格)
+│                   ├── prompts_page.dart        # 页面二：正负提示词双模式与提示词扩展甲板
+│                   ├── prompt_extension_deck.dart # 提示词扩展甲板 (多角色 ↔ 固定词缀左右滑动切换)
+│                   ├── character_card_item.dart # 单角色编辑卡 (名称/启停/位置胶囊+正负词拖拽调高)
+│                   ├── character_position_canvas_view.dart # 中间画板角色位置交互层 (锚点拖拽/5x5 网格/悬浮控制)
 │                   ├── prompt_editor_card.dart  # 通用提示词编辑卡 (只读灰色标签+输入框+工具条)
-│                   ├── fixed_affixes_panel.dart # 固定词缀面板 (总开关 + Prefix/Suffix 编辑)
+│                   ├── prompt_resize_handle.dart # 高度调节手柄 + ResizableTextField 可拖拽调高输入区
+│                   ├── fixed_affixes_panel.dart # 固定词缀编辑卡内容 (Prefix/Suffix 拖拽调高)
 │                   ├── generate_dock.dart       # 底部操作坞：账号/体力/免点 + 生成按钮
 │                   ├── resolution_pad_picker.dart # 2D 可视化分辨率画板
 │                   ├── image_canvas_card.dart  # 中间：大图交互画板与历史轮播主壳
@@ -137,6 +140,8 @@ Novelai-harness/
 │   ├── slash_command_overlay_test.dart         # 斜杠指令补全建议与面板测试
 │   ├── context_menu_test.dart                  # 右键菜单组件测试
 │   ├── settings_dialog_test.dart               # 设置弹窗五标签页渲染冒烟测试
+│   ├── character_position_canvas_test.dart    # 画板角色位置编辑全流程集成测试
+│   ├── prompt_ui_resize_test.dart              # 调高手柄/编辑卡/甲板切换 Widget 测试
 │   └── widget_test.dart                        # 核心组件渲染测试
 │
 ├── pubspec.yaml                                # 项目依赖配置文件

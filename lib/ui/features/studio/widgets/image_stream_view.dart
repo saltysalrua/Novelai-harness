@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
+import 'character_position_canvas_view.dart';
 import 'image_canvas_actions.dart';
 import 'image_lightbox.dart';
 
@@ -109,12 +110,23 @@ class _ImageStreamViewState extends State<ImageStreamView> {
 
     _handleAutoScrollAnchoring(viewModel, gallery, selectedImage);
 
+    final isEditingPositions = viewModel.isEditingCharacterPositions;
+    final targetAspect = viewModel.params.width / viewModel.params.height;
+    final selectedAspect = selectedImage != null
+        ? (selectedImage.params.width / selectedImage.params.height)
+        : 0.0;
+    final isAspectMatching =
+        selectedImage != null && (targetAspect - selectedAspect).abs() < 0.01;
+
+    // 当且仅当正在编辑角色位置，且当前选中的图与目标比例不匹配(或画板无图)时展示临时占位符
+    final showPositionPlaceholder = isEditingPositions && !isAspectMatching;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxCardHeight = (constraints.maxHeight - 64).clamp(240.0, 1600.0);
         final maxCardWidth = (constraints.maxWidth - 48).clamp(240.0, 1200.0);
 
-        final firstCardParams = isGenerating
+        final firstCardParams = (isGenerating || showPositionPlaceholder)
             ? viewModel.params
             : (gallery.isNotEmpty ? gallery.first.params : viewModel.params);
         final lastCardParams = gallery.isNotEmpty
@@ -135,16 +147,22 @@ class _ImageStreamViewState extends State<ImageStreamView> {
           maxCardHeight,
         );
 
-        // 占位符与历史图总数 (生成中时头部多一个占位符)
-        final totalItemCount = isGenerating
-            ? gallery.length + 1
-            : gallery.length;
+        // 占位符与历史图总数 (生成中或比例不匹配的位置编辑模式下头部多一个占位符)
+        final totalItemCount = (isGenerating ? 1 : 0) +
+            (showPositionPlaceholder ? 1 : 0) +
+            gallery.length;
 
-        // 单元素 (首张生成占位符 / 仅一张历史图)：整体居中展示
+        // 单元素 (首张生成占位符 / 临时位置占位卡片 / 仅一张历史图)：整体居中展示
         if (totalItemCount == 1) {
           final Widget card;
           if (isGenerating) {
             card = CanvasGeneratingCard(
+              viewModel: viewModel,
+              maxCardWidth: maxCardWidth,
+              maxCardHeight: maxCardHeight,
+            );
+          } else if (showPositionPlaceholder) {
+            card = CanvasPositionPlaceholderCard(
               viewModel: viewModel,
               maxCardWidth: maxCardWidth,
               maxCardHeight: maxCardHeight,
@@ -174,7 +192,7 @@ class _ImageStreamViewState extends State<ImageStreamView> {
           );
         }
 
-        // 多张图片 (或已有图片并在生成新图)：垂直无限滚动瀑布流
+        // 多张图片 (或已有图片并在生成新图/展示临时位置卡片)：垂直无限滚动瀑布流
         return NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             if (!controller.isAdjustingAnchor &&
@@ -208,18 +226,29 @@ class _ImageStreamViewState extends State<ImageStreamView> {
               ),
             ),
             itemBuilder: (context, index) {
-              // 生成中时头部是占位符，其余为历史图
-              if (isGenerating && index == 0) {
-                return CanvasGeneratingCard(
-                  viewModel: viewModel,
-                  maxCardWidth: maxCardWidth,
-                  maxCardHeight: maxCardHeight,
-                );
+              var adjustedIndex = index;
+              if (isGenerating) {
+                if (adjustedIndex == 0) {
+                  return CanvasGeneratingCard(
+                    viewModel: viewModel,
+                    maxCardWidth: maxCardWidth,
+                    maxCardHeight: maxCardHeight,
+                  );
+                }
+                adjustedIndex -= 1;
               }
-              final item = gallery[isGenerating ? index - 1 : index];
-              final isSelected = isGenerating
-                  ? !viewModel.isViewingLatest && selectedImage?.id == item.id
-                  : selectedImage?.id == item.id;
+              if (showPositionPlaceholder) {
+                if (adjustedIndex == 0) {
+                  return CanvasPositionPlaceholderCard(
+                    viewModel: viewModel,
+                    maxCardWidth: maxCardWidth,
+                    maxCardHeight: maxCardHeight,
+                  );
+                }
+                adjustedIndex -= 1;
+              }
+              final item = gallery[adjustedIndex];
+              final isSelected = !isGenerating && !showPositionPlaceholder && selectedImage?.id == item.id;
               return CanvasImageCard(
                 viewModel: viewModel,
                 controller: controller,
@@ -454,17 +483,25 @@ class CanvasImageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isEditingPositions = viewModel.isEditingCharacterPositions;
+    final targetAspect = viewModel.params.width / viewModel.params.height;
+    final itemAspect = imageAspectRatioOf(item.params);
+    final isAspectMatching = (targetAspect - itemAspect).abs() < 0.01;
+    final isOverlayActive = isEditingPositions && isSelected && isAspectMatching;
+
     return Center(
       child: GestureDetector(
         key: controller.keyFor(item.id),
         onTap: () => viewModel.selectImage(item),
-        onDoubleTap: () => showImageLightbox(context, item),
-        onSecondaryTapUp: (details) => showImageContextMenu(
-          context,
-          position: details.globalPosition,
-          viewModel: viewModel,
-          image: item,
-        ),
+        onDoubleTap: isOverlayActive ? null : () => showImageLightbox(context, item),
+        onSecondaryTapUp: isOverlayActive
+            ? null
+            : (details) => showImageContextMenu(
+                  context,
+                  position: details.globalPosition,
+                  viewModel: viewModel,
+                  image: item,
+                ),
         child: Container(
           constraints: BoxConstraints(
             maxWidth: maxCardWidth,
@@ -474,10 +511,17 @@ class CanvasImageCard extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: AspectRatio(
             aspectRatio: imageAspectRatioOf(item.params),
-            child: Image.memory(
-              item.uint8Bytes,
-              fit: BoxFit.contain,
-              gaplessPlayback: true,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.memory(
+                  item.uint8Bytes,
+                  fit: BoxFit.contain,
+                  gaplessPlayback: true,
+                ),
+                if (isOverlayActive)
+                  CharacterPositionOverlay(viewModel: viewModel),
+              ],
             ),
           ),
         ),

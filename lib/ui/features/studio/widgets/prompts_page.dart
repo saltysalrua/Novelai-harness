@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
-import 'character_prompts_section.dart';
-import 'fixed_affixes_panel.dart';
 import 'pill_widgets.dart';
 import 'prompt_editor_card.dart';
+import 'prompt_extension_deck.dart';
 import 'studio_shared.dart';
 
 /// 侧边栏页面二：提示词管理
@@ -245,13 +244,9 @@ class _PromptsPageState extends State<PromptsPage> {
         const SizedBox(height: 16),
         if (_isTabbedMode) _buildTabbedSection() else _buildStackedSection(),
 
-        // 多角色提示词区块 (两种模式共用，仅 V4+ 模型生效)
+        // 提示词扩展甲板：多角色提示词 ↔ 固定词缀左右滑动切换
         const SizedBox(height: 18),
-        CharacterPromptsSection(viewModel: viewModel),
-
-        // 全局固定词缀开关与编辑面板 (两种模式共用，常驻页底)
-        const SizedBox(height: 18),
-        FixedAffixesPanel(
+        PromptExtensionDeck(
           viewModel: viewModel,
           prefixController: _prefixController,
           suffixController: _suffixController,

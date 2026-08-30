@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
+import 'prompt_resize_handle.dart';
 
-/// 全局固定词缀面板：总开关 + Prefix / Suffix 前后置词编辑。
-/// 在提示词页底部常驻，并以灰底容器形式在编辑卡下方快捷展开。
-class FixedAffixesPanel extends StatelessWidget {
+/// 全局固定词缀一体化编辑卡内容 (由 PromptExtensionDeck 的 Fixed Affixes 页挂载)。
+/// Prefix / Suffix 前后置词编辑区支持独立垂直拖拽调节高度。
+class FixedAffixesCardContent extends StatelessWidget {
   final StudioViewModel viewModel;
   final TextEditingController prefixController;
   final TextEditingController suffixController;
 
-  const FixedAffixesPanel({
+  static const double _defaultPrefixHeight = 88.0;
+  static const double _defaultSuffixHeight = 64.0;
+
+  const FixedAffixesCardContent({
     super.key,
     required this.viewModel,
     required this.prefixController,
@@ -19,140 +23,119 @@ class FixedAffixesPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final params = viewModel.params;
+    final isEnabled = params.applyFixedPrompts;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.pureWhite,
+        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        border: Border.all(
+          color: isEnabled
+              ? AppTheme.border
+              : AppTheme.border.withValues(alpha: 0.5),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : 0.55,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Fixed Affixes',
-              style: TextStyle(
+            _AffixFieldHeader(badge: 'PREFIX', title: '前置词 (放置于主提示词最前)'),
+            const Divider(
+              height: 1,
+              thickness: 1,
+              color: AppTheme.borderSubtle,
+            ),
+            ResizableTextField(
+              controller: prefixController,
+              onChanged: (val) =>
+                  viewModel.updateParams(params.copyWith(prefixPrompt: val)),
+              hintText: '<artist>\n0.7::artist_name::, year 2026...',
+              defaultHeight: _defaultPrefixHeight,
+              minHeight: 44,
+              maxHeight: 400,
+              resizeTooltip: '拖动调整前置词高度 (双击重置)',
+              style: const TextStyle(
                 fontSize: 13.5,
-                fontWeight: FontWeight.w700,
+                height: 1.48,
                 color: AppTheme.textPrimary,
-                letterSpacing: -0.2,
+              ),
+              hintStyle: const TextStyle(
+                fontSize: 13,
+                height: 1.48,
+                color: AppTheme.textMuted,
               ),
             ),
-            Row(
-              children: [
-                Text(
-                  params.applyFixedPrompts ? '已启用' : '已停用',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: params.applyFixedPrompts
-                        ? AppTheme.notionBlue
-                        : AppTheme.textMuted,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                SizedBox(
-                  height: 22,
-                  width: 38,
-                  child: FittedBox(
-                    fit: BoxFit.fill,
-                    child: Switch(
-                      value: params.applyFixedPrompts,
-                      activeTrackColor: AppTheme.notionBlue,
-                      onChanged: (val) => viewModel.updateParams(
-                        params.copyWith(applyFixedPrompts: val),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            _AffixFieldHeader(badge: 'SUFFIX', title: '后缀词 (放置于主提示词最后)'),
+            const Divider(
+              height: 1,
+              thickness: 1,
+              color: AppTheme.borderSubtle,
+            ),
+            ResizableTextField(
+              controller: suffixController,
+              onChanged: (val) =>
+                  viewModel.updateParams(params.copyWith(suffixPrompt: val)),
+              hintText: 'very aesthetic, masterpiece...',
+              defaultHeight: _defaultSuffixHeight,
+              minHeight: 38,
+              maxHeight: 300,
+              resizeTooltip: '拖动调整后缀词高度 (双击重置)',
+              style: const TextStyle(
+                fontSize: 13.5,
+                height: 1.48,
+                color: AppTheme.textPrimary,
+              ),
+              hintStyle: const TextStyle(
+                fontSize: 13,
+                height: 1.48,
+                color: AppTheme.textMuted,
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        _AffixField(
-          label: 'Prefix (前置词)',
-          hintText: '<artist>\n0.7::artist_name::, year 2026...',
-          controller: prefixController,
-          minLines: 2,
-          maxLines: 6,
-          onChanged: (val) =>
-              viewModel.updateParams(params.copyWith(prefixPrompt: val)),
-        ),
-        const SizedBox(height: 10),
-        _AffixField(
-          label: 'Suffix (后缀词)',
-          hintText: 'very aesthetic, masterpiece...',
-          controller: suffixController,
-          minLines: 2,
-          maxLines: 4,
-          onChanged: (val) =>
-              viewModel.updateParams(params.copyWith(suffixPrompt: val)),
-        ),
-      ],
+      ),
     );
   }
 }
 
-/// 固定词缀输入区 (标签 + 白底输入容器)
-class _AffixField extends StatelessWidget {
-  final String label;
-  final String hintText;
-  final TextEditingController controller;
-  final int minLines;
-  final int maxLines;
-  final ValueChanged<String> onChanged;
+/// Prefix / Suffix 区块标头 (灰底 + 蓝色徽标)
+class _AffixFieldHeader extends StatelessWidget {
+  final String badge;
+  final String title;
 
-  const _AffixField({
-    required this.label,
-    required this.hintText,
-    required this.controller,
-    required this.minLines,
-    required this.maxLines,
-    required this.onChanged,
-  });
+  const _AffixFieldHeader({required this.badge, required this.title});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          decoration: BoxDecoration(
-            color: AppTheme.pureWhite,
-            borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-            border: Border.all(color: AppTheme.border),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: TextField(
-            controller: controller,
-            minLines: minLines,
-            maxLines: maxLines,
-            style: const TextStyle(
-              fontSize: 12.5,
-              height: 1.4,
-              color: AppTheme.textPrimary,
+    return Container(
+      color: AppTheme.surfaceElevated,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: AppTheme.skyTint,
+              borderRadius: BorderRadius.circular(4),
             ),
-            decoration: InputDecoration(
-              hintText: hintText,
-              hintStyle: const TextStyle(
-                fontSize: 12,
-                color: AppTheme.textMuted,
+            child: Text(
+              badge,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.notionBlue,
               ),
-              contentPadding: EdgeInsets.zero,
-              isDense: true,
-              border: InputBorder.none,
             ),
-            onChanged: onChanged,
           ),
-        ),
-      ],
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+          ),
+        ],
+      ),
     );
   }
 }
