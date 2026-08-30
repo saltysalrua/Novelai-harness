@@ -28,7 +28,6 @@ typedef OnConfirmPaidUpscaleCallback =
       required int estimatedCost,
       required int inputWidth,
       required int inputHeight,
-      required int scale,
     });
 
 /// 构建付费生图的原因说明 (供确认弹问与取消提示共用)
@@ -237,7 +236,7 @@ class NovelAiUpscaleTool extends AgentTool {
          name: 'novelai_upscale',
          label: 'NovelAI 图像超分放大',
          description:
-             '调用 NovelAI 官方超分算法将指定图片无损放大 2 倍或 4 倍。'
+             '调用 NovelAI 官方超分算法 (V5 换代新模型，固定倍率输出) 将指定图片无损放大。'
              '按输入面积分档计费（Opus 用户输入不超 640x640 免费），预计消耗非零时会先向用户确认。',
          parameters: {
            'type': 'object',
@@ -245,11 +244,6 @@ class NovelAiUpscaleTool extends AgentTool {
              'image_path': {
                'type': 'string',
                'description': '待放大的本地图片路径（留空则默认放大画板中的最新图像）',
-             },
-             'scale': {
-               'type': 'integer',
-               'enum': [2, 4],
-               'description': '放大倍数 (2 或 4，默认 4)',
              },
            },
          },
@@ -271,7 +265,6 @@ class NovelAiUpscaleTool extends AgentTool {
       }
 
       final imagePath = args['image_path'] as String?;
-      final scale = (args['scale'] as num?)?.toInt() ?? 4;
 
       NaiGeneratedImage? targetImage;
       if (imagePath != null && imagePath.isNotEmpty) {
@@ -321,7 +314,6 @@ class NovelAiUpscaleTool extends AgentTool {
           : AnlasCalculator.estimateUpscaleCost(
               inputWidth: dims.width,
               inputHeight: dims.height,
-              scale: scale,
               isOpus: account?.isOpus ?? false,
             );
       if (upscaleCost > 0 && onConfirmPaidUpscale != null) {
@@ -329,14 +321,13 @@ class NovelAiUpscaleTool extends AgentTool {
           estimatedCost: upscaleCost,
           inputWidth: dims!.width,
           inputHeight: dims.height,
-          scale: scale,
         );
         if (!confirmed) {
           return ToolResult(
             toolCallId: toolCallId,
             content:
-                '已取消放大：将输入尺寸 ${dims.width}x${dims.height} 的图片放大 '
-                '${scale}x 预计消耗 $upscaleCost Anlas，用户已拒绝扣费。',
+                '已取消放大：将输入尺寸 ${dims.width}x${dims.height} 的图片执行官方超分，'
+                '预计消耗 $upscaleCost Anlas，用户已拒绝扣费。',
             isError: true,
           );
         }
@@ -345,7 +336,6 @@ class NovelAiUpscaleTool extends AgentTool {
       final upscaled = await _repository.upscale(
         apiKey: config.novelAiKey,
         sourceImage: targetImage,
-        scale: scale,
         saveDir: config.saveDirectory,
         enablePersistence: config.enableImagePersistence,
         maxImages: config.maxPersistentImages,
@@ -360,7 +350,7 @@ class NovelAiUpscaleTool extends AgentTool {
       return ToolResult(
         toolCallId: toolCallId,
         content:
-            '图像超分放大完成 (${scale}x)\n'
+            '图像超分放大完成 (${upscaled.params.width}x${upscaled.params.height})\n'
             '保存路径: ${upscaled.localFilePath ?? '内存中'}'
             '$costSuffix',
       );

@@ -102,15 +102,14 @@ class AnlasCalculator {
 
   /// 计算官方云端超分的 Anlas 消耗
   ///
-  /// 按输入面积分档计费，放大倍数不参与价格计算；
+  /// 按输入面积分档计费 (V5 换代后的新超分模型固定倍率输出，无倍率参数)；
   /// Opus 用户输入不超过 640x640 时免费。
   static int estimateUpscaleCost({
     required int inputWidth,
     required int inputHeight,
-    int scale = 4,
     bool isOpus = false,
   }) {
-    if (inputWidth <= 0 || inputHeight <= 0 || scale <= 0) return invalidCost;
+    if (inputWidth <= 0 || inputHeight <= 0) return invalidCost;
 
     final inputPixels = inputWidth * inputHeight;
     if (isOpus && inputPixels <= opusFreeUpscaleMaxInputPixels) return 0;

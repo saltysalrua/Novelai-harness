@@ -152,13 +152,12 @@ mixin _StudioChatMixin on _StudioCore {
     required int estimatedCost,
     required int inputWidth,
     required int inputHeight,
-    required int scale,
   }) async {
     final answer = await _presentQuestionsToUser([
       AgentQuestion(
         header: '点数消耗申请',
         question:
-            '将输入尺寸 ${inputWidth}x$inputHeight 的图片放大 ${scale}x，'
+            '将输入尺寸 ${inputWidth}x$inputHeight 的图片执行官方超分放大，'
             '预计消耗 $estimatedCost Anlas 点数。是否确认放大？',
         allowCustomInput: false,
         options: const [

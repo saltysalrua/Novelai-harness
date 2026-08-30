@@ -30,7 +30,7 @@ const List<SlashCommandDef> kSlashCommands = [
     '<提示词>',
     '快速生成插画，支持 --landscape/--portrait/--square/--wallpaper 方向标志',
   ),
-  SlashCommandDef('/upscale', '[2|4]', '超分放大当前图片'),
+  SlashCommandDef('/upscale', '', '超分放大当前图片'),
   SlashCommandDef('/tag', '<关键词>', '查询 Danbooru 官方标签联想'),
   SlashCommandDef('/account', '', '查询账号等级与 V5 专属体力池'),
   SlashCommandDef('/clear', '', '清空对话历史'),

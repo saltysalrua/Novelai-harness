@@ -284,8 +284,8 @@ mixin _StudioCore on ChangeNotifier {
   /// 手动快速生图
   Future<void> generateImage();
 
-  /// 超分放大当前图片 (2x / 4x)
-  Future<void> upscaleSelected({int scale});
+  /// 超分放大当前图片 (官方新超分模型，固定倍率)
+  Future<void> upscaleSelected();
 
   /// 刷新账号与体力信息
   Future<void> refreshAccountInfo();
@@ -322,7 +322,6 @@ mixin _StudioCore on ChangeNotifier {
     required int estimatedCost,
     required int inputWidth,
     required int inputHeight,
-    required int scale,
   });
 
   /// 整体替换角色提示词列表 (Agent 工具与 UI 卡片共用入口)

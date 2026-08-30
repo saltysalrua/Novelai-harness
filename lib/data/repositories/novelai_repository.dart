@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import '../models/novelai_models.dart';
+import '../services/anlas_calculator.dart';
 import '../services/novelai_service.dart';
 
 class NovelAiRepository {
@@ -218,11 +219,10 @@ class NovelAiRepository {
     return results;
   }
 
-  /// 图像超分放大 (2x / 4x)
+  /// 图像超分放大 (官方新超分模型，固定倍率输出)
   Future<NaiGeneratedImage> upscale({
     required String apiKey,
     required NaiGeneratedImage sourceImage,
-    int scale = 4,
     required String saveDir,
     bool enablePersistence = true,
     int maxImages = 50,
@@ -230,14 +230,20 @@ class NovelAiRepository {
     final upscaledBytes = await _service.upscaleImage(
       apiKey: apiKey,
       imageBytes: Uint8List.fromList(sourceImage.bytes),
-      scale: scale,
     );
+
+    // 新超分不再接受 scale 参数：以解码出的真实输出尺寸为准
+    final resultDims = await AnlasCalculator.decodeImageDimensions(
+      upscaledBytes,
+    );
+    final outWidth = resultDims?.width ?? sourceImage.params.width;
+    final outHeight = resultDims?.height ?? sourceImage.params.height;
 
     final now = DateTime.now();
     final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
     final filePath = _writeImageFile(
       saveDir,
-      'nai_${timeStr}_upscaled_${scale}x_${sourceImage.seed}.png',
+      'nai_${timeStr}_upscaled_${sourceImage.seed}.png',
       upscaledBytes,
     );
 
@@ -246,8 +252,8 @@ class NovelAiRepository {
       bytes: upscaledBytes,
       localFilePath: filePath,
       params: sourceImage.params.copyWith(
-        width: sourceImage.params.width * scale,
-        height: sourceImage.params.height * scale,
+        width: outWidth,
+        height: outHeight,
       ),
       createdAt: now,
       seed: sourceImage.seed,

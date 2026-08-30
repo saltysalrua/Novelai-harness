@@ -41,6 +41,10 @@ class NovelAiService {
   static const String _generateStreamEndpoint =
       '$_host/ai/generate-image-stream';
   static const String _upscaleEndpoint = '$_host/ai/upscale';
+
+  /// V5 换代后 /ai/upscale 使用的固定模型与去模糊参数 (服务端不再接受 scale)
+  static const String _upscaleModel = 'nai-diffusion-5-curated';
+  static const int _upscaleDeclaredBlurSigma = 0;
   static const String _tagsEndpoint = '$_host/ai/generate-image/suggest-tags';
   static const String _userDataEndpoint = '$_host/user/data';
 
@@ -261,42 +265,86 @@ class NovelAiService {
     });
   }
 
-  /// 图像超分放大 (2x / 4x)
+  /// 图像超分放大 (V5 换代后的官方新超分模型，固定倍率输出)
+  ///
+  /// 新协议为 multipart 表单：图片 PNG 文件 + request JSON 文件
+  /// (固定模型与 declared_blur_sigma，不再接受 scale 参数)；
+  /// 响应为 ZIP 归档，兼容非打包的裸图片字节。
   Future<Uint8List> upscaleImage({
     required String apiKey,
     required Uint8List imageBytes,
-    int scale = 4,
   }) async {
     if (apiKey.trim().isEmpty) {
       throw Exception('未配置 NovelAI API Key。');
     }
 
-    final base64Image = base64Encode(imageBytes);
-    final payload = {'image': base64Image, 'scale': scale == 2 ? 2 : 4};
-    final body = jsonEncode(payload);
-
     return await _lock.runExclusive(() async {
-      http.Response response = await _postWithAuth(
-        _upscaleEndpoint,
-        apiKey,
-        body,
+      http.Response response = await _postMultipartUpscale(
+        apiKey: apiKey,
+        imageBytes: imageBytes,
       );
 
       if (response.statusCode == 429) {
         await Future.delayed(const Duration(milliseconds: 2500));
-        response = await _postWithAuth(_upscaleEndpoint, apiKey, body);
+        response = await _postMultipartUpscale(
+          apiKey: apiKey,
+          imageBytes: imageBytes,
+        );
       }
 
       if (response.statusCode != 200) {
         throw _parseHttpError(response, '图片放大失败');
       }
 
-      final extracted = _extractImagesFromZip(response.bodyBytes);
-      if (extracted.isEmpty) {
+      final raw = response.bodyBytes;
+      if (raw.isEmpty) {
         throw Exception('未从返回数据中解析到放大后的图片。');
       }
-      return extracted.first;
+
+      // 优先按 ZIP 归档解包；非打包响应则直接作为裸图片字节返回
+      try {
+        final extracted = _extractImagesFromZip(raw);
+        if (extracted.isNotEmpty) return extracted.first;
+      } catch (_) {
+        // 非 ZIP 格式，走裸字节回退
+      }
+      return raw;
     });
+  }
+
+  /// 构建并发送 V5 换代后的 multipart 超分请求
+  Future<http.Response> _postMultipartUpscale({
+    required String apiKey,
+    required Uint8List imageBytes,
+  }) async {
+    final requestJson = jsonEncode({
+      'image': 'image',
+      'model': _upscaleModel,
+      'declared_blur_sigma': _upscaleDeclaredBlurSigma,
+    });
+
+    final request = http.MultipartRequest('POST', Uri.parse(_upscaleEndpoint))
+      ..headers['Authorization'] = 'Bearer ${apiKey.trim()}'
+      ..headers['Accept'] = 'application/x-zip-compressed'
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          'image',
+          imageBytes,
+          filename: 'blob',
+          contentType: http.MediaType('image', 'png'),
+        ),
+      )
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          'request',
+          utf8.encode(requestJson),
+          filename: 'blob',
+          contentType: http.MediaType('application', 'json'),
+        ),
+      );
+
+    final streamed = await _httpClient.send(request);
+    return await http.Response.fromStream(streamed);
   }
 
   /// 查询 Danbooru 标签联想建议

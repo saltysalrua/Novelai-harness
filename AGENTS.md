@@ -171,6 +171,7 @@ Novelai-harness/
 │   ├── prompt_ast_engine_test.dart             # 提示词 AST 分词、权重增减、禁用切换与 SD 语法转换测试
 │   ├── rich_prompt_controller_test.dart        # 富文本语法高亮控制器 TextSpan 渲染测试
 │   ├── tag_autocomplete_overlay_test.dart      # 标签自动补全悬浮窗触发与键盘/鼠标上屏测试
+│   ├── window_state_persistence_test.dart      # 窗口尺寸、位置与最大化状态持久化及防抖测试
 │   └── widget_test.dart                        # 核心组件渲染测试
 │
 ├── pubspec.yaml                                # 项目依赖配置文件
@@ -207,6 +208,7 @@ Novelai-harness/
 - **并发锁 (`AsyncLock`)**：所有发送至 NovelAI 官方端点的绘图（`/ai/generate-image`）和放大（`/ai/upscale`）请求必须通过 `AsyncLock.runExclusive()` 串行执行，确保全局并发数恒等于 1。
 - **429 频控退避**：当捕获 HTTP 429 状态码时，必须自动等待 2500ms 并执行单次重试。
 - **内存解包**：必须使用纯内存方式（`package:archive`）解压官方返回的 ZIP 数据流，不得生成临时无用文件。
+- **超分新协议 (2026-08 换代)**：旧 `api.novelai.net/ai/upscale` 路由已下线。新端点 `https://image.novelai.net/ai/upscale` 改为 **multipart 表单**：`image` 字段为 PNG 图片文件 (filename `blob`)，`request` 字段为 JSON 文件 `{"image":"image","model":"nai-diffusion-5-curated","declared_blur_sigma":0}`；**不再接受 scale 参数**，新超分模型固定倍率输出，输出尺寸必须从返回图片字节解码获得；响应仍为 ZIP 归档 (兼容裸图片字节回退)，Accept 头 `application/x-zip-compressed`。
 
 ### 3.3 Opus 免点数保护规则
 
@@ -224,7 +226,7 @@ Novelai-harness/
 
 - **基础公式 (现代计费，V3+ 全系适用)**：`ceil(2.951823174884865e-6 × 像素数 + 5.753298233447344e-7 × 像素数 × 步数)`，再乘模型倍率 (`NaiModel.anlasMultiplier`，仅 V5 为 1.5，其余 1.0)，单张下限 2 Anlas、上限 140 Anlas (超出返回 `invalidCost = -3`)。
 - **Opus 折扣**：`isOpus && 步数 <= 28 && 像素 <= 1,048,576` 时首张免费；仅 V5 受体力配额池限制 (`NaiAccountInfo.v5QuotaExhausted`，来自 `subscription.usage.isNegative`，透支后不再抵扣)；单次请求多张 (`n_samples > 1`) 只有第一张享受免费折扣。
-- **官方超分**：按输入面积分档计费，放大倍数不参与价格：`<= 1,048,576 → 1 Anlas`、`<= 1,747,627 → 2`、`<= 2,446,678 → 3`、`<= 3,145,728 → 4`，超过最高档返回 `invalidCost`；Opus 用户输入不超过 `640x640` 时免费。输入尺寸用 `AnlasCalculator.decodeImageDimensions` 从图片字节解码 (不信任 params 上的宽高，可能是文件加载的假参数)。
+- **官方超分**：按输入面积分档计费，无倍率参数 (新超分模型固定倍率)：`<= 1,048,576 → 1 Anlas`、`<= 1,747,627 → 2`、`<= 2,446,678 → 3`、`<= 3,145,728 → 4`，超过最高档返回 `invalidCost`；Opus 用户输入不超过 `640x640` 时免费。输入尺寸用 `AnlasCalculator.decodeImageDimensions` 从图片字节解码 (不信任 params 上的宽高，可能是文件加载的假参数)，输出尺寸同样从结果字节解码。
 - **接入点**：GenerateDock 生成按钮点数标识与提示 (`StudioViewModel.estimatedGenerationCost`)、手动生成/超分的付费确认闸门 (预计非零时先弹问)、Agent 生图/超分工具的确认与结果文本、`get_studio_parameters` 报表 (无账号信息时按 Opus/无订阅双价位展示)。服务端计费仍是最终依据。
 
 ### 3.4 NovelAI V5 自然语言提示词架构
@@ -255,7 +257,7 @@ Novelai-harness/
 - `/help`：查看指令帮助列表。
 - `/nai <提示词> [--landscape|--portrait|--square|--wallpaper]`：快速生图。
 - `/tag <关键词>`：查询 Danbooru 官方标签联想与使用频次。
-- `/upscale [2|4]`：超分放大画板当前图片。
+- `/upscale`：超分放大画板当前图片 (官方新超分模型，固定倍率，无倍率参数)。
 - `/account`：查询账号等级与 V5 专属体力池余量。
 - `/clear`：清空会话消息流。
 

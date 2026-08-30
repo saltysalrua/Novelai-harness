@@ -169,9 +169,9 @@ mixin _StudioGenerationMixin on _StudioCore {
     }
   }
 
-  /// 超分放大当前图片 (2x / 4x)
+  /// 超分放大当前图片 (官方新超分模型，固定倍率输出)
   @override
-  Future<void> upscaleSelected({int scale = 4}) async {
+  Future<void> upscaleSelected() async {
     if (_selectedImage == null) {
       _errorMessage = '当前画板中无图片可供放大。';
       notifyListeners();
@@ -195,7 +195,6 @@ mixin _StudioGenerationMixin on _StudioCore {
       final upscaleCost = AnlasCalculator.estimateUpscaleCost(
         inputWidth: dims.width,
         inputHeight: dims.height,
-        scale: scale,
         isOpus: _accountInfo?.isOpus ?? false,
       );
       if (upscaleCost > 0) {
@@ -203,7 +202,6 @@ mixin _StudioGenerationMixin on _StudioCore {
           estimatedCost: upscaleCost,
           inputWidth: dims.width,
           inputHeight: dims.height,
-          scale: scale,
         );
         if (!confirmed) {
           _statusMessage = '已取消放大 (预计消耗 $upscaleCost Anlas)';
@@ -216,20 +214,20 @@ mixin _StudioGenerationMixin on _StudioCore {
 
     _isGenerating = true;
     _errorMessage = null;
-    _statusMessage = '正在执行 ${scale}x 图像超分放大...';
+    _statusMessage = '正在执行图像超分放大...';
     notifyListeners();
 
     try {
       final upscaled = await _repository.upscale(
         apiKey: _config.novelAiKey,
         sourceImage: _selectedImage!,
-        scale: scale,
         saveDir: _config.saveDirectory,
         enablePersistence: _config.enableImagePersistence,
         maxImages: _config.maxPersistentImages,
       );
       _selectedImage = upscaled;
-      _statusMessage = '放大完成 (${scale}x)';
+      _statusMessage =
+          '放大完成 (${upscaled.params.width}x${upscaled.params.height})';
     } catch (e) {
       _errorMessage = '放大失败: $e';
       _statusMessage = null;

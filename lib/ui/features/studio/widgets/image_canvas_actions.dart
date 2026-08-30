@@ -43,7 +43,7 @@ Future<void> copyImageToClipboard(
   showCanvasSnackBar(context, success ? '已复制图像到剪贴板' : '复制图像失败');
 }
 
-/// 图片右键菜单：超分放大 (2x / 4x)、复制图像、复制提示词、复用参数与查看大图
+/// 图片右键菜单：超分放大、复制图像、复制提示词、复用参数与查看大图
 void showImageContextMenu(
   BuildContext context, {
   required Offset position,
@@ -62,13 +62,8 @@ void showImageContextMenu(
     actions: [
       ContextMenuItem(
         icon: Icons.zoom_in_rounded,
-        label: '2x 放大',
-        onTap: isGenerating ? null : () => viewModel.upscaleSelected(scale: 2),
-      ),
-      ContextMenuItem(
-        icon: Icons.zoom_out_map_rounded,
-        label: '4x 放大',
-        onTap: isGenerating ? null : () => viewModel.upscaleSelected(scale: 4),
+        label: '超分放大',
+        onTap: isGenerating ? null : () => viewModel.upscaleSelected(),
       ),
       const ContextMenuDivider(),
       ContextMenuItem(

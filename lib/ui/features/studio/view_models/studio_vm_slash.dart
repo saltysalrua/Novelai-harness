@@ -114,9 +114,8 @@ mixin _StudioSlashMixin on _StudioCore {
         break;
 
       case '/upscale':
-        final scale = int.tryParse(args) ?? 4;
-        await upscaleSelected(scale: scale);
-        _harness.addInfoMessage('已执行 ${scale}x 放大');
+        await upscaleSelected();
+        _harness.addInfoMessage('已执行超分放大');
         notifyListeners();
         break;
 
