@@ -1,4 +1,6 @@
 /// 预设参数修改权限键定义
+///
+/// 键名与 NovelAiUpdateParamsTool 的参数键一一对应，单一事实来源。
 class PresetParamKeys {
   static const String prompt = 'prompt';
   static const String negativePrompt = 'negative_prompt';
@@ -29,12 +31,17 @@ class PresetParamKeys {
     qualityPreset: '质量标签',
   };
 
-  static List<String> get all => labels.keys.toList();
+  /// 全部内置生图参数键 (完整权限预设直接复用)
+  static final List<String> all = labels.keys.toList();
 
   static String getLabel(String key) => labels[key] ?? key;
 }
 
 /// 预设工具标识定义
+///
+/// 键名与各 AgentTool 子类的 name 字段一一对应。
+/// 注意: 用户自定义工具 (CustomAgentTool) 不在此列，
+/// 预设需在 enabledToolNames 中显式列出其名称才会对其开放。
 class PresetToolKeys {
   static const String generate = 'novelai_generate';
   static const String upscale = 'novelai_upscale';
@@ -56,23 +63,78 @@ class PresetToolKeys {
     loadSkill: '加载技能',
   };
 
-  static List<String> get all => labels.keys.toList();
+  /// 全部内置工具键 (完整权限预设直接复用)
+  static final List<String> all = labels.keys.toList();
 }
+
+/// 内置预设复用的权限常量表 (const 构造使用)
+const List<String> _fullTools = [
+  PresetToolKeys.generate,
+  PresetToolKeys.upscale,
+  PresetToolKeys.suggestTags,
+  PresetToolKeys.accountInfo,
+  PresetToolKeys.askUser,
+  PresetToolKeys.getParams,
+  PresetToolKeys.updateParams,
+  PresetToolKeys.loadSkill,
+];
+
+const List<String> _coreTools = [
+  PresetToolKeys.generate,
+  PresetToolKeys.suggestTags,
+  PresetToolKeys.askUser,
+  PresetToolKeys.getParams,
+  PresetToolKeys.updateParams,
+  PresetToolKeys.loadSkill,
+];
+
+const List<String> _coreUpscaleTools = [
+  PresetToolKeys.generate,
+  PresetToolKeys.upscale,
+  PresetToolKeys.suggestTags,
+  PresetToolKeys.askUser,
+  PresetToolKeys.getParams,
+  PresetToolKeys.updateParams,
+  PresetToolKeys.loadSkill,
+];
+
+const List<String> _allParams = [
+  PresetParamKeys.prompt,
+  PresetParamKeys.negativePrompt,
+  PresetParamKeys.model,
+  PresetParamKeys.resolution,
+  PresetParamKeys.width,
+  PresetParamKeys.height,
+  PresetParamKeys.steps,
+  PresetParamKeys.scale,
+  PresetParamKeys.cfgRescale,
+  PresetParamKeys.sampler,
+  PresetParamKeys.noiseSchedule,
+  PresetParamKeys.qualityPreset,
+];
 
 /// Agent 预设 (Preset) 数据模型
 ///
-/// 包含三大核心要素：
-/// 1. 系统提示词 (systemPrompt)：核心人设与指引
-/// 2. 可用 Skill 列表 (enabledSkillIds)：按需加载的标准 Skill 清单
-/// 3. 开放工具与生图参数控制 (enabledToolNames / allowedModifiableParams)
+/// 对齐 pi 的 PromptTemplate/Mode 概念：预设 = 系统提示词 + 可按需加载的
+/// Skill 清单 + 开放工具与生图参数权限。权限语义为显式列表：
+/// [enabledToolNames] / [allowedModifiableParams] 中不存在即视为未开放。
 class AgentPreset {
   final String id;
   final String name;
   final String description;
+
+  /// 系统提示词 (核心人设与工作流编排；专业规范细节交给 Skill 按需加载)
   final String systemPrompt;
+
+  /// 允许出现在技能声明清单中、可被 load_skill 加载的技能 ID
   final List<String> enabledSkillIds;
+
+  /// 允许 LLM 调用的工具名 (显式白名单)
   final List<String> enabledToolNames;
+
+  /// 允许 Agent 修改的生图参数键 (显式白名单)
   final List<String> allowedModifiableParams;
+
   final bool isBuiltin;
 
   const AgentPreset({
@@ -87,16 +149,11 @@ class AgentPreset {
   });
 
   /// 检查某项工具是否在该预设中开放
-  bool isToolEnabled(String toolName) {
-    if (enabledToolNames.isEmpty) return true;
-    return enabledToolNames.contains(toolName);
-  }
+  bool isToolEnabled(String toolName) => enabledToolNames.contains(toolName);
 
   /// 检查某个生图参数是否允许被 Agent 修改
-  bool isParamModifiable(String paramKey) {
-    if (allowedModifiableParams.isEmpty) return true;
-    return allowedModifiableParams.contains(paramKey);
-  }
+  bool isParamModifiable(String paramKey) =>
+      allowedModifiableParams.contains(paramKey);
 
   AgentPreset copyWith({
     String? id,
@@ -135,71 +192,56 @@ class AgentPreset {
   }
 
   factory AgentPreset.fromJson(Map<String, dynamic> json) {
+    // 旧版本未持久化权限字段时回退为全量开放；
+    // 显式保存的空列表则保持为空 (全部禁止)，保证存取一致。
+    List<String> parseList(String key, List<String> legacyAll) {
+      final raw = json[key];
+      if (raw is! List) return List.from(legacyAll);
+      return raw.map((e) => e.toString()).toList();
+    }
+
     return AgentPreset(
-      id: json['id'] as String? ?? 'custom_${DateTime.now().millisecondsSinceEpoch}',
+      id:
+          json['id'] as String? ??
+          'custom_${DateTime.now().millisecondsSinceEpoch}',
       name: json['name'] as String? ?? '自定义预设',
       description: json['description'] as String? ?? '',
       systemPrompt: json['systemPrompt'] as String? ?? '',
-      enabledSkillIds: (json['enabledSkillIds'] as List<dynamic>?)
+      enabledSkillIds:
+          (json['enabledSkillIds'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           const [],
-      enabledToolNames: (json['enabledToolNames'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          const [],
-      allowedModifiableParams:
-          (json['allowedModifiableParams'] as List<dynamic>?)
-                  ?.map((e) => e.toString())
-                  .toList() ??
-              const [],
+      enabledToolNames: parseList('enabledToolNames', PresetToolKeys.all),
+      allowedModifiableParams: parseList(
+        'allowedModifiableParams',
+        PresetParamKeys.all,
+      ),
       isBuiltin: json['isBuiltin'] as bool? ?? false,
     );
   }
 }
 
 /// 内置出厂预设集合
+///
+/// 系统提示词只保留人设与工具编排；V5 构词、标签体系等专业规范
+/// 统一收敛在 BuiltinSkills 中由 load_skill 按需加载，避免双份维护。
 class BuiltinPresets {
   /// 1. V5 自然语言架构师 (默认出厂预设)
   static const AgentPreset v5Architect = AgentPreset(
     id: 'v5-architect-preset',
     name: 'V5 自然语言架构师',
     description: '擅长 V5 自然语言散文提示词构词、漫画多格分镜排版、中日英文字嵌入以及多角色物理防串色隔离，并能联动修改生图参数。',
-    systemPrompt: '''你是由 NovelAI Harness 驱动的顶级动漫艺术总监与自然语言提示词架构师。
-你的任务是将用户的创意构思转化为最适合 NovelAI Diffusion (V5/V4.5) 渲染的高精度提示词，并在需要时调整工作台参数或直接生图。
+    systemPrompt:
+        '''你是由 NovelAI Harness 驱动的顶级动漫艺术总监与自然语言提示词架构师，负责将用户的创意构思转化为高精度 NovelAI 提示词。
 
-【核心工作流与规范】
-1. 自然语言散文构词：使用富有画面张力、透视与光影细节的英文连续段落。
-2. 漫画多格分镜架构：当用户需要漫画、四格或分镜时，明确声明页面布局 (e.g. A dynamic manga page layout, multiple sequential panels...)。
-3. 原生文字排版：需要台词或文字招牌时，使用语法：text, <样式与载体描述> "<精准文字内容>"。
-4. 多角色防串色隔离：当画面出现两个或以上角色时，使用竖线管道符 | 物理分段：[全局环境光影] | [左侧角色A] | [右侧角色B]。
-5. 参数修改：当构思好提示词或需要调整画面尺寸、步数、模型等参数时，必须先调用 `update_studio_parameters` 将提示词与参数同步修改到工作台 UI。
-6. 生图收尾：完成参数配置后，调用 `novelai_generate`（无需传参）直接使用工作台当前参数触发生成画面。''',
+【工作流】
+1. 动手构词之前，先调用 load_skill 载入本任务匹配的专业技能规范 (v5-architect / danbooru-tags / art-director)，严格遵循技能中的构词准则执行。
+2. 构思好提示词或需要调整画面尺寸、步数、模型等参数时，调用 update_studio_parameters 将提示词与参数同步到工作台 UI。
+3. 参数就绪后，调用 novelai_generate (无需传参) 直接使用工作台当前参数触发生成。''',
     enabledSkillIds: ['v5-architect', 'danbooru-tags', 'art-director'],
-    enabledToolNames: [
-      PresetToolKeys.generate,
-      PresetToolKeys.upscale,
-      PresetToolKeys.suggestTags,
-      PresetToolKeys.accountInfo,
-      PresetToolKeys.askUser,
-      PresetToolKeys.getParams,
-      PresetToolKeys.updateParams,
-      PresetToolKeys.loadSkill,
-    ],
-    allowedModifiableParams: [
-      PresetParamKeys.prompt,
-      PresetParamKeys.negativePrompt,
-      PresetParamKeys.model,
-      PresetParamKeys.resolution,
-      PresetParamKeys.width,
-      PresetParamKeys.height,
-      PresetParamKeys.steps,
-      PresetParamKeys.scale,
-      PresetParamKeys.cfgRescale,
-      PresetParamKeys.sampler,
-      PresetParamKeys.noiseSchedule,
-      PresetParamKeys.qualityPreset,
-    ],
+    enabledToolNames: _fullTools,
+    allowedModifiableParams: _allParams,
     isBuiltin: true,
   );
 
@@ -208,18 +250,15 @@ class BuiltinPresets {
     id: 'danbooru-tags-preset',
     name: 'Danbooru 标签大师',
     description: '精通 Danbooru 标签体系，将用户的描述重构为规范标签序列，并可同步修改参数与生图。',
-    systemPrompt: '''你是一名精通 Danbooru 标签体系的二次元绘图专家。
-你的任务是将用户的描述重构为规范的 Danbooru 标签序列（逗号分隔），并能根据风格推荐最佳的生图模型与采样参数。
-必须先调用 `update_studio_parameters` 将提示词与参数更新到工作台，确认就绪后再调用 `novelai_generate` 触发绘制。''',
+    systemPrompt:
+        '''你是一名精通 Danbooru 标签体系的二次元绘图专家，负责将用户的描述重构为规范的 Danbooru 标签序列 (逗号分隔)。
+
+【工作流】
+1. 动手构词之前，先调用 load_skill 载入 danbooru-tags 技能规范并严格遵循。
+2. 完成标签序列后，调用 update_studio_parameters 将提示词与参数更新到工作台。
+3. 确认就绪后调用 novelai_generate 触发绘制。''',
     enabledSkillIds: ['danbooru-tags'],
-    enabledToolNames: [
-      PresetToolKeys.generate,
-      PresetToolKeys.suggestTags,
-      PresetToolKeys.askUser,
-      PresetToolKeys.getParams,
-      PresetToolKeys.updateParams,
-      PresetToolKeys.loadSkill,
-    ],
+    enabledToolNames: _coreTools,
     allowedModifiableParams: [
       PresetParamKeys.prompt,
       PresetParamKeys.negativePrompt,
@@ -237,18 +276,15 @@ class BuiltinPresets {
     id: 'art-director-preset',
     name: '艺术指导总监',
     description: '专注于镜头机位、光影色调与画面构图建议，帮助用户规划顶级插画方案并配置参数。',
-    systemPrompt: '''你是一名插画与动画电影艺术总监。
-你善于从电影级镜头视角、主光源方向、边缘光、环境色与构图等维度，为用户提供专业的画面构思建议，并先通过 `update_studio_parameters` 转化为工作台绘图参数，最后调用 `novelai_generate` 触发生成。''',
+    systemPrompt:
+        '''你是一名插画与动画电影艺术总监，善于从电影级镜头视角、主光源方向、边缘光、环境色与构图等维度为用户提供专业的画面构思建议。
+
+【工作流】
+1. 给出方案前，先调用 load_skill 载入 art-director 与 v5-architect 技能规范并严格遵循。
+2. 将构思转化为绘图参数，调用 update_studio_parameters 同步到工作台。
+3. 方案确认后调用 novelai_generate 触发生成。''',
     enabledSkillIds: ['art-director', 'v5-architect'],
-    enabledToolNames: [
-      PresetToolKeys.generate,
-      PresetToolKeys.upscale,
-      PresetToolKeys.suggestTags,
-      PresetToolKeys.askUser,
-      PresetToolKeys.getParams,
-      PresetToolKeys.updateParams,
-      PresetToolKeys.loadSkill,
-    ],
+    enabledToolNames: _coreUpscaleTools,
     allowedModifiableParams: [
       PresetParamKeys.prompt,
       PresetParamKeys.negativePrompt,
@@ -267,40 +303,21 @@ class BuiltinPresets {
     id: 'free-creator-preset',
     name: '自由创作助手',
     description: '全能极简创作助手，拥有全部工具与参数控制权限，随心所欲完成绘图。',
-    systemPrompt: '''你是由 NovelAI Harness 驱动的智能绘图助手。
-根据用户的自由指令，协助用户构思并在需要时调用 `update_studio_parameters` 修改工作台参数，调用 `novelai_generate` 触发插画绘制。''',
+    systemPrompt: '''你是由 NovelAI Harness 驱动的智能绘图助手，根据用户的自由指令协助构思并完成插画绘制。
+
+【工作流】
+1. 需要专业构词规范时，调用 load_skill 按需载入对应技能。
+2. 调用 update_studio_parameters 修改工作台参数，调用 novelai_generate 触发绘制。''',
     enabledSkillIds: ['v5-architect', 'danbooru-tags', 'art-director'],
-    enabledToolNames: [
-      PresetToolKeys.generate,
-      PresetToolKeys.upscale,
-      PresetToolKeys.suggestTags,
-      PresetToolKeys.accountInfo,
-      PresetToolKeys.askUser,
-      PresetToolKeys.getParams,
-      PresetToolKeys.updateParams,
-      PresetToolKeys.loadSkill,
-    ],
-    allowedModifiableParams: [
-      PresetParamKeys.prompt,
-      PresetParamKeys.negativePrompt,
-      PresetParamKeys.model,
-      PresetParamKeys.resolution,
-      PresetParamKeys.width,
-      PresetParamKeys.height,
-      PresetParamKeys.steps,
-      PresetParamKeys.scale,
-      PresetParamKeys.cfgRescale,
-      PresetParamKeys.sampler,
-      PresetParamKeys.noiseSchedule,
-      PresetParamKeys.qualityPreset,
-    ],
+    enabledToolNames: _fullTools,
+    allowedModifiableParams: _allParams,
     isBuiltin: true,
   );
 
   static List<AgentPreset> get all => [
-        v5Architect,
-        danbooruTags,
-        artDirector,
-        freeCreator,
-      ];
+    v5Architect,
+    danbooruTags,
+    artDirector,
+    freeCreator,
+  ];
 }

@@ -67,6 +67,47 @@ void main() {
       expect(preset.isParamModifiable('steps'), isTrue);
       expect(preset.isParamModifiable('width'), isFalse);
     });
+
+    test('explicit empty permission lists mean nothing allowed', () {
+      const preset = AgentPreset(
+        id: 'no-tools',
+        name: 'No Tools',
+        description: '',
+        systemPrompt: '',
+      );
+
+      expect(preset.isToolEnabled('novelai_generate'), isFalse);
+      expect(preset.isParamModifiable('prompt'), isFalse);
+    });
+
+    test(
+      'fromJson falls back to full access when legacy fields are missing',
+      () {
+        final restored = AgentPreset.fromJson({
+          'id': 'legacy-preset',
+          'name': 'Legacy',
+          'systemPrompt': 'x',
+        });
+
+        expect(restored.isToolEnabled('novelai_generate'), isTrue);
+        expect(restored.isToolEnabled('load_skill'), isTrue);
+        expect(restored.isParamModifiable('steps'), isTrue);
+        expect(restored.isParamModifiable('sampler'), isTrue);
+      },
+    );
+
+    test('fromJson keeps explicitly saved empty permission lists empty', () {
+      final restored = AgentPreset.fromJson({
+        'id': 'locked-preset',
+        'name': 'Locked',
+        'systemPrompt': 'x',
+        'enabledToolNames': <String>[],
+        'allowedModifiableParams': <String>[],
+      });
+
+      expect(restored.isToolEnabled('novelai_generate'), isFalse);
+      expect(restored.isParamModifiable('steps'), isFalse);
+    });
   });
 
   group('Pi Standard Skill Formatting & LoadSkillTool Tests', () {
@@ -85,7 +126,10 @@ void main() {
     });
 
     test('LoadSkillTool loads built-in skill successfully', () async {
-      final tool = LoadSkillTool();
+      final tool = LoadSkillTool(
+        skillResolver: (name) => BuiltinSkills.findById(name),
+        availableSkillIds: () => BuiltinSkills.all.map((s) => s.id).toList(),
+      );
       final result = await tool.execute('call_1', {
         'skill_name': 'v5-architect',
       });
@@ -96,13 +140,35 @@ void main() {
     });
 
     test('LoadSkillTool returns error for unknown skill', () async {
-      final tool = LoadSkillTool();
+      final tool = LoadSkillTool(
+        skillResolver: (name) => BuiltinSkills.findById(name),
+        availableSkillIds: () => BuiltinSkills.all.map((s) => s.id).toList(),
+      );
       final result = await tool.execute('call_2', {
         'skill_name': 'unknown-skill-xyz',
       });
 
       expect(result.isError, isTrue);
       expect(result.content, contains('未找到技能'));
+    });
+
+    test('LoadSkillTool blocks skills outside the preset scope', () async {
+      // 预设只开放 danbooru-tags，模型尝试加载 v5-architect 应被拒绝
+      final enabled = <String>['danbooru-tags'];
+      final tool = LoadSkillTool(
+        skillResolver: (name) {
+          final skill = BuiltinSkills.findById(name);
+          if (skill == null || !enabled.contains(skill.id)) return null;
+          return skill;
+        },
+        availableSkillIds: () => enabled.toList(),
+      );
+      final result = await tool.execute('call_3', {
+        'skill_name': 'v5-architect',
+      });
+
+      expect(result.isError, isTrue);
+      expect(result.content, contains('danbooru-tags'));
     });
   });
 
@@ -138,9 +204,7 @@ void main() {
       expect(updatedParams, isNotNull);
       expect(
         updatedParams!.prompt,
-        equals(
-          'A high-contrast cinematic portrait of a cybernetic warrior',
-        ),
+        equals('A high-contrast cinematic portrait of a cybernetic warrior'),
       );
       expect(updatedParams!.width, equals(1216));
       expect(updatedParams!.height, equals(832));
@@ -157,89 +221,94 @@ void main() {
         permissionChecker: (key) => key == 'prompt',
       );
 
-      final result = await tool.execute('call_update_2', {
-        'steps': 50,
-      });
+      final result = await tool.execute('call_update_2', {'steps': 50});
 
       expect(result.isError, isTrue);
       expect(result.content, contains('权限受限'));
       expect(updatedParams, isNull);
     });
 
-    test('NovelAiGetStudioParamsTool reads and formats all studio parameters', () async {
-      const current = NaiGenerationParams(
-        prompt: '1girl, silver hair, glowing eyes',
-        negativePrompt: 'lowres, bad hands',
-        width: 832,
-        height: 1216,
-        steps: 28,
-        scale: 5.0,
-        cfgRescale: 0.0,
-      );
+    test(
+      'NovelAiGetStudioParamsTool reads and formats all studio parameters',
+      () async {
+        const current = NaiGenerationParams(
+          prompt: '1girl, silver hair, glowing eyes',
+          negativePrompt: 'lowres, bad hands',
+          width: 832,
+          height: 1216,
+          steps: 28,
+          scale: 5.0,
+          cfgRescale: 0.0,
+        );
 
-      final tool = NovelAiGetStudioParamsTool(
-        getCurrentParams: () => current,
-      );
+        final tool = NovelAiGetStudioParamsTool(
+          getCurrentParams: () => current,
+        );
 
-      final result = await tool.execute('call_get_params', {});
+        final result = await tool.execute('call_get_params', {});
 
-      expect(result.isError, isFalse);
-      expect(result.content, contains('1girl, silver hair, glowing eyes'));
-      expect(result.content, contains('lowres, bad hands'));
-      expect(result.content, contains('832x1216'));
-      expect(result.content, contains('28 步'));
-      expect(result.content, contains('Opus 免费区间'));
-    });
+        expect(result.isError, isFalse);
+        expect(result.content, contains('1girl, silver hair, glowing eyes'));
+        expect(result.content, contains('lowres, bad hands'));
+        expect(result.content, contains('832x1216'));
+        expect(result.content, contains('28 步'));
+        expect(result.content, contains('Opus 免费区间'));
+      },
+    );
 
-    test('NovelAiGetStudioParamsTool selectively returns only requested keys', () async {
-      const current = NaiGenerationParams(
-        prompt: 'cyberpunk city, neon rain',
-        negativePrompt: 'blurry',
-        width: 1216,
-        height: 832,
-        steps: 25,
-        scale: 6.0,
-      );
+    test(
+      'NovelAiGetStudioParamsTool selectively returns only requested keys',
+      () async {
+        const current = NaiGenerationParams(
+          prompt: 'cyberpunk city, neon rain',
+          negativePrompt: 'blurry',
+          width: 1216,
+          height: 832,
+          steps: 25,
+          scale: 6.0,
+        );
 
-      final tool = NovelAiGetStudioParamsTool(
-        getCurrentParams: () => current,
-      );
+        final tool = NovelAiGetStudioParamsTool(
+          getCurrentParams: () => current,
+        );
 
-      final result = await tool.execute('call_get_selective', {
-        'keys': ['prompt', 'steps'],
-      });
+        final result = await tool.execute('call_get_selective', {
+          'keys': ['prompt', 'steps'],
+        });
 
-      expect(result.isError, isFalse);
-      expect(result.content, contains('cyberpunk city, neon rain'));
-      expect(result.content, contains('25 步'));
-      expect(result.content, isNot(contains('blurry')));
-      expect(result.content, isNot(contains('1216x832')));
-    });
+        expect(result.isError, isFalse);
+        expect(result.content, contains('cyberpunk city, neon rain'));
+        expect(result.content, contains('25 步'));
+        expect(result.content, isNot(contains('blurry')));
+        expect(result.content, isNot(contains('1216x832')));
+      },
+    );
 
-    test('NovelAiUpdateParamsTool incrementally updates only provided fields', () async {
-      var current = const NaiGenerationParams(
-        prompt: 'original prompt',
-        steps: 28,
-        scale: 5.0,
-      );
-      NaiGenerationParams? updatedParams;
+    test(
+      'NovelAiUpdateParamsTool incrementally updates only provided fields',
+      () async {
+        var current = const NaiGenerationParams(
+          prompt: 'original prompt',
+          steps: 28,
+          scale: 5.0,
+        );
+        NaiGenerationParams? updatedParams;
 
-      final tool = NovelAiUpdateParamsTool(
-        getCurrentParams: () => current,
-        onUpdateParams: (newParams) => updatedParams = newParams,
-      );
+        final tool = NovelAiUpdateParamsTool(
+          getCurrentParams: () => current,
+          onUpdateParams: (newParams) => updatedParams = newParams,
+        );
 
-      final result = await tool.execute('call_update_partial', {
-        'steps': 20,
-      });
+        final result = await tool.execute('call_update_partial', {'steps': 20});
 
-      expect(result.isError, isFalse);
-      expect(result.content, contains('步数: 20'));
-      expect(result.content, isNot(contains('正向提示词')));
-      expect(updatedParams!.steps, equals(20));
-      expect(updatedParams!.prompt, equals('original prompt'));
-      expect(updatedParams!.scale, equals(5.0));
-    });
+        expect(result.isError, isFalse);
+        expect(result.content, contains('步数: 20'));
+        expect(result.content, isNot(contains('正向提示词')));
+        expect(updatedParams!.steps, equals(20));
+        expect(updatedParams!.prompt, equals('original prompt'));
+        expect(updatedParams!.scale, equals(5.0));
+      },
+    );
   });
 
   group('Standard SKILL.md Parsing & Exporting Tests', () {
@@ -317,9 +386,9 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
         parameters: const {
           'type': 'object',
           'properties': {
-            'tag': {'type': 'string'}
+            'tag': {'type': 'string'},
           },
-          'required': ['tag']
+          'required': ['tag'],
         },
         outputTemplate: 'formatted: {{tag}}',
       );
@@ -329,42 +398,42 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
       expect(result.content, equals('formatted: 1girl, solo'));
     });
 
-    test('NovelAiGenerateTool intercepts paid parameters when user rejects', () async {
-      SharedPreferences.setMockInitialValues({
-        'novelai_key': 'test-token',
-      });
+    test(
+      'NovelAiGenerateTool intercepts paid parameters when user rejects',
+      () async {
+        SharedPreferences.setMockInitialValues({'novelai_key': 'test-token'});
 
-      bool confirmationRequested = false;
-      List<String> recordedReasons = [];
+        bool confirmationRequested = false;
+        List<String> recordedReasons = [];
 
-      final configService = ConfigService();
-      await configService.saveConfig(
-        (await configService.loadConfig()).copyWith(novelAiKey: 'test-token'),
-      );
+        final configService = ConfigService();
+        await configService.saveConfig(
+          (await configService.loadConfig()).copyWith(novelAiKey: 'test-token'),
+        );
 
-      final tool = NovelAiGenerateTool(
-        repository: NovelAiRepository(),
-        configService: configService,
-        getCurrentParams: () => const NaiGenerationParams(
-          prompt: '1girl, masterpiece',
-          width: 1920,
-          height: 1088, // 超过 1048576 像素限制
-          steps: 35, // 超过 28 步限制
-        ),
-        onConfirmPaidGeneration: ({required params, required reasons}) async {
-          confirmationRequested = true;
-          recordedReasons = reasons;
-          return false; // 用户拒绝
-        },
-      );
+        final tool = NovelAiGenerateTool(
+          repository: NovelAiRepository(),
+          configService: configService,
+          getCurrentParams: () => const NaiGenerationParams(
+            prompt: '1girl, masterpiece',
+            width: 1920,
+            height: 1088, // 超过 1048576 像素限制
+            steps: 35, // 超过 28 步限制
+          ),
+          onConfirmPaidGeneration: ({required params, required reasons}) async {
+            confirmationRequested = true;
+            recordedReasons = reasons;
+            return false; // 用户拒绝
+          },
+        );
 
-      final result = await tool.execute('call_gen_paid', {});
-      expect(confirmationRequested, isTrue);
-      expect(recordedReasons.length, equals(2));
-      expect(result.isError, isTrue);
-      expect(result.content, contains('已取消生成'));
-      expect(result.content, contains('用户已拒绝扣费'));
-    });
+        final result = await tool.execute('call_gen_paid', {});
+        expect(confirmationRequested, isTrue);
+        expect(recordedReasons.length, equals(2));
+        expect(result.isError, isTrue);
+        expect(result.content, contains('已取消生成'));
+        expect(result.content, contains('用户已拒绝扣费'));
+      },
+    );
   });
 }
-

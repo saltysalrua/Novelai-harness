@@ -83,7 +83,6 @@ class StudioViewModel extends ChangeNotifier {
   AgentPreset get currentPreset => _harness.currentPreset;
   List<AgentPreset> get presets =>
       _config.presets.isNotEmpty ? _config.presets : BuiltinPresets.all;
-  Skill get currentSkill => _harness.currentSkill;
   String? get statusMessage => _statusMessage;
   String? get errorMessage => _errorMessage;
 
@@ -220,9 +219,7 @@ class StudioViewModel extends ChangeNotifier {
     );
     _toolRegistry.register(AskUserTool(onAsk: _presentQuestionsToUser));
     _toolRegistry.register(
-      NovelAiGetStudioParamsTool(
-        getCurrentParams: () => _params,
-      ),
+      NovelAiGetStudioParamsTool(getCurrentParams: () => _params),
     );
     _toolRegistry.register(
       NovelAiUpdateParamsTool(
@@ -234,7 +231,16 @@ class StudioViewModel extends ChangeNotifier {
     );
     _toolRegistry.register(
       LoadSkillTool(
-        skillResolver: (name) => _skillRegistry.get(name),
+        // 仅允许加载当前预设开放的技能，防止越权读取
+        skillResolver: (name) {
+          final skill = _skillRegistry.get(name);
+          if (skill == null) return null;
+          return _harness.currentPreset.enabledSkillIds.contains(skill.id)
+              ? skill
+              : null;
+        },
+        availableSkillIds: () =>
+            _harness.currentPreset.enabledSkillIds.toList(),
       ),
     );
 
@@ -501,13 +507,6 @@ class StudioViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 兼容老接口：切换 Agent 当前技能
-  void selectSkill(Skill skill) {
-    _harness.setSkill(skill);
-    _harness.addInfoMessage('已切换为技能: 【${skill.name}】\n${skill.description}');
-    notifyListeners();
-  }
-
   /// 保存/更新自定义技能
   Future<void> saveCustomSkill(Skill skill) async {
     _skillRegistry.register(skill);
@@ -526,8 +525,9 @@ class StudioViewModel extends ChangeNotifier {
   /// 删除自定义技能
   Future<void> deleteCustomSkill(String skillId) async {
     _skillRegistry.unregister(skillId);
-    final customList =
-        _config.customSkills.where((s) => s.id != skillId).toList();
+    final customList = _config.customSkills
+        .where((s) => s.id != skillId)
+        .toList();
     _config = _config.copyWith(customSkills: customList);
     await _configService.saveConfig(_config);
     notifyListeners();
@@ -558,8 +558,9 @@ class StudioViewModel extends ChangeNotifier {
   /// 删除自定义扩展工具
   Future<void> deleteCustomTool(String toolName) async {
     _toolRegistry.unregister(toolName);
-    final customTools =
-        _config.customTools.where((t) => t.name != toolName).toList();
+    final customTools = _config.customTools
+        .where((t) => t.name != toolName)
+        .toList();
     _config = _config.copyWith(customTools: customTools);
     await _configService.saveConfig(_config);
     notifyListeners();
@@ -766,8 +767,9 @@ class StudioViewModel extends ChangeNotifier {
             msg.providerModelKey != null &&
             (msg.usage?.total ?? 0) > 0) {
           final key = msg.providerModelKey!;
-          updatedUsage[key] =
-              (updatedUsage[key] ?? const TokenUsage()).add(msg.usage!);
+          updatedUsage[key] = (updatedUsage[key] ?? const TokenUsage()).add(
+            msg.usage!,
+          );
         }
       }
       _sessionModelUsage = updatedUsage;
@@ -866,8 +868,7 @@ class StudioViewModel extends ChangeNotifier {
         final costStatus = _params.isOpusFree
             ? '符合 Opus 免费区间 (0 Anlas)'
             : '超出免费区间 (将消耗点数)';
-        _harness.addInfoMessage(
-          '''工作台当前生图参数：
+        _harness.addInfoMessage('''工作台当前生图参数：
 • 正向提示词: ${_params.prompt.isEmpty ? '(空)' : _params.prompt}
 • 负向提示词: ${_params.negativePrompt.isEmpty ? '(空)' : _params.negativePrompt}
 • 绘图模型: ${_params.model.label} (${_params.model.id})
@@ -877,14 +878,15 @@ class StudioViewModel extends ChangeNotifier {
 • 采样算法: ${_params.sampler.label} (${_params.sampler.id})
 • 噪声调度: ${_params.noiseSchedule.label} (${_params.noiseSchedule.id})
 • 随机种子: ${_params.seed == -1 ? '随机 (-1)' : _params.seed}
-• Opus 状态: $costStatus''',
-        );
+• Opus 状态: $costStatus''');
         notifyListeners();
         break;
 
       case '/preset':
         if (args.isEmpty) {
-          final listStr = presets.map((p) => '• ${p.name} (${p.id})').join('\n');
+          final listStr = presets
+              .map((p) => '• ${p.name} (${p.id})')
+              .join('\n');
           _harness.addInfoMessage('可用预设列表：\n$listStr\n用法: /preset <预设名称或ID>');
         } else {
           final target = presets.firstWhere(
@@ -900,12 +902,16 @@ class StudioViewModel extends ChangeNotifier {
 
       case '/skill':
         if (args.isEmpty) {
-          final listStr = BuiltinSkills.all.map((s) => '• ${s.id}: ${s.name}').join('\n');
+          final listStr = availableSkills
+              .map((s) => '• ${s.id}: ${s.name}')
+              .join('\n');
           _harness.addInfoMessage('可用技能列表：\n$listStr\n用法: /skill <技能名称或ID>');
         } else {
-          final skill = BuiltinSkills.findById(args);
+          final skill = _skillRegistry.get(args);
           if (skill != null) {
-            _harness.addInfoMessage('【Skill 已载入】${skill.name}\n${skill.description}\n\n${skill.systemPrompt}');
+            _harness.addInfoMessage(
+              '【Skill 已载入】${skill.name}\n${skill.description}\n\n${skill.systemPrompt}',
+            );
           } else {
             _harness.addInfoMessage('未找到技能 "$args"，输入 /skill 查看可用技能。');
           }
@@ -1047,14 +1053,8 @@ class StudioViewModel extends ChangeNotifier {
         question: '本次生图参数（$reasonText）超出了 Opus 免费区间，将消耗 Anlas 点数。是否确认生成？',
         allowCustomInput: false,
         options: const [
-          AgentQuestionOption(
-            label: '确认生成',
-            description: '使用当前参数直接生图并扣除点数',
-          ),
-          AgentQuestionOption(
-            label: '取消生图',
-            description: '取消本次生成，调整参数至免费区间',
-          ),
+          AgentQuestionOption(label: '确认生成', description: '使用当前参数直接生图并扣除点数'),
+          AgentQuestionOption(label: '取消生图', description: '取消本次生成，调整参数至免费区间'),
         ],
       ),
     ]);

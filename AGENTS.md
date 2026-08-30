@@ -73,7 +73,10 @@ Novelai-harness/
 │           │   └── widgets/
 │           │       ├── model_card.dart         # 模型小卡片 (选中态/能力胶囊/设置按钮)
 │           │       ├── model_profile_dialog.dart # 单模型设置弹窗 (名称/ID/温度/能力)
-│           │       └── preset_editor_dialog.dart # 预设编辑弹窗 (系统提示词/Skill库/开放工具与参数)
+│           │       ├── skill_card.dart          # 技能小卡片 (启用开关/导出/编辑)
+│           │       ├── skill_editor_dialog.dart  # 自定义技能编辑弹窗 (SKILL.md 导入导出)
+│           │       ├── tool_card.dart           # 工具小卡片 (启用开关/Schema 查看)
+│           │       └── tool_editor_dialog.dart  # 自定义模板工具编辑弹窗
 │           └── studio/
 │               ├── view_models/
 │               │   └── studio_view_model.dart  # Studio 状态管理中枢 (MVVM)
@@ -89,7 +92,13 @@ Novelai-harness/
 │                   ├── generate_dock.dart       # 底部操作坞：账号/体力/免点 + 生成按钮
 │                   ├── resolution_pad_picker.dart # 2D 可视化分辨率画板
 │                   ├── image_canvas_card.dart  # 中间：大图交互画板与历史轮播
-│                   ├── agent_chat_card.dart    # 右侧：AI 对话流与 Slash 命令行
+│                   ├── agent_chat_card.dart    # 右侧：AI 对话卡主壳 (三视图切换+布局组装)
+│                   ├── agent_chat_messages.dart # 对话消息平铺渲染块 (user/assistant/toolCall/toolResult/流式)
+│                   ├── agent_chat_blocks.dart  # 折叠块与思考块通用组件
+│                   ├── agent_chat_input_bar.dart # 对话底部模型/思考强度切换与输入发送栏
+│                   ├── agent_rewind_view.dart   # 历史时刻回溯视图 (双击 ESC 进入)
+│                   ├── agent_session_list_view.dart # 会话管理列表视图
+│                   ├── inline_agent_question_card.dart # ask_user 内嵌提问卡片
 │                   ├── agent_ask_dialog.dart   # ask_user 工具的提问对话框 (选项+自定义输入)
 │                   ├── pill_widgets.dart       # 胶囊控件复用 (PillDropdown / ToggleChip)
 │                   ├── editable_slider.dart    # 数值微调滑块 (整型/浮点统一实现)
