@@ -136,7 +136,9 @@ class SlashSuggestionPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       elevation: 6,
+      shadowColor: Colors.black.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+      clipBehavior: Clip.antiAlias,
       color: AppTheme.pureWhite,
       child: Container(
         constraints: BoxConstraints(maxHeight: rowHeight * maxVisibleRows),

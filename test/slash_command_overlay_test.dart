@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
 import 'package:novelai_harness/core/harness/skills/skills.dart';
@@ -103,4 +104,71 @@ void main() {
       expect(result, isEmpty);
     });
   });
+
+  testWidgets('SlashSuggestionPanel size inside OverlayPortal', (tester) async {
+    final suggestions = buildSlashSuggestions(
+      text: '/',
+      skills: const [],
+      presets: const [],
+    );
+
+    final controller = OverlayPortalController();
+    final link = LayerLink();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              Positioned(
+                bottom: 20,
+                left: 100,
+                child: CompositedTransformTarget(
+                  link: link,
+                  child: Container(
+                    width: 300,
+                    height: 40,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+              OverlayPortal(
+                controller: controller,
+                overlayChildBuilder: (context) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: CompositedTransformFollower(
+                      link: link,
+                      targetAnchor: Alignment.topLeft,
+                      followerAnchor: Alignment.bottomLeft,
+                      offset: const Offset(0, -6),
+                      showWhenUnlinked: false,
+                      child: SizedBox(
+                        width: 300,
+                        child: SlashSuggestionPanel(
+                          suggestions: suggestions,
+                          selectedIndex: 0,
+                          onSelected: (_) {},
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    controller.show();
+    await tester.pump();
+
+    final panelFinder = find.byType(SlashSuggestionPanel);
+    expect(panelFinder, findsOneWidget);
+    final size = tester.getSize(panelFinder);
+    expect(size.width, 300.0);
+    expect(size.height, 204.0);
+  });
 }
+

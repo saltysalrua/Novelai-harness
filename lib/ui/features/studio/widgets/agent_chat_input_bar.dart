@@ -92,8 +92,12 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       return;
     }
 
+    final width = _inputFieldKey.currentContext?.size?.width;
     setState(() {
       _suggestions = suggestions;
+      if (width != null && width > 0) {
+        _fieldWidth = width;
+      }
       if (_selectedIndex >= suggestions.length) _selectedIndex = 0;
     });
     _measureFieldWidth();
@@ -171,23 +175,26 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 悬浮于输入框上方的补全面板 (Overlay + Follower 锚定)
   Widget _buildSlashOverlay(BuildContext overlayContext) {
     if (_suggestions.isEmpty) return const SizedBox.shrink();
-    return CompositedTransformFollower(
-      link: _layerLink,
-      targetAnchor: Alignment.topLeft,
-      followerAnchor: Alignment.bottomLeft,
-      offset: const Offset(0, -6),
-      showWhenUnlinked: false,
-      child: SizedBox(
-        width: _fieldWidth,
-        child: SlashSuggestionPanel(
-          suggestions: _suggestions,
-          selectedIndex: _selectedIndex,
-          onSelected: (index) => _applySuggestion(_suggestions[index]),
-          onHovered: (index) {
-            if (index != _selectedIndex) {
-              setState(() => _selectedIndex = index);
-            }
-          },
+    return Align(
+      alignment: Alignment.topLeft,
+      child: CompositedTransformFollower(
+        link: _layerLink,
+        targetAnchor: Alignment.topLeft,
+        followerAnchor: Alignment.bottomLeft,
+        offset: const Offset(0, -6),
+        showWhenUnlinked: false,
+        child: SizedBox(
+          width: _fieldWidth,
+          child: SlashSuggestionPanel(
+            suggestions: _suggestions,
+            selectedIndex: _selectedIndex,
+            onSelected: (index) => _applySuggestion(_suggestions[index]),
+            onHovered: (index) {
+              if (index != _selectedIndex) {
+                setState(() => _selectedIndex = index);
+              }
+            },
+          ),
         ),
       ),
     );
