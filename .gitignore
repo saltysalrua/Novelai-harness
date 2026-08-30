@@ -28,10 +28,19 @@ migrate_working_dir/
 # Reference repositories (external projects for feature reference only)
 /reference/
 
-# Local Output & Configurations
+# Local Output & Configurations & Secrets
 /NovelAI_Output/
 *.local.json
 .env*
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+secrets.json
+credentials.json
+api_keys.json
+key.properties
 
 # Flutter/Dart/Pub related
 **/doc/api/
