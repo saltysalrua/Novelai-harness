@@ -21,10 +21,10 @@ class NovelAiRepository {
     int maxImages = 50,
   }) async {
     _history.clear();
-    if (saveDir.isEmpty) return _history;
+    if (saveDir.isEmpty) return List.unmodifiable(_history);
 
     final historyFile = File(p.join(saveDir, 'image_history.json'));
-    if (!historyFile.existsSync()) return _history;
+    if (!historyFile.existsSync()) return List.unmodifiable(_history);
 
     try {
       final content = await historyFile.readAsString();
@@ -39,11 +39,9 @@ class NovelAiRepository {
               if (imgFile.existsSync()) {
                 try {
                   final bytes = await imgFile.readAsBytes();
-                  final img = NaiGeneratedImage.fromJson(
-                    item,
-                    bytes: bytes,
+                  _history.add(
+                    NaiGeneratedImage.fromJson(item, bytes: bytes),
                   );
-                  _history.add(img);
                 } catch (_) {}
               }
             }
@@ -54,7 +52,8 @@ class NovelAiRepository {
     return List.unmodifiable(_history);
   }
 
-  /// 将当前历史记录保存至本地存储目录 (自动裁剪至 maxImages)
+  /// 将当前历史记录保存至本地存储目录 (自动裁剪至 maxImages)。
+  /// [enabled] 为 false 时删除持久化文件 (设置页关闭持久化时调用)。
   Future<void> savePersistedHistory({
     required String saveDir,
     int maxImages = 50,
@@ -85,6 +84,43 @@ class NovelAiRepository {
     } catch (_) {}
   }
 
+  /// 确保保存目录存在并写入图片文件，返回落盘路径 (目录为空或写入失败返回 null)
+  String? _writeImageFile(String saveDir, String fileName, List<int> bytes) {
+    if (saveDir.isEmpty) return null;
+    final dir = Directory(saveDir);
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+    final filePath = p.join(saveDir, fileName);
+    try {
+      File(filePath).writeAsBytesSync(bytes);
+      return filePath;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 构造生成结果并插入历史头部
+  NaiGeneratedImage _recordGenerated({
+    required String id,
+    required List<int> bytes,
+    String? filePath,
+    required NaiGenerationParams params,
+    required int seed,
+  }) {
+    final image = NaiGeneratedImage(
+      id: id,
+      bytes: bytes,
+      localFilePath: filePath,
+      params: params,
+      createdAt: DateTime.now(),
+      seed: seed,
+      isOpusFree: params.isOpusFree,
+    );
+    _history.insert(0, image);
+    return image;
+  }
+
   /// 执行流式生图 (实时输出中间去噪步数帧并在最终完成时落盘存入历史)
   Stream<NaiStreamProgress> generateStream({
     required String apiKey,
@@ -108,37 +144,24 @@ class NovelAiRepository {
       if (progress.isFinal && progress.finalImage != null) {
         final now = DateTime.now();
         final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
-        final id = '${now.millisecondsSinceEpoch}_0';
-        String? filePath;
-
-        if (saveDir.isNotEmpty) {
-          final dir = Directory(saveDir);
-          if (!dir.existsSync()) {
-            dir.createSync(recursive: true);
-          }
-          final fileName = 'nai_${timeStr}_$effectiveSeed.png';
-          filePath = p.join(saveDir, fileName);
-          try {
-            File(filePath).writeAsBytesSync(progress.finalImage!);
-          } catch (_) {}
-        }
-
-        final generatedImage = NaiGeneratedImage(
-          id: id,
-          bytes: progress.finalImage!,
-          localFilePath: filePath,
-          params: requestParams,
-          createdAt: now,
-          seed: effectiveSeed,
-          isOpusFree: requestParams.isOpusFree,
+        final filePath = _writeImageFile(
+          saveDir,
+          'nai_${timeStr}_$effectiveSeed.png',
+          progress.finalImage!,
         );
 
-        _history.insert(0, generatedImage);
+        final generatedImage = _recordGenerated(
+          id: '${now.millisecondsSinceEpoch}_0',
+          bytes: progress.finalImage!,
+          filePath: filePath,
+          params: requestParams,
+          seed: effectiveSeed,
+        );
+
         if (enablePersistence && saveDir.isNotEmpty) {
           await savePersistedHistory(
             saveDir: saveDir,
             maxImages: maxImages,
-            enabled: enablePersistence,
           );
         }
 
@@ -175,48 +198,28 @@ class NovelAiRepository {
     final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
     final results = <NaiGeneratedImage>[];
 
-    // 确保保存目录存在
-    if (saveDir.isNotEmpty) {
-      final dir = Directory(saveDir);
-      if (!dir.existsSync()) {
-        dir.createSync(recursive: true);
-      }
-    }
-
-    for (int i = 0; i < imageBytesList.length; i++) {
+    for (var i = 0; i < imageBytesList.length; i++) {
       final bytes = imageBytesList[i];
-      final id = '${now.millisecondsSinceEpoch}_$i';
-      String? filePath;
+      final fileName = imageBytesList.length == 1
+          ? 'nai_${timeStr}_$effectiveSeed.png'
+          : 'nai_${timeStr}_${effectiveSeed}_${i + 1}.png';
+      final filePath = _writeImageFile(saveDir, fileName, bytes);
 
-      if (saveDir.isNotEmpty) {
-        final fileName = imageBytesList.length == 1
-            ? 'nai_${timeStr}_$effectiveSeed.png'
-            : 'nai_${timeStr}_${effectiveSeed}_${i + 1}.png';
-        filePath = p.join(saveDir, fileName);
-        try {
-          File(filePath).writeAsBytesSync(bytes);
-        } catch (_) {}
-      }
-
-      final image = NaiGeneratedImage(
-        id: id,
-        bytes: bytes,
-        localFilePath: filePath,
-        params: requestParams,
-        createdAt: now,
-        seed: effectiveSeed,
-        isOpusFree: requestParams.isOpusFree,
+      results.add(
+        _recordGenerated(
+          id: '${now.millisecondsSinceEpoch}_$i',
+          bytes: bytes,
+          filePath: filePath,
+          params: requestParams,
+          seed: effectiveSeed,
+        ),
       );
-
-      _history.insert(0, image);
-      results.add(image);
     }
 
     if (enablePersistence && saveDir.isNotEmpty) {
       await savePersistedHistory(
         saveDir: saveDir,
         maxImages: maxImages,
-        enabled: enablePersistence,
       );
     }
 
@@ -240,20 +243,14 @@ class NovelAiRepository {
 
     final now = DateTime.now();
     final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
-    final id = '${now.millisecondsSinceEpoch}_upscaled';
-    String? filePath;
-
-    if (saveDir.isNotEmpty) {
-      final fileName =
-          'nai_${timeStr}_upscaled_${scale}x_${sourceImage.seed}.png';
-      filePath = p.join(saveDir, fileName);
-      try {
-        File(filePath).writeAsBytesSync(upscaledBytes);
-      } catch (_) {}
-    }
+    final filePath = _writeImageFile(
+      saveDir,
+      'nai_${timeStr}_upscaled_${scale}x_${sourceImage.seed}.png',
+      upscaledBytes,
+    );
 
     final upscaledImage = NaiGeneratedImage(
-      id: id,
+      id: '${now.millisecondsSinceEpoch}_upscaled',
       bytes: upscaledBytes,
       localFilePath: filePath,
       params: sourceImage.params.copyWith(
@@ -271,7 +268,6 @@ class NovelAiRepository {
       await savePersistedHistory(
         saveDir: saveDir,
         maxImages: maxImages,
-        enabled: enablePersistence,
       );
     }
 
@@ -296,7 +292,7 @@ class NovelAiRepository {
     return await _service.fetchAccountInfo(apiKey: apiKey);
   }
 
-  /// 清理历史
+  /// 清理历史 (传 saveDir 时一并删除持久化索引文件)
   void clearHistory({String? saveDir}) {
     _history.clear();
     if (saveDir != null && saveDir.isNotEmpty) {

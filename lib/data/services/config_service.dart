@@ -67,10 +67,7 @@ class AppConfig {
   }
 
   // 向后兼容快捷访问属性
-  String get llmBaseUrl => activeLlmProvider.baseUrl;
-  String get llmApiKey => activeLlmProvider.apiKey;
-  String get llmModel => activeLlmProvider.model;
-  double get llmTemperature => activeLlmProvider.temperature;
+  double get llmTemperature => activeLlmProvider.activeModel.temperature;
 
   const AppConfig({
     this.novelAiKey = '',
@@ -132,36 +129,9 @@ class AppConfig {
     String? activePresetId,
     List<Skill>? customSkills,
     List<CustomAgentTool>? customTools,
-    // 兼容老调用单字段设置
-    String? llmBaseUrl,
-    String? llmApiKey,
-    String? llmModel,
-    double? llmTemperature,
   }) {
     var updatedProviders = llmProviders ?? this.llmProviders;
     var targetActiveId = activeLlmProviderId ?? this.activeLlmProviderId;
-
-    if (llmBaseUrl != null ||
-        llmApiKey != null ||
-        llmModel != null ||
-        llmTemperature != null) {
-      final currentList =
-          (updatedProviders.isNotEmpty
-                  ? updatedProviders
-                  : LlmProviderConfig.defaultProviders)
-              .toList();
-      final index = currentList.indexWhere((p) => p.id == targetActiveId);
-      if (index >= 0) {
-        final current = currentList[index];
-        currentList[index] = current.copyWith(
-          baseUrl: llmBaseUrl,
-          apiKey: llmApiKey,
-          model: llmModel,
-          temperature: llmTemperature,
-        );
-      }
-      updatedProviders = currentList;
-    }
 
     return AppConfig(
       novelAiKey: novelAiKey ?? this.novelAiKey,
@@ -552,8 +522,11 @@ class ConfigService {
     final active = config.activeLlmProvider;
     await prefs.setString(_keyLlmBaseUrl, active.baseUrl);
     await prefs.setString(_keyLlmApiKey, active.apiKey);
-    await prefs.setString(_keyLlmModel, active.model);
-    await prefs.setDouble(_keyLlmTemperature, active.temperature);
+    await prefs.setString(_keyLlmModel, active.activeModel.id);
+    await prefs.setDouble(
+      _keyLlmTemperature,
+      active.activeModel.temperature,
+    );
   }
 
   /// 加载上次保存的草稿提示词

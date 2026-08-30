@@ -48,7 +48,14 @@ Novelai-harness/
 │   │
 │   ├── data/                                   # 数据层
 │   │   ├── models/
-│   │   │   ├── novelai_models.dart             # 模型、采样器、分辨率预设、请求/响应与账号结构
+│   │   │   ├── novelai_models.dart             # 聚合出口 barrel (转发导出下列拆分文件，保持旧 import 路径不变)
+│   │   │   ├── nai_catalog.dart                # NaiModel/采样器/噪声调度/分辨率预设枚举
+│   │   │   ├── nai_character_prompt.dart       # 多角色提示词与位置布局模型
+│   │   │   ├── nai_generation_params.dart      # 生图参数与官方 payload 构建
+│   │   │   ├── nai_image_result.dart           # 生成结果图片与流式进度数据
+│   │   │   ├── nai_account_info.dart           # 账号/体力池与 Tag 联想响应
+│   │   │   ├── nai_prompt_presets.dart         # 质量词/UC 预设与提示词文本后处理
+│   │   │   ├── llm_models.dart                # LLM 协议/思考强度/模型与供应商配置
 │   │   │   └── tag_models.dart                 # Danbooru 标签分类、联想条目与 NovelAI Token 结构
 │   │   ├── services/
 │   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与 Zip 解包

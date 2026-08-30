@@ -30,7 +30,6 @@ void main() {
         nSamples: 1,
         qualityToggle: true,
         qualityPreset: 'Standard',
-        ucPreset: 1,
         ucPresetKey: 'Heavy',
         transparentBg: false,
         prefixPrompt: 'masterpiece',

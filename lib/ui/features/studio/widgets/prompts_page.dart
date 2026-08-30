@@ -102,16 +102,9 @@ class _PromptsPageState extends State<PromptsPage> {
 
   void _applyUcPreset(String presetKey) {
     setState(() => _ucPreset = presetKey);
-    final ucInt = switch (presetKey) {
-      'Heavy' => 0,
-      'Light' => 1,
-      'Human Focus' => 2,
-      'Furry Focus' => 7,
-      _ => 3, // None
-    };
     final viewModel = widget.viewModel;
     viewModel.updateParams(
-      viewModel.params.copyWith(ucPresetKey: presetKey, ucPreset: ucInt),
+      viewModel.params.copyWith(ucPresetKey: presetKey),
     );
   }
 
@@ -219,9 +212,7 @@ class _PromptsPageState extends State<PromptsPage> {
 
   /// 负面提示词底部工具条：UC Preset 下拉 (与正向卡 Quality Tags 严格右对齐，自适应防溢出)
   Widget _negativeToolbar(NaiGenerationParams params) {
-    final presets = NovelAiUndesiredContentHelper.getAvailablePresets(
-      params.model,
-    );
+    final presets = NovelAiUndesiredContentHelper.availablePresets;
     return Row(
       children: [
         Expanded(
