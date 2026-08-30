@@ -198,7 +198,7 @@ mixin _StudioChatMixin on _StudioCore {
       if (msg.role == AgentRole.assistant &&
           msg.providerModelKey != null &&
           (msg.usage?.total ?? 0) > 0) {
-        final key = msg.providerModelKey!;
+        final key = displayNameForModelKey(msg.providerModelKey!);
         updatedUsage[key] = (updatedUsage[key] ?? const TokenUsage()).add(
           msg.usage!,
         );

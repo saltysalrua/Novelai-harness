@@ -126,7 +126,10 @@ mixin _StudioHarnessMixin on _StudioCore {
     // 配置 LLM Provider
     final activeLlm = _config.activeLlmProvider;
     final activeModel = activeLlm.activeModel;
-    _harness.providerLabel = activeLlm.id;
+    // 供应商标识优先用用户设定的名称 (id 可能是迁移生成的 provider_时间戳)
+    _harness.providerLabel = activeLlm.name.isNotEmpty
+        ? activeLlm.name
+        : activeLlm.id;
     if (activeLlm.apiKey.isNotEmpty) {
       final isReasoningActive =
           activeModel.supportsThinking &&

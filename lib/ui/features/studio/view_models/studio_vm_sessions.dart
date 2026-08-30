@@ -18,7 +18,10 @@ mixin _StudioSessionsMixin on _StudioCore {
     final snapshot = _sessionLog.loadSession(sessionId);
     if (snapshot != null) {
       _harness.setMessages(snapshot.messages);
-      _sessionModelUsage = Map.of(snapshot.sessionUsage);
+      _sessionModelUsage = {
+        for (final e in snapshot.sessionUsage.entries)
+          displayNameForModelKey(e.key): e.value,
+      };
       if (snapshot.thinkingLevel != null) {
         final effort = ThinkingEffort.fromId(snapshot.thinkingLevel);
         if (effort != _currentThinkingEffort) {

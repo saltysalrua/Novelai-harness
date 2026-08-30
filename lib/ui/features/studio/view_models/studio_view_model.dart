@@ -200,9 +200,48 @@ mixin _StudioCore on ChangeNotifier {
   /// Token 用量账本 (供设置页 Bill 页与统计使用)
   UsageLedgerService get usageLedger => _usageLedger;
 
-  /// 按周期聚合账单
-  BillSummary buildBillSummary(BillPeriod period) =>
-      _usageLedger.aggregate(period);
+  /// 将 "provider/model" 用量键中的供应商 id 映射为用户设定的供应商名称。
+  /// 旧账本/旧会话记录的可能是 id (如 provider_173...)，统一按名称展示。
+  String displayNameForModelKey(String key) {
+    final slash = key.indexOf('/');
+    if (slash <= 0) return key;
+    final providerPart = key.substring(0, slash);
+    for (final p in _config.llmProviders) {
+      if (p.id == providerPart && p.name.isNotEmpty) {
+        return '${p.name}${key.substring(slash)}';
+      }
+    }
+    return key;
+  }
+
+  /// 按周期聚合账单 (供应商 id 自动映射为名称，同名行合并)
+  BillSummary buildBillSummary(BillPeriod period) {
+    final summary = _usageLedger.aggregate(period);
+    if (summary.models.isEmpty) return summary;
+
+    final merged = <String, BillModelUsage>{};
+    var remapped = false;
+    for (final row in summary.models) {
+      final displayName = displayNameForModelKey(row.name);
+      if (displayName != row.name) remapped = true;
+      final existing = merged[displayName];
+      merged[displayName] = BillModelUsage(
+        name: displayName,
+        requests: (existing?.requests ?? 0) + row.requests,
+        usage: (existing?.usage ?? const TokenUsage()).add(row.usage),
+      );
+    }
+    if (!remapped) return summary;
+
+    final models = merged.values.toList()
+      ..sort((a, b) => b.usage.total.compareTo(a.usage.total));
+    return BillSummary(
+      period: period,
+      requests: summary.requests,
+      usage: summary.usage,
+      models: models,
+    );
+  }
 
   // ------------------------- 共享参数入口 -------------------------
 
@@ -376,7 +415,10 @@ class StudioViewModel extends ChangeNotifier
     final snapshot = _sessionLog.loadLatestSession();
     if (snapshot != null && snapshot.messages.isNotEmpty) {
       _harness.restoreMessages(snapshot.messages);
-      _sessionModelUsage = Map.of(snapshot.sessionUsage);
+      _sessionModelUsage = {
+        for (final e in snapshot.sessionUsage.entries)
+          displayNameForModelKey(e.key): e.value,
+      };
     }
     _sessionLog.recordModelChange(
       _config.activeLlmProvider.id,
