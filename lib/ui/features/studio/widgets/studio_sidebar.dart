@@ -45,6 +45,15 @@ class StudioSidebar extends StatelessWidget {
             label: '提示词',
             isSelected: activeTab == StudioSidebarTab.prompts,
           ),
+          const SizedBox(height: 6),
+
+          // 导航分类项：词库 (覆盖三栏的沉浸式管理)
+          _buildTabItem(
+            tab: StudioSidebarTab.library,
+            icon: Icons.collections_bookmark_outlined,
+            label: '词库',
+            isSelected: activeTab == StudioSidebarTab.library,
+          ),
 
           const Spacer(),
 

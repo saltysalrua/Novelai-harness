@@ -229,4 +229,87 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
     // 验证：数值权重语法保持合法，逗号在 :: 之后
     expect(controller.text, '1.2::long hair::, ');
   });
+
+  testWidgets('applies prompt combo auto-complete suggestion by inserting full prompt', (tester) async {
+    final controller = TextEditingController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(20),
+            child: ResizableTextField(
+              controller: controller,
+              onChanged: (val) {},
+              hintText: '输入提示词...',
+              defaultHeight: 120,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final textFieldFinder = find.byType(TextField);
+    await tester.tap(textFieldFinder);
+    await tester.pump();
+
+    // 输入 "水彩"
+    await tester.enterText(textFieldFinder, '水彩');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 应该弹出词库中的“日系二次元水彩风”，并带有“风格”分类胶囊与“词库”标识
+    expect(find.textContaining('日系二次元水彩风'), findsOneWidget);
+    expect(find.text('风格'), findsOneWidget);
+    expect(find.text('词库'), findsAtLeast(1));
+
+    // 点击该建议项
+    await tester.tap(find.textContaining('日系二次元水彩风'));
+    await tester.pumpAndSettle();
+
+    // 验证：成功将整个主提示词插入上屏并追加逗号
+    expect(controller.text, contains('watercolor style, delicate paint splashes'));
+    expect(controller.text.endsWith(', '), isTrue);
+  });
+
+  testWidgets('applies character prompt combo auto-complete and only inserts main prompt without negative', (tester) async {
+    final controller = TextEditingController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(20),
+            child: ResizableTextField(
+              controller: controller,
+              onChanged: (val) {},
+              hintText: '输入提示词...',
+              defaultHeight: 120,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final textFieldFinder = find.byType(TextField);
+    await tester.tap(textFieldFinder);
+    await tester.pump();
+
+    // 输入 "初音"
+    await tester.enterText(textFieldFinder, '初音');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 应该弹出词库中的“初音未来 (Hatsune Miku)”，并带有“角色”分类胶囊与“词库”标识
+    expect(find.textContaining('初音未来 (Hatsune Miku)'), findsOneWidget);
+    expect(find.text('角色'), findsOneWidget);
+    expect(find.text('词库'), findsAtLeast(1));
+
+    // 点击该建议项
+    await tester.tap(find.textContaining('初音未来 (Hatsune Miku)'));
+    await tester.pumpAndSettle();
+
+    // 验证：成功将初音的主提示词插入上屏，且不包含负面词 (lowres/bad anatomy)
+    expect(controller.text, contains('1girl, hatsune miku, vocaloid'));
+    expect(controller.text.contains('bad hands'), isFalse);
+    expect(controller.text.endsWith(', '), isTrue);
+  });
 }

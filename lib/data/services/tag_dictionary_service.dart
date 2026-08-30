@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/tag_models.dart';
+import 'prompt_library_service.dart';
 
 /// 内部词条结构 (内存极简化存储，节省内存开销；查询用的小写/空格形态在解析时一次性预计算)
 class _DictEntry {
@@ -135,6 +136,9 @@ class TagDictionaryService {
     return _loadingFuture ??= _load(rawTsvContent);
   }
 
+  /// 清空查询结果缓存 (词库内容变更后调用，防止陈旧建议残留)
+  void clearQueryCache() => _queryCache.clear();
+
   /// 用外部下载的新词库内容整体热替换当前词库 (在线更新完成后调用)
   Future<void> replaceWithContent(String rawTsv) async {
     // 若正在加载旧词库，先等它结束，避免状态交叉
@@ -194,15 +198,24 @@ class TagDictionaryService {
     String query, {
     int limit = 10,
     DanbooruTagCategory? category,
+    bool includePromptCombos = true,
   }) async {
-    await ensureLoaded();
-    final entries = _entries;
-    if (entries == null || entries.isEmpty) return const [];
-
     final rawQ = query.trim().toLowerCase();
     if (rawQ.isEmpty) return const [];
 
-    final cacheKey = '$rawQ|${category?.code ?? -1}|$limit';
+    // 1. 若无特定 Danbooru 分类过滤，检索词库中的所有自定义词组合
+    final comboMatches = (category == null && includePromptCombos)
+        ? PromptLibraryService.instance.searchAsSuggestions(query, limit: 5)
+        : const <TagSuggestion>[];
+
+    await ensureLoaded();
+    final entries = _entries;
+    if (entries == null || entries.isEmpty) {
+      return comboMatches.take(limit).toList();
+    }
+
+    final cacheKey =
+        '$rawQ|${category?.code ?? -1}|$limit|$includePromptCombos';
     final hit = _queryCache[cacheKey];
     if (hit != null) return hit;
 
@@ -210,7 +223,7 @@ class TagDictionaryService {
     final qSpace = rawQ.replaceAll('_', ' ');
     final isCjk = rawQ.runes.any((r) => r >= 0x4E00 && r <= 0x9FFF);
 
-    final matches = <TagSuggestion>[];
+    final matches = <TagSuggestion>[...comboMatches];
 
     for (final e in entries) {
       if (category != null && e.category != category) continue;
@@ -279,6 +292,7 @@ class TagDictionaryService {
       }
     }
 
+    // 所有条目 (词库 + Danbooru 词典) 参与公平打分排序
     matches.sort((a, b) => b.score.compareTo(a.score));
     final results = matches.take(limit).toList();
 

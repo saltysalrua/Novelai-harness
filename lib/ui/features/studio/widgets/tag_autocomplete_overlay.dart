@@ -340,7 +340,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
 
   void _applySuggestion(TagSuggestion suggestion) {
     final text = widget.controller.text;
-    final tag = suggestion.tag;
+    final tag = suggestion.insertText ?? suggestion.tag;
 
     // 重新提取当前光标处的最新 query 信息
     final queryData = PromptAstEngine.extractActiveQuery(

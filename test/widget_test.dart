@@ -20,6 +20,7 @@ void main() {
     // 1. 验证侧边栏项目
     expect(find.text('参数'), findsWidgets);
     expect(find.text('提示词'), findsOneWidget);
+    expect(find.text('词库'), findsOneWidget);
     expect(find.text('设置'), findsOneWidget);
 
     // 2. 默认参数页内容

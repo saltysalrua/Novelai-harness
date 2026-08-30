@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../data/models/tag_models.dart';
 import '../../../core/theme/app_theme.dart';
 import 'tag_suggestion_tile.dart';
@@ -36,6 +37,8 @@ class TagAutocompleteCard extends StatefulWidget {
 class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
   final ScrollController _scrollController = ScrollController();
   final List<GlobalKey> _itemKeys = [];
+  Offset? _lastPointerPos;
+  DateTime? _lastKeyboardNavTime;
 
   @override
   void initState() {
@@ -52,8 +55,29 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
     // 仅在键盘上下键导航时才检查滚动入视野，鼠标 hover 绝不触发滚动
     if (oldWidget.selectedIndex != widget.selectedIndex &&
         widget.isKeyboardNavigated) {
+      _lastKeyboardNavTime = DateTime.now();
       _scrollToIndex(widget.selectedIndex);
     }
+  }
+
+  void _handlePointerHover(PointerHoverEvent event, int index) {
+    // 1. 若最近 250ms 内刚发生过键盘导航，忽略滚动引起的被动 hover
+    if (_lastKeyboardNavTime != null &&
+        DateTime.now().difference(_lastKeyboardNavTime!).inMilliseconds < 250) {
+      _lastPointerPos = event.position;
+      return;
+    }
+
+    // 2. 检查鼠标是否真的在屏幕上有物理位移 (防止列表滚动时静止鼠标被动触发)
+    if (_lastPointerPos != null) {
+      final delta = (event.position - _lastPointerPos!).distance;
+      if (delta < 2.5) {
+        return;
+      }
+    }
+
+    _lastPointerPos = event.position;
+    widget.onHover(index);
   }
 
   void _updateKeys() {
@@ -125,7 +149,7 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                 return Container(
                   key: itemKey,
                   child: MouseRegion(
-                    onEnter: (_) => widget.onHover(index),
+                    onHover: (e) => _handlePointerHover(e, index),
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
@@ -144,7 +168,10 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                         child: Row(
                           children: [
                             // 分类标识胶囊
-                            TagCategoryPill(category: item.category),
+                            TagCategoryPill(
+                              category: item.category,
+                              customLabel: item.customCategoryLabel,
+                            ),
                             const SizedBox(width: 8),
 
                             // 英文 Tag + 匹配高亮
@@ -177,14 +204,49 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                               ),
                             ),
 
-                            // 别名 / 热度统计
+                            // 词库特殊标识 / 别名 / 热度统计
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                TagCountText(
-                                  formattedCount: item.formattedCount,
-                                ),
+                                if (item.isPromptCombo)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF0EFEB),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: AppTheme.graphite
+                                            .withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.collections_bookmark_outlined,
+                                          size: 10,
+                                          color: AppTheme.charcoal,
+                                        ),
+                                        SizedBox(width: 3),
+                                        Text(
+                                          '词库',
+                                          style: TextStyle(
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.charcoal,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else
+                                  TagCountText(
+                                    formattedCount: item.formattedCount,
+                                  ),
                                 if (item.matchedAlias != null)
                                   Text(
                                     '别名: ${item.matchedAlias}',

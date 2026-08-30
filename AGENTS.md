@@ -55,6 +55,7 @@ Novelai-harness/
 │   │   │   ├── nai_image_result.dart           # 生成结果图片与流式进度数据
 │   │   │   ├── nai_account_info.dart           # 账号/体力池与 Tag 联想响应
 │   │   │   ├── nai_prompt_presets.dart         # 质量词/UC 预设与提示词文本后处理
+│   │   │   ├── prompt_library_models.dart     # 词组合预设分类常量与 PromptComboEntry 模型
 │   │   │   ├── llm_models.dart                # LLM 协议/思考强度/模型与供应商配置
 │   │   │   └── tag_models.dart                 # Danbooru 标签分类、联想条目与 NovelAI Token 结构
 │   │   ├── services/
@@ -64,7 +65,8 @@ Novelai-harness/
 │   │   │   ├── usage_ledger_service.dart       # Token 用量增量账本 (pi-bill 式按天/供应商/模型聚合)
 │   │   │   ├── llm_model_fetcher.dart          # 在线拉取远程 LLM 模型列表与能力元数据解析
 │   │   │   ├── models_dev_catalog.dart         # models.dev 在线模型能力目录 (拉取/缓存/模糊匹配)
-│   │   │   ├── tag_dictionary_service.dart     # 14万+ Danbooru 离线词库检索、多模态反查与缓存服务
+│   │   │   ├── tag_dictionary_service.dart     # 14万+ Danbooru 离线词库检索、多模态反查与缓存服务 (含词组合注入)
+│   │   │   ├── prompt_library_service.dart     # 词组合预设库持久化/检索/预览图管理与 JSON 导入导出
 │   │   │   ├── prompt_ast_engine.dart          # NovelAI 提示词 AST 分词、权重增减与 SD 语法转换引擎
 │   │   │   └── window_state_service.dart       # 桌面端窗口尺寸、坐标与最大化状态监听与防抖持久化服务
 │   │   └── repositories/
@@ -105,6 +107,7 @@ Novelai-harness/
 │               │   ├── studio_vm_sessions.dart  # 会话分部：会话管理/回溯
 │               │   ├── studio_vm_characters.dart # 角色分部：多角色提示词编辑与画板定位
 │               │   ├── studio_vm_slash.dart     # 斜杠分部：斜杠指令分发
+│               │   ├── studio_vm_library.dart  # 词库分部：词组合加载/增删改/导入导出/应用到工作台
 │               │   ├── chat_checkpoints.dart   # 消息树分支检查点 (回溯视图数据结构)
 │               │   ├── param_snapshot_journal.dart # 生图参数快照日志 (参数工具差异记录)
 │               │   └── slash_command_catalog.dart # 内置斜杠指令目录单一数据源 (补全+/help 共用，含 /nai 方向标志解析)
@@ -121,6 +124,9 @@ Novelai-harness/
 │                   ├── prompt_editor_card.dart  # 通用提示词编辑卡 (只读灰色标签+输入框+工具条+快捷操作)
 │                   ├── prompt_edit_actions.dart  # 光标标签操作共享工具 (权重增减/禁用/格式化，快捷键与按钮共用)
 │                   ├── prompt_resize_handle.dart # 高度调节手柄 + ResizableTextField 可拖拽调高输入区 (含快捷键与补全挂载)
+│                   ├── prompt_library_view.dart # 全屏词库管理视图 (顶栏/分类侧栏/词组合网格)
+│                   ├── prompt_combo_card.dart   # 词组合画廊卡片 (预览图+应用叠加条+右键菜单)
+│                   ├── prompt_combo_edit_dialog.dart # 词组合新建/编辑弹窗 (左侧预览图+右侧表单)
 │                   ├── rich_prompt_text_controller.dart # NovelAI 富文本语法高亮控制器 (权重/记号淡显/分类着色/删除线)
 │                   ├── tag_autocomplete_overlay.dart # 补全悬浮锚点 (光标跟随定位/键盘导航/防抖搜索)
 │                   ├── tag_autocomplete_card.dart   # Danbooru 浮动补全建议卡片 (分类胶囊/中英双语/热度/选中滚动置顶)
@@ -171,6 +177,8 @@ Novelai-harness/
 │   ├── prompt_ast_engine_test.dart             # 提示词 AST 分词、权重增减、禁用切换与 SD 语法转换测试
 │   ├── rich_prompt_controller_test.dart        # 富文本语法高亮控制器 TextSpan 渲染测试
 │   ├── tag_autocomplete_overlay_test.dart      # 标签自动补全悬浮窗触发与键盘/鼠标上屏测试
+│   ├── prompt_library_test.dart               # 词组合模型/服务 CRUD/预览图清理/应用与补全建议测试
+│   ├── prompt_library_view_test.dart          # 词库全屏视图与编辑弹窗 Widget 测试
 │   ├── window_state_persistence_test.dart      # 窗口尺寸、位置与最大化状态持久化及防抖测试
 │   └── widget_test.dart                        # 核心组件渲染测试
 │

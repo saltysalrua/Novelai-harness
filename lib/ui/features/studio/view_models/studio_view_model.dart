@@ -13,10 +13,13 @@ import '../../../../core/harness/tools/novelai_tools.dart';
 import '../../../../core/harness/tools/studio_params_tool.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/models/prompt_library_models.dart';
 import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
+import '../../../../data/services/prompt_library_service.dart';
 import '../../../../data/services/session_log_service.dart';
+import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import 'param_snapshot_journal.dart';
@@ -27,10 +30,11 @@ part 'studio_vm_chat.dart';
 part 'studio_vm_generation.dart';
 part 'studio_vm_harness.dart';
 part 'studio_vm_layout.dart';
+part 'studio_vm_library.dart';
 part 'studio_vm_sessions.dart';
 part 'studio_vm_slash.dart';
 
-enum StudioSidebarTab { parameters, prompts }
+enum StudioSidebarTab { parameters, prompts, library }
 
 /// 核心状态 Mixin：集中声明全部状态字段、Getters 与跨分部共享的读写入口。
 ///
@@ -50,10 +54,14 @@ enum StudioSidebarTab { parameters, prompts }
 mixin _StudioCore on ChangeNotifier {
   late final ConfigService _configService;
   late final NovelAiRepository _repository;
+  PromptLibraryService _promptLibraryService = PromptLibraryService.instance;
   final SessionLogService _sessionLog = SessionLogService();
   final UsageLedgerService _usageLedger = UsageLedgerService();
   late final ToolRegistry _toolRegistry;
   late final AgentHarness _harness;
+
+  /// 本地词组合库条目列表
+  List<PromptComboEntry> _promptLibraryEntries = [];
 
   /// 本会话内各模型 (provider/model) 的累计 Token 用量 (悬停模型选择器时展示)
   Map<String, TokenUsage> _sessionModelUsage = {};
@@ -273,6 +281,16 @@ mixin _StudioCore on ChangeNotifier {
     });
   }
 
+  /// 便捷更新主提示词
+  void updatePrompt(String prompt) {
+    updateParams(_params.copyWith(prompt: prompt));
+  }
+
+  /// 便捷更新负面提示词
+  void updateNegativePrompt(String negativePrompt) {
+    updateParams(_params.copyWith(negativePrompt: negativePrompt));
+  }
+
   // ------------- 跨分部方法签名 (由各分部 Mixin 实现) -------------
 
   /// 装配 Harness、注册全部工具并配置 LLM Provider
@@ -338,15 +356,19 @@ class StudioViewModel extends ChangeNotifier
         _StudioChatMixin,
         _StudioSessionsMixin,
         _StudioCharactersMixin,
-        _StudioSlashMixin {
+        _StudioSlashMixin,
+        _StudioLibraryMixin {
   StudioViewModel({
     ConfigService? configService,
     NovelAiRepository? repository,
+    PromptLibraryService? promptLibraryService,
     String? sessionLogBaseDir,
   }) {
     // Mixin 的 late final 字段无法进初始化列表，统一在构造体内注入
     _configService = configService ?? ConfigService();
     _repository = repository ?? NovelAiRepository();
+    _promptLibraryService =
+        promptLibraryService ?? PromptLibraryService.instance;
     _sessionLogBaseDir = sessionLogBaseDir;
     _toolRegistry = ToolRegistry();
     _harness = AgentHarness(
@@ -370,14 +392,19 @@ class StudioViewModel extends ChangeNotifier
     _splitRightWidth = rightWidth;
 
     final savedTabName = await _configService.loadSidebarActiveTab();
-    _activeSidebarTab = savedTabName == 'prompts'
-        ? StudioSidebarTab.prompts
-        : StudioSidebarTab.parameters;
+    _activeSidebarTab = switch (savedTabName) {
+      'prompts' => StudioSidebarTab.prompts,
+      'library' => StudioSidebarTab.library,
+      _ => StudioSidebarTab.parameters,
+    };
 
     _promptTabbedMode = await _configService.loadPromptTabbedMode();
     _promptActiveTab = await _configService.loadPromptActiveTab();
     _deckActiveTab = await _configService.loadDeckActiveTab();
     _canvasHistoryOpen = await _configService.loadCanvasHistoryOpen();
+
+    // 加载词组合库
+    await loadPromptLibrary();
 
     _currentThinkingEffort =
         _config.activeLlmProvider.activeModel.defaultThinkingEffort;

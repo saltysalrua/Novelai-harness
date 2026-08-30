@@ -55,6 +55,15 @@ class TagSuggestion {
   final String? matchedAlias;
   final double score;
 
+  /// 自定义插入文本 (若为词组合等复合条目，插入完整 prompt；为空时插入 tag)
+  final String? insertText;
+
+  /// 自定义分类标签 (如 "风格", "服装", "特效" 等，非空时覆盖标准分类显示)
+  final String? customCategoryLabel;
+
+  /// 是否为来自词库的复合提示词组合
+  final bool isPromptCombo;
+
   const TagSuggestion({
     required this.tag,
     this.category = DanbooruTagCategory.general,
@@ -63,6 +72,9 @@ class TagSuggestion {
     this.aliases = const [],
     this.matchedAlias,
     this.score = 0.0,
+    this.insertText,
+    this.customCategoryLabel,
+    this.isPromptCombo = false,
   });
 
   String get formattedCount => formatTagCount(postCount);

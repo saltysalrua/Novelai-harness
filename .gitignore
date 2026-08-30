@@ -49,6 +49,9 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
+# Stray runtime artifacts (service falls back to cwd if path_provider fails)
+/prompt_library.json
+
 # Platform build artifacts
 /android/app/debug
 /android/app/profile
