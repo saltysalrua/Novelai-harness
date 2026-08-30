@@ -123,52 +123,49 @@ void main() {
       },
     );
 
-    test(
-      'deleteAll then reload stays empty (entries never respawn)',
-      () async {
-        // 先新增两条自定义条目
-        for (var i = 0; i < 2; i++) {
-          await service.addEntry(
-            PromptComboEntry(
-              id: 'e$i',
-              title: '预设$i',
-              category: '风格',
-              prompt: 'prompt $i',
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-            ),
-          );
-        }
-        expect((await service.loadEntries()).length, 2);
-
-        // 删空全部条目 (磁盘上保存空数组)
-        final all = await service.loadEntries();
-        for (final e in all) {
-          await service.deleteEntry(e.id);
-        }
-        expect(await service.loadEntries(), isEmpty);
-
-        // 重启语义：重新加载不得有任何条目复活
-        final reloaded = await service.loadEntries();
-        expect(reloaded, isEmpty);
-        expect(service.cachedEntries, isEmpty);
-
-        // 空词库下新增后重启，仅保留新增条目
+    test('deleteAll then reload stays empty (entries never respawn)', () async {
+      // 先新增两条自定义条目
+      for (var i = 0; i < 2; i++) {
         await service.addEntry(
           PromptComboEntry(
-            id: 'solo_1',
-            title: '唯一预设',
+            id: 'e$i',
+            title: '预设$i',
             category: '风格',
-            prompt: 'solo',
+            prompt: 'prompt $i',
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
           ),
         );
-        final finalList = await service.loadEntries();
-        expect(finalList.length, 1);
-        expect(finalList.first.id, 'solo_1');
-      },
-    );
+      }
+      expect((await service.loadEntries()).length, 2);
+
+      // 删空全部条目 (磁盘上保存空数组)
+      final all = await service.loadEntries();
+      for (final e in all) {
+        await service.deleteEntry(e.id);
+      }
+      expect(await service.loadEntries(), isEmpty);
+
+      // 重启语义：重新加载不得有任何条目复活
+      final reloaded = await service.loadEntries();
+      expect(reloaded, isEmpty);
+      expect(service.cachedEntries, isEmpty);
+
+      // 空词库下新增后重启，仅保留新增条目
+      await service.addEntry(
+        PromptComboEntry(
+          id: 'solo_1',
+          title: '唯一预设',
+          category: '风格',
+          prompt: 'solo',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+      final finalList = await service.loadEntries();
+      expect(finalList.length, 1);
+      expect(finalList.first.id, 'solo_1');
+    });
 
     test('addEntry, updateEntry, deleteEntry CRUD workflow', () async {
       await service.loadEntries();

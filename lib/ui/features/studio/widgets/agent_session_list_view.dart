@@ -186,8 +186,10 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
         children: [
           // 顶部导航栏与新建按钮
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: const BoxDecoration(
+              color: AppTheme.pureWhite,
               border: Border(bottom: BorderSide(color: AppTheme.border)),
             ),
             child: Row(
@@ -195,17 +197,19 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                 IconButton(
                   icon: const Icon(
                     Icons.arrow_back_ios_new_rounded,
-                    size: 15,
+                    size: 14,
                     color: AppTheme.textSecondary,
                   ),
                   tooltip: '返回对话',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                   onPressed: widget.onBack,
                   visualDensity: VisualDensity.compact,
                 ),
                 const SizedBox(width: 4),
                 const Icon(
                   Icons.forum_outlined,
-                  size: 16,
+                  size: 15,
                   color: AppTheme.notionBlue,
                 ),
                 const SizedBox(width: 6),
@@ -219,7 +223,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                 ),
                 const Spacer(),
                 FilledButton.icon(
-                  icon: const Icon(Icons.add_rounded, size: 15),
+                  icon: const Icon(Icons.add_rounded, size: 14),
                   label: const Text(
                     '新建会话',
                     style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
@@ -227,7 +231,8 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                   style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.notionBlue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    minimumSize: const Size(0, 30),
                     visualDensity: VisualDensity.compact,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTheme.radiusButton),

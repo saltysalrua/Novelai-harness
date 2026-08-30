@@ -4,10 +4,12 @@ part of 'studio_view_model.dart';
 mixin _StudioHarnessMixin on _StudioCore {
   @override
   void _setupHarnessAndTools() {
-    // 动态同步 SkillRegistry
+    // 动态同步 SkillRegistry (先重置为内置，再注入最新自定义技能)
+    _skillRegistry.resetToBuiltin();
     _skillRegistry.registerAll(_config.customSkills);
 
-    // 注册内置工具
+    // 重置工具注册表并注册全部内置工具
+    _toolRegistry.clear();
     _toolRegistry.register(
       NovelAiGenerateTool(
         repository: _repository,
@@ -178,6 +180,19 @@ mixin _StudioHarnessMixin on _StudioCore {
     } else {
       _harness.provider = null;
     }
+
+    // 动态同步当前生效预设实例到 _harness (确保工具白名单与参数权限始终与配置保持一致)
+    final targetPresetId = _config.activePresetId;
+    final activePreset = _config.presets.firstWhere(
+      (p) => p.id == targetPresetId,
+      orElse: () => _config.presets.firstWhere(
+        (p) => p.id == _harness.currentPreset.id,
+        orElse: () => _config.presets.isNotEmpty
+            ? _config.presets.first
+            : BuiltinPresets.v5Architect,
+      ),
+    );
+    _harness.setPreset(activePreset);
   }
 
   /// 动态调整 Agent 思考强度 (在对话工作台中随点随切)
@@ -268,10 +283,8 @@ mixin _StudioHarnessMixin on _StudioCore {
       currentList.add(preset);
     }
     _config = _config.copyWith(presets: currentList);
-    if (_harness.currentPreset.id == preset.id) {
-      _harness.setPreset(preset);
-    }
     await _configService.saveConfig(_config);
+    _setupHarnessAndTools();
     notifyListeners();
   }
 
@@ -282,10 +295,10 @@ mixin _StudioHarnessMixin on _StudioCore {
     var activeId = _config.activePresetId;
     if (activeId == presetId) {
       activeId = currentList.first.id;
-      _harness.setPreset(currentList.first);
     }
     _config = _config.copyWith(presets: currentList, activePresetId: activeId);
     await _configService.saveConfig(_config);
+    _setupHarnessAndTools();
     notifyListeners();
   }
 
@@ -293,7 +306,6 @@ mixin _StudioHarnessMixin on _StudioCore {
 
   /// 保存/更新自定义技能
   Future<void> saveCustomSkill(Skill skill) async {
-    _skillRegistry.register(skill);
     final customList = _config.customSkills.toList();
     final idx = customList.indexWhere((s) => s.id == skill.id);
     if (idx >= 0) {
@@ -303,17 +315,18 @@ mixin _StudioHarnessMixin on _StudioCore {
     }
     _config = _config.copyWith(customSkills: customList);
     await _configService.saveConfig(_config);
+    _setupHarnessAndTools();
     notifyListeners();
   }
 
   /// 删除自定义技能
   Future<void> deleteCustomSkill(String skillId) async {
-    _skillRegistry.unregister(skillId);
     final customList = _config.customSkills
         .where((s) => s.id != skillId)
         .toList();
     _config = _config.copyWith(customSkills: customList);
     await _configService.saveConfig(_config);
+    _setupHarnessAndTools();
     notifyListeners();
   }
 
@@ -328,7 +341,6 @@ mixin _StudioHarnessMixin on _StudioCore {
 
   /// 保存/更新自定义扩展工具
   Future<void> saveCustomTool(CustomAgentTool tool) async {
-    _toolRegistry.register(tool);
     final customTools = _config.customTools.toList();
     final idx = customTools.indexWhere((t) => t.name == tool.name);
     if (idx >= 0) {
@@ -338,17 +350,18 @@ mixin _StudioHarnessMixin on _StudioCore {
     }
     _config = _config.copyWith(customTools: customTools);
     await _configService.saveConfig(_config);
+    _setupHarnessAndTools();
     notifyListeners();
   }
 
   /// 删除自定义扩展工具
   Future<void> deleteCustomTool(String toolName) async {
-    _toolRegistry.unregister(toolName);
     final customTools = _config.customTools
         .where((t) => t.name != toolName)
         .toList();
     _config = _config.copyWith(customTools: customTools);
     await _configService.saveConfig(_config);
+    _setupHarnessAndTools();
     notifyListeners();
   }
 }

@@ -98,6 +98,10 @@ class ToolRegistry {
     }
   }
 
+  void clear() {
+    _tools.clear();
+  }
+
   bool unregister(String name) {
     final target = _tools[name];
     if (target != null && !target.isBuiltin) {

@@ -627,6 +627,18 @@ class StudioViewModel extends ChangeNotifier
     notifyListeners();
   }
 
+  @visibleForTesting
+  void setMessagesForTesting(List<AgentMessage> messages) {
+    _harness.setMessages(messages);
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void setChatStreamingForTesting(bool streaming) {
+    _isChatStreaming = streaming;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _generationSubscription?.cancel();

@@ -80,23 +80,27 @@ class _AgentRewindViewState extends State<AgentRewindView> {
           children: [
             // 顶部导航栏
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: const BoxDecoration(
+                color: AppTheme.pureWhite,
                 border: Border(bottom: BorderSide(color: AppTheme.border)),
               ),
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                    icon: const Icon(Icons.arrow_back_rounded, size: 16),
                     tooltip: '返回对话 (ESC)',
                     color: AppTheme.textPrimary,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     visualDensity: VisualDensity.compact,
                     onPressed: widget.onBack,
                   ),
                   const SizedBox(width: 4),
                   const Icon(
                     Icons.history_rounded,
-                    size: 16,
+                    size: 15,
                     color: AppTheme.notionBlue,
                   ),
                   const SizedBox(width: 6),

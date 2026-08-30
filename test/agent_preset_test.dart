@@ -10,9 +10,12 @@ import 'package:novelai_harness/core/harness/tools/novelai_tools.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
+import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('AgentPreset Data Model & Serialization Tests', () {
     test('Builtin presets contain expected standard configurations', () {
       expect(BuiltinPresets.all.length, greaterThanOrEqualTo(4));
@@ -440,6 +443,21 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
       expect(registry.get('v5-architect'), isNotNull);
     });
 
+    test('ToolRegistry clear removes all registered tools', () {
+      final registry = ToolRegistry();
+      registry.register(
+        CustomAgentTool(
+          name: 'tool_a',
+          label: 'A',
+          description: '',
+          parameters: const {'type': 'object'},
+        ),
+      );
+      expect(registry.getAll().length, equals(1));
+      registry.clear();
+      expect(registry.getAll().isEmpty, isTrue);
+    });
+
     test('CustomAgentTool executes with template interpolation', () async {
       final tool = CustomAgentTool(
         name: 'format_tag',
@@ -511,5 +529,33 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
         expect(result.content, contains('用户已拒绝扣费'));
       },
     );
+
+    test('StudioViewModel updateConfig hot-updates preset tool permissions', () async {
+      SharedPreferences.setMockInitialValues({});
+      final vm = StudioViewModel();
+      await vm.init();
+
+      expect(vm.currentPreset.isToolEnabled('novelai_generate'), isTrue);
+
+      // 模拟在设置中禁用了当前预设的生图工具
+      final current = vm.currentPreset;
+      final modifiedTools = current.enabledToolNames
+          .where((t) => t != 'novelai_generate')
+          .toList();
+      final updatedPreset = current.copyWith(enabledToolNames: modifiedTools);
+      final updatedPresets = vm.presets
+          .map((p) => p.id == updatedPreset.id ? updatedPreset : p)
+          .toList();
+
+      final newConfig = vm.config.copyWith(
+        presets: updatedPresets,
+        activePresetId: updatedPreset.id,
+      );
+
+      await vm.updateConfig(newConfig);
+
+      // 无需在 Agent 卡片上重新切换预设，工具权限即时生效
+      expect(vm.currentPreset.isToolEnabled('novelai_generate'), isFalse);
+    });
   });
 }
