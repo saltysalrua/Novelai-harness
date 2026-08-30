@@ -199,6 +199,8 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                           ),
                           decoration: const InputDecoration(
                             isDense: true,
+                            filled: false,
+                            hoverColor: Colors.transparent,
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,

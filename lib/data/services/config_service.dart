@@ -221,6 +221,15 @@ class ConfigService {
   static const String _keyCharacterPrompts = 'novelai_character_prompts';
   static const String _keyCharacterAiPosition = 'novelai_character_ai_position';
 
+  // 页面布局持久化 Keys
+  static const String _keySplitLeftWidth = 'novelai_layout_split_left_width';
+  static const String _keySplitRightWidth = 'novelai_layout_split_right_width';
+  static const String _keySidebarActiveTab = 'novelai_layout_sidebar_active_tab';
+  static const String _keyPromptTabbedMode = 'novelai_layout_prompt_tabbed_mode';
+  static const String _keyPromptActiveTab = 'novelai_layout_prompt_active_tab';
+  static const String _keyDeckActiveTab = 'novelai_layout_deck_active_tab';
+  static const String _keyCanvasHistoryOpen = 'novelai_layout_canvas_history_open';
+
   static const String _keyLlmBaseUrl = 'llm_base_url';
   static const String _keyLlmApiKey = 'llm_api_key';
   static const String _keyLlmModel = 'llm_model';
@@ -582,6 +591,86 @@ class ConfigService {
   Future<void> saveCharacterAiPosition(bool aiPosition) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyCharacterAiPosition, aiPosition);
+  }
+
+  // --- 页面布局状态持久化 ---
+
+  /// 加载分栏左右宽度
+  Future<(double left, double right)> loadSplitWidths({
+    double defaultLeft = 320.0,
+    double defaultRight = 400.0,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final left = prefs.getDouble(_keySplitLeftWidth) ?? defaultLeft;
+    final right = prefs.getDouble(_keySplitRightWidth) ?? defaultRight;
+    return (left, right);
+  }
+
+  /// 保存分栏左右宽度
+  Future<void> saveSplitWidths(double left, double right) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keySplitLeftWidth, left);
+    await prefs.setDouble(_keySplitRightWidth, right);
+  }
+
+  /// 加载侧边栏激活标签
+  Future<String> loadSidebarActiveTab({String defaultTab = 'parameters'}) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keySidebarActiveTab) ?? defaultTab;
+  }
+
+  /// 保存侧边栏激活标签
+  Future<void> saveSidebarActiveTab(String tab) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySidebarActiveTab, tab);
+  }
+
+  /// 加载提示词管理模式 (true: 标签页, false: 垂直堆叠)
+  Future<bool> loadPromptTabbedMode({bool defaultMode = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyPromptTabbedMode) ?? defaultMode;
+  }
+
+  /// 保存提示词管理模式
+  Future<void> savePromptTabbedMode(bool isTabbed) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyPromptTabbedMode, isTabbed);
+  }
+
+  /// 加载提示词标签页激活项 (0: Prompt, 1: Undesired Content)
+  Future<int> loadPromptActiveTab({int defaultTab = 0}) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_keyPromptActiveTab) ?? defaultTab;
+  }
+
+  /// 保存提示词标签页激活项
+  Future<void> savePromptActiveTab(int tab) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyPromptActiveTab, tab);
+  }
+
+  /// 加载提示词扩展甲板激活项 (0: Character Prompts, 1: Fixed Affixes)
+  Future<int> loadDeckActiveTab({int defaultTab = 0}) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_keyDeckActiveTab) ?? defaultTab;
+  }
+
+  /// 保存提示词扩展甲板激活项
+  Future<void> saveDeckActiveTab(int tab) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyDeckActiveTab, tab);
+  }
+
+  /// 加载画板历史侧栏展开状态
+  Future<bool> loadCanvasHistoryOpen({bool defaultOpen = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyCanvasHistoryOpen) ?? defaultOpen;
+  }
+
+  /// 保存画板历史侧栏展开状态
+  Future<void> saveCanvasHistoryOpen(bool isOpen) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyCanvasHistoryOpen, isOpen);
   }
 
   Map<String, dynamic>? _tryLoadLocalPiNovelAiJson() {

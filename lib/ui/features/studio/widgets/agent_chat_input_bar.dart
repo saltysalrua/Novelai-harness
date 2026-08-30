@@ -261,6 +261,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                           decoration: InputDecoration(
                             hintText: '输入绘画构思，或输入 /nai <词> 快速生图...',
                             fillColor: AppTheme.paperWarmth,
+                            hoverColor: AppTheme.paperWarmth,
                             filled: true,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,

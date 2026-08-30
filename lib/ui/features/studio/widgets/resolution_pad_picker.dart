@@ -277,6 +277,8 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.zero,
                           isDense: true,
+                          filled: false,
+                          hoverColor: Colors.transparent,
                           border: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           enabledBorder: InputBorder.none,
@@ -315,7 +317,7 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
                 child: Row(
                   children: [
                     const Text(
-                      'H',
+                       'H',
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
@@ -337,6 +339,8 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.zero,
                           isDense: true,
+                          filled: false,
+                          hoverColor: Colors.transparent,
                           border: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           enabledBorder: InputBorder.none,

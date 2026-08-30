@@ -70,6 +70,7 @@ class AppTheme {
         onPrimary: Colors.white,
         onSurface: textPrimary,
       ),
+      hoverColor: Colors.transparent,
       cardTheme: CardThemeData(
         color: surface,
         elevation: 0,
@@ -87,6 +88,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: pureWhite,
+        hoverColor: pureWhite,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusButton),

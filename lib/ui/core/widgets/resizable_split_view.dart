@@ -13,6 +13,7 @@ class ResizableThreeSplitView extends StatefulWidget {
   final double minCenterWidth;
   final double minRightWidth;
   final double maxRightWidth;
+  final void Function(double leftWidth, double rightWidth)? onWidthsChanged;
 
   const ResizableThreeSplitView({
     super.key,
@@ -26,6 +27,7 @@ class ResizableThreeSplitView extends StatefulWidget {
     this.minCenterWidth = 300.0,
     this.minRightWidth = 280.0,
     this.maxRightWidth = 560.0,
+    this.onWidthsChanged,
   });
 
   @override
@@ -44,6 +46,19 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
     super.initState();
     _leftWidth = widget.initialLeftWidth;
     _rightWidth = widget.initialRightWidth;
+  }
+
+  @override
+  void didUpdateWidget(covariant ResizableThreeSplitView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialLeftWidth != widget.initialLeftWidth &&
+        !_isDraggingLeft) {
+      _leftWidth = widget.initialLeftWidth;
+    }
+    if (oldWidget.initialRightWidth != widget.initialRightWidth &&
+        !_isDraggingRight) {
+      _rightWidth = widget.initialRightWidth;
+    }
   }
 
   @override
@@ -110,7 +125,10 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
               _buildDivider(
                 isDragging: _isDraggingLeft,
                 onHorizontalDragStart: () => setState(() => _isDraggingLeft = true),
-                onHorizontalDragEnd: () => setState(() => _isDraggingLeft = false),
+                onHorizontalDragEnd: () {
+                  setState(() => _isDraggingLeft = false);
+                  widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
+                },
                 onHorizontalDragUpdate: (delta) {
                   setState(() {
                     _leftWidth = (_leftWidth + delta).clamp(
@@ -118,6 +136,7 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
                       (totalWidth - _rightWidth - widget.minCenterWidth - 16).clamp(widget.minLeftWidth, widget.maxLeftWidth),
                     );
                   });
+                  widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
                 },
               ),
 
@@ -130,7 +149,10 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
               _buildDivider(
                 isDragging: _isDraggingRight,
                 onHorizontalDragStart: () => setState(() => _isDraggingRight = true),
-                onHorizontalDragEnd: () => setState(() => _isDraggingRight = false),
+                onHorizontalDragEnd: () {
+                  setState(() => _isDraggingRight = false);
+                  widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
+                },
                 onHorizontalDragUpdate: (delta) {
                   setState(() {
                     _rightWidth = (_rightWidth - delta).clamp(
@@ -138,6 +160,7 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
                       (totalWidth - _leftWidth - widget.minCenterWidth - 16).clamp(widget.minRightWidth, widget.maxRightWidth),
                     );
                   });
+                  widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
                 },
               ),
 

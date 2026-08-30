@@ -260,6 +260,9 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                         fillColor: isBuiltin
                             ? AppTheme.surfaceVariant
                             : AppTheme.pureWhite,
+                        hoverColor: isBuiltin
+                            ? AppTheme.surfaceVariant
+                            : AppTheme.pureWhite,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
                           borderSide: const BorderSide(color: AppTheme.border),
@@ -295,6 +298,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                         isDense: true,
                         filled: true,
                         fillColor: AppTheme.pureWhite,
+                        hoverColor: AppTheme.pureWhite,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
                           borderSide: const BorderSide(color: AppTheme.border),
@@ -330,6 +334,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
               isDense: true,
               filled: true,
               fillColor: AppTheme.pureWhite,
+              hoverColor: AppTheme.pureWhite,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(6),
                 borderSide: const BorderSide(color: AppTheme.border),
@@ -393,6 +398,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
               isDense: true,
               filled: true,
               fillColor: AppTheme.surfaceVariant.withValues(alpha: 0.3),
+              hoverColor: AppTheme.surfaceVariant.withValues(alpha: 0.3),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(6),
                 borderSide: const BorderSide(color: AppTheme.border),
@@ -435,6 +441,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
               hintText: '---\nname: my-skill\ndescription: Skill description...\n---\n\nSkill prompt content...',
               filled: true,
               fillColor: AppTheme.surfaceVariant.withValues(alpha: 0.3),
+              hoverColor: AppTheme.surfaceVariant.withValues(alpha: 0.3),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(6),
                 borderSide: const BorderSide(color: AppTheme.border),

@@ -29,12 +29,27 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
   int _slideDirection = 1; // 1: 从右向左滑动 (切换至右侧页), -1: 从左向右滑动
   double _horizontalDragAccumulated = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _activeTabIndex = widget.viewModel.deckActiveTab;
+  }
+
+  @override
+  void didUpdateWidget(covariant PromptExtensionDeck oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_activeTabIndex != widget.viewModel.deckActiveTab) {
+      _activeTabIndex = widget.viewModel.deckActiveTab;
+    }
+  }
+
   void _switchTab(int index) {
     if (_activeTabIndex == index) return;
     setState(() {
       _slideDirection = index > _activeTabIndex ? 1 : -1;
       _activeTabIndex = index;
     });
+    widget.viewModel.setDeckActiveTab(index);
   }
 
   @override

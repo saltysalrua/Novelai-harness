@@ -3,11 +3,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../settings/views/settings_dialog.dart';
 import '../view_models/studio_view_model.dart';
 
-enum StudioSidebarTab {
-  parameters,
-  prompts,
-}
-
 class StudioSidebar extends StatelessWidget {
   final StudioViewModel viewModel;
   final StudioSidebarTab activeTab;

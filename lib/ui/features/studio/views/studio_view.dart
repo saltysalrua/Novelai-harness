@@ -18,7 +18,6 @@ class StudioView extends StatefulWidget {
 
 class _StudioViewState extends State<StudioView> {
   late final StudioViewModel _viewModel;
-  StudioSidebarTab _activeTab = StudioSidebarTab.parameters;
 
   /// 对话卡状态键：根级双击 ESC 时跨组件调起回溯视图
   final GlobalKey<AgentChatCardState> _chatCardKey =
@@ -194,24 +193,23 @@ class _StudioViewState extends State<StudioView> {
                         // 1. 最左侧 Notion 极简侧边栏
                         StudioSidebar(
                           viewModel: _viewModel,
-                          activeTab: _activeTab,
+                          activeTab: _viewModel.activeSidebarTab,
                           onTabChanged: (tab) {
                             // 双页常驻挂载，切页时释放焦点，避免按键落入隐藏页面的输入框
                             FocusManager.instance.primaryFocus?.unfocus();
-                            setState(() {
-                              _activeTab = tab;
-                            });
+                            _viewModel.setActiveSidebarTab(tab);
                           },
                         ),
 
                         // 2. 主三栏工作台
                         Expanded(
                           child: ResizableThreeSplitView(
-                            initialLeftWidth: 320,
-                            initialRightWidth: 400,
+                            initialLeftWidth: _viewModel.splitLeftWidth,
+                            initialRightWidth: _viewModel.splitRightWidth,
+                            onWidthsChanged: _viewModel.updateSplitWidths,
                             leftChild: ParameterCard(
                               viewModel: _viewModel,
-                              activeTab: _activeTab,
+                              activeTab: _viewModel.activeSidebarTab,
                             ),
                             centerChild: ImageCanvasCard(viewModel: _viewModel),
                             rightChild: AgentChatCard(

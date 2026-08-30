@@ -165,6 +165,8 @@ class _SeedAndSamplerRow extends StatelessWidget {
                           ),
                           contentPadding: EdgeInsets.zero,
                           isDense: true,
+                          filled: false,
+                          hoverColor: Colors.transparent,
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,

@@ -232,6 +232,8 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
               hintText: widget.hintText,
               hintStyle: widget.hintStyle,
               contentPadding: EdgeInsets.zero,
+              filled: false,
+              hoverColor: Colors.transparent,
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,

@@ -283,6 +283,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
               isDense: true,
               filled: true,
               fillColor: AppTheme.paperWarmth,
+              hoverColor: AppTheme.paperWarmth,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               border: OutlineInputBorder(

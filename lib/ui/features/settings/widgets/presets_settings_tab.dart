@@ -493,6 +493,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   hintText: '输入 AI 助手的核心人设与工作流指引...',
                   filled: true,
                   fillColor: AppTheme.paperWarmth,
+                  hoverColor: AppTheme.paperWarmth,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(6),
                     borderSide: const BorderSide(color: AppTheme.border),
@@ -669,6 +670,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
             hintText: hintText,
             filled: true,
             fillColor: AppTheme.paperWarmth,
+            hoverColor: AppTheme.paperWarmth,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: const BorderSide(color: AppTheme.border),

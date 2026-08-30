@@ -109,6 +109,8 @@ class _EditableSliderCoreState extends State<_EditableSliderCore> {
                 decoration: const InputDecoration(
                   isDense: true,
                   contentPadding: EdgeInsets.zero,
+                  filled: false,
+                  hoverColor: Colors.transparent,
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,

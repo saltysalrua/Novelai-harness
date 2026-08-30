@@ -21,6 +21,20 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
   late final CanvasStreamController _stream = CanvasStreamController();
 
   @override
+  void initState() {
+    super.initState();
+    _isHistoryOpen = widget.viewModel.canvasHistoryOpen;
+  }
+
+  @override
+  void didUpdateWidget(covariant ImageCanvasCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_isHistoryOpen != widget.viewModel.canvasHistoryOpen) {
+      _isHistoryOpen = widget.viewModel.canvasHistoryOpen;
+    }
+  }
+
+  @override
   void dispose() {
     _stream.dispose();
     super.dispose();
@@ -83,7 +97,10 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                         viewModel: viewModel,
                         selectedImage: selectedImage,
                         stream: _stream,
-                        onClose: () => setState(() => _isHistoryOpen = false),
+                        onClose: () {
+                          setState(() => _isHistoryOpen = false);
+                          viewModel.setCanvasHistoryOpen(false);
+                        },
                       ),
                     ),
                   ),
@@ -111,7 +128,10 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                 top: 14,
                 right: 14,
                 child: HistoryToggleButton(
-                  onTap: () => setState(() => _isHistoryOpen = true),
+                  onTap: () {
+                    setState(() => _isHistoryOpen = true);
+                    viewModel.setCanvasHistoryOpen(true);
+                  },
                 ),
               ),
 

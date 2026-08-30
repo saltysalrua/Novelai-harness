@@ -3,7 +3,6 @@ import '../view_models/studio_view_model.dart';
 import 'generate_dock.dart';
 import 'parameters_page.dart';
 import 'prompts_page.dart';
-import 'studio_sidebar.dart';
 
 /// 左侧工作台面板：双页面 (参数设置 / 提示词管理) + 底部生成操作坞。
 /// 双页常驻挂载，切换侧边栏 Tab 时保留各自的输入光标与滚动位置。

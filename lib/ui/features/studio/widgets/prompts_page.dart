@@ -36,6 +36,8 @@ class _PromptsPageState extends State<PromptsPage> {
     final params = widget.viewModel.params;
     _qualityPreset = params.qualityPreset;
     _ucPreset = params.ucPresetKey;
+    _isTabbedMode = widget.viewModel.promptTabbedMode;
+    _activeTab = widget.viewModel.promptActiveTab;
     _promptController = RichPromptTextController(text: params.prompt);
     _prefixController = RichPromptTextController(
       text: params.prefixPrompt ?? '',
@@ -50,6 +52,12 @@ class _PromptsPageState extends State<PromptsPage> {
   void didUpdateWidget(covariant PromptsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     final params = widget.viewModel.params;
+    if (_isTabbedMode != widget.viewModel.promptTabbedMode) {
+      _isTabbedMode = widget.viewModel.promptTabbedMode;
+    }
+    if (_activeTab != widget.viewModel.promptActiveTab) {
+      _activeTab = widget.viewModel.promptActiveTab;
+    }
     if (_qualityPreset != params.qualityPreset) {
       _qualityPreset = params.qualityPreset;
     }
@@ -333,10 +341,14 @@ class _PromptsPageState extends State<PromptsPage> {
                 _ModeToggleIcon(
                   icon: Icons.splitscreen_rounded,
                   tooltip: '切换为标签页模式',
-                  onTap: () => setState(() {
-                    _isTabbedMode = true;
-                    _activeTab = 1;
-                  }),
+                  onTap: () {
+                    setState(() {
+                      _isTabbedMode = true;
+                      _activeTab = 1;
+                    });
+                    viewModel.setPromptTabbedMode(true);
+                    viewModel.setPromptActiveTab(1);
+                  },
                 ),
               ],
             ),
@@ -382,13 +394,19 @@ class _PromptsPageState extends State<PromptsPage> {
                 _TabHeaderPill(
                   label: 'Prompt',
                   isActive: isPromptTab,
-                  onTap: () => setState(() => _activeTab = 0),
+                  onTap: () {
+                    setState(() => _activeTab = 0);
+                    viewModel.setPromptActiveTab(0);
+                  },
                 ),
                 const SizedBox(width: 6),
                 _TabHeaderPill(
                   label: 'Undesired Content',
                   isActive: !isPromptTab,
-                  onTap: () => setState(() => _activeTab = 1),
+                  onTap: () {
+                    setState(() => _activeTab = 1);
+                    viewModel.setPromptActiveTab(1);
+                  },
                 ),
               ],
             ),
@@ -412,7 +430,10 @@ class _PromptsPageState extends State<PromptsPage> {
                 _ModeToggleIcon(
                   icon: Icons.view_agenda_outlined,
                   tooltip: '切换为垂直并排模式',
-                  onTap: () => setState(() => _isTabbedMode = false),
+                  onTap: () {
+                    setState(() => _isTabbedMode = false);
+                    viewModel.setPromptTabbedMode(false);
+                  },
                 ),
               ],
             ),

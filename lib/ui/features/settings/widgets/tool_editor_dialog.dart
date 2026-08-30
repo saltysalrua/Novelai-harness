@@ -151,6 +151,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                                   fillColor: isReadOnly
                                       ? AppTheme.surfaceVariant
                                       : AppTheme.pureWhite,
+                                  hoverColor: isReadOnly
+                                      ? AppTheme.surfaceVariant
+                                      : AppTheme.pureWhite,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(6),
                                     borderSide:
@@ -191,6 +194,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                                   fillColor: isReadOnly
                                       ? AppTheme.surfaceVariant
                                       : AppTheme.pureWhite,
+                                  hoverColor: isReadOnly
+                                      ? AppTheme.surfaceVariant
+                                      : AppTheme.pureWhite,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(6),
                                     borderSide:
@@ -229,6 +235,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                         isDense: true,
                         filled: true,
                         fillColor: isReadOnly
+                            ? AppTheme.surfaceVariant
+                            : AppTheme.pureWhite,
+                        hoverColor: isReadOnly
                             ? AppTheme.surfaceVariant
                             : AppTheme.pureWhite,
                         border: OutlineInputBorder(
@@ -301,6 +310,8 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                         filled: true,
                         fillColor:
                             AppTheme.surfaceVariant.withValues(alpha: 0.3),
+                        hoverColor:
+                            AppTheme.surfaceVariant.withValues(alpha: 0.3),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
                           borderSide: const BorderSide(color: AppTheme.border),
@@ -333,6 +344,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                           hintText: '如：已成功执行并构建结果：{{query}}',
                           filled: true,
                           fillColor: AppTheme.pureWhite,
+                          hoverColor: AppTheme.pureWhite,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
                             borderSide:

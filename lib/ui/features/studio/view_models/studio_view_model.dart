@@ -22,6 +22,11 @@ import '../../../../data/services/usage_ledger_service.dart';
 import 'param_snapshot_journal.dart';
 import 'slash_command_catalog.dart';
 
+enum StudioSidebarTab {
+  parameters,
+  prompts,
+}
+
 class StudioViewModel extends ChangeNotifier {
   final ConfigService _configService;
   final NovelAiRepository _repository;
@@ -57,6 +62,15 @@ class StudioViewModel extends ChangeNotifier {
   bool _hasUnseenLatest = false;
   String? _statusMessage;
   String? _errorMessage;
+
+  // --- 页面布局持久化状态 ---
+  double _splitLeftWidth = 320.0;
+  double _splitRightWidth = 400.0;
+  StudioSidebarTab _activeSidebarTab = StudioSidebarTab.parameters;
+  bool _promptTabbedMode = false;
+  int _promptActiveTab = 0;
+  int _deckActiveTab = 0;
+  bool _canvasHistoryOpen = false;
 
   /// 实时生图预览状态
   Uint8List? _livePreviewBytes;
@@ -169,11 +183,80 @@ class StudioViewModel extends ChangeNotifier {
   BillSummary buildBillSummary(BillPeriod period) =>
       _usageLedger.aggregate(period);
 
+  // --- 页面布局 Getters 与 Setters ---
+  double get splitLeftWidth => _splitLeftWidth;
+  double get splitRightWidth => _splitRightWidth;
+  StudioSidebarTab get activeSidebarTab => _activeSidebarTab;
+  bool get promptTabbedMode => _promptTabbedMode;
+  int get promptActiveTab => _promptActiveTab;
+  int get deckActiveTab => _deckActiveTab;
+  bool get canvasHistoryOpen => _canvasHistoryOpen;
+
+  void updateSplitWidths(double left, double right) {
+    if ((_splitLeftWidth - left).abs() < 0.5 &&
+        (_splitRightWidth - right).abs() < 0.5) {
+      return;
+    }
+    _splitLeftWidth = left;
+    _splitRightWidth = right;
+    _configService.saveSplitWidths(left, right);
+  }
+
+  void setActiveSidebarTab(StudioSidebarTab tab) {
+    if (_activeSidebarTab == tab) return;
+    _activeSidebarTab = tab;
+    _configService.saveSidebarActiveTab(tab.name);
+    notifyListeners();
+  }
+
+  void setPromptTabbedMode(bool isTabbed) {
+    if (_promptTabbedMode == isTabbed) return;
+    _promptTabbedMode = isTabbed;
+    _configService.savePromptTabbedMode(isTabbed);
+    notifyListeners();
+  }
+
+  void setPromptActiveTab(int tab) {
+    if (_promptActiveTab == tab) return;
+    _promptActiveTab = tab;
+    _configService.savePromptActiveTab(tab);
+    notifyListeners();
+  }
+
+  void setDeckActiveTab(int tab) {
+    if (_deckActiveTab == tab) return;
+    _deckActiveTab = tab;
+    _configService.saveDeckActiveTab(tab);
+    notifyListeners();
+  }
+
+  void setCanvasHistoryOpen(bool isOpen) {
+    if (_canvasHistoryOpen == isOpen) return;
+    _canvasHistoryOpen = isOpen;
+    _configService.saveCanvasHistoryOpen(isOpen);
+    notifyListeners();
+  }
+
   /// 初始化 Studio
   Future<void> init() async {
     _config = await _configService.loadConfig();
     final lastPrompt = await _configService.loadLastPrompt();
     final applyFixed = await _configService.loadApplyFixedPrompts();
+
+    // 加载页面布局状态
+    final (leftWidth, rightWidth) = await _configService.loadSplitWidths();
+    _splitLeftWidth = leftWidth;
+    _splitRightWidth = rightWidth;
+
+    final savedTabName = await _configService.loadSidebarActiveTab();
+    _activeSidebarTab = savedTabName == 'prompts'
+        ? StudioSidebarTab.prompts
+        : StudioSidebarTab.parameters;
+
+    _promptTabbedMode = await _configService.loadPromptTabbedMode();
+    _promptActiveTab = await _configService.loadPromptActiveTab();
+    _deckActiveTab = await _configService.loadDeckActiveTab();
+    _canvasHistoryOpen = await _configService.loadCanvasHistoryOpen();
 
     _currentThinkingEffort =
         _config.activeLlmProvider.activeModel.defaultThinkingEffort;
