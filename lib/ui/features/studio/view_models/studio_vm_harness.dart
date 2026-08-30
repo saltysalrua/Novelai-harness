@@ -107,12 +107,7 @@ mixin _StudioHarnessMixin on _StudioCore {
     );
     _toolRegistry.register(
       ViewCanvasImageTool(
-        getImageBytes: () {
-          final bytes = _selectedImage?.bytes;
-          if (bytes == null) return null;
-          return bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
-        },
-        getParams: () => _params,
+        getHistory: () => _repository.history,
         isModelMultimodal: () =>
             _config.activeLlmProvider.activeModel.isMultimodal,
       ),

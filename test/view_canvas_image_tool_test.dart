@@ -99,9 +99,18 @@ void main() {
 
   group('ViewCanvasImageTool 工具执行', () {
     test('非多模态模型直接拒绝', () async {
+      final png = await makeTestPng(64, 64, 0xFF00FF00);
       final tool = ViewCanvasImageTool(
-        getImageBytes: () => Uint8List.fromList([1, 2, 3]),
-        getParams: () => const NaiGenerationParams(prompt: ''),
+        getHistory: () => [
+          NaiGeneratedImage(
+            id: '1',
+            bytes: png,
+            params: const NaiGenerationParams(prompt: ''),
+            createdAt: DateTime.now(),
+            seed: 100,
+            isOpusFree: false,
+          ),
+        ],
         isModelMultimodal: () => false,
       );
 
@@ -111,32 +120,127 @@ void main() {
       expect(result.imageBase64, isNull);
     });
 
-    test('画板无图片时报错', () async {
+    test('画板无历史图片时报错', () async {
       final tool = ViewCanvasImageTool(
-        getImageBytes: () => null,
-        getParams: () => const NaiGenerationParams(prompt: ''),
+        getHistory: () => [],
         isModelMultimodal: () => true,
       );
 
       final result = await tool.execute('t1', {});
       expect(result.isError, isTrue);
-      expect(result.content, contains('没有可查看的图片'));
+      expect(result.content, contains('没有已生成的图片历史'));
+    });
+
+    test('索引越界时返回明确的有效范围提示', () async {
+      final png = await makeTestPng(64, 64, 0xFF00FF00);
+      final history = [
+        NaiGeneratedImage(
+          id: 'img_newest',
+          bytes: png,
+          params: const NaiGenerationParams(prompt: 'latest'),
+          createdAt: DateTime.now(),
+          seed: 100,
+          isOpusFree: false,
+        ),
+        NaiGeneratedImage(
+          id: 'img_older',
+          bytes: png,
+          params: const NaiGenerationParams(prompt: 'older'),
+          createdAt: DateTime.now().subtract(const Duration(minutes: 1)),
+          seed: 101,
+          isOpusFree: false,
+        ),
+      ];
+
+      final tool = ViewCanvasImageTool(
+        getHistory: () => history,
+        isModelMultimodal: () => true,
+      );
+
+      final negResult = await tool.execute('t1', {'index': -1});
+      expect(negResult.isError, isTrue);
+      expect(negResult.content, contains('索引 -1 超出范围'));
+      expect(negResult.content, contains('有效索引范围为 0 到 1'));
+
+      final outResult = await tool.execute('t2', {'index': 2});
+      expect(outResult.isError, isTrue);
+      expect(outResult.content, contains('索引 2 超出范围'));
+      expect(outResult.content, contains('有效索引范围为 0 到 1'));
+    });
+
+    test('默认 index 0 获取最新图片，index 1 获取次新图片', () async {
+      final pngLatest = await makeTestPng(64, 64, 0xFFFF0000);
+      final pngOlder = await makeTestPng(64, 64, 0xFF0000FF);
+      final history = [
+        NaiGeneratedImage(
+          id: 'img_newest',
+          bytes: pngLatest,
+          params: const NaiGenerationParams(prompt: 'newest prompt'),
+          createdAt: DateTime.now(),
+          seed: 11111,
+          isOpusFree: false,
+        ),
+        NaiGeneratedImage(
+          id: 'img_older',
+          bytes: pngOlder,
+          params: const NaiGenerationParams(prompt: 'older prompt'),
+          createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          seed: 22222,
+          isOpusFree: false,
+        ),
+      ];
+
+      final tool = ViewCanvasImageTool(
+        getHistory: () => history,
+        isModelMultimodal: () => true,
+      );
+
+      // 1. 默认 index 为 0 (最新)
+      final resLatest = await tool.execute('t1', {'with_overlay': false});
+      expect(resLatest.isError, isFalse);
+      expect(resLatest.imageBase64, base64Encode(pngLatest));
+      expect(resLatest.content, contains('索引: 0, 最新生成'));
+      expect(resLatest.content, contains('11111'));
+
+      // 2. 显式指定 index 为 1 (次新)
+      final resOlder = await tool.execute('t2', {
+        'index': 1,
+        'with_overlay': false,
+      });
+      expect(resOlder.isError, isFalse);
+      expect(resOlder.imageBase64, base64Encode(pngOlder));
+      expect(resOlder.content, contains('索引: 1, 从新到旧第 2 张'));
+      expect(resOlder.content, contains('22222'));
+
+      // 3. 字符串 index 容错解析
+      final resStringIndex = await tool.execute('t3', {
+        'index': '1',
+        'with_overlay': false,
+      });
+      expect(resStringIndex.isError, isFalse);
+      expect(resStringIndex.imageBase64, base64Encode(pngOlder));
     });
 
     test('with_overlay=false 返回原图字节 (PNG)', () async {
       final png = await makeTestPng(64, 64, 0xFF00FF00);
       final tool = ViewCanvasImageTool(
-        getImageBytes: () => png,
-        getParams: () => const NaiGenerationParams(prompt: ''),
+        getHistory: () => [
+          NaiGeneratedImage(
+            id: '1',
+            bytes: png,
+            params: const NaiGenerationParams(prompt: ''),
+            createdAt: DateTime.now(),
+            seed: 100,
+            isOpusFree: false,
+          ),
+        ],
         isModelMultimodal: () => true,
       );
 
       final result = await tool.execute('t1', {'with_overlay': false});
       expect(result.isError, isFalse);
       expect(result.imageMimeType, 'image/png');
-      // 原图字节原样返回
       expect(result.imageBase64, base64Encode(png));
-      // 原图字节原样返回，无覆盖层相关提示
       expect(result.content, isNot(contains('覆盖层')));
       expect(result.content, contains('图片尺寸: 64x64'));
     });
@@ -151,8 +255,16 @@ void main() {
         ],
       );
       final tool = ViewCanvasImageTool(
-        getImageBytes: () => png,
-        getParams: () => params,
+        getHistory: () => [
+          NaiGeneratedImage(
+            id: '1',
+            bytes: png,
+            params: params,
+            createdAt: DateTime.now(),
+            seed: 99999,
+            isOpusFree: false,
+          ),
+        ],
         isModelMultimodal: () => true,
       );
 

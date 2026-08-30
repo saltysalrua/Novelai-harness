@@ -10,11 +10,8 @@ import '../../../data/services/anlas_calculator.dart';
 import '../types.dart';
 import 'agent_tool.dart';
 
-/// 画板当前图片字节获取器
-typedef CanvasImageBytesGetter = Uint8List? Function();
-
-/// 生图参数获取器 (角色提示词 / 模型 / 位置模式)
-typedef CanvasViewParamsGetter = NaiGenerationParams Function();
+/// 历史图片列表获取器 (从新到旧排序，索引 0 为最新生成的一张)
+typedef CanvasHistoryGetter = List<NaiGeneratedImage> Function();
 
 /// 视觉能力检查器 (当前对话模型是否支持图像输入)
 typedef ModelVisionChecker = bool Function();
@@ -292,26 +289,30 @@ void _paintLabelBadge(
   painter.paint(canvas, ui.Offset(left + padH, top + padV));
 }
 
-/// 画板图片查看工具：获取画板当前图片 (可叠加角色位置覆盖层) 供 Agent 视觉检查。
+/// 画板历史图片查看工具：按索引 (0 为最新，从新到旧) 获取已生成的图片 (可叠加角色位置覆盖层) 供 Agent 视觉检查。
 class ViewCanvasImageTool extends AgentTool {
-  final CanvasImageBytesGetter getImageBytes;
-  final CanvasViewParamsGetter getParams;
+  final CanvasHistoryGetter getHistory;
   final ModelVisionChecker isModelMultimodal;
 
   ViewCanvasImageTool({
-    required this.getImageBytes,
-    required this.getParams,
+    required this.getHistory,
     required this.isModelMultimodal,
   }) : super(
          name: 'view_canvas_image',
          label: '查看画板图片',
          description:
-             '获取画板当前正在查看的图片供视觉检查。默认返回叠加了角色位置覆盖层的版本 (各启用角色的编号锚点与名称标签，'
+             '获取已生成的历史图片供视觉检查。通过 index 参数从新到旧指定图片（0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。'
+             '默认返回叠加了角色位置覆盖层的版本 (各启用角色的编号锚点与名称标签，'
              'V5 附带中心十字参考线，V4/V4.5 附带 5x5 网格)，便于核对多角色构图与布局；'
              '传入 with_overlay=false 可获取未处理的原图。注意：当前对话模型需要具备图像理解能力。',
          parameters: const {
            'type': 'object',
            'properties': {
+             'index': {
+               'type': 'integer',
+               'description':
+                   '要查看的图片索引（从新到旧排序，0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。',
+             },
              'with_overlay': {
                'type': 'boolean',
                'description': '是否叠加角色位置覆盖层 (默认 true)。false 时返回原图。',
@@ -334,16 +335,43 @@ class ViewCanvasImageTool extends AgentTool {
       );
     }
 
-    final imageBytes = getImageBytes();
-    if (imageBytes == null || imageBytes.isEmpty) {
+    final history = getHistory();
+    if (history.isEmpty) {
       return ToolResult(
         toolCallId: toolCallId,
-        content: '画板当前没有可查看的图片。请先生成或从历史记录中选择一张图片。',
+        content: '画板当前没有已生成的图片历史。请先生成图片后再查看。',
         isError: true,
       );
     }
 
-    final params = getParams();
+    final rawIndex = args['index'];
+    final int index;
+    if (rawIndex is int) {
+      index = rawIndex;
+    } else if (rawIndex is num) {
+      index = rawIndex.toInt();
+    } else if (rawIndex is String) {
+      index = int.tryParse(rawIndex) ?? 0;
+    } else {
+      index = 0;
+    }
+
+    if (index < 0 || index >= history.length) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content:
+            '指定的图片索引 $index 超出范围。当前共有 ${history.length} 张历史图片，有效索引范围为 0 到 ${history.length - 1}（0 表示最新生成的一张，${history.length - 1} 表示最早的一张）。',
+        isError: true,
+      );
+    }
+
+    final targetImage = history[index];
+    final rawBytes = targetImage.bytes;
+    final imageBytes = rawBytes is Uint8List
+        ? rawBytes
+        : Uint8List.fromList(rawBytes);
+
+    final params = targetImage.params;
     final withOverlay = args['with_overlay'] is bool
         ? args['with_overlay'] as bool
         : true;
@@ -372,15 +400,25 @@ class ViewCanvasImageTool extends AgentTool {
         }
       }
     } else if (withOverlay) {
-      overlayNote = '当前没有启用的角色提示词，已返回原图。';
+      overlayNote = '该图片生成时没有启用的角色提示词，已返回原图。';
     }
 
     final dims = await AnlasCalculator.decodeImageDimensions(finalBytes);
     final mime = _sniffMimeType(finalBytes);
 
+    final isLatest = index == 0;
+    final timeStr = targetImage.createdAt
+        .toIso8601String()
+        .replaceAll('T', ' ')
+        .split('.')
+        .first;
+
     final lines = <String>[
-      '已获取画板当前图片${overlayApplied ? ' (已叠加角色位置覆盖层)' : ''}：',
-      '• 图片尺寸: ${dims?.width ?? '?'}x${dims?.height ?? '?'}',
+      '已获取历史图片 (索引: $index, ${isLatest ? '最新生成' : '从新到旧第 ${index + 1} 张'}，共 ${history.length} 张)${overlayApplied ? ' (已叠加角色位置覆盖层)' : ''}：',
+      '• 索引编号: $index (${isLatest ? '最新图片' : '从新到旧第 ${index + 1} 张'})',
+      '• 生成时间: $timeStr',
+      if (targetImage.seed >= 0) '• 随机种子: ${targetImage.seed}',
+      '• 图片尺寸: ${dims?.width ?? params.width}x${dims?.height ?? params.height}',
       '• 绘图模型: ${params.model.label}',
       '• 位置模式: ${params.characterAiPosition ? 'AI 自动布局 (AI\'s Choice)' : '自定义定位 (use_coords)'}',
       if (overlayApplied) ...[

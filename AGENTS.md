@@ -39,8 +39,11 @@ Novelai-harness/
 │   │       ├── tools/
 │   │       │   ├── agent_tool.dart             # 工具抽象基类与工具注册中心
 │   │       │   ├── ask_user_tool.dart          # 向用户提出结构化问题 (选项+自定义回答)
+│   │       │   ├── canvas_view_tool.dart       # 画板历史图片查看工具 (支持索引从新到旧与角色覆盖层)
 │   │       │   ├── character_prompt_tools.dart  # 多角色提示词增删改查四件套工具
+│   │       │   ├── danbooru_search_tools.dart  # Danbooru 离线/在线语义搜索与画师推荐工具
 │   │       │   ├── load_skill_tool.dart        # Pi 标准按需加载专业技能工具 (Progressive Disclosure)
+│   │       │   ├── prompt_library_tools.dart   # 词组合预设库增删改查工具
 │   │       │   ├── studio_params_tool.dart     # 实时同步修改工作台 UI 生图参数工具
 │   │       │   └── novelai_tools.dart          # 生图、放大、标签联想与账号查询工具实现
 │   │       └── skills/
@@ -179,6 +182,7 @@ Novelai-harness/
 │   ├── tag_autocomplete_overlay_test.dart      # 标签自动补全悬浮窗触发与键盘/鼠标上屏测试
 │   ├── prompt_library_test.dart               # 词组合模型/服务 CRUD/预览图清理/应用与补全建议测试
 │   ├── prompt_library_view_test.dart          # 词库全屏视图与编辑弹窗 Widget 测试
+│   ├── view_canvas_image_tool_test.dart       # 画板历史图片查看工具按索引与覆盖层渲染测试
 │   ├── window_state_persistence_test.dart      # 窗口尺寸、位置与最大化状态持久化及防抖测试
 │   └── widget_test.dart                        # 核心组件渲染测试
 │
