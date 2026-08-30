@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import '../../../core/theme/app_theme.dart';
+import 'slash_command_overlay.dart';
 import '../view_models/studio_view_model.dart';
 
 /// Agent 对话卡底部控制与输入区:
@@ -21,11 +22,41 @@ class AgentChatInputBar extends StatefulWidget {
 
 class _AgentChatInputBarState extends State<AgentChatInputBar> {
   final TextEditingController _inputController = TextEditingController();
+  final FocusNode _inputFocusNode = FocusNode();
+  final GlobalKey _inputFieldKey = GlobalKey();
+  final LayerLink _layerLink = LayerLink();
+  final OverlayPortalController _overlayController = OverlayPortalController();
+
+  /// 当前展示的斜杠指令补全建议
+  List<SlashSuggestion> _suggestions = const [];
+  int _selectedIndex = 0;
+
+  /// 按 Esc 后记录当前输入，避免同类补全立即重新弹出
+  String _dismissedToken = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _inputController.addListener(_updateSlashSuggestions);
+    _inputFocusNode.addListener(_handleInputFocusChanged);
+  }
 
   @override
   void dispose() {
+    _inputController.removeListener(_updateSlashSuggestions);
+    _inputFocusNode.removeListener(_handleInputFocusChanged);
     _inputController.dispose();
+    _inputFocusNode.dispose();
     super.dispose();
+  }
+
+  /// 失焦时收起补全面板，重新聚焦时按当前文本重算
+  void _handleInputFocusChanged() {
+    if (_inputFocusNode.hasFocus) {
+      _updateSlashSuggestions();
+    } else {
+      _hideSuggestions();
+    }
   }
 
   void _handleSend() {
@@ -34,6 +65,118 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     _inputController.clear();
     widget.viewModel.sendChatMessage(text);
     widget.onSent?.call();
+  }
+
+  // ------------------ 斜杠指令自动补全 ------------------
+
+  /// 文本或光标变化时重算补全建议 (仅光标位于末尾时展示，避免编辑中段干扰)
+  void _updateSlashSuggestions() {
+    if (!mounted) return;
+    final text = _inputController.text;
+    final cursor = _inputController.selection.baseOffset;
+    if (!text.startsWith('/') || cursor != text.length) {
+      _hideSuggestions();
+      return;
+    }
+
+    final suggestions = buildSlashSuggestions(
+      text: text,
+      skills: widget.viewModel.availableSkills,
+      presets: widget.viewModel.presets,
+    );
+    if (suggestions.isEmpty || text == _dismissedToken) {
+      _hideSuggestions();
+      return;
+    }
+
+    setState(() {
+      _suggestions = suggestions;
+      if (_selectedIndex >= suggestions.length) _selectedIndex = 0;
+    });
+    if (!_overlayController.isShowing) _overlayController.show();
+  }
+
+  void _hideSuggestions() {
+    if (!mounted) return;
+    if (_overlayController.isShowing) _overlayController.hide();
+    if (_suggestions.isEmpty) return;
+    setState(() {
+      _suggestions = const [];
+      _selectedIndex = 0;
+    });
+  }
+
+  /// 补全面板打开时拦截方向键/Tab/Enter/Esc
+  KeyEventResult _handleSlashKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (_suggestions.isEmpty) return KeyEventResult.ignored;
+
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _selectedIndex = (_selectedIndex + 1) % _suggestions.length;
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _selectedIndex =
+            (_selectedIndex - 1 + _suggestions.length) % _suggestions.length;
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.tab || key == LogicalKeyboardKey.enter) {
+      _applySuggestion(_suggestions[_selectedIndex]);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      _dismissedToken = _inputController.text;
+      _hideSuggestions();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// 应用补全: 替换指令名或第一个参数，并在末尾追加空格
+  void _applySuggestion(SlashSuggestion suggestion) {
+    final text = _inputController.text;
+    final spaceIdx = text.indexOf(' ');
+    final newText = spaceIdx == -1
+        ? '${suggestion.completion} '
+        : '${text.substring(0, spaceIdx)} ${suggestion.completion} ';
+    _inputController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
+    );
+    _dismissedToken = '';
+    _hideSuggestions();
+    _inputFocusNode.requestFocus();
+  }
+
+  /// 悬浮于输入框上方的补全面板 (Overlay + Follower 锚定)
+  Widget _buildSlashOverlay(BuildContext overlayContext) {
+    if (_suggestions.isEmpty) return const SizedBox.shrink();
+    final width = _inputFieldKey.currentContext?.size?.width ?? 320.0;
+    return CompositedTransformFollower(
+      link: _layerLink,
+      targetAnchor: Alignment.topLeft,
+      followerAnchor: Alignment.bottomLeft,
+      offset: const Offset(0, -6),
+      showWhenUnlinked: false,
+      child: SizedBox(
+        width: width,
+        child: SlashSuggestionPanel(
+          suggestions: _suggestions,
+          selectedIndex: _selectedIndex,
+          onSelected: (index) => _applySuggestion(_suggestions[index]),
+          onHovered: (index) {
+            if (index != _selectedIndex) {
+              setState(() => _selectedIndex = index);
+            }
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -61,52 +204,70 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           ),
           const SizedBox(height: 12),
 
+          // 斜杠指令补全悬浮层 (渲染到根 Overlay，锚定在输入框上方)
+          OverlayPortal(
+            controller: _overlayController,
+            overlayChildBuilder: _buildSlashOverlay,
+          ),
+
           // 2. 消息输入框与发送按钮 (IntrinsicHeight + stretch 像素级高度对齐)
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: CallbackShortcuts(
-                    bindings: {
-                      const SingleActivator(LogicalKeyboardKey.enter):
-                          _handleSend,
-                    },
-                    child: TextField(
-                      controller: _inputController,
-                      minLines: 1,
-                      maxLines: 4,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: AppTheme.textPrimary,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: '输入绘画构思，或输入 /nai <词> 快速生图...',
-                        fillColor: AppTheme.paperWarmth,
-                        filled: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusButton,
+                  child: CompositedTransformTarget(
+                    link: _layerLink,
+                    child: Focus(
+                      onKeyEvent: _handleSlashKey,
+                      child: CallbackShortcuts(
+                        bindings: {
+                          const SingleActivator(LogicalKeyboardKey.enter):
+                              _handleSend,
+                        },
+                        child: TextField(
+                          key: _inputFieldKey,
+                          controller: _inputController,
+                          focusNode: _inputFocusNode,
+                          minLines: 1,
+                          maxLines: 4,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppTheme.textPrimary,
                           ),
-                          borderSide: const BorderSide(color: AppTheme.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusButton,
-                          ),
-                          borderSide: const BorderSide(color: AppTheme.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusButton,
-                          ),
-                          borderSide: const BorderSide(
-                            color: AppTheme.notionBlue,
-                            width: 1.5,
+                          decoration: InputDecoration(
+                            hintText: '输入绘画构思，或输入 /nai <词> 快速生图...',
+                            fillColor: AppTheme.paperWarmth,
+                            filled: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusButton,
+                              ),
+                              borderSide: const BorderSide(
+                                color: AppTheme.border,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusButton,
+                              ),
+                              borderSide: const BorderSide(
+                                color: AppTheme.border,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusButton,
+                              ),
+                              borderSide: const BorderSide(
+                                color: AppTheme.notionBlue,
+                                width: 1.5,
+                              ),
+                            ),
                           ),
                         ),
                       ),
