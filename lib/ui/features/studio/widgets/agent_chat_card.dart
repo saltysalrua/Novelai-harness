@@ -332,6 +332,7 @@ class AgentChatCardState extends State<AgentChatCard> {
             thoughts: widget.viewModel.currentStreamingThoughts,
             content: widget.viewModel.currentStreamingContent,
             thinkingExpanded: widget.viewModel.isThinkingExpanded,
+            notice: widget.viewModel.streamingRetryNotice,
           );
         }
         if (activePrompt != null &&

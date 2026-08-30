@@ -25,6 +25,7 @@ mixin _StudioChatMixin on _StudioCore {
     _isChatStreaming = true;
     _currentStreamingThoughts = '';
     _currentStreamingContent = '';
+    _streamingRetryNotice = null;
     _errorMessage = null;
     _paramJournal.record(_params);
     notifyListeners();
@@ -50,6 +51,14 @@ mixin _StudioChatMixin on _StudioCore {
             // 落入列表，若不清会把上一轮文本残留拼进本轮造成“重复语句”
             _currentStreamingThoughts = '';
             _currentStreamingContent = '';
+            _streamingRetryNotice = null;
+            notifyListeners();
+          } else if (event is RetryEvent) {
+            // 瞬态错误自动重试：在流式气泡顶部提示用户，等待退避后重发
+            _streamingRetryNotice =
+                '请求失败自动重试 (${event.attempt}/${event.maxAttempts}): '
+                '${event.reason} · '
+                '${event.delay.inSeconds > 0 ? '${event.delay.inSeconds} 秒后' : '即将'}重试';
             notifyListeners();
           } else if (event is UsageEvent) {
             _recordModelUsage(event.usage);
@@ -78,6 +87,7 @@ mixin _StudioChatMixin on _StudioCore {
       _isChatStreaming = false;
       _currentStreamingThoughts = '';
       _currentStreamingContent = '';
+      _streamingRetryNotice = null;
       await refreshSessions();
       notifyListeners();
     }
@@ -92,6 +102,7 @@ mixin _StudioChatMixin on _StudioCore {
     _isChatStreaming = false;
     _currentStreamingThoughts = '';
     _currentStreamingContent = '';
+    _streamingRetryNotice = null;
     _statusMessage = '已强制终止当前生成';
     notifyListeners();
   }

@@ -29,7 +29,7 @@ Novelai-harness/
 │   ├── core/                                   # 极简 AI Harness 运行时
 │   │   └── harness/
 │   │       ├── types.dart                      # 消息、事件、角色与工具调用数据模型
-│   │       ├── agent_harness.dart              # 核心 Agent 循环调度器 (多轮对话/工具执行)
+│   │       ├── agent_harness.dart              # 核心 Agent 循环调度器 (多轮对话/工具执行/轮数上限/瞬态自动重试/耗尽收尾)
 │   │       ├── session_recorder.dart           # 会话记录器抽象接口 (Pi 格式落盘钩子)
 │   │       ├── presets/
 │   │       │   └── agent_preset.dart           # Agent 预设模型 (系统提示词/可用Skills/工具与参数权限)
@@ -272,6 +272,18 @@ Novelai-harness/
 - `/upscale`：超分放大画板当前图片 (官方新超分模型，固定倍率，无倍率参数)。
 - `/account`：查询账号等级与 V5 专属体力池余量。
 - `/clear`：清空会话消息流。
+
+### 3.7 Agent 循环长程执行规范
+
+- **轮数上限**：`AgentHarness.maxTurns` (默认 30，配置项 `AppConfig.agentMaxTurns`，设置页 Defaults 可调，钳制 1..100)。达到上限后注入 user 角色收尾提示，并追加一轮**无工具**的强制总结轮，保证对话永远以最终回答收尾而不是悬挂的工具结果。
+- **瞬态自动重试**：`ErrorEvent.transient` 标记瞬态错误 (网络异常/HTTP 408/429/5xx/流解析中断)，Harness 按指数退避 (1s/2s/4s...) 自动重试同轮请求，总预算 `maxRetryAttempts` (默认 3，含首次)。重试前发 `RetryEvent` (ViewModel 转为流式气泡顶部的重试提示)，可重试错误**不直接透传** ErrorEvent，彻底失败才统一报错。重试时重发 `TurnStartEvent` 复位流式缓冲。
+- **空响应保护**：无正文无思考无工具调用的空响应视为异常，占用同一重试预算。
+- **失败不落盘**：重试预算耗尽的轮次不保存 assistant 消息，半截内容不进上下文与会话记录。
+
+### 3.8 LLM 思考参数格式兼容矩阵 (对齐 pi)
+
+- **解析侧**：OpenAiCompatibleProvider 按 pi 优先级短路解析思考流字段：`reasoning_content` (llama.cpp/DeepSeek/Qwen) → `reasoning` (OpenRouter/多数网关) → `reasoning_text`，只取第一个非空字段防双字段重复；另保留自研跨 chunk 内嵌思考标签状态机 (国产网关把 think 标签写进 content)。
+- **请求侧**：不同供应商用不同字段开关思维链，格式不匹配时思考会被上游静默丢弃。`LlmProviderConfig.thinkingParamFormat` (设置页 Models 可选，默认 auto 按域名识别)：openai=`reasoning_effort`、deepseek=`thinking:{type}`、qwen=`enable_thinking`、qwen_chat_template=`chat_template_kwargs`、zai=`thinking:{type,clear_thinking}`、openrouter=`reasoning:{effort}`、together=`reasoning:{enabled}`。Qwen/DeepSeek/Z.ai 关闭思考也需显式发送 disabled，因此思考等级始终透传 (含 off)。中转站 (newapi 等) 请按其转发的模型家族手动指定格式。
 
 ---
 

@@ -86,6 +86,9 @@ mixin _StudioCore on ChangeNotifier {
   String _currentStreamingThoughts = '';
   String _currentStreamingContent = '';
 
+  /// 流式请求自动重试提示 (RetryEvent 时设置，新一轮 TurnStart 或结束时清空)
+  String? _streamingRetryNotice;
+
   /// 思考块全局展开开关 (Ctrl+O 切换，默认折叠只显示单行预览)
   bool _isThinkingExpanded = false;
   NaiGeneratedImage? _selectedImage;
@@ -159,6 +162,9 @@ mixin _StudioCore on ChangeNotifier {
   bool get isChatStreaming => _isChatStreaming;
   String get currentStreamingThoughts => _currentStreamingThoughts;
   String get currentStreamingContent => _currentStreamingContent;
+
+  /// 流式请求重试提示 (流式气泡顶部展示)
+  String? get streamingRetryNotice => _streamingRetryNotice;
 
   /// 对话卡思考块全局展开开关 (Ctrl+O 切换)
   bool get isThinkingExpanded => _isThinkingExpanded;

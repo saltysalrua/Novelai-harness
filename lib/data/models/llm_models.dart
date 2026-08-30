@@ -20,6 +20,31 @@ enum LlmProtocol {
   }
 }
 
+/// 思考参数请求格式 (对齐 pi openai-completions 的 thinkingFormat 兼容矩阵)
+///
+/// 不同供应商用不同字段开关思维链，格式不匹配时思考会被上游静默丢弃。
+enum ThinkingParamFormat {
+  auto('auto', '自动 (按端点识别)'),
+  openai('openai', 'OpenAI (reasoning_effort)'),
+  deepseek('deepseek', 'DeepSeek (thinking)'),
+  qwen('qwen', 'Qwen (enable_thinking)'),
+  qwenChatTemplate('qwen_chat_template', 'Qwen Chat Template'),
+  zai('zai', 'Z.ai (thinking + clear_thinking)'),
+  openrouter('openrouter', 'OpenRouter (reasoning.effort)'),
+  together('together', 'Together (reasoning.enabled)');
+
+  final String id;
+  final String label;
+  const ThinkingParamFormat(this.id, this.label);
+
+  static ThinkingParamFormat fromId(String? id) {
+    return ThinkingParamFormat.values.firstWhere(
+      (f) => f.id == id,
+      orElse: () => ThinkingParamFormat.auto,
+    );
+  }
+}
+
 /// LLM 思考强度等级 (Reasoning / Thinking Effort)
 enum ThinkingEffort {
   off('off', '关闭'),
@@ -156,6 +181,9 @@ class LlmProviderConfig {
   final List<LlmModelConfig> models;
   final String activeModelId;
 
+  /// 思考参数请求格式 (auto = 按 baseUrl 域名自动识别，中转站可手动指定)
+  final ThinkingParamFormat thinkingParamFormat;
+
   const LlmProviderConfig({
     required this.id,
     required this.name,
@@ -164,6 +192,7 @@ class LlmProviderConfig {
     this.apiKey = '',
     this.models = const [],
     this.activeModelId = '',
+    this.thinkingParamFormat = ThinkingParamFormat.auto,
   });
 
   /// 获取当前激活的模型配置
@@ -197,6 +226,7 @@ class LlmProviderConfig {
     String? apiKey,
     List<LlmModelConfig>? models,
     String? activeModelId,
+    ThinkingParamFormat? thinkingParamFormat,
   }) {
     return LlmProviderConfig(
       id: id ?? this.id,
@@ -206,6 +236,7 @@ class LlmProviderConfig {
       apiKey: apiKey ?? this.apiKey,
       models: models ?? this.models,
       activeModelId: activeModelId ?? this.activeModelId,
+      thinkingParamFormat: thinkingParamFormat ?? this.thinkingParamFormat,
     );
   }
 
@@ -219,6 +250,7 @@ class LlmProviderConfig {
     'activeModelId': activeModelId.isNotEmpty
         ? activeModelId
         : (models.isNotEmpty ? models.first.id : ''),
+    'thinkingParamFormat': thinkingParamFormat.id,
   };
 
   factory LlmProviderConfig.fromJson(Map<String, dynamic> json) {
@@ -252,6 +284,9 @@ class LlmProviderConfig {
       apiKey: json['apiKey'] as String? ?? '',
       models: parsedModels,
       activeModelId: activeId,
+      thinkingParamFormat: ThinkingParamFormat.fromId(
+        json['thinkingParamFormat'] as String?,
+      ),
     );
   }
 

@@ -79,6 +79,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       defaultNoiseSchedule: _defaultsDraft.noiseSchedule,
       defaultSteps: _defaultsDraft.steps,
       defaultScale: _defaultsDraft.scale,
+      agentMaxTurns: _defaultsDraft.agentMaxTurns.clamp(1, 100),
     );
 
     widget.viewModel.updateConfig(newConfig);

@@ -38,6 +38,9 @@ class AppConfig {
   final List<LlmProviderConfig> llmProviders;
   final String activeLlmProviderId;
 
+  /// Agent 单次对话最大工具调用轮数 (达到后自动收尾)
+  final int agentMaxTurns;
+
   // Agent 预设 (多预设配置)
   final List<AgentPreset> presets;
   final String activePresetId;
@@ -94,6 +97,7 @@ class AppConfig {
     this.saveDirectory = '',
     this.llmProviders = const [],
     this.activeLlmProviderId = 'deepseek',
+    this.agentMaxTurns = 30,
     this.presets = const [],
     this.activePresetId = 'v5-architect-preset',
     this.customSkills = const [],
@@ -125,6 +129,7 @@ class AppConfig {
     String? saveDirectory,
     List<LlmProviderConfig>? llmProviders,
     String? activeLlmProviderId,
+    int? agentMaxTurns,
     List<AgentPreset>? presets,
     String? activePresetId,
     List<Skill>? customSkills,
@@ -162,6 +167,7 @@ class AppConfig {
       saveDirectory: saveDirectory ?? this.saveDirectory,
       llmProviders: updatedProviders,
       activeLlmProviderId: targetActiveId,
+      agentMaxTurns: agentMaxTurns ?? this.agentMaxTurns,
       presets: presets ?? this.presets,
       activePresetId: activePresetId ?? this.activePresetId,
       customSkills: customSkills ?? this.customSkills,
@@ -228,6 +234,7 @@ class ConfigService {
   static const String _keyLlmTemperature = 'llm_temperature';
   static const String _keyLlmProviders = 'llm_providers_json';
   static const String _keyActiveLlmProviderId = 'active_llm_provider_id';
+  static const String _keyAgentMaxTurns = 'novelai_agent_max_turns';
   static const String _keyPresets = 'agent_presets_json';
   static const String _keyActivePresetId = 'active_preset_id';
   static const String _keyCustomSkills = 'agent_custom_skills_json';
@@ -365,6 +372,10 @@ class ConfigService {
     final activeProviderId =
         prefs.getString(_keyActiveLlmProviderId) ?? providers.first.id;
 
+    // Agent 单次对话最大工具轮数 (钳制在 1..100 防止脏数据)
+    final storedMaxTurns = prefs.getInt(_keyAgentMaxTurns) ?? 30;
+    final agentMaxTurns = storedMaxTurns.clamp(1, 100);
+
     // Agent 预设配置加载
     List<AgentPreset> presets = [];
     final presetsJson = prefs.getString(_keyPresets);
@@ -453,6 +464,7 @@ class ConfigService {
       saveDirectory: saveDir,
       llmProviders: providers,
       activeLlmProviderId: activeProviderId,
+      agentMaxTurns: agentMaxTurns,
       presets: presets,
       activePresetId: activePresetId,
       customSkills: customSkills,
@@ -505,6 +517,7 @@ class ConfigService {
     );
     await prefs.setString(_keyLlmProviders, providersJson);
     await prefs.setString(_keyActiveLlmProviderId, config.activeLlmProviderId);
+    await prefs.setInt(_keyAgentMaxTurns, config.agentMaxTurns.clamp(1, 100));
 
     // 保存 Agent 预设配置
     final presetsJson = jsonEncode(
@@ -679,8 +692,16 @@ class ConfigService {
   // --- 桌面窗口状态持久化 ---
 
   /// 加载窗口状态 (尺寸、位置、是否最大化)
-  Future<({double width, double height, double? posX, double? posY, bool isMaximized})>
-      loadWindowState({
+  Future<
+    ({
+      double width,
+      double height,
+      double? posX,
+      double? posY,
+      bool isMaximized,
+    })
+  >
+  loadWindowState({
     double defaultWidth = 1380.0,
     double defaultHeight = 860.0,
     double minWidth = 960.0,

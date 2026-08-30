@@ -161,16 +161,20 @@ mixin _StudioHarnessMixin on _StudioCore {
         ? activeLlm.name
         : activeLlm.id;
     if (activeLlm.apiKey.isNotEmpty) {
+      final supportsThinking = activeModel.supportsThinking;
       final isReasoningActive =
-          activeModel.supportsThinking &&
-          _currentThinkingEffort != ThinkingEffort.off;
+          supportsThinking && _currentThinkingEffort != ThinkingEffort.off;
 
       _harness.provider = OpenAiCompatibleProvider(
         baseUrl: activeLlm.fullEndpointUrl,
         apiKey: activeLlm.apiKey,
         model: activeModel.id,
         reasoning: isReasoningActive,
-        thinkingEffort: isReasoningActive ? _currentThinkingEffort.id : null,
+        // 思考等级始终透传 (含 off)：Qwen/DeepSeek/Z.ai 等格式的端点
+        // 关闭思考也需要显式发送 disabled 参数，不能靠省略字段
+        thinkingEffort: supportsThinking ? _currentThinkingEffort.id : null,
+        // 思考参数格式 (对齐 pi thinkingFormat 兼容矩阵，中转站可手动指定)
+        thinkingParamFormat: activeLlm.thinkingParamFormat.id,
       );
     } else {
       _harness.provider = null;
@@ -188,6 +192,9 @@ mixin _StudioHarnessMixin on _StudioCore {
       ),
     );
     _harness.setPreset(activePreset);
+
+    // 长程配置：单次对话最大工具轮数 (设置页 Defaults 可调)
+    _harness.maxTurns = _config.agentMaxTurns;
   }
 
   /// 动态调整 Agent 思考强度 (在对话工作台中随点随切)

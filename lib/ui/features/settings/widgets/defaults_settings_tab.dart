@@ -11,13 +11,17 @@ class DefaultsSettingsDraft {
       sampler = config.defaultSampler,
       noiseSchedule = config.defaultNoiseSchedule,
       steps = config.defaultSteps,
-      scale = config.defaultScale;
+      scale = config.defaultScale,
+      agentMaxTurns = config.agentMaxTurns;
 
   NaiModel model;
   NaiSampler sampler;
   NoiseSchedule noiseSchedule;
   int steps;
   double scale;
+
+  /// Agent 单次对话最大工具调用轮数 (1..100)
+  int agentMaxTurns;
 }
 
 /// Defaults 页：启动出厂默认生图模型、采样算法与步数引导
@@ -122,6 +126,41 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               divisions: 38,
               activeColor: AppTheme.notionBlue,
               onChanged: (val) => setState(() => _draft.scale = val),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+        const SettingsGroupTitle('Agent Loop'),
+        SettingsCard(
+          title: 'Agent 最大工具轮数',
+          subtitle: '单次对话允许的工具链式调用轮数，达到后自动收尾总结',
+          control: SizedBox(
+            width: 160,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove_rounded, size: 16),
+                  onPressed: _draft.agentMaxTurns > 1
+                      ? () => setState(() => _draft.agentMaxTurns--)
+                      : null,
+                ),
+                Text(
+                  '${_draft.agentMaxTurns}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  onPressed: _draft.agentMaxTurns < 100
+                      ? () => setState(() => _draft.agentMaxTurns++)
+                      : null,
+                ),
+              ],
             ),
           ),
         ),

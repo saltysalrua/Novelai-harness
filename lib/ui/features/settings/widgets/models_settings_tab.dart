@@ -26,6 +26,7 @@ class ModelsSettingsDraft {
     baseUrlController = TextEditingController(text: active.baseUrl);
     apiKeyController = TextEditingController(text: active.apiKey);
     protocol = active.protocol;
+    thinkingParamFormat = active.thinkingParamFormat;
   }
 
   late final List<LlmProviderConfig> providers;
@@ -34,6 +35,9 @@ class ModelsSettingsDraft {
   late final TextEditingController baseUrlController;
   late final TextEditingController apiKeyController;
   late LlmProtocol protocol;
+
+  /// 思考参数请求格式 (不同供应商用不同字段开关思维链)
+  late ThinkingParamFormat thinkingParamFormat;
 
   // 在线拉取状态
   bool isFetchingModels = false;
@@ -56,6 +60,7 @@ class ModelsSettingsDraft {
         baseUrl: baseUrlController.text.trim(),
         protocol: protocol,
         apiKey: apiKeyController.text.trim(),
+        thinkingParamFormat: thinkingParamFormat,
       );
     }
   }
@@ -67,6 +72,7 @@ class ModelsSettingsDraft {
     baseUrlController.text = provider.baseUrl;
     protocol = provider.protocol;
     apiKeyController.text = provider.apiKey;
+    thinkingParamFormat = provider.thinkingParamFormat;
     fetchStatusMessage = null;
   }
 
@@ -514,6 +520,20 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
             controller: _draft.apiKeyController,
             hintText: 'sk-...',
             width: 260,
+          ),
+        ),
+        SettingsCard(
+          title: '思考参数格式',
+          subtitle: '不同供应商用不同字段开关思维链，格式不匹配时思考会被静默丢弃；中转站请按其上游格式指定',
+          control: SettingsDropdown<ThinkingParamFormat>(
+            value: _draft.thinkingParamFormat,
+            items: ThinkingParamFormat.values,
+            labelBuilder: (f) => f.label,
+            onChanged: (val) {
+              if (val != null) {
+                setState(() => _draft.thinkingParamFormat = val);
+              }
+            },
           ),
         ),
 

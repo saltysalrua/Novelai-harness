@@ -27,6 +27,10 @@ class OpenAiCompatibleProvider implements LlmProvider {
   final String model;
   final bool reasoning;
   final String? thinkingEffort;
+
+  /// 思考参数请求格式 id (null/'auto' = 按端点域名自动识别)，
+  /// 对齐 pi openai-completions 的 thinkingFormat 兼容矩阵。
+  final String? thinkingParamFormat;
   final http.Client _client;
 
   OpenAiCompatibleProvider({
@@ -35,11 +39,88 @@ class OpenAiCompatibleProvider implements LlmProvider {
     required this.model,
     this.reasoning = false,
     this.thinkingEffort,
+    this.thinkingParamFormat,
     http.Client? client,
   }) : _client = client ?? http.Client();
 
   @override
   String get modelId => model;
+
+  /// 判定 HTTP 状态码是否为瞬态可重试错误 (请求超时 / 频控 / 服务端临时故障)
+  static bool isTransientStatus(int code) =>
+      code == 408 || code == 429 || (code >= 500 && code <= 599);
+
+  /// 解析实际生效的思考参数格式 (显式配置优先，auto 按端点域名识别)
+  String get resolvedThinkingFormat {
+    final configured = thinkingParamFormat?.trim();
+    if (configured != null && configured.isNotEmpty && configured != 'auto') {
+      return configured;
+    }
+    final url = baseUrl.toLowerCase();
+    if (url.contains('openrouter.ai')) return 'openrouter';
+    if (url.contains('deepseek.com')) return 'deepseek';
+    if (url.contains('dashscope') || url.contains('aliyuncs')) {
+      return 'qwen';
+    }
+    if (url.contains('z.ai') ||
+        url.contains('zhipu') ||
+        url.contains('bigmodel')) {
+      return 'zai';
+    }
+    if (url.contains('together.ai')) return 'together';
+    return 'openai';
+  }
+
+  /// 按格式写入思考开关参数 (对齐 pi openai-completions 的 thinkingFormat 分支):
+  /// 不同供应商用不同字段开关思维链，格式不匹配时思考会被上游静默丢弃；
+  /// 部分格式 (Qwen / DeepSeek / Z.ai) 关闭思考也需显式发送 disabled。
+  void _applyThinkingParams(Map<String, dynamic> body) {
+    final effort = thinkingEffort?.trim();
+    // 模型不具备思考能力时不发送任何思考参数
+    if (effort == null || effort.isEmpty) return;
+    final thinkingOn = reasoning;
+    switch (resolvedThinkingFormat) {
+      case 'deepseek':
+        body['thinking'] = {'type': thinkingOn ? 'enabled' : 'disabled'};
+        if (thinkingOn) body['reasoning_effort'] = effort;
+      case 'qwen':
+        body['enable_thinking'] = thinkingOn;
+        if (thinkingOn) body['reasoning_effort'] = effort;
+      case 'qwen_chat_template':
+        body['chat_template_kwargs'] = {
+          'enable_thinking': thinkingOn,
+          'preserve_thinking': true,
+        };
+      case 'zai':
+        body['thinking'] = thinkingOn
+            ? {'type': 'enabled', 'clear_thinking': false}
+            : {'type': 'disabled'};
+        if (thinkingOn) body['reasoning_effort'] = effort;
+      case 'openrouter':
+        // OpenRouter 用嵌套 reasoning 对象归一化各上游的思考开关
+        body['reasoning'] = {'effort': thinkingOn ? effort : 'none'};
+      case 'together':
+        body['reasoning'] = {'enabled': thinkingOn};
+        if (thinkingOn) body['reasoning_effort'] = effort;
+      default:
+        // OpenAI 风格: 开思考时发送 reasoning_effort，关闭时不发送
+        if (thinkingOn) body['reasoning_effort'] = effort;
+    }
+  }
+
+  /// 内嵌思考标签 (QwQ / Qwen3 等模型把思考过程直接写进 content 流)
+  static const String _openThinkTag = '<think>';
+  static const String _closeThinkTag = '</think>';
+
+  /// 返回 [s] 尾部与 [tag] 前缀重叠的最长长度 (0 .. tag.length-1)，
+  /// 用于把被流式拆分的标签片段缓冲到下一个 chunk 再判定
+  static int _tailTagOverlap(String s, String tag) {
+    final maxLen = s.length < tag.length ? s.length : tag.length - 1;
+    for (var len = maxLen; len > 0; len--) {
+      if (s.endsWith(tag.substring(0, len))) return len;
+    }
+    return 0;
+  }
 
   @override
   Stream<HarnessEvent> streamChat({
@@ -71,9 +152,8 @@ class OpenAiCompatibleProvider implements LlmProvider {
       'temperature': temperature,
     };
 
-    if (reasoning && thinkingEffort != null && thinkingEffort!.isNotEmpty) {
-      requestBody['reasoning_effort'] = thinkingEffort;
-    }
+    // 思考参数按供应商兼容矩阵写入 (格式不匹配时思考会被上游静默丢弃)
+    _applyThinkingParams(requestBody);
 
     if (tools.isNotEmpty) {
       requestBody['tools'] = tools.map((t) => t.toOpenAiFunction()).toList();
@@ -98,7 +178,8 @@ class OpenAiCompatibleProvider implements LlmProvider {
     try {
       streamedResponse = await _send(endpoint, requestBody);
     } catch (e) {
-      yield ErrorEvent('网络请求异常: $e');
+      // 连接失败 / 超时 / TLS 握手中断等网络层异常均为瞬态
+      yield ErrorEvent('网络请求异常: $e', transient: true);
       return;
     }
 
@@ -112,7 +193,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
         try {
           streamedResponse = await _send(endpoint, requestBody);
         } catch (e) {
-          yield ErrorEvent('网络请求异常: $e');
+          yield ErrorEvent('网络请求异常: $e', transient: true);
           return;
         }
       } else {
@@ -125,6 +206,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
       final errBody = await streamedResponse.stream.bytesToString();
       yield ErrorEvent(
         'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
+        transient: isTransientStatus(streamedResponse.statusCode),
       );
       return;
     }
@@ -132,6 +214,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
     // 累加工具调用片段
     final Map<int, Map<String, dynamic>> toolCallsAccumulator = {};
     bool inThinkTag = false;
+    String pendingTagBuffer = '';
 
     try {
       final lineStream = streamedResponse.stream
@@ -169,49 +252,59 @@ class OpenAiCompatibleProvider implements LlmProvider {
         final delta = choices[0]['delta'] as Map<String, dynamic>?;
         if (delta == null) continue;
 
-        // 1. 处理原生 reasoning_content (DeepSeek-R1 / Qwen 等)
-        if (delta.containsKey('reasoning_content') &&
-            delta['reasoning_content'] != null) {
-          final reasoningDelta = delta['reasoning_content'] as String;
-          if (reasoningDelta.isNotEmpty) {
-            yield ThoughtDeltaEvent(reasoningDelta);
+        // 1. 原生思考流字段 (优先级短路，对齐 pi 的 openai-completions 实现):
+        //    reasoning_content (llama.cpp / DeepSeek-R1 / Qwen) -> reasoning
+        //    (OpenRouter 及多数兼容网关) -> reasoning_text。
+        //    只取第一个非空字段，避免个别网关双字段回传同样内容导致思考重复。
+        for (final key in const [
+          'reasoning_content',
+          'reasoning',
+          'reasoning_text',
+        ]) {
+          final raw = delta[key];
+          if (raw is String && raw.isNotEmpty) {
+            yield ThoughtDeltaEvent(raw);
+            break;
           }
         }
 
-        // 2. 处理标准 content (含 <think> 标签容错)
+        // 2. 处理标准 content (内嵌思考标签容错: 标签可能被流式拆分到多个 chunk)
         if (delta.containsKey('content') && delta['content'] != null) {
           final contentDelta = delta['content'] as String;
           if (contentDelta.isNotEmpty) {
-            // 处理嵌入式的 <think> 标签
-            if (contentDelta.contains('<think>')) {
-              inThinkTag = true;
-              final parts = contentDelta.split('<think>');
-              if (parts[0].isNotEmpty) {
-                yield ContentDeltaEvent(parts[0]);
-              }
-              if (parts.length > 1 && parts[1].isNotEmpty) {
-                yield ThoughtDeltaEvent(parts[1]);
-              }
-              continue;
-            }
-
-            if (inThinkTag) {
-              if (contentDelta.contains('</think>')) {
-                inThinkTag = false;
-                final parts = contentDelta.split('</think>');
-                if (parts[0].isNotEmpty) {
-                  yield ThoughtDeltaEvent(parts[0]);
+            String rest = pendingTagBuffer + contentDelta;
+            pendingTagBuffer = '';
+            while (rest.isNotEmpty) {
+              final tag = inThinkTag ? _closeThinkTag : _openThinkTag;
+              final idx = rest.indexOf(tag);
+              if (idx < 0) {
+                // 尾部可能是被拆分标签的前缀: 先缓冲，等下一个 chunk 拼齐再判定
+                final overlap = _tailTagOverlap(rest, tag);
+                final emitLen = rest.length - overlap;
+                if (emitLen > 0) {
+                  final emit = rest.substring(0, emitLen);
+                  if (inThinkTag) {
+                    yield ThoughtDeltaEvent(emit);
+                  } else {
+                    yield ContentDeltaEvent(emit);
+                  }
                 }
-                if (parts.length > 1 && parts[1].isNotEmpty) {
-                  yield ContentDeltaEvent(parts[1]);
+                if (overlap > 0) {
+                  pendingTagBuffer = rest.substring(emitLen);
                 }
-              } else {
-                yield ThoughtDeltaEvent(contentDelta);
+                break;
               }
-              continue;
+              if (idx > 0) {
+                final emit = rest.substring(0, idx);
+                if (inThinkTag) {
+                  yield ThoughtDeltaEvent(emit);
+                } else {
+                  yield ContentDeltaEvent(emit);
+                }
+              }
+              rest = rest.substring(idx + tag.length);
+              inThinkTag = !inThinkTag;
             }
-
-            yield ContentDeltaEvent(contentDelta);
           }
         }
 
@@ -248,6 +341,16 @@ class OpenAiCompatibleProvider implements LlmProvider {
         }
       }
 
+      // 流结束: 冲刷残缺标签缓冲 (没等到完整标签出现，按当前状态原文输出)
+      if (pendingTagBuffer.isNotEmpty) {
+        if (inThinkTag) {
+          yield ThoughtDeltaEvent(pendingTagBuffer);
+        } else {
+          yield ContentDeltaEvent(pendingTagBuffer);
+        }
+        pendingTagBuffer = '';
+      }
+
       // 如果有工具调用完成组装，发送 ToolCallEvent
       for (final entry in toolCallsAccumulator.entries) {
         final raw = entry.value;
@@ -265,7 +368,8 @@ class OpenAiCompatibleProvider implements LlmProvider {
         }
       }
     } catch (e) {
-      yield ErrorEvent('解析流式数据异常: $e');
+      // 流中断 / 解码失败多为服务端提前断连，按瞬态处理交给上层退避重试
+      yield ErrorEvent('解析流式数据异常: $e', transient: true);
     }
   }
 

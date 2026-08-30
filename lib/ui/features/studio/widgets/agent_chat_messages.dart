@@ -294,11 +294,15 @@ class StreamingMessageBubble extends StatelessWidget {
   /// 思考块全局展开开关 (Ctrl+O)，开启时流式思考不截断行数
   final bool thinkingExpanded;
 
+  /// 自动重试提示 (瞬态错误退避等待期间显示，null 则不渲染)
+  final String? notice;
+
   const StreamingMessageBubble({
     super.key,
     required this.thoughts,
     required this.content,
     this.thinkingExpanded = false,
+    this.notice,
   });
 
   @override
@@ -309,6 +313,43 @@ class StreamingMessageBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (notice != null && notice!.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.pureWhite,
+                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                border: Border.all(color: AppTheme.border),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 11,
+                    height: 11,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: AppTheme.textMuted,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      notice!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppTheme.textMuted,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
           if (thoughts.isNotEmpty) ...[
             const Row(
               children: [

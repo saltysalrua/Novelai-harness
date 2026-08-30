@@ -16,6 +16,12 @@ class MockLlmProvider implements LlmProvider {
   /// 最近一次 streamChat 收到的缓存路由键 (透传验证用)
   String? lastPromptCacheKey;
 
+  /// streamChat 总调用次数 (重试验证用)
+  int callCount = 0;
+
+  /// 每次 streamChat 收到的工具列表快照 (收尾轮无工具验证用)
+  final List<List<AgentTool>> receivedToolSets = [];
+
   MockLlmProvider(this.onStream);
 
   @override
@@ -29,6 +35,8 @@ class MockLlmProvider implements LlmProvider {
     String? promptCacheKey,
   }) async* {
     lastPromptCacheKey = promptCacheKey;
+    callCount++;
+    receivedToolSets.add(tools);
     final events = onStream(messages, tools);
     for (final event in events) {
       yield event;
@@ -307,6 +315,168 @@ void main() {
       ]);
       expect(harness.messages.length, equals(2));
       expect(harness.messages.first.content, equals('New 1'));
+    });
+  });
+
+  group('Agent 长程轮数与自动重试', () {
+    late ToolRegistry tools;
+
+    setUp(() {
+      tools = ToolRegistry();
+      tools.register(TestEchoTool());
+    });
+
+    /// 构建零退避的测试 harness
+    AgentHarness buildHarness(
+      MockLlmProvider provider, {
+      int? maxTurns,
+      AgentPreset? preset,
+    }) {
+      return AgentHarness(
+        tools: tools,
+        provider: provider,
+        maxTurns: maxTurns ?? 30,
+        retryBaseDelay: Duration.zero,
+        initialPreset: preset,
+      );
+    }
+
+    test('瞬态错误自动指数退避重试并最终成功', () async {
+      int calls = 0;
+      final provider = MockLlmProvider((messages, toolList) {
+        calls++;
+        if (calls == 1) {
+          return [const ErrorEvent('HTTP 429', transient: true)];
+        }
+        return [ContentDeltaEvent('重试后成功')];
+      });
+      final harness = buildHarness(provider);
+      final events = await harness.send('Hi').toList();
+
+      // 首次失败后发出 RetryEvent，第二次尝试成功
+      expect(provider.callCount, equals(2));
+      final retries = events.whereType<RetryEvent>().toList();
+      expect(retries.length, equals(1));
+      expect(retries.first.attempt, equals(2));
+      expect(retries.first.reason, contains('429'));
+      // 重试前 TurnStartEvent 重发，流式气泡复位
+      expect(events.whereType<TurnStartEvent>().length, equals(2));
+      // 无 ErrorEvent (可重试错误不直接透传)
+      expect(events.whereType<ErrorEvent>(), isEmpty);
+      expect(events.any((e) => e is TurnEndEvent), isTrue);
+      expect(harness.messages.last.content, equals('重试后成功'));
+    });
+
+    test('非瞬态错误不重试，直接终止并保留用户消息', () async {
+      final provider = MockLlmProvider((messages, toolList) {
+        return [const ErrorEvent('HTTP 401 未授权')];
+      });
+      final harness = buildHarness(provider);
+      final events = await harness.send('Hi').toList();
+
+      expect(provider.callCount, equals(1));
+      expect(events.whereType<RetryEvent>(), isEmpty);
+      final errors = events.whereType<ErrorEvent>().toList();
+      expect(errors.length, equals(1));
+      expect(errors.first.error, contains('401'));
+      // 半截内容不落盘：仅保留用户消息
+      expect(
+        harness.messages.where((m) => m.role == AgentRole.assistant),
+        isEmpty,
+      );
+    });
+
+    test('瞬态错误重试预算耗尽后报错终止', () async {
+      final provider = MockLlmProvider((messages, toolList) {
+        return [const ErrorEvent('网络请求异常: connection reset', transient: true)];
+      });
+      final harness = buildHarness(provider);
+      final events = await harness.send('Hi').toList();
+
+      // 默认 3 次尝试预算全部用完
+      expect(provider.callCount, equals(3));
+      expect(events.whereType<RetryEvent>().length, equals(2));
+      final errors = events.whereType<ErrorEvent>().toList();
+      expect(errors.length, equals(1));
+      expect(errors.first.error, contains('连续 3 次'));
+    });
+
+    test('空响应占用重试预算，再次尝试成功', () async {
+      int calls = 0;
+      final provider = MockLlmProvider((messages, toolList) {
+        calls++;
+        if (calls == 1) return const [];
+        return [ContentDeltaEvent('有内容了')];
+      });
+      final harness = buildHarness(provider);
+      final events = await harness.send('Hi').toList();
+
+      expect(provider.callCount, equals(2));
+      final retries = events.whereType<RetryEvent>().toList();
+      expect(retries.length, equals(1));
+      expect(retries.first.reason, contains('空响应'));
+      expect(events.any((e) => e is TurnEndEvent), isTrue);
+      expect(harness.messages.last.content, equals('有内容了'));
+    });
+
+    test('工具轮数达到上限后注入收尾提示并强制无工具总结', () async {
+      // 预设需显式开放 echo_test，否则工具白名单为空，首轮即无工具可用
+      final testPreset = AgentPreset(
+        id: 'loop_test_preset',
+        name: 'Loop Test',
+        description: '',
+        systemPrompt: 'System',
+        enabledToolNames: ['echo_test'],
+      );
+      final provider = MockLlmProvider((messages, toolList) {
+        // 前两轮持续请求工具；收尾轮 (无工具可用) 给出最终回答
+        if (toolList.isEmpty) {
+          return [ContentDeltaEvent('这是最终总结。')];
+        }
+        return [
+          ToolCallEvent(
+            const ToolCall(
+              id: 'call_loop',
+              name: 'echo_test',
+              arguments: {'text': 'x'},
+            ),
+          ),
+        ];
+      });
+      final harness = buildHarness(provider, maxTurns: 2, preset: testPreset);
+      final events = await harness.send('loop').toList();
+
+      // 两轮工具 + 一轮收尾总结
+      expect(provider.callCount, equals(3));
+      // 前两轮工具可用，收尾轮工具列表必须为空 (强制总结)
+      expect(provider.receivedToolSets.first, isNotEmpty);
+      expect(provider.receivedToolSets[1], isNotEmpty);
+      expect(provider.receivedToolSets.last, isEmpty);
+      // 注入了轮数上限收尾提示 (user 角色)
+      final nudge = harness.messages.firstWhere(
+        (m) => m.role == AgentRole.user && m.content.contains('最大工具调用轮数上限'),
+      );
+      expect(nudge.content, contains('不要再调用任何工具'));
+      // 对话以收尾回答结束，而不是悬挂的工具结果
+      expect(harness.messages.last.role, equals(AgentRole.assistant));
+      expect(harness.messages.last.content, equals('这是最终总结。'));
+      expect(events.any((e) => e is TurnEndEvent), isTrue);
+      // 收尾提示位于最后一个工具结果之后
+      final nudgeIdx = harness.messages.indexOf(nudge);
+      final lastToolResultIdx = harness.messages.lastIndexWhere(
+        (m) => m.role == AgentRole.tool,
+      );
+      expect(nudgeIdx, greaterThan(lastToolResultIdx));
+    });
+
+    test('默认最大轮数为 30 且可通过配置覆盖', () {
+      final provider = MockLlmProvider((m, t) => const []);
+      final harness = AgentHarness(tools: tools, provider: provider);
+      expect(harness.maxTurns, equals(30));
+      expect(harness.maxRetryAttempts, equals(3));
+
+      harness.maxTurns = 50;
+      expect(harness.maxTurns, equals(50));
     });
   });
 }

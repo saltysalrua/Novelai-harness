@@ -220,7 +220,9 @@ class AgentMessage {
 }
 
 /// Harness 事件抽象
-sealed class HarnessEvent {}
+sealed class HarnessEvent {
+  const HarnessEvent();
+}
 
 class TurnStartEvent extends HarnessEvent {
   final String messageId;
@@ -259,5 +261,32 @@ class TurnEndEvent extends HarnessEvent {
 
 class ErrorEvent extends HarnessEvent {
   final String error;
-  ErrorEvent(this.error);
+
+  /// 是否为瞬态错误 (网络抖动 / 429 / 5xx / 流中断 / 空响应)。
+  /// true 时 Harness 会指数退避自动重试，false 则直接终止本轮对话。
+  final bool transient;
+
+  const ErrorEvent(this.error, {this.transient = false});
+}
+
+/// 一轮流式请求失败后的自动重试通知 (退避等待前发出)
+class RetryEvent extends HarnessEvent {
+  /// 即将进行的第几次尝试 (从 2 开始计数，首次失败后为 2)
+  final int attempt;
+
+  /// 含首次请求在内的总尝试上限
+  final int maxAttempts;
+
+  /// 上一次失败的简短原因
+  final String reason;
+
+  /// 本次退避等待时长
+  final Duration delay;
+
+  RetryEvent({
+    required this.attempt,
+    required this.maxAttempts,
+    required this.reason,
+    required this.delay,
+  });
 }
