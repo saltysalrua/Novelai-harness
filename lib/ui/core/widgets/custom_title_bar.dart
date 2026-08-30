@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import '../../../../data/services/window_state_service.dart';
 import '../theme/app_theme.dart';
 
 /// 自定义 Notion 风格工作台标题栏 (支持窗口拖动、双击缩放与三键控制)
@@ -93,6 +94,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
   Future<void> _close() async {
     if (_isDesktop) {
       try {
+        await WindowStateService.instance.saveCurrentState();
         await windowManager.close();
       } catch (_) {}
     }

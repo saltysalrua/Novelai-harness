@@ -65,7 +65,8 @@ Novelai-harness/
 │   │   │   ├── llm_model_fetcher.dart          # 在线拉取远程 LLM 模型列表与能力元数据解析
 │   │   │   ├── models_dev_catalog.dart         # models.dev 在线模型能力目录 (拉取/缓存/模糊匹配)
 │   │   │   ├── tag_dictionary_service.dart     # 14万+ Danbooru 离线词库检索、多模态反查与缓存服务
-│   │   │   └── prompt_ast_engine.dart          # NovelAI 提示词 AST 分词、权重增减与 SD 语法转换引擎
+│   │   │   ├── prompt_ast_engine.dart          # NovelAI 提示词 AST 分词、权重增减与 SD 语法转换引擎
+│   │   │   └── window_state_service.dart       # 桌面端窗口尺寸、坐标与最大化状态监听与防抖持久化服务
 │   │   └── repositories/
 │   │       └── novelai_repository.dart         # 图片落盘存储、历史记录与业务聚合
 │   │

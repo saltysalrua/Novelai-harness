@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import 'data/services/config_service.dart';
 import 'data/services/tag_dictionary_service.dart';
+import 'data/services/window_state_service.dart';
 import 'ui/core/theme/app_theme.dart';
 import 'ui/features/studio/views/studio_view.dart';
 
@@ -20,10 +22,18 @@ void main() async {
           defaultTargetPlatform == TargetPlatform.macOS)) {
     await windowManager.ensureInitialized();
 
-    const windowOptions = WindowOptions(
-      size: Size(1380, 860),
-      minimumSize: Size(960, 600),
-      center: true,
+    final configService = ConfigService();
+    final windowState = await configService.loadWindowState();
+
+    final bool hasValidPosition = windowState.posX != null &&
+        windowState.posY != null &&
+        windowState.posX! >= -200 &&
+        windowState.posY! >= -200;
+
+    final windowOptions = WindowOptions(
+      size: Size(windowState.width, windowState.height),
+      minimumSize: const Size(960, 600),
+      center: !hasValidPosition,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
       titleBarStyle: TitleBarStyle.hidden,
@@ -31,9 +41,19 @@ void main() async {
     );
 
     await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      if (hasValidPosition) {
+        await windowManager.setPosition(
+          Offset(windowState.posX!, windowState.posY!),
+        );
+      }
+      if (windowState.isMaximized) {
+        await windowManager.maximize();
+      }
       await windowManager.show();
       await windowManager.focus();
     });
+
+    WindowStateService.instance.initialize();
   }
 
   runApp(const NovelAiHarnessApp());

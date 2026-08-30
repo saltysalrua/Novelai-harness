@@ -215,6 +215,13 @@ class ConfigService {
   static const String _keyCanvasHistoryOpen =
       'novelai_layout_canvas_history_open';
 
+  // 窗口状态持久化 Keys
+  static const String _keyWindowWidth = 'novelai_window_width';
+  static const String _keyWindowHeight = 'novelai_window_height';
+  static const String _keyWindowPosX = 'novelai_window_pos_x';
+  static const String _keyWindowPosY = 'novelai_window_pos_y';
+  static const String _keyWindowMaximized = 'novelai_window_maximized';
+
   static const String _keyLlmBaseUrl = 'llm_base_url';
   static const String _keyLlmApiKey = 'llm_api_key';
   static const String _keyLlmModel = 'llm_model';
@@ -667,6 +674,61 @@ class ConfigService {
   Future<void> saveCanvasHistoryOpen(bool isOpen) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyCanvasHistoryOpen, isOpen);
+  }
+
+  // --- 桌面窗口状态持久化 ---
+
+  /// 加载窗口状态 (尺寸、位置、是否最大化)
+  Future<({double width, double height, double? posX, double? posY, bool isMaximized})>
+      loadWindowState({
+    double defaultWidth = 1380.0,
+    double defaultHeight = 860.0,
+    double minWidth = 960.0,
+    double minHeight = 600.0,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final w = prefs.getDouble(_keyWindowWidth) ?? defaultWidth;
+    final h = prefs.getDouble(_keyWindowHeight) ?? defaultHeight;
+    final posX = prefs.getDouble(_keyWindowPosX);
+    final posY = prefs.getDouble(_keyWindowPosY);
+    final isMaximized = prefs.getBool(_keyWindowMaximized) ?? false;
+
+    final clampedW = w < minWidth ? minWidth : w;
+    final clampedH = h < minHeight ? minHeight : h;
+
+    return (
+      width: clampedW,
+      height: clampedH,
+      posX: posX,
+      posY: posY,
+      isMaximized: isMaximized,
+    );
+  }
+
+  /// 保存窗口正常尺寸与位置 (非最大化状态下)
+  Future<void> saveWindowState({
+    required double width,
+    required double height,
+    double? posX,
+    double? posY,
+    bool isMaximized = false,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyWindowWidth, width);
+    await prefs.setDouble(_keyWindowHeight, height);
+    if (posX != null) {
+      await prefs.setDouble(_keyWindowPosX, posX);
+    }
+    if (posY != null) {
+      await prefs.setDouble(_keyWindowPosY, posY);
+    }
+    await prefs.setBool(_keyWindowMaximized, isMaximized);
+  }
+
+  /// 保存窗口最大化状态
+  Future<void> saveWindowMaximized(bool isMaximized) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyWindowMaximized, isMaximized);
   }
 
   Map<String, dynamic>? _tryLoadLocalPiNovelAiJson() {
