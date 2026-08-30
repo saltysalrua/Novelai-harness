@@ -69,8 +69,14 @@ Novelai-harness/
 │       └── features/
 │           ├── settings/
 │           │   ├── views/
-│           │   │   └── settings_dialog.dart    # 全局配置弹窗 (General / Models / Presets / Defaults / Bill)
+│           │   │   └── settings_dialog.dart    # 全局配置弹窗壳 (导航+IndexedStack 装配+保存聚合)
 │           │   └── widgets/
+│           │       ├── settings_shared.dart    # 设置域共享件 (分组标题/设置卡/下拉/操作钮/密钥框/遮罩弹窗)
+│           │       ├── general_settings_tab.dart # General 页：服务凭证/存储目录/保护开关
+│           │       ├── models_settings_tab.dart # Models 页：供应商/端点/模型卡片与在线拉取
+│           │       ├── presets_settings_tab.dart # Presets 页：预设/系统提示词/技能/工具/参数权限
+│           │       ├── defaults_settings_tab.dart # Defaults 页：出厂默认模型/采样/步数
+│           │       ├── bill_settings_tab.dart  # Bill 页：Token 用量账单表格
 │           │       ├── model_card.dart         # 模型小卡片 (选中态/能力胶囊/设置按钮)
 │           │       ├── model_profile_dialog.dart # 单模型设置弹窗 (名称/ID/温度/能力)
 │           │       ├── skill_card.dart          # 技能小卡片 (启用开关/导出/编辑)
@@ -79,7 +85,9 @@ Novelai-harness/
 │           │       └── tool_editor_dialog.dart  # 自定义模板工具编辑弹窗
 │           └── studio/
 │               ├── view_models/
-│               │   └── studio_view_model.dart  # Studio 状态管理中枢 (MVVM)
+│               │   ├── studio_view_model.dart  # Studio 状态管理中枢 (MVVM)
+│               │   ├── chat_checkpoints.dart   # 消息树分支检查点 (回溯视图数据结构)
+│               │   └── param_snapshot_journal.dart # 生图参数快照日志 (参数工具差异记录)
 │               ├── views/
 │               │   └── studio_view.dart        # 工作台主界面
 │               └── widgets/
@@ -91,25 +99,40 @@ Novelai-harness/
 │                   ├── fixed_affixes_panel.dart # 固定词缀面板 (总开关 + Prefix/Suffix 编辑)
 │                   ├── generate_dock.dart       # 底部操作坞：账号/体力/免点 + 生成按钮
 │                   ├── resolution_pad_picker.dart # 2D 可视化分辨率画板
-│                   ├── image_canvas_card.dart  # 中间：大图交互画板与历史轮播
+│                   ├── image_canvas_card.dart  # 中间：大图交互画板与历史轮播主壳
+│                   ├── image_stream_view.dart  # 流式生图预览与当前图渲染 (含生成中卡片)
+│                   ├── image_canvas_actions.dart # 画板操作工具条 (复制/放大/打开目录)
+│                   ├── canvas_history_sidebar.dart # 历史图像侧栏 (缩略图轮播)
+│                   ├── canvas_overlays.dart     # 画板悬浮层 (未读新图横幅等)
+│                   ├── image_lightbox.dart     # 全屏灯箱预览
 │                   ├── agent_chat_card.dart    # 右侧：AI 对话卡主壳 (三视图切换+布局组装)
 │                   ├── agent_chat_messages.dart # 对话消息平铺渲染块 (user/assistant/toolCall/toolResult/流式)
 │                   ├── agent_chat_blocks.dart  # 折叠块与思考块通用组件
 │                   ├── agent_chat_input_bar.dart # 对话底部模型/思考强度切换与输入发送栏
+│                   ├── slash_command_overlay.dart # 斜杠指令自动补全面板与建议目录
 │                   ├── agent_rewind_view.dart   # 历史时刻回溯视图 (双击 ESC 进入)
 │                   ├── agent_session_list_view.dart # 会话管理列表视图
 │                   ├── inline_agent_question_card.dart # ask_user 内嵌提问卡片
-│                   ├── agent_ask_dialog.dart   # ask_user 工具的提问对话框 (选项+自定义输入)
 │                   ├── pill_widgets.dart       # 胶囊控件复用 (PillDropdown / ToggleChip)
 │                   ├── editable_slider.dart    # 数值微调滑块 (整型/浮点统一实现)
 │                   └── studio_shared.dart       # 共享原子件 (标题/下拉框/清空钮/Token条)
 │
 ├── test/                                       # 单元测试与 Widget 测试
 │   ├── novelai_models_test.dart                # 参数构建、Opus 免费算法与 JSON 解析测试
+│   ├── novelai_stream_test.dart                # 流式生图预览的分块解码与进度测试
 │   ├── agent_harness_test.dart                 # Harness 对话循环与工具调度测试
+│   ├── agent_preset_test.dart                  # 预设权限白名单与 JSON 往返测试
+│   ├── agent_session_and_rewind_test.dart      # 会话切换与回溯集成测试
+│   ├── ask_user_tool_test.dart                 # ask_user 工具参数解析与执行测试
+│   ├── chat_checkpoints_test.dart              # 消息树分支检查点测试
+│   ├── param_snapshot_journal_test.dart        # 参数快照日志测试
+│   ├── studio_params_tool_test.dart            # 生图参数工具执行测试
 │   ├── session_log_test.dart                   # Pi 会话格式 JSONL 写入与恢复测试
 │   ├── usage_ledger_test.dart                  # Token 用量账本记录、去重与周期聚合测试
-│   ├── ask_user_tool_test.dart                 # ask_user 工具参数解析与执行测试
+│   ├── models_dev_catalog_test.dart            # models.dev 目录拉取/缓存/模糊匹配测试
+│   ├── slash_command_overlay_test.dart         # 斜杠指令补全建议与面板测试
+│   ├── context_menu_test.dart                  # 右键菜单组件测试
+│   ├── settings_dialog_test.dart               # 设置弹窗五标签页渲染冒烟测试
 │   └── widget_test.dart                        # 核心组件渲染测试
 │
 ├── pubspec.yaml                                # 项目依赖配置文件
