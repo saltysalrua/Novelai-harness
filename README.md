@@ -188,7 +188,7 @@ NovelAI Harness 的诞生离不开开源社区优秀项目的启发与技术积�
 
 1. **克隆仓库**：
    ```bash
-   git clone https://github.com/your-username/Novelai-harness.git
+   git clone https://github.com/saltysalrua/Novelai-harness.git
    cd Novelai-harness
    ```
 
