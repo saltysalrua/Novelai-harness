@@ -117,26 +117,38 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     // 右侧顶部标题栏与关闭按键
                     _buildContentHeader(context),
 
-                    // 右侧滚动设置项卡片列表 (IndexedStack 保持各页状态)
+                    // 右侧设置项卡片列表 (IndexedStack 保持各页常驻与独立滚动)
                     Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
-                        child: IndexedStack(
-                          index: _activeTabIndex,
-                          children: [
-                            GeneralSettingsTab(draft: _generalDraft),
-                            ModelsSettingsTab(
+                      child: IndexedStack(
+                        index: _activeTabIndex,
+                        children: [
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
+                            child: GeneralSettingsTab(draft: _generalDraft),
+                          ),
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
+                            child: ModelsSettingsTab(
                               viewModel: widget.viewModel,
                               draft: _modelsDraft,
                             ),
-                            PresetsSettingsTab(
+                          ),
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
+                            child: PresetsSettingsTab(
                               viewModel: widget.viewModel,
                               draft: _presetsDraft,
                             ),
-                            DefaultsSettingsTab(draft: _defaultsDraft),
-                            BillSettingsTab(viewModel: widget.viewModel),
-                          ],
-                        ),
+                          ),
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
+                            child: DefaultsSettingsTab(draft: _defaultsDraft),
+                          ),
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
+                            child: BillSettingsTab(viewModel: widget.viewModel),
+                          ),
+                        ],
                       ),
                     ),
 
