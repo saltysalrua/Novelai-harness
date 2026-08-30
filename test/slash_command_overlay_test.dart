@@ -126,11 +126,7 @@ void main() {
                 left: 100,
                 child: CompositedTransformTarget(
                   link: link,
-                  child: Container(
-                    width: 300,
-                    height: 40,
-                    color: Colors.blue,
-                  ),
+                  child: Container(width: 300, height: 40, color: Colors.blue),
                 ),
               ),
               OverlayPortal(

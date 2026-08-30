@@ -528,7 +528,9 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
             children: [
               // 在线拉取模型按钮
               ElevatedButton.icon(
-                onPressed: _draft.isFetchingModels ? null : _fetchRemoteModelsOnline,
+                onPressed: _draft.isFetchingModels
+                    ? null
+                    : _fetchRemoteModelsOnline,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.surfaceElevated,
                   foregroundColor: AppTheme.textPrimary,

@@ -21,10 +21,11 @@ class AgentChatCard extends StatefulWidget {
   const AgentChatCard({super.key, required this.viewModel});
 
   @override
-  State<AgentChatCard> createState() => _AgentChatCardState();
+  State<AgentChatCard> createState() => AgentChatCardState();
 }
 
-class _AgentChatCardState extends State<AgentChatCard> {
+/// 公开 State：供根级全局 ESC (StudioView) 通过 GlobalKey 调起回溯视图
+class AgentChatCardState extends State<AgentChatCard> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _cardFocusNode = FocusNode();
   _AgentCardView _currentView = _AgentCardView.chat;
@@ -59,19 +60,24 @@ class _AgentChatCardState extends State<AgentChatCard> {
     });
   }
 
+  /// 切换至历史时刻回溯视图 (流式中则先中断)
+  void openRewindView() {
+    if (widget.viewModel.isChatStreaming) {
+      widget.viewModel.abortChat();
+    }
+    setState(() {
+      _currentView = _AgentCardView.rewind;
+    });
+  }
+
   void _handleEscKey() {
     final now = DateTime.now();
     if (_lastEscPressTime != null &&
         now.difference(_lastEscPressTime!) <=
             const Duration(milliseconds: 400)) {
       _lastEscPressTime = null;
-      if (widget.viewModel.isChatStreaming) {
-        widget.viewModel.abortChat();
-      }
       // 连续按两次 ESC：全屏覆盖切换至历史时刻回溯视图
-      setState(() {
-        _currentView = _AgentCardView.rewind;
-      });
+      openRewindView();
       return;
     }
 

@@ -248,18 +248,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
   /// 右侧顶部标头
   Widget _buildContentHeader(BuildContext context) {
     final (title, subtitle) = switch (_activeTabIndex) {
-      0 => (
-        'General',
-        '配置 NovelAI 绘图服务凭证、本地存储目录与 Opus 免点保护。',
-      ),
-      1 => (
-        'Models',
-        '按供应商管理大语言模型服务，在线拉取模型列表并自动匹配 models.dev 能力元数据。',
-      ),
-      2 => (
-        'Presets',
-        '管理 Agent 预设，配置系统提示词、按需加载的 Skill 库与生图参数控制权限。',
-      ),
+      0 => ('General', '配置 NovelAI 绘图服务凭证、本地存储目录与 Opus 免点保护。'),
+      1 => ('Models', '按供应商管理大语言模型服务，在线拉取模型列表并自动匹配 models.dev 能力元数据。'),
+      2 => ('Presets', '管理 Agent 预设，配置系统提示词、按需加载的 Skill 库与生图参数控制权限。'),
       3 => ('Defaults', '配置启动时的出厂默认生图模型、采样算法与步数引导。'),
       4 => ('Bill', '按周期统计各模型的 Token 用量账单，数据来自本地增量账本。'),
       _ => ('Settings', ''),

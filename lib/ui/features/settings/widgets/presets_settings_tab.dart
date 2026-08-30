@@ -15,10 +15,9 @@ import 'tool_editor_dialog.dart';
 /// Presets 页草稿状态 (父级 SettingsDialog 持有，保存时统一聚合)
 class PresetsSettingsDraft {
   PresetsSettingsDraft(AppConfig config) {
-    presets =
-        (config.presets.isNotEmpty ? config.presets : BuiltinPresets.all)
-            .map((p) => p.copyWith())
-            .toList();
+    presets = (config.presets.isNotEmpty ? config.presets : BuiltinPresets.all)
+        .map((p) => p.copyWith())
+        .toList();
     activePresetId = config.activePresetId;
     if (!presets.any((p) => p.id == activePresetId)) {
       activePresetId = presets.first.id;
@@ -71,7 +70,10 @@ class PresetsSettingsDraft {
     if (newPresetId == selectedPresetId) return;
     syncFromForm();
     loadPresetToForm(
-      presets.firstWhere((p) => p.id == newPresetId, orElse: () => presets.first),
+      presets.firstWhere(
+        (p) => p.id == newPresetId,
+        orElse: () => presets.first,
+      ),
     );
   }
 
@@ -594,7 +596,8 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   ),
                 ),
                 selected: isAllowed,
-                onSelected: (val) => setState(() => _draft.toggleParam(key, val)),
+                onSelected: (val) =>
+                    setState(() => _draft.toggleParam(key, val)),
                 backgroundColor: AppTheme.surfaceVariant,
                 selectedColor: AppTheme.notionBlue.withValues(alpha: 0.12),
                 checkmarkColor: AppTheme.notionBlue,

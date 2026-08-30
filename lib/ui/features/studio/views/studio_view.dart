@@ -20,6 +20,13 @@ class _StudioViewState extends State<StudioView> {
   late final StudioViewModel _viewModel;
   StudioSidebarTab _activeTab = StudioSidebarTab.parameters;
 
+  /// 对话卡状态键：根级双击 ESC 时跨组件调起回溯视图
+  final GlobalKey<AgentChatCardState> _chatCardKey =
+      GlobalKey<AgentChatCardState>();
+
+  /// 根级 ESC 首按时刻 (双击窗口判定)
+  DateTime? _lastRootEscTime;
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +40,32 @@ class _StudioViewState extends State<StudioView> {
     super.dispose();
   }
 
+  /// 根级 ESC：双击 400ms 内进入回溯视图；单击中断生成/流式
+  ///
+  /// 焦点在对话卡内时由卡片自身的 onKeyEvent 先行处理 (handled)，不会走到这里；
+  /// 这里兜底的是焦点落在左侧面板或根部无焦点区域的场景。
+  void _handleGlobalEsc() {
+    final now = DateTime.now();
+    final isDoublePress =
+        _lastRootEscTime != null &&
+        now.difference(_lastRootEscTime!) <= const Duration(milliseconds: 400);
+    _lastRootEscTime = now;
+
+    if (isDoublePress) {
+      if (_viewModel.isChatStreaming) {
+        _viewModel.abortChat();
+      }
+      _chatCardKey.currentState?.openRewindView();
+      return;
+    }
+
+    if (_viewModel.isGenerating) {
+      _viewModel.abortGeneration();
+    } else if (_viewModel.isChatStreaming) {
+      _viewModel.abortChat();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -40,13 +73,7 @@ class _StudioViewState extends State<StudioView> {
       builder: (context, _) {
         return CallbackShortcuts(
           bindings: <ShortcutActivator, VoidCallback>{
-            const SingleActivator(LogicalKeyboardKey.escape): () {
-              if (_viewModel.isGenerating) {
-                _viewModel.abortGeneration();
-              } else if (_viewModel.isChatStreaming) {
-                _viewModel.abortChat();
-              }
-            },
+            const SingleActivator(LogicalKeyboardKey.escape): _handleGlobalEsc,
           },
           child: Focus(
             autofocus: true,
@@ -133,7 +160,10 @@ class _StudioViewState extends State<StudioView> {
                           activeTab: _activeTab,
                         ),
                         centerChild: ImageCanvasCard(viewModel: _viewModel),
-                        rightChild: AgentChatCard(viewModel: _viewModel),
+                        rightChild: AgentChatCard(
+                          key: _chatCardKey,
+                          viewModel: _viewModel,
+                        ),
                       ),
                     ),
                   ],

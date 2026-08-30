@@ -294,10 +294,7 @@ class _SettingsKeyFieldState extends State<SettingsKeyField> {
 }
 
 /// 设置域统一遮罩弹窗 (统一黑色半透明遮罩)
-Future<T?> showSettingsDialog<T>(
-  BuildContext context,
-  WidgetBuilder builder,
-) {
+Future<T?> showSettingsDialog<T>(BuildContext context, WidgetBuilder builder) {
   return showDialog<T>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.5),

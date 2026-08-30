@@ -93,7 +93,8 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
           control: Switch(
             value: _draft.enableStreamPreview,
             activeThumbColor: AppTheme.notionBlue,
-            onChanged: (val) => setState(() => _draft.enableStreamPreview = val),
+            onChanged: (val) =>
+                setState(() => _draft.enableStreamPreview = val),
           ),
         ),
         const SizedBox(height: 12),
