@@ -786,6 +786,82 @@ class NaiGenerationParams {
       characterAiPosition: characterAiPosition ?? this.characterAiPosition,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'prompt': prompt,
+    'negativePrompt': negativePrompt,
+    'model': model.id,
+    'width': width,
+    'height': height,
+    'steps': steps,
+    'scale': scale,
+    'cfgRescale': cfgRescale,
+    'sampler': sampler.id,
+    'noiseSchedule': noiseSchedule.id,
+    'seed': seed,
+    'nSamples': nSamples,
+    'qualityToggle': qualityToggle,
+    'qualityPreset': qualityPreset,
+    'ucPreset': ucPreset,
+    'ucPresetKey': ucPresetKey,
+    'transparentBg': transparentBg,
+    'prefixPrompt': prefixPrompt,
+    'suffixPrompt': suffixPrompt,
+    'applyFixedPrompts': applyFixedPrompts,
+    'characterPrompts': characterPrompts.map((c) => c.toJson()).toList(),
+    'characterAiPosition': characterAiPosition,
+  };
+
+  factory NaiGenerationParams.fromJson(Map<String, dynamic> json) {
+    double parseDouble(String key, double fallback) {
+      final raw = json[key];
+      return raw is num ? raw.toDouble() : fallback;
+    }
+
+    int parseInt(String key, int fallback) {
+      final raw = json[key];
+      return raw is num ? raw.toInt() : fallback;
+    }
+
+    List<NaiCharacterPrompt> characters = const [];
+    if (json['characterPrompts'] is List) {
+      characters = (json['characterPrompts'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map(NaiCharacterPrompt.fromJson)
+          .toList();
+    }
+
+    return NaiGenerationParams(
+      prompt: json['prompt'] as String? ?? '',
+      negativePrompt: json['negativePrompt'] as String? ?? '',
+      model: json['model'] is String
+          ? NaiModel.fromId(json['model'] as String)
+          : NaiModel.v5Full,
+      width: parseInt('width', 832),
+      height: parseInt('height', 1216),
+      steps: parseInt('steps', 28),
+      scale: parseDouble('scale', 5.0),
+      cfgRescale: parseDouble('cfgRescale', 0.0),
+      sampler: json['sampler'] is String
+          ? NaiSampler.fromId(json['sampler'] as String)
+          : NaiSampler.kEuler,
+      noiseSchedule: json['noiseSchedule'] is String
+          ? NoiseSchedule.fromId(json['noiseSchedule'] as String)
+          : NoiseSchedule.karras,
+      seed: parseInt('seed', -1),
+      nSamples: parseInt('nSamples', 1),
+      qualityToggle: json['qualityToggle'] as bool? ?? true,
+      qualityPreset: json['qualityPreset'] as String? ?? 'Standard',
+      ucPreset: parseInt('ucPreset', 0),
+      ucPresetKey: json['ucPresetKey'] as String? ?? 'Heavy',
+      transparentBg: json['transparentBg'] as bool? ?? false,
+      prefixPrompt: json['prefixPrompt'] as String?,
+      suffixPrompt: json['suffixPrompt'] as String?,
+      applyFixedPrompts: json['applyFixedPrompts'] as bool? ?? true,
+      characterPrompts: characters,
+      characterAiPosition: json['characterAiPosition'] as bool? ?? true,
+    );
+  }
 }
 
 /// 生成结果单张图片数据与元信息
@@ -811,6 +887,36 @@ class NaiGeneratedImage {
   /// 缓存并获取 Uint8List 引用 (避免每次重绘创建新对象导致图片重复解码闪烁)
   Uint8List get uint8Bytes =>
       bytes is Uint8List ? (bytes as Uint8List) : Uint8List.fromList(bytes);
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'localFilePath': localFilePath,
+    'params': params.toJson(),
+    'createdAt': createdAt.toIso8601String(),
+    'seed': seed,
+    'isOpusFree': isOpusFree,
+  };
+
+  factory NaiGeneratedImage.fromJson(
+    Map<String, dynamic> json, {
+    List<int>? bytes,
+  }) {
+    final paramsJson = (json['params'] as Map<String, dynamic>?) ?? {};
+    final createdAtStr = json['createdAt'] as String?;
+    final createdAt = createdAtStr != null
+        ? (DateTime.tryParse(createdAtStr) ?? DateTime.now())
+        : DateTime.now();
+
+    return NaiGeneratedImage(
+      id: json['id'] as String? ?? '${DateTime.now().millisecondsSinceEpoch}',
+      bytes: bytes ?? const [],
+      localFilePath: json['localFilePath'] as String?,
+      params: NaiGenerationParams.fromJson(paramsJson),
+      createdAt: createdAt,
+      seed: (json['seed'] as num?)?.toInt() ?? -1,
+      isOpusFree: json['isOpusFree'] as bool? ?? false,
+    );
+  }
 }
 
 /// NovelAI 账号与体力信息

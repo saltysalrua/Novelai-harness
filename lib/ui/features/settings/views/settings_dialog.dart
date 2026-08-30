@@ -68,6 +68,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
       showTagCategoryColors: _generalDraft.showTagCategoryColors,
       enableTagDictionaryAutoUpdate:
           _generalDraft.enableTagDictionaryAutoUpdate,
+      enableImagePersistence: _generalDraft.enableImagePersistence,
+      maxPersistentImages: _generalDraft.maxPersistentImages,
       llmProviders: _modelsDraft.providers,
       activeLlmProviderId: _modelsDraft.selectedProviderId,
       presets: _presetsDraft.presets,

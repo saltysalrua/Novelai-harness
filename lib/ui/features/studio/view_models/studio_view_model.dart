@@ -302,6 +302,17 @@ class StudioViewModel extends ChangeNotifier {
     _sessionLog.recordThinkingLevelChange(_currentThinkingEffort.id);
     await refreshSessions();
 
+    // 加载持久化的图像历史
+    if (_config.enableImagePersistence && _config.saveDirectory.isNotEmpty) {
+      await _repository.loadPersistedHistory(
+        saveDir: _config.saveDirectory,
+        maxImages: _config.maxPersistentImages,
+      );
+      if (_repository.history.isNotEmpty && _selectedImage == null) {
+        _selectedImage = _repository.history.first;
+      }
+    }
+
     notifyListeners();
 
     // 后台加载账号信息
@@ -532,11 +543,44 @@ class StudioViewModel extends ChangeNotifier {
 
   /// 保存全局配置
   Future<void> updateConfig(AppConfig newConfig) async {
+    final oldConfig = _config;
     _config = newConfig;
     await _configService.saveConfig(newConfig);
     _currentThinkingEffort =
         _config.activeLlmProvider.activeModel.defaultThinkingEffort;
     _setupHarnessAndTools();
+
+    // 同步图片持久化状态与上限调整
+    if (newConfig.enableImagePersistence != oldConfig.enableImagePersistence ||
+        newConfig.maxPersistentImages != oldConfig.maxPersistentImages ||
+        newConfig.saveDirectory != oldConfig.saveDirectory) {
+      if (newConfig.enableImagePersistence &&
+          newConfig.saveDirectory.isNotEmpty) {
+        if (_repository.history.isEmpty) {
+          await _repository.loadPersistedHistory(
+            saveDir: newConfig.saveDirectory,
+            maxImages: newConfig.maxPersistentImages,
+          );
+          if (_repository.history.isNotEmpty && _selectedImage == null) {
+            _selectedImage = _repository.history.first;
+          }
+        } else {
+          await _repository.savePersistedHistory(
+            saveDir: newConfig.saveDirectory,
+            maxImages: newConfig.maxPersistentImages,
+            enabled: true,
+          );
+        }
+      } else if (!newConfig.enableImagePersistence &&
+          newConfig.saveDirectory.isNotEmpty) {
+        await _repository.savePersistedHistory(
+          saveDir: newConfig.saveDirectory,
+          maxImages: newConfig.maxPersistentImages,
+          enabled: false,
+        );
+      }
+    }
+
     notifyListeners();
 
     if (_config.novelAiKey.isNotEmpty) {
@@ -965,6 +1009,8 @@ class StudioViewModel extends ChangeNotifier {
           apiKey: _config.novelAiKey,
           params: _params,
           saveDir: _config.saveDirectory,
+          enablePersistence: _config.enableImagePersistence,
+          maxImages: _config.maxPersistentImages,
         );
 
         _generationSubscription = stream.listen(
@@ -1028,6 +1074,8 @@ class StudioViewModel extends ChangeNotifier {
           apiKey: _config.novelAiKey,
           params: _params,
           saveDir: _config.saveDirectory,
+          enablePersistence: _config.enableImagePersistence,
+          maxImages: _config.maxPersistentImages,
         );
 
         if (results.isNotEmpty) {
@@ -1107,6 +1155,8 @@ class StudioViewModel extends ChangeNotifier {
         sourceImage: _selectedImage!,
         scale: scale,
         saveDir: _config.saveDirectory,
+        enablePersistence: _config.enableImagePersistence,
+        maxImages: _config.maxPersistentImages,
       );
       _selectedImage = upscaled;
       _statusMessage = '放大完成 (${scale}x)';

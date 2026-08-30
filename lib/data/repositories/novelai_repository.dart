@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
@@ -14,11 +15,83 @@ class NovelAiRepository {
 
   List<NaiGeneratedImage> get history => List.unmodifiable(_history);
 
+  /// 从本地存储目录加载持久化的图像历史记录
+  Future<List<NaiGeneratedImage>> loadPersistedHistory({
+    required String saveDir,
+    int maxImages = 50,
+  }) async {
+    _history.clear();
+    if (saveDir.isEmpty) return _history;
+
+    final historyFile = File(p.join(saveDir, 'image_history.json'));
+    if (!historyFile.existsSync()) return _history;
+
+    try {
+      final content = await historyFile.readAsString();
+      final decoded = jsonDecode(content);
+      if (decoded is List) {
+        for (final item in decoded) {
+          if (_history.length >= maxImages) break;
+          if (item is Map<String, dynamic>) {
+            final filePath = item['localFilePath'] as String?;
+            if (filePath != null && filePath.isNotEmpty) {
+              final imgFile = File(filePath);
+              if (imgFile.existsSync()) {
+                try {
+                  final bytes = await imgFile.readAsBytes();
+                  final img = NaiGeneratedImage.fromJson(
+                    item,
+                    bytes: bytes,
+                  );
+                  _history.add(img);
+                } catch (_) {}
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return List.unmodifiable(_history);
+  }
+
+  /// 将当前历史记录保存至本地存储目录 (自动裁剪至 maxImages)
+  Future<void> savePersistedHistory({
+    required String saveDir,
+    int maxImages = 50,
+    bool enabled = true,
+  }) async {
+    if (saveDir.isEmpty) return;
+    final historyFile = File(p.join(saveDir, 'image_history.json'));
+    if (!enabled) {
+      if (historyFile.existsSync()) {
+        try {
+          historyFile.deleteSync();
+        } catch (_) {}
+      }
+      return;
+    }
+
+    if (_history.length > maxImages) {
+      _history.removeRange(maxImages, _history.length);
+    }
+
+    try {
+      final dir = Directory(saveDir);
+      if (!dir.existsSync()) {
+        dir.createSync(recursive: true);
+      }
+      final jsonList = _history.map((img) => img.toJson()).toList();
+      await historyFile.writeAsString(jsonEncode(jsonList), flush: true);
+    } catch (_) {}
+  }
+
   /// 执行流式生图 (实时输出中间去噪步数帧并在最终完成时落盘存入历史)
   Stream<NaiStreamProgress> generateStream({
     required String apiKey,
     required NaiGenerationParams params,
     required String saveDir,
+    bool enablePersistence = true,
+    int maxImages = 50,
   }) async* {
     final effectiveSeed = params.seed < 0
         ? (DateTime.now().millisecondsSinceEpoch % 4294967295)
@@ -61,6 +134,13 @@ class NovelAiRepository {
         );
 
         _history.insert(0, generatedImage);
+        if (enablePersistence && saveDir.isNotEmpty) {
+          await savePersistedHistory(
+            saveDir: saveDir,
+            maxImages: maxImages,
+            enabled: enablePersistence,
+          );
+        }
 
         yield NaiStreamProgress.finalResult(
           finalImage: progress.finalImage!,
@@ -78,6 +158,8 @@ class NovelAiRepository {
     required String apiKey,
     required NaiGenerationParams params,
     required String saveDir,
+    bool enablePersistence = true,
+    int maxImages = 50,
   }) async {
     final effectiveSeed = params.seed < 0
         ? (DateTime.now().millisecondsSinceEpoch % 4294967295)
@@ -130,6 +212,14 @@ class NovelAiRepository {
       results.add(image);
     }
 
+    if (enablePersistence && saveDir.isNotEmpty) {
+      await savePersistedHistory(
+        saveDir: saveDir,
+        maxImages: maxImages,
+        enabled: enablePersistence,
+      );
+    }
+
     return results;
   }
 
@@ -139,6 +229,8 @@ class NovelAiRepository {
     required NaiGeneratedImage sourceImage,
     int scale = 4,
     required String saveDir,
+    bool enablePersistence = true,
+    int maxImages = 50,
   }) async {
     final upscaledBytes = await _service.upscaleImage(
       apiKey: apiKey,
@@ -152,7 +244,8 @@ class NovelAiRepository {
     String? filePath;
 
     if (saveDir.isNotEmpty) {
-      final fileName = 'nai_${timeStr}_upscaled_${scale}x_${sourceImage.seed}.png';
+      final fileName =
+          'nai_${timeStr}_upscaled_${scale}x_${sourceImage.seed}.png';
       filePath = p.join(saveDir, fileName);
       try {
         File(filePath).writeAsBytesSync(upscaledBytes);
@@ -173,6 +266,15 @@ class NovelAiRepository {
     );
 
     _history.insert(0, upscaledImage);
+
+    if (enablePersistence && saveDir.isNotEmpty) {
+      await savePersistedHistory(
+        saveDir: saveDir,
+        maxImages: maxImages,
+        enabled: enablePersistence,
+      );
+    }
+
     return upscaledImage;
   }
 
@@ -195,7 +297,15 @@ class NovelAiRepository {
   }
 
   /// 清理历史
-  void clearHistory() {
+  void clearHistory({String? saveDir}) {
     _history.clear();
+    if (saveDir != null && saveDir.isNotEmpty) {
+      final historyFile = File(p.join(saveDir, 'image_history.json'));
+      if (historyFile.existsSync()) {
+        try {
+          historyFile.deleteSync();
+        } catch (_) {}
+      }
+    }
   }
 }

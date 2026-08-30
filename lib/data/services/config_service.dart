@@ -27,6 +27,8 @@ class AppConfig {
   final bool showTagTranslations;
   final bool showTagCategoryColors;
   final bool enableTagDictionaryAutoUpdate;
+  final bool enableImagePersistence;
+  final int maxPersistentImages;
   final String prefixPrompt;
   final String suffixPrompt;
   final String negativePrompt;
@@ -87,6 +89,8 @@ class AppConfig {
     this.showTagTranslations = true,
     this.showTagCategoryColors = true,
     this.enableTagDictionaryAutoUpdate = true,
+    this.enableImagePersistence = true,
+    this.maxPersistentImages = 50,
     this.prefixPrompt = '',
     this.suffixPrompt = '',
     this.negativePrompt = '',
@@ -116,6 +120,8 @@ class AppConfig {
     bool? showTagTranslations,
     bool? showTagCategoryColors,
     bool? enableTagDictionaryAutoUpdate,
+    bool? enableImagePersistence,
+    int? maxPersistentImages,
     String? prefixPrompt,
     String? suffixPrompt,
     String? negativePrompt,
@@ -177,6 +183,9 @@ class AppConfig {
           showTagCategoryColors ?? this.showTagCategoryColors,
       enableTagDictionaryAutoUpdate:
           enableTagDictionaryAutoUpdate ?? this.enableTagDictionaryAutoUpdate,
+      enableImagePersistence:
+          enableImagePersistence ?? this.enableImagePersistence,
+      maxPersistentImages: maxPersistentImages ?? this.maxPersistentImages,
       prefixPrompt: prefixPrompt ?? this.prefixPrompt,
       suffixPrompt: suffixPrompt ?? this.suffixPrompt,
       negativePrompt: negativePrompt ?? this.negativePrompt,
@@ -212,6 +221,10 @@ class ConfigService {
       'novelai_show_tag_category_colors';
   static const String _keyEnableTagDictAutoUpdate =
       'novelai_enable_tag_dictionary_auto_update';
+  static const String _keyEnableImagePersistence =
+      'novelai_enable_image_persistence';
+  static const String _keyMaxPersistentImages =
+      'novelai_max_persistent_images';
   static const String _keyPrefix = 'novelai_prefix';
   static const String _keySuffix = 'novelai_suffix';
   static const String _keyNegative = 'novelai_negative';
@@ -265,6 +278,8 @@ class ConfigService {
     bool showTagCatColors = prefs.getBool(_keyShowTagCategoryColors) ?? true;
     bool enableTagDictAutoUpdate =
         prefs.getBool(_keyEnableTagDictAutoUpdate) ?? true;
+    bool enableImgPersist = prefs.getBool(_keyEnableImagePersistence) ?? true;
+    int maxPersistImgs = prefs.getInt(_keyMaxPersistentImages) ?? 50;
     String saveDir = prefs.getString(_keySaveDir) ?? '';
 
     // 首次启动且无配置时，尝试自动读取本地 ~/.pi/agent/novelai.json
@@ -451,6 +466,8 @@ class ConfigService {
       showTagTranslations: showTagTrans,
       showTagCategoryColors: showTagCatColors,
       enableTagDictionaryAutoUpdate: enableTagDictAutoUpdate,
+      enableImagePersistence: enableImgPersist,
+      maxPersistentImages: maxPersistImgs,
       prefixPrompt: prefix,
       suffixPrompt: suffix,
       negativePrompt: negative,
@@ -492,6 +509,14 @@ class ConfigService {
     await prefs.setBool(
       _keyEnableTagDictAutoUpdate,
       config.enableTagDictionaryAutoUpdate,
+    );
+    await prefs.setBool(
+      _keyEnableImagePersistence,
+      config.enableImagePersistence,
+    );
+    await prefs.setInt(
+      _keyMaxPersistentImages,
+      config.maxPersistentImages,
     );
     await prefs.setString(_keyPrefix, config.prefixPrompt);
     await prefs.setString(_keySuffix, config.suffixPrompt);

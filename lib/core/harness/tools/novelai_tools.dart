@@ -153,6 +153,8 @@ class NovelAiGenerateTool extends AgentTool {
           apiKey: config.novelAiKey,
           params: params,
           saveDir: config.saveDirectory,
+          enablePersistence: config.enableImagePersistence,
+          maxImages: config.maxPersistentImages,
         );
 
         await for (final p in stream) {
@@ -166,6 +168,8 @@ class NovelAiGenerateTool extends AgentTool {
           apiKey: config.novelAiKey,
           params: params,
           saveDir: config.saveDirectory,
+          enablePersistence: config.enableImagePersistence,
+          maxImages: config.maxPersistentImages,
         );
         if (generatedList.isNotEmpty) {
           resultImage = generatedList.first;
@@ -343,6 +347,8 @@ class NovelAiUpscaleTool extends AgentTool {
         sourceImage: targetImage,
         scale: scale,
         saveDir: config.saveDirectory,
+        enablePersistence: config.enableImagePersistence,
+        maxImages: config.maxPersistentImages,
       );
 
       _onUpscaled?.call(upscaled);

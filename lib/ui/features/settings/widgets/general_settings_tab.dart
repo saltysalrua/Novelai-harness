@@ -17,7 +17,9 @@ class GeneralSettingsDraft {
       enableTagAutocomplete = config.enableTagAutocomplete,
       showTagTranslations = config.showTagTranslations,
       showTagCategoryColors = config.showTagCategoryColors,
-      enableTagDictionaryAutoUpdate = config.enableTagDictionaryAutoUpdate;
+      enableTagDictionaryAutoUpdate = config.enableTagDictionaryAutoUpdate,
+      enableImagePersistence = config.enableImagePersistence,
+      maxPersistentImages = config.maxPersistentImages;
 
   final TextEditingController naiKeyController;
   final TextEditingController saveDirController;
@@ -27,6 +29,8 @@ class GeneralSettingsDraft {
   bool showTagTranslations;
   bool showTagCategoryColors;
   bool enableTagDictionaryAutoUpdate;
+  bool enableImagePersistence;
+  int maxPersistentImages;
 
   void dispose() {
     naiKeyController.dispose();
@@ -158,6 +162,33 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 setState(() => _draft.enableStreamPreview = val),
           ),
         ),
+        SettingsCard(
+          title: '图片历史持久化',
+          subtitle: '应用重启后自动恢复画板历史中的生成图片记录',
+          control: Switch(
+            value: _draft.enableImagePersistence,
+            activeThumbColor: AppTheme.notionBlue,
+            onChanged: (val) =>
+                setState(() => _draft.enableImagePersistence = val),
+          ),
+        ),
+        if (_draft.enableImagePersistence)
+          SettingsCard(
+            title: '可持久化图像上限',
+            subtitle: '限制本地画板历史中保留的最大图片数量',
+            control: SettingsDropdown<int>(
+              value: [20, 50, 100, 200, 500].contains(_draft.maxPersistentImages)
+                  ? _draft.maxPersistentImages
+                  : 50,
+              items: const [20, 50, 100, 200, 500],
+              labelBuilder: (count) => '$count 张',
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _draft.maxPersistentImages = val);
+                }
+              },
+            ),
+          ),
         const SizedBox(height: 12),
         const SettingsGroupTitle('Danbooru Tag Autocomplete'),
         SettingsCard(
