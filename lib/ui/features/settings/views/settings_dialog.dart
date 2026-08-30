@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
+import '../../../../core/harness/types.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/llm_model_fetcher.dart';
@@ -126,12 +127,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
       orElse: () => _presets.first,
     );
 
-    _presetNameController =
-        TextEditingController(text: currentSelectedPreset.name);
-    _presetDescController =
-        TextEditingController(text: currentSelectedPreset.description);
-    _presetPromptController =
-        TextEditingController(text: currentSelectedPreset.systemPrompt);
+    _presetNameController = TextEditingController(
+      text: currentSelectedPreset.name,
+    );
+    _presetDescController = TextEditingController(
+      text: currentSelectedPreset.description,
+    );
+    _presetPromptController = TextEditingController(
+      text: currentSelectedPreset.systemPrompt,
+    );
 
     _presetNameController.addListener(_onFieldChanged);
     _presetDescController.addListener(_onFieldChanged);
@@ -186,8 +190,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
   void _addNewPreset() {
     _syncActivePresetFromForm();
     final newId = 'preset_${DateTime.now().millisecondsSinceEpoch}';
-    final allTools =
-        widget.viewModel.availableTools.map((t) => t.name).toList();
+    final allTools = widget.viewModel.availableTools
+        .map((t) => t.name)
+        .toList();
     final newPreset = AgentPreset(
       id: newId,
       name: '新预设 ${_presets.length + 1}',
@@ -871,7 +876,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                   const SizedBox(width: 6),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 5, vertical: 1.5),
+                                      horizontal: 5,
+                                      vertical: 1.5,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: AppTheme.notionBlue,
                                       borderRadius: BorderRadius.circular(3),
@@ -913,7 +920,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppTheme.border),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 8),
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -936,7 +945,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppTheme.border),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 8),
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(6),
                   ),
@@ -964,7 +975,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppTheme.border),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 8),
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(6),
                   ),
@@ -1041,13 +1054,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             fillColor: AppTheme.paperWarmth,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(6),
-                              borderSide:
-                                  const BorderSide(color: AppTheme.border),
+                              borderSide: const BorderSide(
+                                color: AppTheme.border,
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(6),
-                              borderSide:
-                                  const BorderSide(color: AppTheme.border),
+                              borderSide: const BorderSide(
+                                color: AppTheme.border,
+                              ),
                             ),
                           ),
                         ),
@@ -1079,13 +1094,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             fillColor: AppTheme.paperWarmth,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(6),
-                              borderSide:
-                                  const BorderSide(color: AppTheme.border),
+                              borderSide: const BorderSide(
+                                color: AppTheme.border,
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(6),
-                              borderSide:
-                                  const BorderSide(color: AppTheme.border),
+                              borderSide: const BorderSide(
+                                color: AppTheme.border,
+                              ),
                             ),
                           ),
                         ),
@@ -1144,7 +1161,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppTheme.border),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -1165,7 +1184,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppTheme.border),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -1189,18 +1210,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
           spacing: 10,
           runSpacing: 10,
           children: availableSkills.map((skill) {
-            final isEnabled =
-                currentPreset.enabledSkillIds.contains(skill.id);
+            final isEnabled = currentPreset.enabledSkillIds.contains(skill.id);
             return SkillCard(
               skill: skill,
               isEnabled: isEnabled,
-              onToggle: (val) =>
-                  _toggleSkillInSelectedPreset(skill.id, val),
+              onToggle: (val) => _toggleSkillInSelectedPreset(skill.id, val),
               onEdit: (s) => _openEditSkillDialog(s),
               onExport: (s) => _exportSkillMd(s),
-              onDelete: !skill.isBuiltin
-                  ? () => _deleteSkill(skill.id)
-                  : null,
+              onDelete: !skill.isBuiltin ? () => _deleteSkill(skill.id) : null,
             );
           }).toList(),
         ),
@@ -1217,7 +1234,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppTheme.border),
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 6),
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -1243,15 +1262,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
             return ToolCard(
               tool: tool,
               isEnabled: isEnabled,
-              onToggle: (val) =>
-                  _toggleToolInSelectedPreset(tool.name, val),
+              onToggle: (val) => _toggleToolInSelectedPreset(tool.name, val),
               onInspectSchema: (t) => _openInspectToolSchemaDialog(t),
               onEditCustomTool: tool is CustomAgentTool
                   ? (t) => _openEditToolDialog(t)
                   : null,
-              onDelete: !tool.isBuiltin
-                  ? () => _deleteTool(tool.name)
-                  : null,
+              onDelete: !tool.isBuiltin ? () => _deleteTool(tool.name) : null,
             );
           }).toList(),
         ),
@@ -1273,28 +1289,23 @@ class _SettingsDialogState extends State<SettingsDialog> {
             spacing: 8,
             runSpacing: 8,
             children: PresetParamKeys.all.map((key) {
-              final isAllowed =
-                  currentPreset.isParamModifiable(key);
+              final isAllowed = currentPreset.isParamModifiable(key);
               final label = PresetParamKeys.getLabel(key);
               return FilterChip(
                 label: Text(
                   label,
                   style: TextStyle(
                     fontSize: 11.5,
-                    fontWeight: isAllowed
-                        ? FontWeight.w600
-                        : FontWeight.normal,
+                    fontWeight: isAllowed ? FontWeight.w600 : FontWeight.normal,
                     color: isAllowed
                         ? AppTheme.notionBlue
                         : AppTheme.textPrimary,
                   ),
                 ),
                 selected: isAllowed,
-                onSelected: (val) =>
-                    _toggleParamInSelectedPreset(key, val),
+                onSelected: (val) => _toggleParamInSelectedPreset(key, val),
                 backgroundColor: AppTheme.surfaceVariant,
-                selectedColor:
-                    AppTheme.notionBlue.withValues(alpha: 0.12),
+                selectedColor: AppTheme.notionBlue.withValues(alpha: 0.12),
                 checkmarkColor: AppTheme.notionBlue,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
@@ -1379,10 +1390,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (ctx) => ToolEditorDialog(
-        tool: tool,
-        isReadOnlySchemaView: true,
-      ),
+      builder: (ctx) =>
+          ToolEditorDialog(tool: tool, isReadOnlySchemaView: true),
     );
   }
 
@@ -2052,10 +2061,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
           3: FlexColumnWidth(1.1),
           4: FlexColumnWidth(1.1),
           5: FlexColumnWidth(1.1),
+          6: FlexColumnWidth(1),
         },
         children: [
           buildRow(
-            const ['模型', '请求数', '输入', '输出', '缓存读', '总计'],
+            const ['模型', '请求数', '输入', '输出', '缓存读', '命中率', '总计'],
             style: headerStyle,
             background: AppTheme.paperWarmth,
           ),
@@ -2066,6 +2076,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               fmt(model.usage.input),
               fmt(model.usage.output),
               fmt(model.usage.cacheRead),
+              _hitRateLabel(model.usage),
               fmt(model.usage.total),
             ]),
           buildRow(
@@ -2075,6 +2086,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               fmt(summary.usage.input),
               fmt(summary.usage.output),
               fmt(summary.usage.cacheRead),
+              _hitRateLabel(summary.usage),
               fmt(summary.usage.total),
             ],
             style: totalStyle,
@@ -2084,6 +2096,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
         ],
       ),
     );
+  }
+
+  /// 缓存命中率单元格文案 (无数据时显示 -)
+  String _hitRateLabel(TokenUsage usage) {
+    final rate = usage.cacheHitRate;
+    return rate == null ? '-' : '${(rate * 100).toStringAsFixed(1)}%';
   }
 
   /// Tab 2: Defaults 出厂默认预设

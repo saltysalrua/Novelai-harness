@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/agent_harness.dart';
 import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
 import 'package:novelai_harness/core/harness/providers/llm_provider.dart';
-import 'package:novelai_harness/core/harness/skills/skills.dart';
+import 'package:novelai_harness/core/harness/session_recorder.dart';
 import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 
@@ -12,6 +12,9 @@ class MockLlmProvider implements LlmProvider {
     List<AgentTool> tools,
   )
   onStream;
+
+  /// 最近一次 streamChat 收到的缓存路由键 (透传验证用)
+  String? lastPromptCacheKey;
 
   MockLlmProvider(this.onStream);
 
@@ -23,12 +26,41 @@ class MockLlmProvider implements LlmProvider {
     required List<AgentMessage> messages,
     required List<AgentTool> tools,
     double temperature = 0.7,
+    String? promptCacheKey,
   }) async* {
+    lastPromptCacheKey = promptCacheKey;
     final events = onStream(messages, tools);
     for (final event in events) {
       yield event;
     }
   }
+}
+
+class MockSessionRecorder implements SessionRecorder {
+  final String? fixedSessionId;
+  final List<AgentMessage> recorded = [];
+
+  MockSessionRecorder(this.fixedSessionId);
+
+  @override
+  String? get sessionId => fixedSessionId;
+
+  @override
+  void recordMessage(AgentMessage message, {String? provider, String? model}) {
+    recorded.add(message);
+  }
+
+  @override
+  void recordModelChange(String provider, String modelId) {}
+
+  @override
+  void recordThinkingLevelChange(String level) {}
+
+  @override
+  void startNewSession() {}
+
+  @override
+  void rewindToMessageCount(int keepCount) {}
 }
 
 class TestEchoTool extends AgentTool {
@@ -121,71 +153,102 @@ void main() {
       expect(harness.messages.length, equals(4));
     });
 
-    test('Skill switching updates current system prompt', () {
-      harness = AgentHarness(tools: tools);
-      expect(harness.currentSkill.id, equals('v5-architect'));
+    test(
+      'buildSystemPrompt injects preset prompt and available_skills XML',
+      () {
+        final harness = AgentHarness(tools: tools);
+        final prompt = harness.buildSystemPrompt(BuiltinPresets.v5Architect);
 
-      harness.setSkill(BuiltinSkills.danbooruTagMaster);
-      expect(harness.currentSkill.id, equals('danbooru-tags'));
-    });
+        expect(prompt, startsWith('你是由 NovelAI Harness 驱动'));
+        expect(prompt, contains('<available_skills>'));
+        expect(prompt, contains('<name>v5-architect</name>'));
+        expect(prompt, contains('load_skill'));
+      },
+    );
 
-    test('AgentHarness injects available_skills XML and filters tools', () async {
-      List<AgentMessage>? capturedMessages;
-      List<AgentTool>? capturedTools;
+    test(
+      'AgentHarness passes recorder sessionId as prompt cache key',
+      () async {
+        final provider = MockLlmProvider((messages, tools) {
+          return [ContentDeltaEvent('OK')];
+        });
+        final recorder = MockSessionRecorder('session-uuid-1234');
 
-      final provider = MockLlmProvider((messages, tools) {
-        capturedMessages = messages;
-        capturedTools = tools;
-        return [ContentDeltaEvent('Done')];
-      });
+        harness = AgentHarness(
+          tools: tools,
+          provider: provider,
+          recorder: recorder,
+        );
+        await harness.send('Hi').toList();
 
-      final testPreset = AgentPreset(
-        id: 'test_preset',
-        name: 'Test Preset',
-        description: '',
-        systemPrompt: 'System Instruction',
-        enabledSkillIds: ['v5-architect'],
-        enabledToolNames: ['echo_test'],
-        allowedModifiableParams: [],
-      );
+        expect(provider.lastPromptCacheKey, equals('session-uuid-1234'));
+      },
+    );
 
-      harness = AgentHarness(
-        tools: tools,
-        provider: provider,
-        initialPreset: testPreset,
-      );
-      await harness.send('Hi').toList();
+    test(
+      'AgentHarness injects available_skills XML and filters tools',
+      () async {
+        List<AgentMessage>? capturedMessages;
+        List<AgentTool>? capturedTools;
 
-      expect(capturedMessages, isNotNull);
-      final sysMsg =
-          capturedMessages!.firstWhere((m) => m.role == AgentRole.system);
-      expect(sysMsg.content, contains('<available_skills>'));
-      expect(sysMsg.content, contains('v5-architect'));
+        final provider = MockLlmProvider((messages, tools) {
+          capturedMessages = messages;
+          capturedTools = tools;
+          return [ContentDeltaEvent('Done')];
+        });
 
-      expect(capturedTools, isNotNull);
-      expect(capturedTools!.any((t) => t.name == 'echo_test'), isTrue);
-    });
+        final testPreset = AgentPreset(
+          id: 'test_preset',
+          name: 'Test Preset',
+          description: '',
+          systemPrompt: 'System Instruction',
+          enabledSkillIds: ['v5-architect'],
+          enabledToolNames: ['echo_test'],
+          allowedModifiableParams: [],
+        );
 
-    test('rewindToMessage truncates in-memory messages list accurately', () async {
-      harness = AgentHarness(tools: tools);
-      harness.restoreMessages([
-        AgentMessage(id: 'm1', role: AgentRole.user, content: 'Q1'),
-        AgentMessage(id: 'm2', role: AgentRole.assistant, content: 'A1'),
-        AgentMessage(id: 'm3', role: AgentRole.user, content: 'Q2'),
-        AgentMessage(id: 'm4', role: AgentRole.assistant, content: 'A2'),
-      ]);
+        harness = AgentHarness(
+          tools: tools,
+          provider: provider,
+          initialPreset: testPreset,
+        );
+        await harness.send('Hi').toList();
 
-      expect(harness.messages.length, equals(4));
+        expect(capturedMessages, isNotNull);
+        final sysMsg = capturedMessages!.firstWhere(
+          (m) => m.role == AgentRole.system,
+        );
+        expect(sysMsg.content, contains('<available_skills>'));
+        expect(sysMsg.content, contains('v5-architect'));
 
-      // 回溯至 m2 (保留 m1, m2)
-      final success = harness.rewindToMessage('m2');
-      expect(success, isTrue);
-      expect(harness.messages.length, equals(2));
-      expect(harness.messages.map((m) => m.id), equals(['m1', 'm2']));
+        expect(capturedTools, isNotNull);
+        expect(capturedTools!.any((t) => t.name == 'echo_test'), isTrue);
+      },
+    );
 
-      // 不存在的 ID 返回 false
-      expect(harness.rewindToMessage('non_existent'), isFalse);
-    });
+    test(
+      'rewindToMessage truncates in-memory messages list accurately',
+      () async {
+        harness = AgentHarness(tools: tools);
+        harness.restoreMessages([
+          AgentMessage(id: 'm1', role: AgentRole.user, content: 'Q1'),
+          AgentMessage(id: 'm2', role: AgentRole.assistant, content: 'A1'),
+          AgentMessage(id: 'm3', role: AgentRole.user, content: 'Q2'),
+          AgentMessage(id: 'm4', role: AgentRole.assistant, content: 'A2'),
+        ]);
+
+        expect(harness.messages.length, equals(4));
+
+        // 回溯至 m2 (保留 m1, m2)
+        final success = harness.rewindToMessage('m2');
+        expect(success, isTrue);
+        expect(harness.messages.length, equals(2));
+        expect(harness.messages.map((m) => m.id), equals(['m1', 'm2']));
+
+        // 不存在的 ID 返回 false
+        expect(harness.rewindToMessage('non_existent'), isFalse);
+      },
+    );
 
     test('setMessages replaces all messages', () {
       harness = AgentHarness(tools: tools);
@@ -203,4 +266,3 @@ void main() {
     });
   });
 }
-

@@ -121,6 +121,9 @@ class SessionLogService implements SessionRecorder {
     return _extractSessionIdFromFile(file);
   }
 
+  @override
+  String? get sessionId => currentSessionId;
+
   /// 初始化：解析会话根目录并接管最新会话文件 (续接模式，类似 pi --continue)。
   /// 测试可通过 [baseDir] 注入临时目录。
   Future<void> init({String? baseDir}) async {
@@ -382,9 +385,7 @@ class SessionLogService implements SessionRecorder {
     return SessionInfo(
       id: sessionId,
       filePath: file.path,
-      title: (title != null && title.trim().isNotEmpty)
-          ? title.trim()
-          : '新会话',
+      title: (title != null && title.trim().isNotEmpty) ? title.trim() : '新会话',
       createdAt: now.toLocal(),
       lastModified: now.toLocal(),
       messageCount: 0,
@@ -516,10 +517,9 @@ class SessionLogService implements SessionRecorder {
   File? _findSessionFileById(String sessionId) {
     final dir = _baseDir;
     if (dir == null || !dir.existsSync()) return null;
-    final files = dir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.jsonl'));
+    final files = dir.listSync().whereType<File>().where(
+      (f) => f.path.endsWith('.jsonl'),
+    );
     for (final f in files) {
       if (f.path.contains(sessionId)) return f;
       final id = _extractSessionIdFromFile(f);
@@ -636,9 +636,13 @@ class SessionLogService implements SessionRecorder {
 
       final headerLine = lines.first.trim();
       final header = jsonDecode(headerLine) as Map<String, dynamic>;
-      final id = (header['id'] as String?) ?? _extractSessionIdFromFile(file) ?? 'unknown';
+      final id =
+          (header['id'] as String?) ??
+          _extractSessionIdFromFile(file) ??
+          'unknown';
       var title = header['title'] as String?;
-      final createdAt = DateTime.tryParse(header['timestamp'] as String? ?? '')?.toLocal() ??
+      final createdAt =
+          DateTime.tryParse(header['timestamp'] as String? ?? '')?.toLocal() ??
           file.lastModifiedSync();
       var lastModified = file.lastModifiedSync();
 
@@ -702,7 +706,9 @@ class SessionLogService implements SessionRecorder {
           final clean = firstUserPrompt.trim().replaceAll('\n', ' ');
           title = clean.length > 25 ? '${clean.substring(0, 25)}...' : clean;
         } else {
-          title = messageCount == 0 ? '新会话' : '会话 ${id.substring(0, min(8, id.length))}';
+          title = messageCount == 0
+              ? '新会话'
+              : '会话 ${id.substring(0, min(8, id.length))}';
         }
       }
 
@@ -710,7 +716,8 @@ class SessionLogService implements SessionRecorder {
         preview = messageCount == 0 ? '空会话' : title;
       }
 
-      final isActive = _currentFile != null &&
+      final isActive =
+          _currentFile != null &&
           p.canonicalize(_currentFile!.path) == p.canonicalize(file.path);
 
       return SessionInfo(

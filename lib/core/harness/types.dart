@@ -16,6 +16,10 @@ class TokenUsage {
 
   int get total => input + output + cacheRead + cacheWrite;
 
+  /// 缓存命中率 (缓存读 / 总输入)。总输入为 0 时返回 null。
+  /// 口径与 pi 的 footer CH 标记一致：cached input / total input。
+  double? get cacheHitRate => input > 0 ? cacheRead / input : null;
+
   TokenUsage add(TokenUsage other) => TokenUsage(
     input: input + other.input,
     output: output + other.output,

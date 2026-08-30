@@ -7,6 +7,21 @@ import 'llm_provider.dart';
 
 /// OpenAI 兼容格式提供商 (兼容 DeepSeek, Qwen, Moonshot, OpenAI, Ollama, LocalAI 等)
 class OpenAiCompatibleProvider implements LlmProvider {
+  /// 进程级降级开关：一旦某个端点对 `prompt_cache_key` 返回 400
+  /// ("Unsupported parameter")，后续请求不再携带该字段，避免反复撞墙。
+  /// (参考 pi-cache-optimizer 的进程内 fallback 策略)
+  static bool promptCacheKeyUnsupported = false;
+
+  /// OpenAI 官方限制 prompt_cache_key 不超过 64 字符，超长截断
+  /// (参考 pi 的 clampOpenAIPromptCacheKey)
+  static String? clampPromptCacheKey(String? key) {
+    if (key == null) return null;
+    final chars = key.runes.toList();
+    return String.fromCharCodes(
+      chars.length <= 64 ? chars : chars.sublist(0, 64),
+    );
+  }
+
   final String baseUrl;
   final String apiKey;
   final String model;
@@ -31,6 +46,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
     required List<AgentMessage> messages,
     required List<AgentTool> tools,
     double temperature = 0.7,
+    String? promptCacheKey,
   }) async* {
     if (apiKey.trim().isEmpty) {
       yield ErrorEvent('未配置 LLM API Key，请先在右上角设置中填写。');
@@ -67,23 +83,42 @@ class OpenAiCompatibleProvider implements LlmProvider {
     // OpenAI 兼容端点：请求在最后一个 chunk 里携带 usage 统计
     if (endpoint.endsWith('/chat/completions')) {
       requestBody['stream_options'] = {'include_usage': true};
+      // 会话级缓存路由键：帮助支持该参数的端点 (OpenAI 官方及兼容代理)
+      // 把同一会话的请求路由到同一 KV Cache 分片；不认识的端点一般忽略
+      // 未知字段，若严格拒绝则在响应处理中自动降级并重试。
+      final cacheKey = clampPromptCacheKey(promptCacheKey);
+      if (cacheKey != null &&
+          cacheKey.isNotEmpty &&
+          !promptCacheKeyUnsupported) {
+        requestBody['prompt_cache_key'] = cacheKey;
+      }
     }
-
-    final request = http.Request('POST', Uri.parse(endpoint));
-    request.headers['Content-Type'] = 'application/json';
-    if (endpoint.endsWith('/messages')) {
-      request.headers['x-api-key'] = apiKey.trim();
-      request.headers['anthropic-version'] = '2023-06-01';
-    }
-    request.headers['Authorization'] = 'Bearer ${apiKey.trim()}';
-    request.body = jsonEncode(requestBody);
 
     http.StreamedResponse streamedResponse;
     try {
-      streamedResponse = await _client.send(request);
+      streamedResponse = await _send(endpoint, requestBody);
     } catch (e) {
       yield ErrorEvent('网络请求异常: $e');
       return;
+    }
+
+    // 严格端点对 prompt_cache_key 返回 400：进程内降级并去掉该字段重试一次
+    if (streamedResponse.statusCode == 400 &&
+        requestBody.containsKey('prompt_cache_key')) {
+      final errBody = await streamedResponse.stream.bytesToString();
+      if (errBody.contains('prompt_cache_key')) {
+        promptCacheKeyUnsupported = true;
+        requestBody.remove('prompt_cache_key');
+        try {
+          streamedResponse = await _send(endpoint, requestBody);
+        } catch (e) {
+          yield ErrorEvent('网络请求异常: $e');
+          return;
+        }
+      } else {
+        yield ErrorEvent('LLM API 响应错误 (HTTP 400): $errBody');
+        return;
+      }
     }
 
     if (streamedResponse.statusCode != 200) {
@@ -232,5 +267,21 @@ class OpenAiCompatibleProvider implements LlmProvider {
     } catch (e) {
       yield ErrorEvent('解析流式数据异常: $e');
     }
+  }
+
+  /// 发送 POST 请求 (缓存键降级重试复用)
+  Future<http.StreamedResponse> _send(
+    String endpoint,
+    Map<String, dynamic> requestBody,
+  ) {
+    final request = http.Request('POST', Uri.parse(endpoint));
+    request.headers['Content-Type'] = 'application/json';
+    if (endpoint.endsWith('/messages')) {
+      request.headers['x-api-key'] = apiKey.trim();
+      request.headers['anthropic-version'] = '2023-06-01';
+    }
+    request.headers['Authorization'] = 'Bearer ${apiKey.trim()}';
+    request.body = jsonEncode(requestBody);
+    return _client.send(request);
   }
 }

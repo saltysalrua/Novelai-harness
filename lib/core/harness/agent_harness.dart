@@ -15,15 +15,6 @@ class AgentHarness {
   AgentPreset get currentPreset => _currentPreset ?? BuiltinPresets.v5Architect;
   set currentPreset(AgentPreset preset) => _currentPreset = preset;
 
-  /// 兼容老属性：获取当前关联的首个主要 Skill
-  Skill get currentSkill {
-    if (currentPreset.enabledSkillIds.isNotEmpty) {
-      final s = BuiltinSkills.findById(currentPreset.enabledSkillIds.first);
-      if (s != null) return s;
-    }
-    return BuiltinSkills.v5PromptArchitect;
-  }
-
   /// 供应商标识 (如 'deepseek')，仅用于会话记录元数据
   String? providerLabel;
 
@@ -38,19 +29,7 @@ class AgentHarness {
     this.providerLabel,
     this.recorder,
     AgentPreset? initialPreset,
-    Skill? initialSkill,
-  }) : _currentPreset = initialPreset ??
-            (initialSkill != null
-                ? AgentPreset(
-                    id: 'skill_compat_${initialSkill.id}',
-                    name: initialSkill.name,
-                    description: initialSkill.description,
-                    systemPrompt: initialSkill.systemPrompt,
-                    enabledSkillIds: [initialSkill.id],
-                    enabledToolNames: PresetToolKeys.all,
-                    allowedModifiableParams: PresetParamKeys.all,
-                  )
-                : BuiltinPresets.v5Architect);
+  }) : _currentPreset = initialPreset ?? BuiltinPresets.v5Architect;
 
   List<AgentMessage> get messages => List.unmodifiable(_messages);
 
@@ -59,17 +38,21 @@ class AgentHarness {
     currentPreset = preset;
   }
 
-  /// 兼容老接口：切换当前激活的技能
-  void setSkill(Skill skill) {
-    currentPreset = AgentPreset(
-      id: 'skill_compat_${skill.id}',
-      name: skill.name,
-      description: skill.description,
-      systemPrompt: skill.systemPrompt,
-      enabledSkillIds: [skill.id],
-      enabledToolNames: PresetToolKeys.all,
-      allowedModifiableParams: PresetParamKeys.all,
-    );
+  /// 构建本轮对话的完整系统提示词
+  /// (预设人设/工作流 + Pi 标准 available_skills 按需加载声明)
+  String buildSystemPrompt(AgentPreset preset) {
+    final buffer = StringBuffer(preset.systemPrompt.trim());
+    final enabledSkills = preset.enabledSkillIds
+        .map((id) => BuiltinSkills.findById(id))
+        .whereType<Skill>()
+        .toList();
+    if (enabledSkills.isNotEmpty) {
+      final skillsXml = Skill.formatSkillsForSystemPrompt(enabledSkills);
+      if (skillsXml.isNotEmpty) {
+        buffer.writeln('\n\n$skillsXml');
+      }
+    }
+    return buffer.toString();
   }
 
   /// 发送用户消息并启动 Agent 循环流
@@ -94,31 +77,25 @@ class AgentHarness {
       return;
     }
 
-    // 2. 启动执行循环 (最大支持 5 轮工具链式调用)
+    // 2. 一次性构建本轮上下文：系统提示词与工具白名单在循环内保持不变
+    final systemPrompt = buildSystemPrompt(currentPreset);
+    final activeTools = tools
+        .getAll()
+        .where((tool) => currentPreset.isToolEnabled(tool.name))
+        .toList();
+
+    // 执行循环 (最大支持 5 轮工具链式调用)
     int depth = 0;
     const maxDepth = 5;
 
     while (depth < maxDepth) {
       depth++;
 
-      // 准备完整上下文（注入当前预设的 System Prompt 与 Pi 标准 Skill 声明）
-      final promptBuffer = StringBuffer(currentPreset.systemPrompt.trim());
-      final enabledSkills = currentPreset.enabledSkillIds
-          .map((id) => BuiltinSkills.findById(id))
-          .whereType<Skill>()
-          .toList();
-      if (enabledSkills.isNotEmpty) {
-        final skillsXml = Skill.formatSkillsForSystemPrompt(enabledSkills);
-        if (skillsXml.isNotEmpty) {
-          promptBuffer.writeln('\n\n$skillsXml');
-        }
-      }
-
       final contextMessages = <AgentMessage>[
         AgentMessage(
           id: 'system_prompt',
           role: AgentRole.system,
-          content: promptBuffer.toString(),
+          content: systemPrompt,
         ),
         ..._messages,
       ];
@@ -131,16 +108,11 @@ class AgentHarness {
       TokenUsage? usage;
       final List<ToolCall> toolCalls = [];
 
-      // 按当前预设配置过滤开放给 LLM 的工具列表
-      final activeTools = tools
-          .getAll()
-          .where((tool) => currentPreset.isToolEnabled(tool.name))
-          .toList();
-
       final stream = provider!.streamChat(
         messages: contextMessages,
         tools: activeTools,
         temperature: temperature,
+        promptCacheKey: recorder?.sessionId,
       );
 
       bool hasError = false;
@@ -261,4 +233,3 @@ class AgentHarness {
     recorder?.startNewSession();
   }
 }
-
