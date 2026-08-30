@@ -53,19 +53,19 @@ class UserMessageRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
-            padding: EdgeInsets.only(top: 1),
+            padding: EdgeInsets.only(top: 2),
             child: Icon(
               Icons.keyboard_arrow_right,
               size: 16,
               color: AppTheme.notionBlue,
             ),
           ),
-          const SizedBox(width: 2),
+          const SizedBox(width: 4),
           Expanded(
             child: SelectableText(
               message.content,
               style: const TextStyle(
-                fontSize: 12.5,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w500,
                 color: AppTheme.textPrimary,
                 height: 1.5,
@@ -135,14 +135,14 @@ class ToolCallBlock extends StatelessWidget {
         children: [
           const Icon(
             Icons.build_circle_outlined,
-            size: 13,
+            size: 14,
             color: AppTheme.notionBlue,
           ),
           const SizedBox(width: 4),
           Text(
             call.name,
             style: const TextStyle(
-              fontSize: 11.5,
+              fontSize: 12.5,
               fontWeight: FontWeight.w600,
               fontFamily: 'monospace',
               color: AppTheme.notionBlue,
@@ -155,7 +155,7 @@ class ToolCallBlock extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 10.5,
+                fontSize: 11.5,
                 fontFamily: 'monospace',
                 color: AppTheme.textMuted,
               ),
@@ -173,10 +173,10 @@ class ToolCallBlock extends StatelessWidget {
         child: SelectableText(
           const JsonEncoder.withIndent('  ').convert(call.arguments),
           style: const TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             fontFamily: 'monospace',
             color: AppTheme.textSecondary,
-            height: 1.4,
+            height: 1.45,
           ),
         ),
       ),
@@ -214,14 +214,14 @@ class ToolResultBlock extends StatelessWidget {
               message.isError
                   ? Icons.error_outline
                   : Icons.check_circle_outline,
-              size: 13,
+              size: 14,
               color: accent,
             ),
             const SizedBox(width: 4),
             Text(
               message.toolName ?? 'tool',
               style: TextStyle(
-                fontSize: 11.5,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w600,
                 fontFamily: 'monospace',
                 color: accent,
@@ -234,7 +234,7 @@ class ToolResultBlock extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   fontFamily: 'monospace',
                   color: AppTheme.textMuted,
                 ),
@@ -254,10 +254,10 @@ class ToolResultBlock extends StatelessWidget {
             child: SelectableText(
               message.content,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 fontFamily: 'monospace',
                 color: AppTheme.textSecondary,
-                height: 1.4,
+                height: 1.45,
               ),
             ),
           ),
@@ -294,8 +294,8 @@ class StreamingMessageBubble extends StatelessWidget {
             const Row(
               children: [
                 SizedBox(
-                  width: 10,
-                  height: 10,
+                  width: 11,
+                  height: 11,
                   child: CircularProgressIndicator(
                     strokeWidth: 1.5,
                     color: AppTheme.textMuted,
@@ -305,7 +305,7 @@ class StreamingMessageBubble extends StatelessWidget {
                 Text(
                   '正在思考...',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                     fontStyle: FontStyle.italic,
                     color: AppTheme.textMuted,
@@ -316,7 +316,7 @@ class StreamingMessageBubble extends StatelessWidget {
             const SizedBox(height: 4),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: AppTheme.pureWhite,
                 borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
@@ -329,10 +329,10 @@ class StreamingMessageBubble extends StatelessWidget {
                     ? TextOverflow.visible
                     : TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   fontStyle: FontStyle.italic,
                   color: AppTheme.textMuted,
-                  height: 1.4,
+                  height: 1.45,
                 ),
               ),
             ),
@@ -366,39 +366,39 @@ String summarizeToolArguments(Map<String, dynamic> arguments) {
 MarkdownStyleSheet buildAgentMarkdownStyleSheet() {
   const baseColor = AppTheme.textPrimary;
   return MarkdownStyleSheet(
-    p: const TextStyle(fontSize: 12, color: baseColor, height: 1.45),
+    p: const TextStyle(fontSize: 13.5, color: baseColor, height: 1.5),
     h1: const TextStyle(
-      fontSize: 15,
+      fontSize: 17,
       fontWeight: FontWeight.w700,
       color: baseColor,
       height: 1.4,
     ),
     h2: const TextStyle(
-      fontSize: 13.5,
+      fontSize: 15.5,
       fontWeight: FontWeight.w700,
       color: baseColor,
       height: 1.4,
     ),
     h3: const TextStyle(
-      fontSize: 12.5,
+      fontSize: 14,
       fontWeight: FontWeight.w600,
       color: baseColor,
       height: 1.4,
     ),
     h4: const TextStyle(
-      fontSize: 12,
+      fontSize: 13.5,
       fontWeight: FontWeight.w600,
       color: baseColor,
       height: 1.4,
     ),
     h5: const TextStyle(
-      fontSize: 11.5,
+      fontSize: 13,
       fontWeight: FontWeight.w600,
       color: baseColor,
       height: 1.4,
     ),
     h6: const TextStyle(
-      fontSize: 11,
+      fontSize: 12.5,
       fontWeight: FontWeight.w600,
       color: baseColor,
       height: 1.4,
@@ -407,7 +407,7 @@ MarkdownStyleSheet buildAgentMarkdownStyleSheet() {
     strong: const TextStyle(fontWeight: FontWeight.w700),
     del: const TextStyle(decoration: TextDecoration.lineThrough),
     code: const TextStyle(
-      fontSize: 11,
+      fontSize: 12.5,
       fontFamily: 'monospace',
       backgroundColor: Colors.transparent,
       color: AppTheme.notionBlue,
@@ -419,9 +419,9 @@ MarkdownStyleSheet buildAgentMarkdownStyleSheet() {
     ),
     codeblockPadding: const EdgeInsets.all(8),
     blockquote: const TextStyle(
-      fontSize: 11.5,
+      fontSize: 13,
       color: AppTheme.textSecondary,
-      height: 1.4,
+      height: 1.45,
     ),
     blockquoteDecoration: BoxDecoration(
       color: AppTheme.pureWhite,
@@ -431,19 +431,27 @@ MarkdownStyleSheet buildAgentMarkdownStyleSheet() {
       borderRadius: BorderRadius.circular(2),
     ),
     blockquotePadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    listBullet: const TextStyle(fontSize: 12, color: baseColor),
-    tableBody: const TextStyle(fontSize: 11.5, color: baseColor),
+    listBullet: const TextStyle(fontSize: 13.5, color: baseColor),
+    tableBody: const TextStyle(fontSize: 12.5, color: baseColor),
     tableHead: const TextStyle(
-      fontSize: 11.5,
+      fontSize: 12.5,
       fontWeight: FontWeight.w600,
       color: baseColor,
     ),
     tableBorder: TableBorder.all(color: AppTheme.border, width: 1),
     tableCellsPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
     listIndent: 16,
-    pPadding: const EdgeInsets.only(bottom: 4),
-    h1Padding: const EdgeInsets.only(top: 6, bottom: 4),
-    h2Padding: const EdgeInsets.only(top: 6, bottom: 4),
-    h3Padding: const EdgeInsets.only(top: 4, bottom: 2),
+    pPadding: const EdgeInsets.only(bottom: 6),
+    h1Padding: const EdgeInsets.only(top: 8, bottom: 4),
+    h2Padding: const EdgeInsets.only(top: 8, bottom: 4),
+    h3Padding: const EdgeInsets.only(top: 6, bottom: 2),
+    horizontalRuleDecoration: const BoxDecoration(
+      border: Border(
+        top: BorderSide(
+          color: AppTheme.border,
+          width: 1,
+        ),
+      ),
+    ),
   );
 }

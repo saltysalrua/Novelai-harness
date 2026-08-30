@@ -177,7 +177,7 @@ class AgentChatCardState extends State<AgentChatCard> {
                         child: Text(
                           preset.name,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                           ),

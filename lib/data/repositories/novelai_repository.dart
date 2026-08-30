@@ -251,10 +251,7 @@ class NovelAiRepository {
       id: '${now.millisecondsSinceEpoch}_upscaled',
       bytes: upscaledBytes,
       localFilePath: filePath,
-      params: sourceImage.params.copyWith(
-        width: outWidth,
-        height: outHeight,
-      ),
+      params: sourceImage.params.copyWith(width: outWidth, height: outHeight),
       createdAt: now,
       seed: sourceImage.seed,
       isOpusFree: false,

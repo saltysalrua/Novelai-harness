@@ -124,14 +124,14 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
         children: [
           const Icon(
             Icons.psychology_outlined,
-            size: 13,
+            size: 14,
             color: AppTheme.textMuted,
           ),
           const SizedBox(width: 4),
           const Text(
             '思考过程',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
               fontStyle: FontStyle.italic,
               color: AppTheme.textMuted,
@@ -145,7 +145,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
                 maxLines: 1,
                 overflow: expanded ? null : TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   fontStyle: FontStyle.italic,
                   color: AppTheme.textMuted,
                 ),
@@ -164,7 +164,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
         child: SelectableText(
           widget.thoughts,
           style: const TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             fontStyle: FontStyle.italic,
             color: AppTheme.textMuted,
             height: 1.45,

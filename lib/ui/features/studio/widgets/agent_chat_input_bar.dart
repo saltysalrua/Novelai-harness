@@ -255,11 +255,15 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                           minLines: 1,
                           maxLines: 4,
                           style: const TextStyle(
-                            fontSize: 12.5,
+                            fontSize: 13.5,
                             color: AppTheme.textPrimary,
                           ),
                           decoration: InputDecoration(
                             hintText: '输入绘画构思，或输入 /nai <词> 快速生图...',
+                            hintStyle: const TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textMuted,
+                            ),
                             fillColor: AppTheme.paperWarmth,
                             hoverColor: AppTheme.paperWarmth,
                             filled: true,
@@ -399,7 +403,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                               style: const TextStyle(
-                                fontSize: 12.5,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w500,
                                 color: AppTheme.textPrimary,
                               ),
@@ -447,7 +451,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
                                 style: const TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 12.5,
                                   fontWeight: FontWeight.w500,
                                   color: AppTheme.textPrimary,
                                 ),

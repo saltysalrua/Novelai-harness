@@ -132,7 +132,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                 Text(
                   headerText,
                   style: TextStyle(
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: isPaymentHeader
                         ? AppTheme.warning
@@ -223,7 +223,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
         Text(
           question.question,
           style: const TextStyle(
-            fontSize: 13,
+            fontSize: 13.5,
             fontWeight: FontWeight.w600,
             color: AppTheme.textPrimary,
             height: 1.4,
@@ -276,7 +276,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
           const SizedBox(height: 8),
           TextField(
             controller: _customControllers[qIndex],
-            style: const TextStyle(fontSize: 12),
+            style: const TextStyle(fontSize: 13),
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               hintText: '输入自定义回答...',
@@ -329,7 +329,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
             Text(
               option.label,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w700,
                 color: isPrimary ? AppTheme.warning : AppTheme.textPrimary,
               ),
@@ -340,7 +340,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                 option.description!,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 11.5,
                   color: AppTheme.stone,
                 ),
               ),
@@ -409,7 +409,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                   Text(
                     option.label,
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 13,
                       fontWeight:
                           isSelected ? FontWeight.w600 : FontWeight.normal,
                       color: isSelected
@@ -422,7 +422,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                     Text(
                       option.description!,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 11.5,
                         color: AppTheme.stone,
                       ),
                     ),
