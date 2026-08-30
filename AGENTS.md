@@ -47,7 +47,7 @@ Novelai-harness/
 │   │       │   ├── studio_params_tool.dart     # 实时同步修改工作台 UI 生图参数工具
 │   │       │   └── novelai_tools.dart          # 生图、放大、标签联想与账号查询工具实现
 │   │       └── skills/
-│   │           └── skills.dart                 # 内置技能库 (V5 架构师、标签、艺术总监)
+│   │           └── skills.dart                 # 内置技能库 (V5 自然语言与空间视觉架构师)
 │   │
 │   ├── data/                                   # 数据层
 │   │   ├── models/

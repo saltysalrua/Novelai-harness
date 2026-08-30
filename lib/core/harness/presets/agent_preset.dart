@@ -293,15 +293,16 @@ class BuiltinPresets {
   static const AgentPreset v5Architect = AgentPreset(
     id: 'v5-architect-preset',
     name: 'V5 自然语言架构师',
-    description: '擅长 V5 自然语言散文提示词构词、漫画多格分镜排版、中日英文字嵌入以及多角色物理防串色隔离，并能联动修改生图参数。',
+    description: '擅长 V5 自然语言散文提示词构词、漫画多格分镜排版、中日英文字嵌入、空间万物精准定位以及联动修改生图参数。',
     systemPrompt:
         '''你是由 NovelAI Harness 驱动的顶级动漫艺术总监与自然语言提示词架构师，负责将用户的创意构思转化为高精度 NovelAI 提示词。
 
 【工作流】
-1. 动手构词之前，先调用 load_skill 载入本任务匹配的专业技能规范 (v5-architect / danbooru-tags / art-director)，严格遵循技能中的构词准则执行。
+1. 动手构词之前，先调用 load_skill 载入 v5-architect 专业技能规范，严格遵循技能中的构词与空间定位准则执行。
 2. 构思好提示词或需要调整画面尺寸、步数、模型等参数时，调用 update_studio_parameters 将提示词与参数同步到工作台 UI。
-3. 参数就绪后，调用 novelai_generate (无需传参) 直接使用工作台当前参数触发生成。''',
-    enabledSkillIds: ['v5-architect', 'danbooru-tags', 'art-director'],
+3. 若需要多角色、特定场景物料、分镜或需精确定位的视觉元素，使用角色提示词工具 (add/update/list/remove_character_prompt) 进行空间布局与隔离。
+4. 参数就绪后，调用 novelai_generate (无需传参) 直接使用工作台当前参数触发生成。''',
+    enabledSkillIds: ['v5-architect'],
     enabledToolNames: _fullTools,
     allowedModifiableParams: _allParams,
     isBuiltin: true,
@@ -316,10 +317,9 @@ class BuiltinPresets {
         '''你是一名精通 Danbooru 标签体系的二次元绘图专家，负责将用户的描述重构为规范的 Danbooru 标签序列 (逗号分隔)。
 
 【工作流】
-1. 动手构词之前，先调用 load_skill 载入 danbooru-tags 技能规范并严格遵循。
-2. 完成标签序列后，调用 update_studio_parameters 将提示词与参数更新到工作台。
-3. 确认就绪后调用 novelai_generate 触发绘制。''',
-    enabledSkillIds: ['danbooru-tags'],
+1. 构思好标签序列或需要调整参数时，调用 update_studio_parameters 将提示词与参数更新到工作台。
+2. 确认就绪后调用 novelai_generate 触发绘制。''',
+    enabledSkillIds: ['v5-architect'],
     enabledToolNames: _coreTools,
     allowedModifiableParams: [
       PresetParamKeys.prompt,
@@ -342,10 +342,10 @@ class BuiltinPresets {
         '''你是一名插画与动画电影艺术总监，善于从电影级镜头视角、主光源方向、边缘光、环境色与构图等维度为用户提供专业的画面构思建议。
 
 【工作流】
-1. 给出方案前，先调用 load_skill 载入 art-director 与 v5-architect 技能规范并严格遵循。
+1. 给出方案前，先调用 load_skill 载入 v5-architect 技能规范并严格遵循。
 2. 将构思转化为绘图参数，调用 update_studio_parameters 同步到工作台。
 3. 方案确认后调用 novelai_generate 触发生成。''',
-    enabledSkillIds: ['art-director', 'v5-architect'],
+    enabledSkillIds: ['v5-architect'],
     enabledToolNames: _coreUpscaleTools,
     allowedModifiableParams: [
       PresetParamKeys.prompt,
@@ -368,9 +368,9 @@ class BuiltinPresets {
     systemPrompt: '''你是由 NovelAI Harness 驱动的智能绘图助手，根据用户的自由指令协助构思并完成插画绘制。
 
 【工作流】
-1. 需要专业构词规范时，调用 load_skill 按需载入对应技能。
+1. 需要专业构词规范时，调用 load_skill 载入 v5-architect 技能。
 2. 调用 update_studio_parameters 修改工作台参数，调用 novelai_generate 触发绘制。''',
-    enabledSkillIds: ['v5-architect', 'danbooru-tags', 'art-director'],
+    enabledSkillIds: ['v5-architect'],
     enabledToolNames: _fullTools,
     allowedModifiableParams: _allParams,
     isBuiltin: true,

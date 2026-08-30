@@ -179,14 +179,19 @@ void main() {
     test('Skill.formatSkillsForSystemPrompt outputs valid XML block', () {
       final skills = [
         BuiltinSkills.v5PromptArchitect,
-        BuiltinSkills.danbooruTagMaster,
+        const Skill(
+          id: 'custom-lighting',
+          name: '光影专家',
+          description: '专业光影色彩分析',
+          systemPrompt: 'Follow lighting guidelines',
+        ),
       ];
       final xml = Skill.formatSkillsForSystemPrompt(skills);
 
       expect(xml, contains('<available_skills>'));
       expect(xml, contains('</available_skills>'));
       expect(xml, contains('<name>v5-architect</name>'));
-      expect(xml, contains('<name>danbooru-tags</name>'));
+      expect(xml, contains('<name>custom-lighting</name>'));
       expect(xml, contains('load_skill'));
     });
 
@@ -201,7 +206,7 @@ void main() {
 
       expect(result.isError, isFalse);
       expect(result.content, contains('<skill name="v5-architect">'));
-      expect(result.content, contains('V5 自然语言架构师'));
+      expect(result.content, contains('V5 自然语言与空间视觉架构师'));
     });
 
     test('LoadSkillTool returns error for unknown skill', () async {
@@ -218,8 +223,8 @@ void main() {
     });
 
     test('LoadSkillTool blocks skills outside the preset scope', () async {
-      // 预设只开放 danbooru-tags，模型尝试加载 v5-architect 应被拒绝
-      final enabled = <String>['danbooru-tags'];
+      // 预设只开放 custom-lighting，模型尝试加载 v5-architect 应被拒绝
+      final enabled = <String>['custom-lighting'];
       final tool = LoadSkillTool(
         skillResolver: (name) {
           final skill = BuiltinSkills.findById(name);
@@ -233,7 +238,7 @@ void main() {
       });
 
       expect(result.isError, isTrue);
-      expect(result.content, contains('danbooru-tags'));
+      expect(result.content, contains('custom-lighting'));
     });
   });
 
@@ -419,7 +424,7 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
   group('SkillRegistry & ToolRegistry Dynamic Tests', () {
     test('SkillRegistry manages builtin and custom skills dynamically', () {
       final registry = SkillRegistry();
-      expect(registry.getAll().length, greaterThanOrEqualTo(3));
+      expect(registry.getAll().length, equals(1));
 
       const customSkill = Skill(
         id: 'custom-1',
