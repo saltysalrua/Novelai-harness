@@ -102,6 +102,9 @@ void main() {
       expect(vm.deckActiveTab, 1);
       expect(vm.canvasHistoryOpen, isTrue);
 
+      // 分割线宽度防抖落盘：立即冲刷尚未到期的保存，模拟拖动停止后落盘
+      await vm.flushPendingLayoutSave();
+
       // 验证重启后新建 ViewModel 加载保存的布局
       final restartedVm = StudioViewModel();
       await restartedVm.init();

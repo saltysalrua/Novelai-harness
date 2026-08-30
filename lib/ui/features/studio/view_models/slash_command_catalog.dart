@@ -39,3 +39,31 @@ const List<SlashCommandDef> kSlashCommands = [
 /// 生成 /help 帮助文本 (由指令目录渲染)
 String buildSlashHelpText() =>
     '快捷指令说明：\n${kSlashCommands.map((c) => '• ${c.helpLine}').join('\n')}';
+
+/// /nai 方向标志 → 官方分辨率对照
+const Map<String, (int, int)> _slashResolutionFlags = {
+  '--landscape': (1216, 832),
+  '--portrait': (832, 1216),
+  '--square': (1024, 1024),
+  '--wallpaper': (1920, 1088),
+};
+
+/// 解析 /nai 提示词中的方向标志，返回剥离标志后的提示词与目标尺寸
+/// (无标志时沿用当前工作台尺寸)
+({String prompt, int width, int height}) parseSlashResolutionFlags(
+  String args, {
+  required int fallbackWidth,
+  required int fallbackHeight,
+}) {
+  var prompt = args;
+  var width = fallbackWidth;
+  var height = fallbackHeight;
+  for (final entry in _slashResolutionFlags.entries) {
+    if (prompt.contains(entry.key)) {
+      prompt = prompt.replaceAll(entry.key, '').trim();
+      (width, height) = entry.value;
+      break;
+    }
+  }
+  return (prompt: prompt, width: width, height: height);
+}

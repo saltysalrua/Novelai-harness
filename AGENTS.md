@@ -96,10 +96,17 @@ Novelai-harness/
 │           │       └── tool_editor_dialog.dart  # 自定义模板工具编辑弹窗
 │           └── studio/
 │               ├── view_models/
-│               │   ├── studio_view_model.dart  # Studio 状态管理中枢 (MVVM)
+│               │   ├── studio_view_model.dart  # Studio 状态管理中枢：核心状态 Mixin (_StudioCore 全字段+共享签名) + ViewModel 主体 (init/updateConfig/selectModel)
+│               │   ├── studio_vm_layout.dart    # 布局分部：分割线防抖落盘/侧栏页签 (同库 part+Mixin)
+│               │   ├── studio_vm_harness.dart   # Harness 分部：工具装配/LLM与思考强度切换/预设技能工具 CRUD
+│               │   ├── studio_vm_generation.dart # 生图分部：生图/超分/实时预览/账号 (含 _applyGeneratedImage 统一落图)
+│               │   ├── studio_vm_chat.dart      # 对话分部：对话流/ask_user/付费确认/用量记录
+│               │   ├── studio_vm_sessions.dart  # 会话分部：会话管理/回溯
+│               │   ├── studio_vm_characters.dart # 角色分部：多角色提示词编辑与画板定位
+│               │   ├── studio_vm_slash.dart     # 斜杠分部：斜杠指令分发
 │               │   ├── chat_checkpoints.dart   # 消息树分支检查点 (回溯视图数据结构)
 │               │   ├── param_snapshot_journal.dart # 生图参数快照日志 (参数工具差异记录)
-│               │   └── slash_command_catalog.dart # 内置斜杠指令目录单一数据源 (补全+/help 共用)
+│               │   └── slash_command_catalog.dart # 内置斜杠指令目录单一数据源 (补全+/help 共用，含 /nai 方向标志解析)
 │               ├── views/
 │               │   └── studio_view.dart        # 工作台主界面
 │               └── widgets/
