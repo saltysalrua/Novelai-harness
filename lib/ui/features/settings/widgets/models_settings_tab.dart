@@ -187,7 +187,25 @@ class ModelsSettingsDraft {
   }
 }
 
+/// 模型网格排序方式
+enum _ModelSortMode {
+  defaultOrder('默认顺序'),
+  nameAsc('名称 A-Z'),
+  nameDesc('名称 Z-A');
+
+  const _ModelSortMode(this.label);
+  final String label;
+}
+
 /// Models 页：多供应商管理、端点配置与模型卡片网格
+///
+/// 性能设计：
+/// 1. 整页为 CustomScrollView —— 头部卡片区是普通 sliver，模型网格是
+///    SliverGrid.builder 懒构建，几百个模型也只构建视口内的一屏卡片；
+/// 2. 网格区独立成 [_ModelGridSection] 并套 RepaintBoundary，搜索/排序
+///    的 setState 不会外溢到头部表单，头部输入框敲字也不再触发全页重建
+///    (端点预览改用 ListenableBuilder 局部监听)；
+/// 3. 搜索与排序状态由网格区自持，切换供应商时草稿整体重建，状态自然复位。
 class ModelsSettingsTab extends StatefulWidget {
   final StudioViewModel viewModel;
   final ModelsSettingsDraft draft;
@@ -205,24 +223,6 @@ class ModelsSettingsTab extends StatefulWidget {
 class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
   ModelsSettingsDraft get _draft => widget.draft;
   final LlmModelFetcher _modelFetcher = LlmModelFetcher();
-
-  void _onFieldChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _draft.baseUrlController.addListener(_onFieldChanged);
-    _draft.nameController.addListener(_onFieldChanged);
-  }
-
-  @override
-  void dispose() {
-    _draft.baseUrlController.removeListener(_onFieldChanged);
-    _draft.nameController.removeListener(_onFieldChanged);
-    super.dispose();
-  }
 
   /// 编辑单个模型档案
   Future<void> _editModel(LlmModelConfig model) async {
@@ -331,14 +331,8 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
     return '$base$path';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final fullEndpoint = _calculateFullEndpoint(
-      _draft.baseUrlController.text,
-      _draft.protocol,
-    );
-    final currentProvider = _draft.currentProvider;
-
+  /// 头部：供应商选择 / 端点表单 / 拉取操作区 (不含模型网格)
+  Widget _buildHeaderSections() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -483,34 +477,47 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
               ),
             ],
           ),
-          bottomChild: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppTheme.paperWarmth,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppTheme.borderSubtle),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.link_rounded,
-                  size: 14,
-                  color: AppTheme.notionBlue,
+          // 端点预览只随 URL 输入局部刷新，不触发整页 setState
+          bottomChild: ListenableBuilder(
+            listenable: _draft.baseUrlController,
+            builder: (context, _) {
+              final fullEndpoint = _calculateFullEndpoint(
+                _draft.baseUrlController.text,
+                _draft.protocol,
+              );
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    '完整接口地址: $fullEndpoint',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontFamily: 'monospace',
-                      color: AppTheme.textSecondary,
+                decoration: BoxDecoration(
+                  color: AppTheme.paperWarmth,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppTheme.borderSubtle),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.link_rounded,
+                      size: 14,
+                      color: AppTheme.notionBlue,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '完整接口地址: $fullEndpoint',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontFamily: 'monospace',
+                          color: AppTheme.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ),
         SettingsCard(
@@ -637,10 +644,195 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
               : null,
         ),
 
-        // 模型卡片网格
-        if (currentProvider.models.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 12),
+        // 网格区紧跟其后 (间距由网格区内部控制)
+        const SizedBox(height: 4),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
+          sliver: SliverToBoxAdapter(child: _buildHeaderSections()),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
+          sliver: _ModelGridSection(
+            provider: _draft.currentProvider,
+            onSelect: (m) => setState(() => _draft.setActiveModel(m.id)),
+            onEdit: _editModel,
+            onDelete: _deleteModel,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 模型网格区：搜索框 + 排序下拉 + 计数 + 虚拟化 SliverGrid
+///
+/// 作为 sliver 嵌入外层 CustomScrollView；自持搜索/排序状态，
+/// 输入搜索词时只有本区 setState，头部表单完全不受影响。
+class _ModelGridSection extends StatefulWidget {
+  final LlmProviderConfig provider;
+  final ValueChanged<LlmModelConfig> onSelect;
+  final ValueChanged<LlmModelConfig> onEdit;
+  final ValueChanged<String> onDelete;
+
+  const _ModelGridSection({
+    required this.provider,
+    required this.onSelect,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  State<_ModelGridSection> createState() => _ModelGridSectionState();
+}
+
+class _ModelGridSectionState extends State<_ModelGridSection> {
+  final TextEditingController _searchController = TextEditingController();
+  _ModelSortMode _sortMode = _ModelSortMode.defaultOrder;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// 按搜索词过滤 + 按排序模式整理后的可见模型列表
+  List<LlmModelConfig> get _visibleModels {
+    final query = _searchController.text.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? widget.provider.models
+        : widget.provider.models
+              .where(
+                (m) =>
+                    m.name.toLowerCase().contains(query) ||
+                    m.id.toLowerCase().contains(query),
+              )
+              .toList();
+    return switch (_sortMode) {
+      _ModelSortMode.defaultOrder => filtered,
+      _ModelSortMode.nameAsc => [
+        ...filtered,
+      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())),
+      _ModelSortMode.nameDesc => [
+        ...filtered,
+      ]..sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase())),
+    };
+  }
+
+  /// 搜索 / 排序 / 计数工具条
+  Widget _buildToolbar(int visibleCount) {
+    final total = widget.provider.models.length;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 280,
+            height: 36,
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(fontSize: 12),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: '搜索模型名称或 ID',
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  size: 16,
+                  color: AppTheme.stone,
+                ),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          size: 14,
+                          color: AppTheme.stone,
+                        ),
+                        tooltip: '清空搜索',
+                        onPressed: () => _searchController.clear(),
+                      ),
+                filled: true,
+                fillColor: AppTheme.paperWarmth,
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: AppTheme.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: AppTheme.border),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SettingsDropdown<_ModelSortMode>(
+            value: _sortMode,
+            items: _ModelSortMode.values,
+            labelBuilder: (m) => m.label,
+            onChanged: (val) {
+              if (val != null) setState(() => _sortMode = val);
+            },
+          ),
+          const Spacer(),
+          Text(
+            '$visibleCount / $total 个模型',
+            style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final models = widget.provider.models;
+
+    // 供应商没有任何模型
+    if (models.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          decoration: BoxDecoration(
+            color: AppTheme.paperWarmth,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child: const Text(
+            '当前供应商暂无模型，点击上方"在线拉取模型"或"添加模型"',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    final visible = _visibleModels;
+    final canDelete = models.length > 1;
+
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(child: _buildToolbar(visible.length)),
+        if (visible.isEmpty)
+          SliverToBoxAdapter(
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
@@ -649,32 +841,44 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppTheme.border),
               ),
-              child: const Text(
-                '当前供应商暂无模型，点击上方"在线拉取模型"或"添加模型"',
-                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+              child: Text(
+                '没有匹配 "${_searchController.text.trim()}" 的模型',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                ),
               ),
             ),
           )
         else
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 12),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final model in currentProvider.models)
-                  ModelCard(
+          SliverLayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = (constraints.crossAxisExtent / 288)
+                  .floor()
+                  .clamp(1, 8);
+              return SliverGrid.builder(
+                addAutomaticKeepAlives: false,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 2.6,
+                ),
+                itemCount: visible.length,
+                itemBuilder: (context, index) {
+                  final model = visible[index];
+                  return ModelCard(
                     model: model,
-                    isSelected: model.id == currentProvider.activeModelId,
-                    onSelect: (m) =>
-                        setState(() => _draft.setActiveModel(m.id)),
-                    onEdit: _editModel,
-                    onDelete: currentProvider.models.length > 1
-                        ? () => _deleteModel(model.id)
+                    isSelected: model.id == widget.provider.activeModelId,
+                    onSelect: widget.onSelect,
+                    onEdit: widget.onEdit,
+                    onDelete: canDelete
+                        ? () => widget.onDelete(model.id)
                         : null,
-                  ),
-              ],
-            ),
+                  );
+                },
+              );
+            },
           ),
       ],
     );

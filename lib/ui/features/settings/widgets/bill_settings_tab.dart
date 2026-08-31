@@ -28,77 +28,82 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
   Widget build(BuildContext context) {
     final summary = widget.viewModel.buildBillSummary(_billPeriod);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SettingsGroupTitle('Usage Bill'),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SettingsGroupTitle('Usage Bill'),
 
-        // 周期切换胶囊组
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              for (final period in BillPeriod.values) ...[
-                InkWell(
-                  onTap: () => setState(() => _billPeriod = period),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _billPeriod == period
-                          ? AppTheme.notionBlue
-                          : AppTheme.pureWhite,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                      border: Border.all(
+          // 周期切换胶囊组
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                for (final period in BillPeriod.values) ...[
+                  InkWell(
+                    onTap: () => setState(() => _billPeriod = period),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
                         color: _billPeriod == period
                             ? AppTheme.notionBlue
-                            : AppTheme.border,
+                            : AppTheme.pureWhite,
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusPill,
+                        ),
+                        border: Border.all(
+                          color: _billPeriod == period
+                              ? AppTheme.notionBlue
+                              : AppTheme.border,
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      period.label,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: _billPeriod == period
-                            ? Colors.white
-                            : AppTheme.textSecondary,
+                      child: Text(
+                        period.label,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: _billPeriod == period
+                              ? Colors.white
+                              : AppTheme.textSecondary,
+                        ),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 6),
+                ],
+                const Spacer(),
+                Text(
+                  '${summary.requests} 次请求 · 总计 ${UsageLedgerService.formatTokens(summary.usage.total)} tokens',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppTheme.textMuted,
+                  ),
                 ),
-                const SizedBox(width: 6),
               ],
-              const Spacer(),
-              Text(
-                '${summary.requests} 次请求 · 总计 ${UsageLedgerService.formatTokens(summary.usage.total)} tokens',
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: AppTheme.textMuted,
+            ),
+          ),
+
+          // 账单表格
+          if (summary.models.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: const Center(
+                child: Text(
+                  '该周期内暂无用量记录',
+                  style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
                 ),
               ),
-            ],
-          ),
-        ),
-
-        // 账单表格
-        if (summary.models.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: const Center(
-              child: Text(
-                '该周期内暂无用量记录',
-                style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
-              ),
-            ),
-          )
-        else
-          _buildBillTable(summary),
-      ],
+            )
+          else
+            _buildBillTable(summary),
+        ],
+      ),
     );
   }
 

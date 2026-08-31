@@ -78,4 +78,65 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(SettingsDialog), findsNothing);
   });
+
+  testWidgets('Models tab search filters and counts model grid', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(sidebarItem('Models'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 / 2 个模型'), findsOneWidget);
+    final inDialog = find.byType(SettingsDialog);
+    expect(
+      find.descendant(of: inDialog, matching: find.text('DeepSeek V3')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: inDialog, matching: find.text('DeepSeek R1')),
+      findsOneWidget,
+    );
+
+    // 按 ID 搜索 deepseek-reasoner → 只剩 1 个
+    await tester.enterText(
+      find.widgetWithText(TextField, '搜索模型名称或 ID'),
+      'reasoner',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 2 个模型'), findsOneWidget);
+    expect(
+      find.descendant(of: inDialog, matching: find.text('DeepSeek R1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: inDialog, matching: find.text('DeepSeek V3')),
+      findsNothing,
+    );
+
+    // 无匹配关键词 → 空态提示
+    await tester.enterText(
+      find.widgetWithText(TextField, '搜索模型名称或 ID'),
+      'zzzz',
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('没有匹配'), findsOneWidget);
+
+    // 清空搜索恢复全部
+    await tester.tap(find.byTooltip('清空搜索'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 / 2 个模型'), findsOneWidget);
+
+    // 取消关闭
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsDialog), findsNothing);
+  });
 }

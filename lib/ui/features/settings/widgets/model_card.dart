@@ -28,7 +28,6 @@ class ModelCard extends StatelessWidget {
       onTap: () => onSelect(model),
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 264,
         padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
         decoration: BoxDecoration(
           color: isSelected

@@ -310,335 +310,349 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     final availableSkills = widget.viewModel.availableSkills;
     final availableTools = widget.viewModel.availableTools;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 1. 顶部总选择与管理坞
-        const SettingsGroupTitle('Preset Selection'),
-        SettingsCard(
-          title: '当前预设',
-          subtitle: '选择要配置的 Agent 预设（系统提示词、可用技能、工具与参数权限）',
-          control: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SettingsIdDropdown(
-                value: _draft.selectedPresetId,
-                items: _draft.presets
-                    .map(
-                      (p) => DropdownMenuItem<String>(
-                        value: p.id,
-                        child: Row(
-                          children: [
-                            Text(
-                              p.name,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.textPrimary,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. 顶部总选择与管理坞
+          const SettingsGroupTitle('Preset Selection'),
+          SettingsCard(
+            title: '当前预设',
+            subtitle: '选择要配置的 Agent 预设（系统提示词、可用技能、工具与参数权限）',
+            control: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SettingsIdDropdown(
+                  value: _draft.selectedPresetId,
+                  items: _draft.presets
+                      .map(
+                        (p) => DropdownMenuItem<String>(
+                          value: p.id,
+                          child: Row(
+                            children: [
+                              Text(
+                                p.name,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textPrimary,
+                                ),
                               ),
-                            ),
-                            if (p.id == _draft.activePresetId) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 1.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.notionBlue,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: const Text(
-                                  '当前默认',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
+                              if (p.id == _draft.activePresetId) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 1.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.notionBlue,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                  child: const Text(
+                                    '当前默认',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _draft.switchPreset(val));
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-
-              // 设为默认按钮
-              if (!isSelectedActive)
-                SettingsActionButton(
-                  icon: null,
-                  label: '设为当前默认',
-                  onPressed: () =>
-                      setState(() => _draft.setActivePreset(currentPreset.id)),
+                      )
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _draft.switchPreset(val));
+                    }
+                  },
                 ),
+                const SizedBox(width: 8),
 
-              const SizedBox(width: 6),
-              SettingsActionButton(
-                icon: Icons.add_rounded,
-                label: '新建',
-                onPressed: () => setState(
-                  () => _draft.addNewPreset(
-                    widget.viewModel.availableTools.map((t) => t.name).toList(),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              SettingsActionButton(
-                icon: Icons.copy_rounded,
-                label: '复制',
-                iconSize: 14,
-                onPressed: () =>
-                    setState(() => _draft.duplicatePreset(currentPreset)),
-              ),
-
-              // 删除按钮 (多于1个且非内置时可删)
-              if (_draft.presets.length > 1 && !currentPreset.isBuiltin) ...[
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    size: 18,
-                    color: Colors.redAccent,
-                  ),
-                  tooltip: '删除此预设',
-                  onPressed: () =>
-                      setState(() => _draft.deletePreset(currentPreset.id)),
-                ),
-              ],
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 14),
-
-        // 2. 预设基础信息与系统提示词
-        const SettingsGroupTitle('Preset Profile & System Prompt'),
-        if (currentPreset.isBuiltin) ...[
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppTheme.stone.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppTheme.border),
-            ),
-            child: const Text(
-              '内置预设为出厂定义，每次启动以代码为准自动刷新，不支持直接修改。需要定制请先点击「复制」生成副本。',
-              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-            ),
-          ),
-        ],
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppTheme.pureWhite,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: _buildLabeledField(
-                      label: '预设显示名称',
-                      controller: _draft.nameController,
-                      hintText: '如 V5 自然语言架构师',
-                      readOnly: currentPreset.isBuiltin,
+                // 设为默认按钮
+                if (!isSelectedActive)
+                  SettingsActionButton(
+                    icon: null,
+                    label: '设为当前默认',
+                    onPressed: () => setState(
+                      () => _draft.setActivePreset(currentPreset.id),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 6,
-                    child: _buildLabeledField(
-                      label: '预设描述',
-                      controller: _draft.descController,
-                      hintText: '如 擅长 V5 自然语言散文提示词...',
-                      readOnly: currentPreset.isBuiltin,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                '系统提示词 (System Prompt - 作为对话首要根基指令)',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _draft.promptController,
-                maxLines: 6,
-                readOnly: currentPreset.isBuiltin,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontFamily: 'monospace',
-                  height: 1.4,
-                ),
-                decoration: InputDecoration(
-                  hintText: '输入 AI 助手的核心人设与工作流指引...',
-                  filled: true,
-                  fillColor: AppTheme.paperWarmth,
-                  hoverColor: AppTheme.paperWarmth,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: const BorderSide(color: AppTheme.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: const BorderSide(color: AppTheme.border),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
 
-        const SizedBox(height: 16),
-
-        // 3. 可用 Skill 库 (Pi 标准按需加载小卡片组)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const SettingsGroupTitle('Available Skills'),
-            Row(
-              children: [
-                SettingsActionButton(
-                  icon: Icons.file_upload_outlined,
-                  label: '导入 SKILL.md',
-                  iconSize: 14,
-                  onPressed: _openImportSkillDialog,
-                ),
                 const SizedBox(width: 6),
                 SettingsActionButton(
                   icon: Icons.add_rounded,
-                  label: '新建 Skill',
-                  onPressed: _openNewSkillDialog,
+                  label: '新建',
+                  onPressed: () => setState(
+                    () => _draft.addNewPreset(
+                      widget.viewModel.availableTools
+                          .map((t) => t.name)
+                          .toList(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                SettingsActionButton(
+                  icon: Icons.copy_rounded,
+                  label: '复制',
+                  iconSize: 14,
+                  onPressed: () =>
+                      setState(() => _draft.duplicatePreset(currentPreset)),
+                ),
+
+                // 删除按钮 (多于1个且非内置时可删)
+                if (_draft.presets.length > 1 && !currentPreset.isBuiltin) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 18,
+                      color: Colors.redAccent,
+                    ),
+                    tooltip: '删除此预设',
+                    onPressed: () =>
+                        setState(() => _draft.deletePreset(currentPreset.id)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // 2. 预设基础信息与系统提示词
+          const SettingsGroupTitle('Preset Profile & System Prompt'),
+          if (currentPreset.isBuiltin) ...[
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppTheme.stone.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppTheme.border),
+              ),
+              child: const Text(
+                '内置预设为出厂定义，每次启动以代码为准自动刷新，不支持直接修改。需要定制请先点击「复制」生成副本。',
+                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+              ),
+            ),
+          ],
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.pureWhite,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: _buildLabeledField(
+                        label: '预设显示名称',
+                        controller: _draft.nameController,
+                        hintText: '如 V5 自然语言架构师',
+                        readOnly: currentPreset.isBuiltin,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 6,
+                      child: _buildLabeledField(
+                        label: '预设描述',
+                        controller: _draft.descController,
+                        hintText: '如 擅长 V5 自然语言散文提示词...',
+                        readOnly: currentPreset.isBuiltin,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '系统提示词 (System Prompt - 作为对话首要根基指令)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _draft.promptController,
+                  maxLines: 6,
+                  readOnly: currentPreset.isBuiltin,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontFamily: 'monospace',
+                    height: 1.4,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: '输入 AI 助手的核心人设与工作流指引...',
+                    filled: true,
+                    fillColor: AppTheme.paperWarmth,
+                    hoverColor: AppTheme.paperWarmth,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(color: AppTheme.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(color: AppTheme.border),
+                    ),
+                  ),
                 ),
               ],
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: availableSkills.map((skill) {
-            final isEnabled = currentPreset.enabledSkillIds.contains(skill.id);
-            final isBuiltinPreset = currentPreset.isBuiltin;
-            return SkillCard(
-              skill: skill,
-              isEnabled: isEnabled,
-              onToggle: isBuiltinPreset
-                  ? null
-                  : (val) => setState(() => _draft.toggleSkill(skill.id, val)),
-              onEdit: _openEditSkillDialog,
-              onExport: _exportSkillMd,
-              onDelete: !skill.isBuiltin ? () => _deleteSkill(skill.id) : null,
-            );
-          }).toList(),
-        ),
-
-        const SizedBox(height: 18),
-
-        // 4. 开放工具库 (Enabled Tools 小卡片组)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const SettingsGroupTitle('Enabled Tools'),
-            SettingsActionButton(
-              icon: Icons.add_rounded,
-              label: '新建自定义工具',
-              onPressed: _openNewToolDialog,
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: availableTools.map((tool) {
-            final isEnabled = currentPreset.isToolEnabled(tool.name);
-            final isBuiltinPreset = currentPreset.isBuiltin;
-            return ToolCard(
-              tool: tool,
-              isEnabled: isEnabled,
-              onToggle: isBuiltinPreset
-                  ? null
-                  : (val) => setState(() => _draft.toggleTool(tool.name, val)),
-              onInspectSchema: _openInspectToolSchemaDialog,
-              onEditCustomTool: tool is CustomAgentTool
-                  ? _openEditToolDialog
-                  : null,
-              onDelete: !tool.isBuiltin ? () => _deleteTool(tool.name) : null,
-            );
-          }).toList(),
-        ),
-
-        const SizedBox(height: 18),
-
-        // 5. 生图参数控制权限 (Modifiable Parameters)
-        const SettingsGroupTitle('Modifiable Parameters'),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppTheme.pureWhite,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.border),
           ),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: PresetParamKeys.all.map((key) {
-              final isAllowed = currentPreset.isParamModifiable(key);
-              final label = PresetParamKeys.getLabel(key);
-              return FilterChip(
-                label: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: isAllowed ? FontWeight.w600 : FontWeight.normal,
-                    color: isAllowed
-                        ? AppTheme.notionBlue
-                        : AppTheme.textPrimary,
+
+          const SizedBox(height: 16),
+
+          // 3. 可用 Skill 库 (Pi 标准按需加载小卡片组)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SettingsGroupTitle('Available Skills'),
+              Row(
+                children: [
+                  SettingsActionButton(
+                    icon: Icons.file_upload_outlined,
+                    label: '导入 SKILL.md',
+                    iconSize: 14,
+                    onPressed: _openImportSkillDialog,
                   ),
-                ),
-                selected: isAllowed,
-                onSelected: currentPreset.isBuiltin
+                  const SizedBox(width: 6),
+                  SettingsActionButton(
+                    icon: Icons.add_rounded,
+                    label: '新建 Skill',
+                    onPressed: _openNewSkillDialog,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: availableSkills.map((skill) {
+              final isEnabled = currentPreset.enabledSkillIds.contains(
+                skill.id,
+              );
+              final isBuiltinPreset = currentPreset.isBuiltin;
+              return SkillCard(
+                skill: skill,
+                isEnabled: isEnabled,
+                onToggle: isBuiltinPreset
                     ? null
-                    : (val) => setState(() => _draft.toggleParam(key, val)),
-                backgroundColor: AppTheme.surfaceVariant,
-                selectedColor: AppTheme.notionBlue.withValues(alpha: 0.12),
-                checkmarkColor: AppTheme.notionBlue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  side: BorderSide(
-                    color: isAllowed
-                        ? AppTheme.notionBlue.withValues(alpha: 0.5)
-                        : AppTheme.border,
-                  ),
-                ),
+                    : (val) =>
+                          setState(() => _draft.toggleSkill(skill.id, val)),
+                onEdit: _openEditSkillDialog,
+                onExport: _exportSkillMd,
+                onDelete: !skill.isBuiltin
+                    ? () => _deleteSkill(skill.id)
+                    : null,
               );
             }).toList(),
           ),
-        ),
-      ],
+
+          const SizedBox(height: 18),
+
+          // 4. 开放工具库 (Enabled Tools 小卡片组)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SettingsGroupTitle('Enabled Tools'),
+              SettingsActionButton(
+                icon: Icons.add_rounded,
+                label: '新建自定义工具',
+                onPressed: _openNewToolDialog,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: availableTools.map((tool) {
+              final isEnabled = currentPreset.isToolEnabled(tool.name);
+              final isBuiltinPreset = currentPreset.isBuiltin;
+              return ToolCard(
+                tool: tool,
+                isEnabled: isEnabled,
+                onToggle: isBuiltinPreset
+                    ? null
+                    : (val) =>
+                          setState(() => _draft.toggleTool(tool.name, val)),
+                onInspectSchema: _openInspectToolSchemaDialog,
+                onEditCustomTool: tool is CustomAgentTool
+                    ? _openEditToolDialog
+                    : null,
+                onDelete: !tool.isBuiltin ? () => _deleteTool(tool.name) : null,
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: 18),
+
+          // 5. 生图参数控制权限 (Modifiable Parameters)
+          const SettingsGroupTitle('Modifiable Parameters'),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.pureWhite,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: PresetParamKeys.all.map((key) {
+                final isAllowed = currentPreset.isParamModifiable(key);
+                final label = PresetParamKeys.getLabel(key);
+                return FilterChip(
+                  label: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: isAllowed
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      color: isAllowed
+                          ? AppTheme.notionBlue
+                          : AppTheme.textPrimary,
+                    ),
+                  ),
+                  selected: isAllowed,
+                  onSelected: currentPreset.isBuiltin
+                      ? null
+                      : (val) => setState(() => _draft.toggleParam(key, val)),
+                  backgroundColor: AppTheme.surfaceVariant,
+                  selectedColor: AppTheme.notionBlue.withValues(alpha: 0.12),
+                  checkmarkColor: AppTheme.notionBlue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    side: BorderSide(
+                      color: isAllowed
+                          ? AppTheme.notionBlue.withValues(alpha: 0.5)
+                          : AppTheme.border,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
