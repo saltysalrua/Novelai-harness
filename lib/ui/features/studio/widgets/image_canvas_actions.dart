@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pasteboard/pasteboard.dart';
@@ -43,6 +44,32 @@ Future<void> copyImageToClipboard(
   showCanvasSnackBar(context, success ? '已复制图像到剪贴板' : '复制图像失败');
 }
 
+/// 弹出文件选择器导入外部参考图到大画布 (画板、批注画布、批注历史条共用)
+Future<void> pickAndImportReferenceImage(
+  BuildContext context,
+  StudioViewModel viewModel, {
+  Offset? dropPosition,
+}) async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.image,
+    allowMultiple: false,
+    withData: true,
+  );
+  if (result == null || result.files.isEmpty) return;
+  final file = result.files.first;
+  final bytes = file.bytes;
+  if (bytes == null || bytes.isEmpty) return;
+
+  await viewModel.importReferenceImageFromBytes(
+    bytes,
+    fileName: file.name,
+    dropPosition: dropPosition,
+  );
+  if (context.mounted) {
+    showCanvasSnackBar(context, '已导入参考图: ${file.name}');
+  }
+}
+
 /// 图片右键菜单：超分放大、复制图像、复制提示词、复用参数与查看大图
 void showImageContextMenu(
   BuildContext context, {
@@ -60,6 +87,15 @@ void showImageContextMenu(
     context,
     position: position,
     actions: [
+      ContextMenuItem(
+        icon: Icons.edit_note_rounded,
+        label: image.annotations.isEmpty
+            ? '添加批注'
+            : '查看批注 (${image.annotations.length})',
+        onTap: () =>
+            viewModel.setAnnotatingImage(true, targetImageId: image.id),
+      ),
+      const ContextMenuDivider(),
       ContextMenuItem(
         icon: Icons.zoom_in_rounded,
         label: '超分放大',

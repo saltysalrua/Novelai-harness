@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_theme.dart';
+import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 
 /// 画板浮层通用白底徽章装饰 (Notion 蓝白卡片)
@@ -17,11 +18,12 @@ BoxDecoration canvasBadgeDecoration() => BoxDecoration(
   ],
 );
 
-/// 左下角悬浮参数徽章：尺寸 + 种子 (种子点击复制)
+/// 左下角悬浮参数徽章：尺寸 + 种子 (种子点击复制) + 批注按钮
 class CanvasParamBadges extends StatelessWidget {
   final NaiGeneratedImage image;
+  final StudioViewModel? viewModel;
 
-  const CanvasParamBadges({super.key, required this.image});
+  const CanvasParamBadges({super.key, required this.image, this.viewModel});
 
   @override
   Widget build(BuildContext context) {
@@ -46,40 +48,80 @@ class CanvasParamBadges extends StatelessWidget {
         ),
         const SizedBox(width: 8),
 
-        // 种子徽章 (点击可直接复制)
-        Tooltip(
-          message: '点击复制随机种子',
-          child: InkWell(
-            onTap: () =>
-                copyTextWithSnackBar(context, '${image.seed}', '已复制种子到剪贴板'),
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: canvasBadgeDecoration(),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.eco_rounded,
-                    size: 16,
-                    color: AppTheme.notionBlue,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${image.seed}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+        // 种子徽章 (点击可直接复制，非导入参考图时展示)
+        if (!image.isImportedReference) ...[
+          Tooltip(
+            message: '点击复制随机种子',
+            child: InkWell(
+              onTap: () =>
+                  copyTextWithSnackBar(context, '${image.seed}', '已复制种子到剪贴板'),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: canvasBadgeDecoration(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.eco_rounded,
+                      size: 16,
+                      color: AppTheme.notionBlue,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    Text(
+                      '${image.seed}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
+          const SizedBox(width: 8),
+        ],
+
+        // 批注快捷按键
+        if (viewModel != null)
+          Tooltip(
+            message: '进入画板批注模式 (圈选/锚点/整图)',
+            child: InkWell(
+              onTap: () =>
+                  viewModel!.setAnnotatingImage(true, targetImageId: image.id),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: canvasBadgeDecoration(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.edit_note_rounded,
+                      size: 17,
+                      color: AppTheme.notionBlue,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      image.annotations.isEmpty
+                          ? '批注'
+                          : '批注 (${image.annotations.length})',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

@@ -3,9 +3,10 @@ library;
 
 import 'dart:typed_data';
 
+import 'image_annotation.dart';
 import 'nai_generation_params.dart';
 
-/// 生成结果单张图片数据与元信息
+/// 生成结果单张图片数据与元信息 (含批注与参考图标记)
 class NaiGeneratedImage {
   final String id;
   final List<int> bytes;
@@ -15,6 +16,12 @@ class NaiGeneratedImage {
   final int seed;
   final bool isOpusFree;
 
+  /// 该图片上的批注列表 (持久化保存)
+  final List<ImageAnnotation> annotations;
+
+  /// 是否为用户外部拖入/粘贴导入的参考图
+  final bool isImportedReference;
+
   const NaiGeneratedImage({
     required this.id,
     required this.bytes,
@@ -23,11 +30,37 @@ class NaiGeneratedImage {
     required this.createdAt,
     required this.seed,
     required this.isOpusFree,
+    this.annotations = const [],
+    this.isImportedReference = false,
   });
 
   /// 缓存并获取 Uint8List 引用 (避免每次重绘创建新对象导致图片重复解码闪烁)
   Uint8List get uint8Bytes =>
       bytes is Uint8List ? (bytes as Uint8List) : Uint8List.fromList(bytes);
+
+  NaiGeneratedImage copyWith({
+    String? id,
+    List<int>? bytes,
+    String? localFilePath,
+    NaiGenerationParams? params,
+    DateTime? createdAt,
+    int? seed,
+    bool? isOpusFree,
+    List<ImageAnnotation>? annotations,
+    bool? isImportedReference,
+  }) {
+    return NaiGeneratedImage(
+      id: id ?? this.id,
+      bytes: bytes ?? this.bytes,
+      localFilePath: localFilePath ?? this.localFilePath,
+      params: params ?? this.params,
+      createdAt: createdAt ?? this.createdAt,
+      seed: seed ?? this.seed,
+      isOpusFree: isOpusFree ?? this.isOpusFree,
+      annotations: annotations ?? this.annotations,
+      isImportedReference: isImportedReference ?? this.isImportedReference,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -36,6 +69,8 @@ class NaiGeneratedImage {
     'createdAt': createdAt.toIso8601String(),
     'seed': seed,
     'isOpusFree': isOpusFree,
+    'annotations': annotations.map((a) => a.toJson()).toList(),
+    if (isImportedReference) 'isImportedReference': true,
   };
 
   factory NaiGeneratedImage.fromJson(
@@ -48,6 +83,18 @@ class NaiGeneratedImage {
         ? (DateTime.tryParse(createdAtStr) ?? DateTime.now())
         : DateTime.now();
 
+    final rawAnnotations = json['annotations'];
+    final annotations = <ImageAnnotation>[];
+    if (rawAnnotations is List) {
+      for (final item in rawAnnotations) {
+        if (item is Map<String, dynamic>) {
+          try {
+            annotations.add(ImageAnnotation.fromJson(item));
+          } catch (_) {}
+        }
+      }
+    }
+
     return NaiGeneratedImage(
       id: json['id'] as String? ?? '${DateTime.now().millisecondsSinceEpoch}',
       bytes: bytes ?? const [],
@@ -56,6 +103,8 @@ class NaiGeneratedImage {
       createdAt: createdAt,
       seed: (json['seed'] as num?)?.toInt() ?? -1,
       isOpusFree: json['isOpusFree'] as bool? ?? false,
+      annotations: annotations,
+      isImportedReference: json['isImportedReference'] as bool? ?? false,
     );
   }
 }

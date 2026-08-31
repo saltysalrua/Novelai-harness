@@ -38,6 +38,7 @@ Novelai-harness/
 │   │       │   └── openai_provider.dart        # OpenAI 兼容协议流式实现 (支持 SSE 与思考链)
 │   │       ├── tools/
 │   │       │   ├── agent_tool.dart             # 工具抽象基类与工具注册中心
+│   │       │   ├── annotation_tools.dart       # 图像批注五件套工具与覆盖层离屏渲染 (view/add/update/remove/clear_image_annotations)
 │   │       │   ├── ask_user_tool.dart          # 向用户提出结构化问题 (选项+自定义回答)
 │   │       │   ├── canvas_view_tool.dart       # 画板历史图片查看工具 (支持索引从新到旧与角色覆盖层)
 │   │       │   ├── character_prompt_tools.dart  # 多角色提示词增删改查四件套工具
@@ -60,7 +61,9 @@ Novelai-harness/
 │   │   │   ├── nai_prompt_presets.dart         # 质量词/UC 预设与提示词文本后处理
 │   │   │   ├── prompt_library_models.dart     # 词组合预设分类常量与 PromptComboEntry 模型
 │   │   │   ├── llm_models.dart                # LLM 协议/思考强度/模型与供应商配置
-│   │   │   └── tag_models.dart                 # Danbooru 标签分类、联想条目与 NovelAI Token 结构
+│   │   │   ├── tag_models.dart                 # Danbooru 标签分类、联想条目与 NovelAI Token 结构
+│   │   │   ├── image_annotation.dart           # 图像批注模型 (rect 选区/point 图钉/global 整图，归一化坐标+Notion 调色板)
+│   │   │   └── canvas_board_models.dart        # 自由大画布节点模型 (图片卡/便利贴/画布数据，含 JSON 序列化)
 │   │   ├── services/
 │   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与 Zip 解包
 │   │   │   ├── config_service.dart             # 本地配置与 ~/.pi/agent/novelai.json 自动识别
@@ -112,6 +115,7 @@ Novelai-harness/
 │               │   ├── studio_vm_characters.dart # 角色分部：多角色提示词编辑与画板定位
 │               │   ├── studio_vm_slash.dart     # 斜杠分部：斜杠指令分发
 │               │   ├── studio_vm_library.dart  # 词库分部：词组合加载/增删改/导入导出/应用到工作台
+│               │   ├── studio_vm_annotations.dart # 批注分部：自由大画布节点/便利贴 CRUD 与批注同步 (含 sendAnnotationsToChat)
 │               │   ├── chat_checkpoints.dart   # 消息树分支检查点 (回溯视图数据结构)
 │               │   ├── param_snapshot_journal.dart # 生图参数快照日志 (参数工具差异记录)
 │               │   └── slash_command_catalog.dart # 内置斜杠指令目录单一数据源 (补全+/help 共用，含 /nai 方向标志解析)
@@ -146,6 +150,12 @@ Novelai-harness/
 │                   ├── image_canvas_actions.dart # 画板操作工具条 (复制/放大/打开目录)
 │                   ├── canvas_history_sidebar.dart # 历史图像侧栏 (缩略图轮播)
 │                   ├── canvas_overlays.dart     # 画板悬浮层 (未读新图横幅等)
+│                   ├── freeform_annotation_board.dart # 自由大画布主壳：无限漫游缩放/参考图拖入粘贴/连线拖拽与落点命中
+│                   ├── board_toolbar.dart      # 大画布顶部浮动工具坞 (漫游/圈选/图钉/便利贴/参考图/粘贴/适应视口) + AnnotationToolMode 枚举
+│                   ├── board_image_card.dart   # 图片节点卡：顶栏拖拽移动 + 连线端口 + 圈选批注 + 选区/图钉本地拖拽
+│                   ├── board_note_card.dart    # 便利贴节点卡：顶栏拖拽移动 + 左侧连线端口 + 文本编辑 + 连线状态
+│                   ├── board_wire_painter.dart  # 网格/连线分层绘制器 + BoardLiveOverrides 实时覆盖层 + 落点命中工具函数
+│                   ├── annotation_history_strip.dart # 批注模式历史图片侧栏 (拖出参考图到大画布)
 │                   ├── image_lightbox.dart     # 全屏灯箱预览
 │                   ├── agent_chat_card.dart    # 右侧：AI 对话卡主壳 (三视图切换+布局组装)
 │                   ├── agent_chat_messages.dart # 对话消息平铺渲染块 (user/assistant/toolCall/toolResult/流式)
@@ -186,6 +196,11 @@ Novelai-harness/
 │   ├── prompt_library_view_test.dart          # 词库全屏视图与编辑弹窗 Widget 测试
 │   ├── chat_image_attach_test.dart           # 用户图片附件序列化/发送/落盘恢复测试
 │   ├── view_canvas_image_tool_test.dart       # 画板历史图片查看工具按索引与覆盖层渲染测试
+│   ├── image_annotation_test.dart             # 批注模型 JSON 往返与坐标摘要测试
+│   ├── board_interaction_test.dart            # 大画布交互回归 (漫游/拖拽/圈选/连线落点命中)
+│   ├── image_annotation_ui_test.dart           # 批注画板与历史侧栏 Widget 渲染测试
+│   ├── annotation_edit_tools_test.dart         # Agent 批注增删改查工具执行测试
+│   ├── view_image_annotations_tool_test.dart   # 批注查看工具与覆盖层离屏渲染测试
 │   ├── window_state_persistence_test.dart      # 窗口尺寸、位置与最大化状态持久化及防抖测试
 │   └── widget_test.dart                        # 核心组件渲染测试
 │
@@ -306,6 +321,38 @@ Novelai-harness/
 - 发送链路：`AgentMessageImage` (types.dart) → `AgentMessage.images` → `toOpenAiJson` 升级为 text + image_url(data URL) 多模态内容块 → harness.send(images:) 透传；空文本纯图片消息允许发送。
 - 会话落盘：user 消息 JSONL 内容块追加 `{type:'image', mimeType, data}`，恢复时原样回读。
 - 非多模态模型发送带图消息时拦截并提示；工具结果附带图片 (查看画板) 平铺渲染在折叠块外，不藏在内。
+
+### 3.10 自由大画布批注与动态连线 (2026-12)
+
+**进入与数据生命周期**：`setAnnotatingImage(true, {targetImageId})` 进入批注模式，主图与参考图以卡片形式摆放在 6000x6000 画布 (`kBoardCanvasSize`，中心 `kBoardCenterOrigin`)；退出保留画布布局，重进原样恢复，仅当目标主图变化才 `_initBoardData` 重建 (含为既有批注自动生成相连便签)。批注模式与角色位置编辑模式互斥。
+
+**数据模型**：
+
+- `image_annotation.dart`：`ImageAnnotation` (rect 选区 / point 图钉锚点 / global 整图)，坐标为相对图片卡主体的**归一化值** (0.0~1.0)，附 Notion 调色板 `kAnnotationPalette`；`formatCoordinateSummary` 输出像素坐标文本。
+- `canvas_board_models.dart`：`CanvasImageNode` (图片卡，主图 isMain 不可删)、`CanvasNoteNode` (便利贴，含 `width`+`height`，`targetImageId`+`targetAnnotationId` 表示连线)、`CanvasImageLink` (参考图连线，支持一对多)、`CanvasBoardData` (含 `viewScale`/`viewTx`/`viewTy` 视口矩阵)，均含 JSON 序列化；节点 JSON 另存 `imageFilePath`+`imageMeta` (不在历史里的参考图重启后按文件重建)。
+
+**交互模型** (freeform_annotation_board.dart)：
+
+- 空白处左键拖拽直接漫游 (无需切工具)；中键/右键/按住空格/漫游工具同样漫游；滚轮以光标为不动点缩放 (`kBoardMinScale`~`kBoardMaxScale`)。
+- 图片卡顶栏拖拽移动卡片，右下角手柄拖拽调尺寸 (默认自由缩放，按住 **Shift** 锁定宽高比，`resizeImageNode` 提交)；**圈选/图钉批注仅主图支持，参考图是纯图片卡** (仅拖动/连线/删除/缩放)。选区本体可拖拽移动、**选中态四角圆点手柄拖拽缩放** (对角固定，最小 12px，归一化坐标 clamp 0~1)、图钉可拖拽移动。
+- 便利贴右下角手柄拖拽调宽高 (`updateNoteNode` 的 `width`/`height` 参数)；文本编辑区填满卡片剩余高度 (`TextField expands`)。
+- 选中选区/图钉后：选区右上角出现 ✕ 删除钮 (锚点删除钮在图钉右侧)，也可按 **Delete/Backspace** 删除 (`removeAnnotationById` 反查所属节点，删除时同步解绑便利贴与参考图连线)。
+- **连线只能从便利贴左缘端口与参考图顶栏端口拉出**，落到选区或图钉上建立连接；选区/图钉上的编号徽章仅点击选中，不是连线来源。落点命中测试在画布坐标系进行 (点锚点半径 22、选框包围盒 inflate(6)，图钉优先于选框)，落空取消本次连线、**不误断既有连接** (便签断开用顶栏断开按钮，参考图连线再次拖到同一目标即断开 toggle)。
+- **一对多**：`CanvasBoardData.imageLinks` (`CanvasImageLink`：sourceImageId/targetImageId/targetAnnotationId) 存参考图连线，一个选区/锚点可同时挂多条参考图连线与多张便签；`sendAnnotationsToChat` 会汇总关联参考图并把它们 (上限共 4 张) 作为视觉附件发送。
+- 连线端点从图钉中心回缩 15px 到徽章边缘 (`retractFromPinBadge`)，避免遮挡编号数字；参考图连线为 Notion 绿虚线，与便签实线区分。
+- Ctrl+V 粘贴 / 拖入文件导入参考图；`_handleGlobalKey` 空格漫游、Ctrl+V 与 Delete 必须让位文本输入焦点 (`_isTypingText` 检查 EditableText)。
+- **坑 (命中测试)**：Flutter 的 `RenderBox.hitTest` 要求落点在父级 size 内 (`size.contains`)，悬出选区/锚点 Stack 边界外的删除钮/徽章永远点不到——按钮必须收进命中盒 (选区内右上角)，锚点批注用固定 60x26 命中盒 (图钉在左、删除钮在右)。
+
+**性能架构 (拖拽不卡顿的关键)**：
+
+- 卡片与选区拖拽期间只走**本地 state + `BoardLiveOverrides` (ValueNotifier)**，卡片经 `BoardLiveApi` 写入实时位置，连线层 `BoardWirePainter` 通过 `super(repaint: Listenable.merge(...))` 局部重绘，`panEnd` 才提交 ViewModel (`moveImageNode`/`updateNoteNode`/`updateAnnotationInImageNode`)，避免逐帧 `notifyListeners` 全工作台重建。
+- 连线画在 `CustomPaint.foregroundPainter` (卡片之上不被图片遮挡)，网格点阵留在 `painter` (卡片之下)。
+- 坑：CustomPaint widget **没有** repaint 参数，重绘监听必须挂在 CustomPainter 构造函数上；ValueNotifier 按 `!=` 通知，更新时必须 `withCurrent` 生成新实例，原地改字段不会触发重绘。
+- VM 写入顺序：先同步更新 `_boardData` + `notifyListeners` 再 `await` 仓库落盘，否则松手瞬间旧位置会多渲染一帧 (闪回)。
+
+**画布布局持久化 (2026-12 增)**：全部变更入口 (移动/缩放/便利贴/连线/批注) 经 `_scheduleBoardSave` 防抖 600ms 写入 `<saveDir>/canvas_board.json` (仓库 `saveBoardLayout`/`loadBoardLayout`)，dispose 与关闭持久化时立即落盘/删除；外部导入的参考图字节写入 `<saveDir>/board_refs/` (`writeBoardReferenceImage`，不进生图历史)，保存时清理孤立文件；视口矩阵经 `updateBoardViewport` 记录，首帧 `hasSavedViewport` 时原样还原、否则居中。
+
+**Agent 工具** (annotation_tools.dart)：`view/add/update/remove/clear_image_annotations` 五件套统一经 `StudioViewModel.replaceImageAnnotations` 单一写入口 (仓库持久化 + 大画布同步 + 选图引用刷新 + 解绑指向已删除批注的便签与连线，防止幽灵连接)；`renderImageWithAnnotationOverlay` 把批注覆盖层离屏绘制进图片字节 (选区边框/锚点/编号徽章，最长边上限 1536px) 用于多模态视觉附件。`sendAnnotationsToChat` 汇总全部选区像素坐标与便签文本 (含未连接自由便签) 发送到对话并附主图合成图。
 
 ---
 

@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:ui' show Offset;
 import 'package:flutter/foundation.dart';
 import '../../../../core/harness/agent_harness.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/providers/openai_provider.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
+import '../../../../core/harness/tools/annotation_tools.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
 import '../../../../core/harness/tools/canvas_view_tool.dart';
 import '../../../../core/harness/tools/character_prompt_tools.dart';
@@ -27,6 +30,7 @@ import '../../../../data/services/usage_ledger_service.dart';
 import 'param_snapshot_journal.dart';
 import 'slash_command_catalog.dart';
 
+part 'studio_vm_annotations.dart';
 part 'studio_vm_characters.dart';
 part 'studio_vm_chat.dart';
 part 'studio_vm_generation.dart';
@@ -126,8 +130,20 @@ mixin _StudioCore on ChangeNotifier {
   /// 当前选中的角色 ID (用于高亮锚点及左侧卡片)
   String? _selectedCharacterId;
 
+  /// 是否正在画板上批注当前选中的图片
+  bool _isAnnotatingImage = false;
+
+  /// 当前高亮选中的批注 ID
+  String? _activeAnnotationId;
+
+  /// 当前自由大画布上的完整节点与连接数据
+  CanvasBoardData? _boardData;
+
   /// 参数持久化防抖计时器
   Timer? _paramSaveDebounceTimer;
+
+  /// 大画布布局持久化防抖计时器 (拖拽/缩放/移动后延迟落盘)
+  Timer? _boardSaveDebounceTimer;
 
   /// 测试注入用：会话日志根目录 (默认走系统 Documents/NovelAI_Sessions)
   late final String? _sessionLogBaseDir;
@@ -364,6 +380,15 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 删除词库条目 (词库 Agent 工具写入)
   Future<void> deletePromptCombo(String id);
+
+  /// 发送对话消息 (支持 Slash 命令行；[images] 为用户图片附件)
+  Future<void> sendChatMessage(String text, {List<AgentMessageImage>? images});
+
+  /// 全量替换某张历史图片的批注 (Agent 批注工具统一写入口：仓库持久化 + 画布同步)
+  Future<bool> replaceImageAnnotations(
+    String imageId,
+    List<ImageAnnotation> annotations,
+  );
 }
 
 /// Studio 状态管理中枢 (MVVM)。
@@ -377,7 +402,8 @@ class StudioViewModel extends ChangeNotifier
         _StudioSessionsMixin,
         _StudioCharactersMixin,
         _StudioSlashMixin,
-        _StudioLibraryMixin {
+        _StudioLibraryMixin,
+        _StudioAnnotationsMixin {
   StudioViewModel({
     ConfigService? configService,
     NovelAiRepository? repository,
@@ -482,6 +508,15 @@ class StudioViewModel extends ChangeNotifier
       if (_repository.history.isNotEmpty && _selectedImage == null) {
         _selectedImage = _repository.history.first;
       }
+
+      // 恢复大画布布局 (节点位置尺寸/便利贴/连线/视口)
+      final board = await _repository.loadBoardLayout(
+        saveDir: _config.saveDirectory,
+      );
+      if (board != null &&
+          (board.imageNodes.isNotEmpty || board.noteNodes.isNotEmpty)) {
+        _boardData = board;
+      }
     }
 
     notifyListeners();
@@ -548,6 +583,13 @@ class StudioViewModel extends ChangeNotifier
           maxImages: newConfig.maxPersistentImages,
           enabled: false,
         );
+        // 一并清理大画布布局与参考图缓存
+        await _repository.saveBoardLayout(
+          _boardData ?? const CanvasBoardData(imageNodes: [], noteNodes: []),
+          saveDir: newConfig.saveDirectory,
+          enabled: false,
+        );
+        _boardData = null;
       }
     }
 
@@ -597,6 +639,8 @@ class StudioViewModel extends ChangeNotifier
     if (gallery.isNotEmpty && image.id == gallery.first.id) {
       _hasUnseenLatest = false;
     }
+    // 批注模式下不重置大画布：
+    // 重置会清空用户手工摆放的参考图、便利贴与连线布局
     notifyListeners();
   }
 
@@ -652,6 +696,9 @@ class StudioViewModel extends ChangeNotifier
     _splitWidthSaveTimer?.cancel();
     _chatSubscription?.cancel();
     _streamNotifyTimer?.cancel();
+    // 大画布布局：取消防抖并立即落盘一次
+    _boardSaveDebounceTimer?.cancel();
+    unawaited(_flushBoardSave());
     unawaited(_sessionLog.flush());
     super.dispose();
   }

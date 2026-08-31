@@ -19,3 +19,6 @@ export 'nai_image_result.dart';
 export 'nai_account_info.dart';
 export 'nai_prompt_presets.dart';
 export 'llm_models.dart';
+export 'tag_models.dart';
+export 'image_annotation.dart';
+export 'canvas_board_models.dart';

@@ -36,6 +36,7 @@ mixin _StudioChatMixin on _StudioCore {
 
   /// 发送对话消息 (支持 Slash 命令行；[images] 为用户粘贴/上传的图片附件，
   /// 仅普通对话路径生效，斜杠指令不支持附带图片)
+  @override
   Future<void> sendChatMessage(
     String text, {
     List<AgentMessageImage>? images,

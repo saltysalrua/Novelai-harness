@@ -5,6 +5,7 @@ import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
 import '../view_models/studio_view_model.dart';
 import '../widgets/agent_chat_card.dart';
+import '../widgets/annotation_history_strip.dart';
 import '../widgets/image_canvas_card.dart';
 import '../widgets/parameter_card.dart';
 import '../widgets/prompt_library_view.dart';
@@ -60,6 +61,17 @@ class _StudioViewState extends State<StudioView> {
     // 双击 ESC 判定，长按 ESC 误触发回溯视图
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
 
+    // 当处于批注模式时：
+    if (_viewModel.isAnnotatingImage) {
+      if (_isTypingText()) return false;
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        if (event is KeyDownEvent) {
+          _viewModel.setAnnotatingImage(false);
+        }
+        return true;
+      }
+    }
+
     // 当处于角色位置编辑模式时：
     if (_viewModel.isEditingCharacterPositions) {
       if (_isTypingText()) return false;
@@ -108,6 +120,11 @@ class _StudioViewState extends State<StudioView> {
 
     if (_viewModel.activeSidebarTab == StudioSidebarTab.library) {
       _viewModel.setActiveSidebarTab(_previousSidebarTab);
+      return;
+    }
+
+    if (_viewModel.isAnnotatingImage) {
+      _viewModel.setAnnotatingImage(false);
       return;
     }
 
@@ -229,9 +246,20 @@ class _StudioViewState extends State<StudioView> {
                                   },
                                 )
                               : ResizableThreeSplitView(
+                                  key: ValueKey('split-${_viewModel.isAnnotatingImage}'),
                                   initialLeftWidth: _viewModel.splitLeftWidth,
-                                  initialRightWidth: _viewModel.splitRightWidth,
-                                  onWidthsChanged: _viewModel.updateSplitWidths,
+                                  initialRightWidth: _viewModel.isAnnotatingImage
+                                      ? 110.0
+                                      : _viewModel.splitRightWidth,
+                                  minRightWidth:
+                                      _viewModel.isAnnotatingImage ? 90.0 : 280.0,
+                                  maxRightWidth:
+                                      _viewModel.isAnnotatingImage ? 160.0 : 560.0,
+                                  onWidthsChanged: (left, right) {
+                                    if (!_viewModel.isAnnotatingImage) {
+                                      _viewModel.updateSplitWidths(left, right);
+                                    }
+                                  },
                                   leftChild: ParameterCard(
                                     viewModel: _viewModel,
                                     activeTab: _viewModel.activeSidebarTab,
@@ -239,10 +267,14 @@ class _StudioViewState extends State<StudioView> {
                                   centerChild: ImageCanvasCard(
                                     viewModel: _viewModel,
                                   ),
-                                  rightChild: AgentChatCard(
-                                    key: _chatCardKey,
-                                    viewModel: _viewModel,
-                                  ),
+                                  rightChild: _viewModel.isAnnotatingImage
+                                      ? AnnotationHistoryStrip(
+                                          viewModel: _viewModel,
+                                        )
+                                      : AgentChatCard(
+                                          key: _chatCardKey,
+                                          viewModel: _viewModel,
+                                        ),
                                 ),
                         ),
                       ],

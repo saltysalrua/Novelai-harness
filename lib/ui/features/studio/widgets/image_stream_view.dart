@@ -148,7 +148,8 @@ class _ImageStreamViewState extends State<ImageStreamView> {
         );
 
         // 占位符与历史图总数 (生成中或比例不匹配的位置编辑模式下头部多一个占位符)
-        final totalItemCount = (isGenerating ? 1 : 0) +
+        final totalItemCount =
+            (isGenerating ? 1 : 0) +
             (showPositionPlaceholder ? 1 : 0) +
             gallery.length;
 
@@ -248,7 +249,10 @@ class _ImageStreamViewState extends State<ImageStreamView> {
                 adjustedIndex -= 1;
               }
               final item = gallery[adjustedIndex];
-              final isSelected = !isGenerating && !showPositionPlaceholder && selectedImage?.id == item.id;
+              final isSelected =
+                  !isGenerating &&
+                  !showPositionPlaceholder &&
+                  selectedImage?.id == item.id;
               return CanvasImageCard(
                 viewModel: viewModel,
                 controller: controller,
@@ -487,21 +491,24 @@ class CanvasImageCard extends StatelessWidget {
     final targetAspect = viewModel.params.width / viewModel.params.height;
     final itemAspect = imageAspectRatioOf(item.params);
     final isAspectMatching = (targetAspect - itemAspect).abs() < 0.01;
-    final isOverlayActive = isEditingPositions && isSelected && isAspectMatching;
+    final isPositionOverlayActive =
+        isEditingPositions && isSelected && isAspectMatching;
 
     return Center(
       child: GestureDetector(
         key: controller.keyFor(item.id),
         onTap: () => viewModel.selectImage(item),
-        onDoubleTap: isOverlayActive ? null : () => showImageLightbox(context, item),
-        onSecondaryTapUp: isOverlayActive
+        onDoubleTap: isPositionOverlayActive
+            ? null
+            : () => showImageLightbox(context, item),
+        onSecondaryTapUp: isPositionOverlayActive
             ? null
             : (details) => showImageContextMenu(
-                  context,
-                  position: details.globalPosition,
-                  viewModel: viewModel,
-                  image: item,
-                ),
+                context,
+                position: details.globalPosition,
+                viewModel: viewModel,
+                image: item,
+              ),
         child: Container(
           constraints: BoxConstraints(
             maxWidth: maxCardWidth,
@@ -519,7 +526,7 @@ class CanvasImageCard extends StatelessWidget {
                   fit: BoxFit.contain,
                   gaplessPlayback: true,
                 ),
-                if (isOverlayActive)
+                if (isPositionOverlayActive)
                   CharacterPositionOverlay(viewModel: viewModel),
               ],
             ),

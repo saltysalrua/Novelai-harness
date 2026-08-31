@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Uint8List;
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../../../core/harness/types.dart';
 import '../../../core/theme/app_theme.dart';
 import 'agent_chat_blocks.dart';

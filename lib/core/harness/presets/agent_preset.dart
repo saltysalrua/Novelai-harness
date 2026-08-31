@@ -61,6 +61,11 @@ class PresetToolKeys {
   static const String removeCharacterPrompt = 'remove_character_prompt';
   static const String loadSkill = 'load_skill';
   static const String viewCanvasImage = 'view_canvas_image';
+  static const String viewImageAnnotations = 'view_image_annotations';
+  static const String addImageAnnotation = 'add_image_annotation';
+  static const String updateImageAnnotation = 'update_image_annotation';
+  static const String removeImageAnnotation = 'remove_image_annotation';
+  static const String clearImageAnnotations = 'clear_image_annotations';
   static const String searchPromptLibrary = 'search_prompt_library';
   static const String addPromptLibraryEntry = 'add_prompt_library_entry';
   static const String updatePromptLibraryEntry = 'update_prompt_library_entry';
@@ -83,6 +88,11 @@ class PresetToolKeys {
     removeCharacterPrompt: '删除角色',
     loadSkill: '加载技能',
     viewCanvasImage: '查看画板图片',
+    viewImageAnnotations: '查看图片批注',
+    addImageAnnotation: '添加图片批注',
+    updateImageAnnotation: '修改图片批注',
+    removeImageAnnotation: '删除图片批注',
+    clearImageAnnotations: '清空图片批注',
     searchPromptLibrary: '搜索词库',
     addPromptLibraryEntry: '新增词库条目',
     updatePromptLibraryEntry: '修改词库条目',
@@ -111,6 +121,11 @@ const List<String> _fullTools = [
   PresetToolKeys.removeCharacterPrompt,
   PresetToolKeys.loadSkill,
   PresetToolKeys.viewCanvasImage,
+  PresetToolKeys.viewImageAnnotations,
+  PresetToolKeys.addImageAnnotation,
+  PresetToolKeys.updateImageAnnotation,
+  PresetToolKeys.removeImageAnnotation,
+  PresetToolKeys.clearImageAnnotations,
   PresetToolKeys.searchPromptLibrary,
   PresetToolKeys.addPromptLibraryEntry,
   PresetToolKeys.updatePromptLibraryEntry,
@@ -132,6 +147,11 @@ const List<String> _coreTools = [
   PresetToolKeys.removeCharacterPrompt,
   PresetToolKeys.loadSkill,
   PresetToolKeys.viewCanvasImage,
+  PresetToolKeys.viewImageAnnotations,
+  PresetToolKeys.addImageAnnotation,
+  PresetToolKeys.updateImageAnnotation,
+  PresetToolKeys.removeImageAnnotation,
+  PresetToolKeys.clearImageAnnotations,
   PresetToolKeys.searchPromptLibrary,
   PresetToolKeys.addPromptLibraryEntry,
   PresetToolKeys.updatePromptLibraryEntry,
@@ -154,6 +174,11 @@ const List<String> _coreUpscaleTools = [
   PresetToolKeys.removeCharacterPrompt,
   PresetToolKeys.loadSkill,
   PresetToolKeys.viewCanvasImage,
+  PresetToolKeys.viewImageAnnotations,
+  PresetToolKeys.addImageAnnotation,
+  PresetToolKeys.updateImageAnnotation,
+  PresetToolKeys.removeImageAnnotation,
+  PresetToolKeys.clearImageAnnotations,
   PresetToolKeys.searchPromptLibrary,
   PresetToolKeys.addPromptLibraryEntry,
   PresetToolKeys.updatePromptLibraryEntry,
