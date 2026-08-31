@@ -22,6 +22,8 @@ import '../../../../data/models/prompt_library_models.dart';
 import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
+import '../../../../data/services/image_metadata_service.dart';
+import '../../../../data/services/watermark_service.dart';
 import '../../../../data/services/prompt_library_service.dart';
 import '../../../../data/services/session_log_service.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
@@ -146,6 +148,9 @@ mixin _StudioCore on ChangeNotifier {
   /// 是否正在画板上交互式编辑角色位置
   bool _isEditingCharacterPositions = false;
 
+  /// 是否正在画板上交互式编辑水印位置
+  bool _isEditingWatermarkPosition = false;
+
   /// 当前选中的角色 ID (用于高亮锚点及左侧卡片)
   String? _selectedCharacterId;
 
@@ -163,6 +168,9 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 大画布布局持久化防抖计时器 (拖拽/缩放/移动后延迟落盘)
   Timer? _boardSaveDebounceTimer;
+
+  /// 全局配置防抖保存计时器
+  Timer? _configSaveDebounceTimer;
 
   /// 测试注入用：会话日志根目录 (默认走系统 Documents/NovelAI_Sessions)
   late final String? _sessionLogBaseDir;
@@ -350,6 +358,12 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 刷新账号与体力信息
   Future<void> refreshAccountInfo();
+
+  /// 获取用于导出/复制的图像字节 (根据全局设置决定是否去元数据或添加水印)
+  Future<Uint8List> getExportImageBytes(
+    NaiGeneratedImage image, {
+    bool raw = false,
+  });
 
   /// 生成完成后统一落图 (手动生成与 Agent 工具共用)
   void _applyGeneratedImage(
@@ -574,6 +588,7 @@ class StudioViewModel extends ChangeNotifier
   Future<void> updateConfig(AppConfig newConfig) async {
     final oldConfig = _config;
     _config = newConfig;
+    notifyListeners();
     await _configService.saveConfig(newConfig);
 
     // 仅在生效供应商/模型真正变化时才重置思考强度；
@@ -628,9 +643,19 @@ class StudioViewModel extends ChangeNotifier
 
     notifyListeners();
 
-    if (_config.novelAiKey.isNotEmpty) {
+    // 仅在 NovelAI API Key 发生变更时刷新账号，避免调整参数/水印时频繁请求网络
+    final keyChanged = oldConfig.novelAiKey != newConfig.novelAiKey;
+    if (keyChanged && _config.novelAiKey.isNotEmpty) {
       await refreshAccountInfo();
     }
+  }
+
+  /// 防抖保存全局配置 (避免滑块/高频拖拽频繁写盘)
+  void _debounceSaveConfig() {
+    _configSaveDebounceTimer?.cancel();
+    _configSaveDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _configService.saveConfig(_config);
+    });
   }
 
   /// 切换模型并跟随官方出厂默认值。
@@ -707,8 +732,9 @@ class StudioViewModel extends ChangeNotifier
 
     if (wasSelected) {
       if (gallery.isNotEmpty) {
-        final nextIndex =
-            deletedIndex < gallery.length ? deletedIndex : gallery.length - 1;
+        final nextIndex = deletedIndex < gallery.length
+            ? deletedIndex
+            : gallery.length - 1;
         _selectedImage = gallery[nextIndex];
       } else {
         _selectedImage = null;
@@ -772,6 +798,174 @@ class StudioViewModel extends ChangeNotifier
     }
 
     _statusMessage = '已从历史记录删除图片';
+    notifyListeners();
+  }
+
+  // ------------------------- 元数据与水印设置 -------------------------
+
+  bool get stripMetadata => _config.stripMetadata;
+  bool get enableWatermark => _config.enableWatermark;
+  bool get keepOriginalImage => _config.keepOriginalImage;
+  WatermarkConfig get watermarkConfig => _config.watermarkConfig;
+  bool get isEditingWatermarkPosition => _isEditingWatermarkPosition;
+
+  void setEditingWatermarkPosition(bool editing) {
+    if (_isEditingWatermarkPosition == editing) return;
+    _isEditingWatermarkPosition = editing;
+    if (editing) {
+      if (_isEditingCharacterPositions) {
+        _isEditingCharacterPositions = false;
+      }
+      if (_isAnnotatingImage) {
+        _isAnnotatingImage = false;
+      }
+    }
+    notifyListeners();
+  }
+
+  void setStripMetadata(bool value) {
+    if (_config.stripMetadata == value) return;
+    _config = _config.copyWith(stripMetadata: value);
+    notifyListeners();
+    _debounceSaveConfig();
+  }
+
+  void setEnableWatermark(bool value) {
+    if (_config.enableWatermark == value) return;
+    _config = _config.copyWith(enableWatermark: value);
+    notifyListeners();
+    _debounceSaveConfig();
+  }
+
+  void setKeepOriginalImage(bool value) {
+    if (_config.keepOriginalImage == value) return;
+    _config = _config.copyWith(keepOriginalImage: value);
+    notifyListeners();
+    _debounceSaveConfig();
+  }
+
+  void updateWatermarkConfig(WatermarkConfig watermarkConfig) {
+    _config = _config.copyWith(watermarkConfig: watermarkConfig);
+    notifyListeners();
+    _debounceSaveConfig();
+  }
+
+  /// 基于当前画板图像智能计算低信息区域水印位置并应用到配置
+  ///
+  /// 返回是否成功 (画板无图或解析失败时返回 false)。
+  Future<bool> applySmartWatermarkPosition() async {
+    final source =
+        _selectedImage ?? (gallery.isNotEmpty ? gallery.first : null);
+    if (source == null) return false;
+    final config = _config.watermarkConfig;
+    try {
+      final (
+        posX,
+        posY,
+      ) = await WatermarkService.findLowInformationPositionAsync(
+        Uint8List.fromList(source.bytes),
+        scalePercent: config.scalePercent,
+        marginPercent: config.marginPercent,
+        watermarkBytes: config.imageBytes,
+      );
+      updateWatermarkConfig(config.copyWith(posX: posX, posY: posY));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> setWatermarkImageBytes(Uint8List bytes, {String? path}) async {
+    final updated = _config.watermarkConfig.copyWith(
+      imageBytes: bytes,
+      imagePath: path,
+    );
+    _config = _config.copyWith(watermarkConfig: updated);
+    notifyListeners();
+    _debounceSaveConfig();
+  }
+
+  Future<void> clearWatermarkImage() async {
+    final updated = _config.watermarkConfig.copyWith(clearImage: true);
+    _config = _config.copyWith(watermarkConfig: updated);
+    notifyListeners();
+    _debounceSaveConfig();
+  }
+
+  /// 一键将外部解析出的元数据应用到工作台参数与提示词
+  void applyMetadataToWorkbench(ImageMetadataResult metadata) {
+    NaiModel? resolvedModel;
+    if (metadata.model != null && metadata.model!.isNotEmpty) {
+      try {
+        resolvedModel = NaiModel.fromId(metadata.model!);
+      } catch (_) {}
+    }
+
+    NaiSampler? resolvedSampler;
+    if (metadata.sampler != null && metadata.sampler!.isNotEmpty) {
+      try {
+        resolvedSampler = NaiSampler.fromId(metadata.sampler!);
+      } catch (_) {}
+    }
+
+    NoiseSchedule? resolvedSchedule;
+    if (metadata.noiseSchedule != null && metadata.noiseSchedule!.isNotEmpty) {
+      try {
+        resolvedSchedule = NoiseSchedule.fromId(metadata.noiseSchedule!);
+      } catch (_) {}
+    }
+
+    // 转换角色提示词
+    List<NaiCharacterPrompt>? charPrompts;
+    if (metadata.characterPrompts.isNotEmpty) {
+      charPrompts = [];
+      for (var i = 0; i < metadata.characterPrompts.length; i++) {
+        final p = metadata.characterPrompts[i];
+        final uc = (i < metadata.characterNegativePrompts.length)
+            ? metadata.characterNegativePrompts[i]
+            : '';
+        charPrompts.add(
+          NaiCharacterPrompt(
+            id: 'char_${DateTime.now().millisecondsSinceEpoch}_$i',
+            name: '角色 ${i + 1}',
+            prompt: p,
+            negativePrompt: uc,
+          ),
+        );
+      }
+    }
+
+    final newParams = _params.copyWith(
+      prompt: metadata.prompt.isNotEmpty ? metadata.prompt : _params.prompt,
+      negativePrompt: metadata.negativePrompt.isNotEmpty
+          ? metadata.negativePrompt
+          : _params.negativePrompt,
+      model: resolvedModel ?? _params.model,
+      sampler: resolvedSampler ?? _params.sampler,
+      noiseSchedule: resolvedSchedule ?? _params.noiseSchedule,
+      width: (metadata.width != null && metadata.width! > 0)
+          ? metadata.width!
+          : _params.width,
+      height: (metadata.height != null && metadata.height! > 0)
+          ? metadata.height!
+          : _params.height,
+      steps: (metadata.steps != null && metadata.steps! > 0)
+          ? metadata.steps!
+          : _params.steps,
+      scale: (metadata.scale != null && metadata.scale! > 0)
+          ? metadata.scale!
+          : _params.scale,
+      cfgRescale: metadata.cfgRescale ?? _params.cfgRescale,
+      seed: metadata.seed ?? _params.seed,
+      qualityToggle: metadata.qualityToggle ?? _params.qualityToggle,
+      qualityPreset: metadata.qualityPreset ?? _params.qualityPreset,
+      ucPresetKey: metadata.ucPreset ?? _params.ucPresetKey,
+      transparentBg: metadata.transparentBackground ?? _params.transparentBg,
+      characterPrompts: charPrompts ?? _params.characterPrompts,
+    );
+
+    updateParams(newParams);
+    _statusMessage = '已应用图片元数据至工作台';
     notifyListeners();
   }
 

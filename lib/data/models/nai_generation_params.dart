@@ -412,4 +412,29 @@ class NaiGenerationParams {
       characterAiPosition: json['characterAiPosition'] as bool? ?? true,
     );
   }
+
+  /// 构造嵌入 PNG Comment 文本块的标准 NovelAI 元数据 Map
+  Map<String, dynamic> toMetadataComment({required int seed}) {
+    return {
+      'prompt': finalPrompt,
+      'uc': negativePrompt,
+      'steps': steps,
+      'sampler': sampler.id,
+      'model': model.id,
+      'seed': seed,
+      'scale': scale,
+      'cfg_rescale': cfgRescale,
+      'width': width,
+      'height': height,
+      'noise_schedule': noiseSchedule.id,
+      'qualityToggle': qualityToggle,
+      'qualityPreset': qualityPreset,
+      'ucPreset': ucPresetKey,
+      'tag_hint_transparent_background': transparentBg,
+      'characterPrompts': characterPrompts
+          .where((c) => c.enabled)
+          .map((c) => {'prompt': c.prompt, 'uc': c.negativePrompt})
+          .toList(),
+    };
+  }
 }

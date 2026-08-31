@@ -19,10 +19,18 @@ enum NaiModel {
   const NaiModel(this.id, this.label);
 
   static NaiModel fromId(String id) {
-    return NaiModel.values.firstWhere(
-      (m) => m.id == id,
-      orElse: () => NaiModel.v5Full,
-    );
+    final normalized = id.toLowerCase().replaceAll('.', '-').replaceAll('_', '-');
+    for (final m in NaiModel.values) {
+      if (m.id == id || m.id == normalized || m.label.toLowerCase() == normalized) {
+        return m;
+      }
+    }
+    if (normalized.contains('5')) return NaiModel.v5Full;
+    if (normalized.contains('4-5') || normalized.contains('4.5')) return NaiModel.v45Full;
+    if (normalized.contains('4')) return NaiModel.v4Full;
+    if (normalized.contains('furry')) return NaiModel.v3Furry;
+    if (normalized.contains('3')) return NaiModel.v3;
+    return NaiModel.v5Full;
   }
 
   bool get isV4OrAbove =>

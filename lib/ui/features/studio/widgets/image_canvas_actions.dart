@@ -1,7 +1,10 @@
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pasteboard/pasteboard.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
@@ -28,20 +31,38 @@ void copyTextWithSnackBar(BuildContext context, String text, String message) {
 
 const Duration kCanvasSnackBarDuration = Duration(seconds: 1);
 
-/// 复制图像位图到系统剪贴板 (可直接粘贴到聊天窗、画图等应用)
+/// 复制图像位图到系统剪贴板 (根据全局设置决定是否去元数据/加水印，raw=true 时强制复制纯净原图)
 Future<void> copyImageToClipboard(
   BuildContext context,
-  NaiGeneratedImage image,
-) async {
+  StudioViewModel viewModel,
+  NaiGeneratedImage image, {
+  bool raw = false,
+}) async {
   var success = false;
   try {
-    await Pasteboard.writeImage(image.uint8Bytes);
+    final bytes = await viewModel.getExportImageBytes(image, raw: raw);
+
+    if (raw) {
+      // 原图复制走临时文件路径，保留完整 PNG Chunks 元数据 (位图化会丢失元数据)
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File(
+        p.join(
+          tempDir.path,
+          'nai_clipboard_raw_${DateTime.now().millisecondsSinceEpoch}.png',
+        ),
+      );
+      await tempFile.writeAsBytes(bytes);
+      await Pasteboard.writeFiles([tempFile.path]);
+    } else {
+      await Pasteboard.writeImage(bytes);
+    }
     success = true;
   } catch (_) {
     success = false;
   }
   if (!context.mounted) return;
-  showCanvasSnackBar(context, success ? '已复制图像到剪贴板' : '复制图像失败');
+  final label = raw ? '已复制原图像到剪贴板' : '已复制图像到剪贴板';
+  showCanvasSnackBar(context, success ? label : '复制图像失败');
 }
 
 /// 弹出文件选择器导入外部参考图到大画布 (画板、批注画布、批注历史条共用)
@@ -70,7 +91,7 @@ Future<void> pickAndImportReferenceImage(
   }
 }
 
-/// 图片右键菜单：超分放大、复制图像、复制提示词、复用参数与查看大图
+/// 图片右键菜单：超分放大、复制图像、复制原图像、复制提示词、复用参数与查看大图
 void showImageContextMenu(
   BuildContext context, {
   required Offset position,
@@ -82,6 +103,7 @@ void showImageContextMenu(
   }
 
   final isGenerating = viewModel.isGenerating;
+  final showCopyRaw = viewModel.stripMetadata || viewModel.enableWatermark;
 
   showStudioContextMenu(
     context,
@@ -105,8 +127,16 @@ void showImageContextMenu(
       ContextMenuItem(
         icon: Icons.content_copy_rounded,
         label: '复制图像',
-        onTap: () => copyImageToClipboard(context, image),
+        onTap: () =>
+            copyImageToClipboard(context, viewModel, image, raw: false),
       ),
+      if (showCopyRaw)
+        ContextMenuItem(
+          icon: Icons.image_outlined,
+          label: '复制原图像',
+          onTap: () =>
+              copyImageToClipboard(context, viewModel, image, raw: true),
+        ),
       ContextMenuItem(
         icon: Icons.copy_rounded,
         label: '复制提示词',

@@ -33,6 +33,11 @@ class AppConfig {
   final String suffixPrompt;
   final String negativePrompt;
   final String saveDirectory;
+  final bool stripMetadata;
+  final bool enableWatermark;
+  final bool keepOriginalImage;
+  final WatermarkConfig watermarkConfig;
+
 
   // LLM 设置 (多供应商配置)
   final List<LlmProviderConfig> llmProviders;
@@ -95,6 +100,10 @@ class AppConfig {
     this.suffixPrompt = '',
     this.negativePrompt = '',
     this.saveDirectory = '',
+    this.stripMetadata = false,
+    this.enableWatermark = false,
+    this.keepOriginalImage = false,
+    this.watermarkConfig = const WatermarkConfig(),
     this.llmProviders = const [],
     this.activeLlmProviderId = 'deepseek',
     this.agentMaxTurns = 30,
@@ -127,6 +136,10 @@ class AppConfig {
     String? suffixPrompt,
     String? negativePrompt,
     String? saveDirectory,
+    bool? stripMetadata,
+    bool? enableWatermark,
+    bool? keepOriginalImage,
+    WatermarkConfig? watermarkConfig,
     List<LlmProviderConfig>? llmProviders,
     String? activeLlmProviderId,
     int? agentMaxTurns,
@@ -165,6 +178,10 @@ class AppConfig {
       suffixPrompt: suffixPrompt ?? this.suffixPrompt,
       negativePrompt: negativePrompt ?? this.negativePrompt,
       saveDirectory: saveDirectory ?? this.saveDirectory,
+      stripMetadata: stripMetadata ?? this.stripMetadata,
+      enableWatermark: enableWatermark ?? this.enableWatermark,
+      keepOriginalImage: keepOriginalImage ?? this.keepOriginalImage,
+      watermarkConfig: watermarkConfig ?? this.watermarkConfig,
       llmProviders: updatedProviders,
       activeLlmProviderId: targetActiveId,
       agentMaxTurns: agentMaxTurns ?? this.agentMaxTurns,
@@ -174,6 +191,7 @@ class AppConfig {
       customTools: customTools ?? this.customTools,
     );
   }
+
 }
 
 /// 配置持久化与自适应加载服务
@@ -204,6 +222,10 @@ class ConfigService {
   static const String _keySuffix = 'novelai_suffix';
   static const String _keyNegative = 'novelai_negative';
   static const String _keySaveDir = 'novelai_save_dir';
+  static const String _keyStripMetadata = 'novelai_strip_metadata';
+  static const String _keyEnableWatermark = 'novelai_enable_watermark';
+  static const String _keyKeepOriginalImage = 'novelai_keep_original_image';
+  static const String _keyWatermarkConfig = 'novelai_watermark_config';
   static const String _keyLastPrompt = 'novelai_last_prompt';
   static const String _keyApplyFixedPrompts = 'novelai_apply_fixed_prompts';
   static const String _keyCharacterPrompts = 'novelai_character_prompts';
@@ -286,6 +308,23 @@ class ConfigService {
     bool enableImgPersist = prefs.getBool(_keyEnableImagePersistence) ?? true;
     int maxPersistImgs = prefs.getInt(_keyMaxPersistentImages) ?? 50;
     String saveDir = prefs.getString(_keySaveDir) ?? '';
+    bool stripMeta = prefs.getBool(_keyStripMetadata) ?? false;
+    bool enableWm = prefs.getBool(_keyEnableWatermark) ?? false;
+    bool keepOrig = prefs.getBool(_keyKeepOriginalImage) ?? false;
+
+    WatermarkConfig wmConfig = const WatermarkConfig();
+    final wmConfigJson = prefs.getString(_keyWatermarkConfig);
+    if (wmConfigJson != null && wmConfigJson.isNotEmpty) {
+      try {
+        wmConfig = WatermarkConfig.fromJson(jsonDecode(wmConfigJson));
+        if (wmConfig.imagePath != null && wmConfig.imagePath!.isNotEmpty) {
+          final f = File(wmConfig.imagePath!);
+          if (f.existsSync()) {
+            wmConfig = wmConfig.copyWith(imageBytes: f.readAsBytesSync());
+          }
+        }
+      } catch (_) {}
+    }
 
     // 首次启动且无配置时，尝试自动读取本地 ~/.pi/agent/novelai.json
     if (naiKey.isEmpty) {
@@ -481,6 +520,10 @@ class ConfigService {
       suffixPrompt: suffix,
       negativePrompt: negative,
       saveDirectory: saveDir,
+      stripMetadata: stripMeta,
+      enableWatermark: enableWm,
+      keepOriginalImage: keepOrig,
+      watermarkConfig: wmConfig,
       llmProviders: providers,
       activeLlmProviderId: activeProviderId,
       agentMaxTurns: agentMaxTurns,
@@ -529,6 +572,13 @@ class ConfigService {
     await prefs.setString(_keySuffix, config.suffixPrompt);
     await prefs.setString(_keyNegative, config.negativePrompt);
     await prefs.setString(_keySaveDir, config.saveDirectory);
+    await prefs.setBool(_keyStripMetadata, config.stripMetadata);
+    await prefs.setBool(_keyEnableWatermark, config.enableWatermark);
+    await prefs.setBool(_keyKeepOriginalImage, config.keepOriginalImage);
+    await prefs.setString(
+      _keyWatermarkConfig,
+      jsonEncode(config.watermarkConfig.toJson()),
+    );
 
     // 保存多供应商配置
     final providersJson = jsonEncode(

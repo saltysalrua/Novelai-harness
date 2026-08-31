@@ -63,7 +63,8 @@ Novelai-harness/
 │   │   │   ├── llm_models.dart                # LLM 协议/思考强度/模型与供应商配置
 │   │   │   ├── tag_models.dart                 # Danbooru 标签分类、联想条目与 NovelAI Token 结构
 │   │   │   ├── image_annotation.dart           # 图像批注模型 (rect 选区/point 图钉/global 整图，归一化坐标+Notion 调色板)
-│   │   │   └── canvas_board_models.dart        # 自由大画布节点模型 (图片卡/便利贴/画布数据，含 JSON 序列化)
+│   │   │   ├── canvas_board_models.dart        # 自由大画布节点模型 (图片卡/便利贴/画布数据，含 JSON 序列化)
+│   │   │   └── image_metadata_models.dart      # 图像元数据与水印配置数据模型 (ImageMetadataResult / WatermarkConfig)
 │   │   ├── services/
 │   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与 Zip 解包
 │   │   │   ├── config_service.dart             # 本地配置与 ~/.pi/agent/novelai.json 自动识别
@@ -74,9 +75,11 @@ Novelai-harness/
 │   │   │   ├── tag_dictionary_service.dart     # 14万+ Danbooru 离线词库检索、多模态反查与缓存服务 (含词组合注入)
 │   │   │   ├── prompt_library_service.dart     # 词组合预设库持久化/检索/预览图管理与 JSON 导入导出
 │   │   │   ├── prompt_ast_engine.dart          # NovelAI 提示词 AST 分词、权重增减与 SD 语法转换引擎
-│   │   │   └── window_state_service.dart       # 桌面端窗口尺寸、坐标与最大化状态监听与防抖持久化服务
+│   │   │   ├── window_state_service.dart       # 桌面端窗口尺寸、坐标与最大化状态监听与防抖持久化服务
+│   │   │   └── image_metadata_service.dart     # PNG Chunks/Alpha LSB 隐写读取、元数据抹除与嵌入服务 (水印/盲水印管道已迁至 watermark_service)
+│   │   │   └── watermark_service.dart        # 水印合成 (自动对比度/智能选位)、盲水印 Koch-Zhao DCT 嵌入提取与统一导出管道
 │   │   └── repositories/
-│   │       └── novelai_repository.dart         # 图片落盘存储、历史记录与业务聚合
+│   │       └── novelai_repository.dart         # 图片落盘存储、历史记录与业务聚合 (支持 keepOriginalImage 保存 _raw.png)
 │   │
 │   └── ui/                                     # 表现层
 │       ├── core/
@@ -109,7 +112,7 @@ Novelai-harness/
 │               │   ├── studio_view_model.dart  # Studio 状态管理中枢：核心状态 Mixin (_StudioCore 全字段+共享签名) + ViewModel 主体 (init/updateConfig/selectModel)
 │               │   ├── studio_vm_layout.dart    # 布局分部：分割线防抖落盘/侧栏页签 (同库 part+Mixin)
 │               │   ├── studio_vm_harness.dart   # Harness 分部：工具装配/LLM与思考强度切换/预设技能工具 CRUD
-│               │   ├── studio_vm_generation.dart # 生图分部：生图/超分/实时预览/账号 (含 _applyGeneratedImage 统一落图)
+│               │   ├── studio_vm_generation.dart # 生图分部：生图/超分/实时预览/账号 (含 _applyGeneratedImage 统一落图与 _raw.png 保护)
 │               │   ├── studio_vm_chat.dart      # 对话分部：对话流/图片附件/ask_user/付费确认/用量记录/流式通知节流
 │               │   ├── studio_vm_sessions.dart  # 会话分部：会话管理/回溯
 │               │   ├── studio_vm_characters.dart # 角色分部：多角色提示词编辑与画板定位
@@ -124,7 +127,7 @@ Novelai-harness/
 │               └── widgets/
 │                   ├── studio_sidebar.dart      # 最左侧导航栏 (参数/提示词双页切换)
 │                   ├── parameter_card.dart      # 左侧面板薄壳：双页 IndexedStack + 生成坞
-│                   ├── parameters_page.dart     # 页面一：模型/分辨率/采样属性/高级选项
+│                   ├── parameters_page.dart     # 页面一：模型/分辨率/采样属性/高级选项 (含元数据删除/水印 2D 面板/保持原图开关)
 │                   ├── prompts_page.dart        # 页面二：正负提示词双模式与提示词扩展甲板
 │                   ├── prompt_extension_deck.dart # 提示词扩展甲板 (多角色 ↔ 固定词缀左右滑动切换)
 │                   ├── character_card_item.dart # 单角色编辑卡 (名称/启停/位置胶囊+正负词拖拽调高)
@@ -145,9 +148,13 @@ Novelai-harness/
 │                   ├── fixed_affixes_panel.dart # 固定词缀编辑卡内容 (Prefix/Suffix 拖拽调高)
 │                   ├── generate_dock.dart       # 底部操作坞：账号/体力/免点 + 生成按钮
 │                   ├── resolution_pad_picker.dart # 2D 可视化分辨率画板
-│                   ├── image_canvas_card.dart  # 中间：大图交互画板与历史轮播主壳
+│                   ├── watermark_pad_picker.dart # 水印设置面板 (自动对比度/智能选位/盲水印开关与载荷/滑块 + 画板定位胶囊)
+│                   ├── watermark_position_overlay.dart # 水印 2D 位置与自由缩放画板交互层 (拖拽/缩放手柄/滚轮微调)
+│                   ├── canvas_position_floating_controls.dart # 角色/水印位置编辑悬浮控制栏 + 滚轮循环切换监听 + 性别芯片推导
+│                   ├── metadata_reader_dialog.dart # Notion 极简风格图像元数据解析弹窗 (参数网格/角色卡/Raw JSON/一键填入)
+│                   ├── image_canvas_card.dart  # 中间：大图交互画板与历史轮播主壳 (支持拖入带元数据图片自动识别)
 │                   ├── image_stream_view.dart  # 流式生图预览与当前图渲染 (含生成中卡片)
-│                   ├── image_canvas_actions.dart # 画板操作工具条 (复制/放大/打开目录)
+│                   ├── image_canvas_actions.dart # 画板操作工具条 (复制脱敏/复制原图/放大/打开目录)
 │                   ├── canvas_history_sidebar.dart # 历史图像侧栏 (缩略图轮播)
 │                   ├── canvas_overlays.dart     # 画板悬浮层 (未读新图横幅等)
 │                   ├── freeform_annotation_board.dart # 自由大画布主壳：无限漫游缩放/参考图拖入粘贴/连线拖拽与落点命中
@@ -203,7 +210,14 @@ Novelai-harness/
 │   ├── view_image_annotations_tool_test.dart   # 批注查看工具与覆盖层离屏渲染测试
 │   ├── delete_image_history_test.dart          # 右键菜单删除历史图片与 ViewModel 历史管理集成测试
 │   ├── window_state_persistence_test.dart      # 窗口尺寸、位置与最大化状态持久化及防抖测试
+│   ├── image_metadata_service_test.dart        # PNG Chunks 与 Alpha LSB 隐写解析、抹除与序列化测试
+│   ├── watermark_processor_test.dart           # 水印合成、自动对比度、智能选位、盲水印嵌入提取与导出管道测试
+│   ├── metadata_reader_dialog_test.dart        # Notion 风格元数据读取弹窗与工作台参数应用测试
+│   ├── advanced_settings_metadata_test.dart    # 高级设置元数据抹除/水印 2D 面板/保持原图开关集成测试
 │   └── widget_test.dart                        # 核心组件渲染测试
+│
+├── pubspec.yaml                                # 项目依赖配置文件
+└── AGENTS.md                                   # 本开发规范文档
 │
 ├── pubspec.yaml                                # 项目依赖配置文件
 └── AGENTS.md                                   # 本开发规范文档
@@ -259,6 +273,16 @@ Novelai-harness/
 - **Opus 折扣**：`isOpus && 步数 <= 28 && 像素 <= 1,048,576` 时首张免费；仅 V5 受体力配额池限制 (`NaiAccountInfo.v5QuotaExhausted`，来自 `subscription.usage.isNegative`，透支后不再抵扣)；单次请求多张 (`n_samples > 1`) 只有第一张享受免费折扣。
 - **官方超分**：按输入面积分档计费，无倍率参数 (新超分模型固定倍率)：`<= 1,048,576 → 1 Anlas`、`<= 1,747,627 → 2`、`<= 2,446,678 → 3`、`<= 3,145,728 → 4`，超过最高档返回 `invalidCost`；Opus 用户输入不超过 `640x640` 时免费。输入尺寸用 `AnlasCalculator.decodeImageDimensions` 从图片字节解码 (不信任 params 上的宽高，可能是文件加载的假参数)，输出尺寸同样从结果字节解码。
 - **接入点**：GenerateDock 生成按钮点数标识与提示 (`StudioViewModel.estimatedGenerationCost`)、手动生成/超分的付费确认闸门 (预计非零时先弹问)、Agent 生图/超分工具的确认与结果文本、`get_studio_parameters` 报表 (无账号信息时按 Opus/无订阅双价位展示)。服务端计费仍是最终依据。
+
+### 3.3c 图像导出管道：元数据嵌入/抹除、可见水印与盲水印
+
+导出处理单一事实源在 `lib/data/services/watermark_service.dart` 的 `WatermarkService.processExportImage`，顺序固定：可见水印合成 → 元数据抹除 → 盲水印嵌入 (盲水印最后，保证不被后续重编码破坏)。所有接入点 (仓库三处落盘、`getExportImageBytes` 复制导出) 共用这一管道。
+
+- **元数据嵌入**：`ImageMetadataService.embedNovelAiMetadata` 把 Title/Software/Source/Description/Comment (来自 `NaiGenerationParams.toMetadataComment`) 插到 IHDR 后；内存中的 `NaiGeneratedImage.bytes` 始终是带元数据原图，仅落盘/复制时按配置处理 (开启处理且 `keepOriginalImage` 时额外存 `_raw.png`)。
+- **可见水印**：2D 位置 posX/posY (0~1 归一化) + 缩放/不透明度/边距百分比，画板交互层 `watermark_position_overlay.dart` 与合成算法严格同构；高度做 contain 钳制防溢出底图。
+- **自动对比度** (`autoContrast`)：统计水印覆盖区背景平均亮度，亮背景压暗水印、暗背景提亮 (0.65 混合强度)。
+- **智能选位** (`autoPosition`)：降采样 (≤480) 后算亮度梯度能量积分图，32x32 滑窗找能量最低 (细节/边缘最少) 的放置区；`StudioViewModel.applySmartWatermarkPosition` 基于当前画板图一键预览选位。
+- **盲水印** (Koch-Zhao DCT)：`_blindPairs` 中频系数对 + xorshift32 PRNG 选对，载荷 `magic('NHWM')+len(2B)+CRC16(2B)+UTF-8 文本` 循环嵌入全图 8x8 块 (≥2 倍容量冗余)；提取时前 64 块直读头部得真实长度，再按 i, i+N, i+2N... 多数投票还原；强度 1~5 控制系数对间距 (10+12s)。UI 入口：WatermarkPadPicker 盲水印区 (开关/文本/强度) + MetadataReaderDialog「提取盲水印」按钮 (注意服务返回 null=无水印，UI 需 `text ?? ''` 与未提取区分)。
 
 ### 3.4 NovelAI V5 自然语言提示词架构
 

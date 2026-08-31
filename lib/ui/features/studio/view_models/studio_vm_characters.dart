@@ -27,6 +27,9 @@ mixin _StudioCharactersMixin on _StudioCore {
     if (_isEditingCharacterPositions == editing) return;
     _isEditingCharacterPositions = editing;
     if (editing) {
+      if (_isEditingWatermarkPosition) {
+        _isEditingWatermarkPosition = false;
+      }
       if (_params.characterAiPosition) {
         _params = _params.copyWith(characterAiPosition: false);
         _configService.saveCharacterAiPosition(false);

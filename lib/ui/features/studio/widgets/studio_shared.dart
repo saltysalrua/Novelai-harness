@@ -93,7 +93,9 @@ class DropdownField<T> extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppTheme.skyTint,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: AppTheme.notionBlue.withValues(alpha: 0.2)),
+            border: Border.all(
+              color: AppTheme.notionBlue.withValues(alpha: 0.2),
+            ),
           ),
           child: const Text(
             'V5',
@@ -159,10 +161,7 @@ class DropdownField<T> extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (trailing != null) ...[
-                    const SizedBox(width: 6),
-                    trailing,
-                  ],
+                  if (trailing != null) ...[const SizedBox(width: 6), trailing],
                 ],
               );
             }).toList();
@@ -192,8 +191,12 @@ class DropdownField<T> extends StatelessWidget {
                         maxLines: 1,
                         style: TextStyle(
                           fontSize: fontSize,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                          color: isSelected ? AppTheme.notionBlue : AppTheme.textPrimary,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? AppTheme.notionBlue
+                              : AppTheme.textPrimary,
                         ),
                       ),
                     ),
@@ -262,6 +265,70 @@ class TokenProgressBar extends StatelessWidget {
       backgroundColor: Colors.black.withValues(alpha: 0.04),
       valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.notionBlue),
       minHeight: 3,
+    );
+  }
+}
+
+/// 设置类开关行 (标题 + 副标题 + 右侧 Switch，参数页与水印面板共用)
+class SettingsToggleRow extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const SettingsToggleRow({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.pureWhite,
+        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.charcoal,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: AppTheme.graphite,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            activeTrackColor: AppTheme.notionBlue,
+            activeThumbColor: Colors.white,
+            inactiveTrackColor: AppTheme.surfaceMuted,
+            inactiveThumbColor: AppTheme.graphite,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
     );
   }
 }

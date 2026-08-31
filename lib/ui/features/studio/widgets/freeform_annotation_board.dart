@@ -2,8 +2,8 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pasteboard/pasteboard.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/services/image_metadata_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
 import 'board_image_card.dart';
@@ -230,17 +230,21 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   }
 
   Future<void> _handlePaste() async {
-    final imageBytes = await Pasteboard.image;
-    if (imageBytes != null && imageBytes.isNotEmpty) {
-      final boardPos = _localToBoard(_lastPointerLocal);
-      await widget.viewModel.importReferenceImageFromBytes(
-        imageBytes,
-        dropPosition: boardPos,
-      );
-      if (mounted) {
-        showCanvasSnackBar(context, '已粘贴图片至大画布');
+    try {
+      final (imageBytes, fileName) =
+          await ImageMetadataService.readClipboardImageAsync();
+      if (imageBytes != null && imageBytes.isNotEmpty) {
+        final boardPos = _localToBoard(_lastPointerLocal);
+        await widget.viewModel.importReferenceImageFromBytes(
+          imageBytes,
+          fileName: fileName,
+          dropPosition: boardPos,
+        );
+        if (mounted) {
+          showCanvasSnackBar(context, '已粘贴图片至大画布');
+        }
       }
-    }
+    } catch (_) {}
   }
 
   @override

@@ -110,7 +110,9 @@ class _ImageStreamViewState extends State<ImageStreamView> {
 
     _handleAutoScrollAnchoring(viewModel, gallery, selectedImage);
 
-    final isEditingPositions = viewModel.isEditingCharacterPositions;
+    final isEditingPositions =
+        viewModel.isEditingCharacterPositions ||
+        viewModel.isEditingWatermarkPosition;
     final targetAspect = viewModel.params.width / viewModel.params.height;
     final selectedAspect = selectedImage != null
         ? (selectedImage.params.width / selectedImage.params.height)
@@ -118,7 +120,7 @@ class _ImageStreamViewState extends State<ImageStreamView> {
     final isAspectMatching =
         selectedImage != null && (targetAspect - selectedAspect).abs() < 0.01;
 
-    // 当且仅当正在编辑角色位置，且当前选中的图与目标比例不匹配(或画板无图)时展示临时占位符
+    // 当且仅当正在编辑角色/水印位置，且当前选中的图与目标比例不匹配(或画板无图)时展示临时占位符
     final showPositionPlaceholder = isEditingPositions && !isAspectMatching;
 
     return LayoutBuilder(
@@ -487,7 +489,9 @@ class CanvasImageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isEditingPositions = viewModel.isEditingCharacterPositions;
+    final isEditingPositions =
+        viewModel.isEditingCharacterPositions ||
+        viewModel.isEditingWatermarkPosition;
     final targetAspect = viewModel.params.width / viewModel.params.height;
     final itemAspect = imageAspectRatioOf(item.params);
     final isAspectMatching = (targetAspect - itemAspect).abs() < 0.01;
@@ -527,7 +531,10 @@ class CanvasImageCard extends StatelessWidget {
                   gaplessPlayback: true,
                 ),
                 if (isPositionOverlayActive)
-                  CharacterPositionOverlay(viewModel: viewModel),
+                  if (viewModel.isEditingWatermarkPosition)
+                    WatermarkPositionOverlay(viewModel: viewModel)
+                  else
+                    CharacterPositionOverlay(viewModel: viewModel),
               ],
             ),
           ),

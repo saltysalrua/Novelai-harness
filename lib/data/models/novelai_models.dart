@@ -22,3 +22,5 @@ export 'llm_models.dart';
 export 'tag_models.dart';
 export 'image_annotation.dart';
 export 'canvas_board_models.dart';
+export 'image_metadata_models.dart';
+

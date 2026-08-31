@@ -87,6 +87,11 @@ mixin _StudioGenerationMixin on _StudioCore {
           saveDir: _config.saveDirectory,
           enablePersistence: _config.enableImagePersistence,
           maxImages: _config.maxPersistentImages,
+          stripMetadata: _config.stripMetadata,
+          enableWatermark: _config.enableWatermark,
+          keepOriginalImage: _config.keepOriginalImage,
+          watermarkConfig: _config.watermarkConfig,
+          watermarkBytes: _config.watermarkConfig.imageBytes,
         );
 
         _generationSubscription = stream.listen(
@@ -149,6 +154,11 @@ mixin _StudioGenerationMixin on _StudioCore {
           saveDir: _config.saveDirectory,
           enablePersistence: _config.enableImagePersistence,
           maxImages: _config.maxPersistentImages,
+          stripMetadata: _config.stripMetadata,
+          enableWatermark: _config.enableWatermark,
+          keepOriginalImage: _config.keepOriginalImage,
+          watermarkConfig: _config.watermarkConfig,
+          watermarkBytes: _config.watermarkConfig.imageBytes,
         );
 
         if (results.isNotEmpty) {
@@ -224,6 +234,11 @@ mixin _StudioGenerationMixin on _StudioCore {
         saveDir: _config.saveDirectory,
         enablePersistence: _config.enableImagePersistence,
         maxImages: _config.maxPersistentImages,
+        stripMetadata: _config.stripMetadata,
+        enableWatermark: _config.enableWatermark,
+        keepOriginalImage: _config.keepOriginalImage,
+        watermarkConfig: _config.watermarkConfig,
+        watermarkBytes: _config.watermarkConfig.imageBytes,
       );
       _selectedImage = upscaled;
       _statusMessage =
@@ -236,6 +251,28 @@ mixin _StudioGenerationMixin on _StudioCore {
       notifyListeners();
       refreshAccountInfo();
     }
+  }
+
+  /// 获取用于导出/复制的图像字节 (根据全局设置决定是否去元数据或添加水印)
+  @override
+  Future<Uint8List> getExportImageBytes(
+    NaiGeneratedImage image, {
+    bool raw = false,
+  }) async {
+    final rawBytes = ImageMetadataService.embedNovelAiMetadata(
+      pngBytes: Uint8List.fromList(image.bytes),
+      params: image.params,
+      seed: image.seed,
+    );
+    if (raw) return rawBytes;
+
+    return WatermarkService.processExportImage(
+      rawBytes: rawBytes,
+      stripMetadata: _config.stripMetadata,
+      enableWatermark: _config.enableWatermark,
+      watermarkConfig: _config.watermarkConfig,
+      watermarkBytes: _config.watermarkConfig.imageBytes,
+    );
   }
 
   /// 刷新账号与体力信息

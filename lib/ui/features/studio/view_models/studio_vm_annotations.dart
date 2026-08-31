@@ -138,9 +138,14 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     if (_isAnnotatingImage == annotating && targetImageId == null) return;
     _isAnnotatingImage = annotating;
 
-    // 退出角色位置编辑模式，避免双编辑模式冲突
-    if (annotating && _isEditingCharacterPositions) {
-      _isEditingCharacterPositions = false;
+    // 退出角色与水印位置编辑模式，避免双编辑模式冲突
+    if (annotating) {
+      if (_isEditingCharacterPositions) {
+        _isEditingCharacterPositions = false;
+      }
+      if (_isEditingWatermarkPosition) {
+        _isEditingWatermarkPosition = false;
+      }
     }
 
     if (annotating) {

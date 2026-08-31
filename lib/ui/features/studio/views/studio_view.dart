@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../../data/services/image_metadata_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
 import '../view_models/studio_view_model.dart';
 import '../widgets/agent_chat_card.dart';
 import '../widgets/annotation_history_strip.dart';
+import '../widgets/image_canvas_actions.dart';
 import '../widgets/image_canvas_card.dart';
+import '../widgets/metadata_reader_dialog.dart';
 import '../widgets/parameter_card.dart';
 import '../widgets/prompt_library_view.dart';
 import '../widgets/studio_sidebar.dart';
@@ -72,7 +75,7 @@ class _StudioViewState extends State<StudioView> {
       }
     }
 
-    // 当处于角色位置编辑模式时：
+    // 当处于角色或水印位置编辑模式时：
     if (_viewModel.isEditingCharacterPositions) {
       if (_isTypingText()) return false;
 
@@ -96,7 +99,64 @@ class _StudioViewState extends State<StudioView> {
       }
     }
 
+    if (_viewModel.isEditingWatermarkPosition) {
+      if (_isTypingText()) return false;
+      final key = event.logicalKey;
+      if (key == LogicalKeyboardKey.escape) {
+        if (event is KeyDownEvent) {
+          _viewModel.setEditingWatermarkPosition(false);
+        }
+        return true;
+      }
+    }
+
+    // 全局快捷键 Ctrl+V / Cmd+V 粘贴检查图片元数据
+    final isControlOrCmd =
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    if (isControlOrCmd && event.logicalKey == LogicalKeyboardKey.keyV) {
+      if (!_isTypingText() &&
+          !_viewModel.isEditingCharacterPositions &&
+          !_viewModel.isEditingWatermarkPosition &&
+          !_viewModel.isAnnotatingImage) {
+        if (event is KeyDownEvent) {
+          _handleGlobalPaste();
+        }
+        return true;
+      }
+    }
+
     return false;
+  }
+
+  /// 全局 Ctrl+V 粘贴图片处理：优先解析并弹窗检查元数据，无元数据则导入为画板参考图
+  Future<void> _handleGlobalPaste() async {
+    try {
+      final (imageBytes, fileName) =
+          await ImageMetadataService.readClipboardImageAsync();
+      if (imageBytes != null && imageBytes.isNotEmpty && mounted) {
+        final metadata = await ImageMetadataService.parseMetadataAsync(
+          imageBytes,
+        );
+        if (metadata != null && metadata.hasData && mounted) {
+          await MetadataReaderDialog.show(
+            context,
+            metadata: metadata,
+            imageBytes: imageBytes,
+            fileName: fileName ?? '剪贴板图片.png',
+            viewModel: _viewModel,
+          );
+        } else if (mounted) {
+          await _viewModel.importReferenceImageFromBytes(
+            imageBytes,
+            fileName: fileName,
+          );
+          if (mounted) {
+            showCanvasSnackBar(context, '已导入参考图');
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   /// 根级 ESC：双击 400ms 内进入回溯视图；单击中断生成/流式
@@ -130,6 +190,11 @@ class _StudioViewState extends State<StudioView> {
 
     if (_viewModel.isEditingCharacterPositions) {
       _viewModel.setEditingCharacterPositions(false);
+      return;
+    }
+
+    if (_viewModel.isEditingWatermarkPosition) {
+      _viewModel.setEditingWatermarkPosition(false);
       return;
     }
 
@@ -246,15 +311,20 @@ class _StudioViewState extends State<StudioView> {
                                   },
                                 )
                               : ResizableThreeSplitView(
-                                  key: ValueKey('split-${_viewModel.isAnnotatingImage}'),
+                                  key: ValueKey(
+                                    'split-${_viewModel.isAnnotatingImage}',
+                                  ),
                                   initialLeftWidth: _viewModel.splitLeftWidth,
-                                  initialRightWidth: _viewModel.isAnnotatingImage
+                                  initialRightWidth:
+                                      _viewModel.isAnnotatingImage
                                       ? 110.0
                                       : _viewModel.splitRightWidth,
-                                  minRightWidth:
-                                      _viewModel.isAnnotatingImage ? 90.0 : 280.0,
-                                  maxRightWidth:
-                                      _viewModel.isAnnotatingImage ? 160.0 : 560.0,
+                                  minRightWidth: _viewModel.isAnnotatingImage
+                                      ? 90.0
+                                      : 280.0,
+                                  maxRightWidth: _viewModel.isAnnotatingImage
+                                      ? 160.0
+                                      : 560.0,
                                   onWidthsChanged: (left, right) {
                                     if (!_viewModel.isAnnotatingImage) {
                                       _viewModel.updateSplitWidths(left, right);

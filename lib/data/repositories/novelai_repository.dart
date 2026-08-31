@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import '../models/novelai_models.dart';
 import '../services/anlas_calculator.dart';
+import '../services/image_metadata_service.dart';
+import '../services/watermark_service.dart';
 import '../services/novelai_service.dart';
 
 class NovelAiRepository {
@@ -133,6 +135,11 @@ class NovelAiRepository {
     required String saveDir,
     bool enablePersistence = true,
     int maxImages = 50,
+    bool stripMetadata = false,
+    bool enableWatermark = false,
+    bool keepOriginalImage = false,
+    WatermarkConfig? watermarkConfig,
+    Uint8List? watermarkBytes,
   }) async* {
     final effectiveSeed = params.seed < 0
         ? (DateTime.now().millisecondsSinceEpoch % 4294967295)
@@ -149,15 +156,48 @@ class NovelAiRepository {
       if (progress.isFinal && progress.finalImage != null) {
         final now = DateTime.now();
         final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
+        final rawFinal = ImageMetadataService.embedNovelAiMetadata(
+          pngBytes: Uint8List.fromList(progress.finalImage!),
+          params: requestParams,
+          seed: effectiveSeed,
+        );
+
+        // 若需要处理落盘图片 (去元数据/加水印)
+        final needsProcessing =
+            stripMetadata ||
+            (enableWatermark &&
+                watermarkBytes != null &&
+                watermarkBytes.isNotEmpty);
+
+        if (needsProcessing && keepOriginalImage) {
+          // 保存一份原图 (_raw.png)
+          _writeImageFile(
+            saveDir,
+            'nai_${timeStr}_${effectiveSeed}_raw.png',
+            rawFinal,
+          );
+        }
+
+        List<int> fileBytes = rawFinal;
+        if (needsProcessing) {
+          fileBytes = await WatermarkService.processExportImage(
+            rawBytes: Uint8List.fromList(rawFinal),
+            stripMetadata: stripMetadata,
+            enableWatermark: enableWatermark,
+            watermarkConfig: watermarkConfig,
+            watermarkBytes: watermarkBytes,
+          );
+        }
+
         final filePath = _writeImageFile(
           saveDir,
           'nai_${timeStr}_$effectiveSeed.png',
-          progress.finalImage!,
+          fileBytes,
         );
 
         final generatedImage = _recordGenerated(
           id: '${now.millisecondsSinceEpoch}_0',
-          bytes: progress.finalImage!,
+          bytes: rawFinal,
           filePath: filePath,
           params: requestParams,
           seed: effectiveSeed,
@@ -168,7 +208,7 @@ class NovelAiRepository {
         }
 
         yield NaiStreamProgress.finalResult(
-          finalImage: progress.finalImage!,
+          finalImage: rawFinal,
           generatedImage: generatedImage,
           totalSteps: requestParams.steps,
         );
@@ -185,6 +225,11 @@ class NovelAiRepository {
     required String saveDir,
     bool enablePersistence = true,
     int maxImages = 50,
+    bool stripMetadata = false,
+    bool enableWatermark = false,
+    bool keepOriginalImage = false,
+    WatermarkConfig? watermarkConfig,
+    Uint8List? watermarkBytes,
   }) async {
     final effectiveSeed = params.seed < 0
         ? (DateTime.now().millisecondsSinceEpoch % 4294967295)
@@ -199,18 +244,43 @@ class NovelAiRepository {
     final now = DateTime.now();
     final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
     final results = <NaiGeneratedImage>[];
+    final needsProcessing =
+        stripMetadata ||
+        (enableWatermark &&
+            watermarkBytes != null &&
+            watermarkBytes.isNotEmpty);
 
     for (var i = 0; i < imageBytesList.length; i++) {
-      final bytes = imageBytesList[i];
-      final fileName = imageBytesList.length == 1
-          ? 'nai_${timeStr}_$effectiveSeed.png'
-          : 'nai_${timeStr}_${effectiveSeed}_${i + 1}.png';
-      final filePath = _writeImageFile(saveDir, fileName, bytes);
+      final rawWithMeta = ImageMetadataService.embedNovelAiMetadata(
+        pngBytes: Uint8List.fromList(imageBytesList[i]),
+        params: requestParams,
+        seed: effectiveSeed,
+      );
+      final baseName = imageBytesList.length == 1
+          ? 'nai_${timeStr}_$effectiveSeed'
+          : 'nai_${timeStr}_${effectiveSeed}_${i + 1}';
+
+      if (needsProcessing && keepOriginalImage) {
+        _writeImageFile(saveDir, '${baseName}_raw.png', rawWithMeta);
+      }
+
+      List<int> fileBytes = rawWithMeta;
+      if (needsProcessing) {
+        fileBytes = await WatermarkService.processExportImage(
+          rawBytes: Uint8List.fromList(rawWithMeta),
+          stripMetadata: stripMetadata,
+          enableWatermark: enableWatermark,
+          watermarkConfig: watermarkConfig,
+          watermarkBytes: watermarkBytes,
+        );
+      }
+
+      final filePath = _writeImageFile(saveDir, '$baseName.png', fileBytes);
 
       results.add(
         _recordGenerated(
           id: '${now.millisecondsSinceEpoch}_$i',
-          bytes: bytes,
+          bytes: rawWithMeta,
           filePath: filePath,
           params: requestParams,
           seed: effectiveSeed,
@@ -232,6 +302,11 @@ class NovelAiRepository {
     required String saveDir,
     bool enablePersistence = true,
     int maxImages = 50,
+    bool stripMetadata = false,
+    bool enableWatermark = false,
+    bool keepOriginalImage = false,
+    WatermarkConfig? watermarkConfig,
+    Uint8List? watermarkBytes,
   }) async {
     final upscaledBytes = await _service.upscaleImage(
       apiKey: apiKey,
@@ -247,11 +322,29 @@ class NovelAiRepository {
 
     final now = DateTime.now();
     final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
-    final filePath = _writeImageFile(
-      saveDir,
-      'nai_${timeStr}_upscaled_${sourceImage.seed}.png',
-      upscaledBytes,
-    );
+    final baseName = 'nai_${timeStr}_upscaled_${sourceImage.seed}';
+    final needsProcessing =
+        stripMetadata ||
+        (enableWatermark &&
+            watermarkBytes != null &&
+            watermarkBytes.isNotEmpty);
+
+    if (needsProcessing && keepOriginalImage) {
+      _writeImageFile(saveDir, '${baseName}_raw.png', upscaledBytes);
+    }
+
+    List<int> fileBytes = upscaledBytes;
+    if (needsProcessing) {
+      fileBytes = await WatermarkService.processExportImage(
+        rawBytes: Uint8List.fromList(upscaledBytes),
+        stripMetadata: stripMetadata,
+        enableWatermark: enableWatermark,
+        watermarkConfig: watermarkConfig,
+        watermarkBytes: watermarkBytes,
+      );
+    }
+
+    final filePath = _writeImageFile(saveDir, '$baseName.png', fileBytes);
 
     final upscaledImage = NaiGeneratedImage(
       id: '${now.millisecondsSinceEpoch}_upscaled',

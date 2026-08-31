@@ -7,6 +7,7 @@ import '../view_models/studio_view_model.dart';
 import 'editable_slider.dart';
 import 'resolution_pad_picker.dart';
 import 'studio_shared.dart';
+import 'watermark_pad_picker.dart';
 
 /// 侧边栏页面一：参数设置 (模型 / 分辨率 / 采样属性 / 高级选项)
 class ParametersPage extends StatefulWidget {
@@ -46,68 +47,75 @@ class _ParametersPageState extends State<ParametersPage> {
 
   @override
   Widget build(BuildContext context) {
-    final viewModel = widget.viewModel;
-    final params = viewModel.params;
+    return ListenableBuilder(
+      listenable: widget.viewModel,
+      builder: (context, _) {
+        final viewModel = widget.viewModel;
+        final params = viewModel.params;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const PageHeader(title: '参数设置', subtitle: '模型、分辨率与采样属性调节'),
-        const SizedBox(height: 16),
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const PageHeader(title: '参数设置', subtitle: '模型、分辨率与采样属性调节'),
+            const SizedBox(height: 16),
 
-        // 1. 模型选择
-        const SectionHeader('模型'),
-        const SizedBox(height: 8),
-        DropdownField<NaiModel>(
-          value: params.model,
-          items: NaiModel.values,
-          labelOf: (m) => m.label,
-          onChanged: viewModel.selectModel,
-        ),
-        const SizedBox(height: 16),
+            // 1. 模型选择
+            const SectionHeader('模型'),
+            const SizedBox(height: 8),
+            DropdownField<NaiModel>(
+              value: params.model,
+              items: NaiModel.values,
+              labelOf: (m) => m.label,
+              onChanged: viewModel.selectModel,
+            ),
+            const SizedBox(height: 16),
 
-        // 2. 官方标准分辨率预设与 2D 可视化画板
-        ResolutionPadPicker(
-          width: params.width,
-          height: params.height,
-          isOpusFree: params.isOpusFree,
-          onChanged: (dims) => viewModel.updateParams(
-            params.copyWith(width: dims.width, height: dims.height),
-          ),
-        ),
-        const SizedBox(height: 18),
+            // 2. 官方标准分辨率预设与 2D 可视化画板
+            ResolutionPadPicker(
+              width: params.width,
+              height: params.height,
+              isOpusFree: params.isOpusFree,
+              onChanged: (dims) => viewModel.updateParams(
+                params.copyWith(width: dims.width, height: dims.height),
+              ),
+            ),
+            const SizedBox(height: 18),
 
-        // 3. Steps
-        EditableSliderInt(
-          title: 'Steps',
-          value: params.steps,
-          min: 1,
-          max: 50,
-          onChanged: (v) => viewModel.updateParams(params.copyWith(steps: v)),
-        ),
-        const SizedBox(height: 16),
+            // 3. Steps
+            EditableSliderInt(
+              title: 'Steps',
+              value: params.steps,
+              min: 1,
+              max: 50,
+              onChanged: (v) =>
+                  viewModel.updateParams(params.copyWith(steps: v)),
+            ),
+            const SizedBox(height: 16),
 
-        // 4. Prompt Guidance
-        EditableSliderDouble(
-          title: 'Prompt Guidance',
-          value: params.scale,
-          min: 1.0,
-          max: 15.0,
-          fractionDigits: 1,
-          onChanged: (v) => viewModel.updateParams(params.copyWith(scale: v)),
-        ),
-        const SizedBox(height: 18),
+            // 4. Prompt Guidance
+            EditableSliderDouble(
+              title: 'Prompt Guidance',
+              value: params.scale,
+              min: 1.0,
+              max: 15.0,
+              fractionDigits: 1,
+              onChanged: (v) =>
+                  viewModel.updateParams(params.copyWith(scale: v)),
+            ),
+            const SizedBox(height: 18),
 
-        // 5. Seed & Sampler 两栏
-        _SeedAndSamplerRow(
-          viewModel: viewModel,
-          seedController: _seedController,
-        ),
-        const SizedBox(height: 14),
+            // 5. Seed & Sampler 两栏
+            _SeedAndSamplerRow(
+              viewModel: viewModel,
+              seedController: _seedController,
+            ),
+            const SizedBox(height: 14),
 
-        // 6. Advanced Settings 折叠面板
-        _AdvancedSettingsSection(viewModel: viewModel),
-      ],
+            // 6. Advanced Settings 折叠面板
+            _AdvancedSettingsSection(viewModel: viewModel),
+          ],
+        );
+      },
     );
   }
 }
@@ -242,7 +250,7 @@ class _SeedAndSamplerRow extends StatelessWidget {
   }
 }
 
-/// Advanced Settings 折叠面板 (CFG Rescale + Noise Schedule)
+/// Advanced Settings 折叠面板 (CFG Rescale + Noise Schedule + 元数据/水印)
 class _AdvancedSettingsSection extends StatelessWidget {
   final StudioViewModel viewModel;
 
@@ -251,6 +259,8 @@ class _AdvancedSettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final params = viewModel.params;
+    final showKeepOriginal =
+        viewModel.stripMetadata || viewModel.enableWatermark;
 
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -288,6 +298,47 @@ class _AdvancedSettingsSection extends StatelessWidget {
             onChanged: (n) =>
                 viewModel.updateParams(params.copyWith(noiseSchedule: n)),
           ),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: AppTheme.border),
+          const SizedBox(height: 12),
+
+          // 1. 删除元数据开关
+          SettingsToggleRow(
+            title: '删除元数据',
+            subtitle: '导出与复制时抹除所有生成参数与隐写',
+            value: viewModel.stripMetadata,
+            onChanged: (val) => viewModel.setStripMetadata(val),
+          ),
+          const SizedBox(height: 10),
+
+          // 2. 添加水印开关
+          SettingsToggleRow(
+            title: '添加水印',
+            subtitle: '仅在复制/下载时生效，UI 画板不显示',
+            value: viewModel.enableWatermark,
+            onChanged: (val) => viewModel.setEnableWatermark(val),
+          ),
+
+          // 水印 2D 调节面板 (开启时展开)
+          if (viewModel.enableWatermark) ...[
+            const SizedBox(height: 10),
+            WatermarkPadPicker(
+              config: viewModel.watermarkConfig,
+              onChanged: (newCfg) => viewModel.updateWatermarkConfig(newCfg),
+              viewModel: viewModel,
+            ),
+          ],
+
+          // 3. 保持原图像开关 (当开启删除元数据或添加水印之一时展示)
+          if (showKeepOriginal) ...[
+            const SizedBox(height: 10),
+            SettingsToggleRow(
+              title: '保持原图像',
+              subtitle: '生图落盘时额外保存一份纯净原图 (_raw.png)',
+              value: viewModel.keepOriginalImage,
+              onChanged: (val) => viewModel.setKeepOriginalImage(val),
+            ),
+          ],
         ],
       ),
     );
