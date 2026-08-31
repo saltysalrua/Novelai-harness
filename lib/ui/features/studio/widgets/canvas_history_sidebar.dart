@@ -208,6 +208,8 @@ class _ImageHistoryThumb extends StatelessWidget {
         item.uint8Bytes,
         fit: BoxFit.cover,
         gaplessPlayback: true,
+        // 侧栏缩略图宽约 104px，按 2x 解码已够清晰，避免全分辨率纹理
+        cacheWidth: 240,
       ),
     );
   }
@@ -234,7 +236,13 @@ class _GeneratingHistoryThumb extends StatelessWidget {
         stream.scrollToTop();
       },
       content: previewBytes != null
-          ? Image.memory(previewBytes, fit: BoxFit.cover, gaplessPlayback: true)
+          ? Image.memory(
+              previewBytes,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              // 预览帧每步全量重解码，按缩略图尺寸解码降低 UI 线程压力
+              cacheWidth: 240,
+            )
           : Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

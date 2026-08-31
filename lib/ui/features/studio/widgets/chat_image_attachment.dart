@@ -77,6 +77,10 @@ class ChatImageThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 按显示尺寸解码：缩略图 64~72px 却按附件原图 (最长边 1024px) 解码
+    // 会白白占用成倍纹理内存，多图消息滚动时明显卡顿
+    final thumbCacheWidth =
+        (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(32, 512);
     Widget thumb = ClipRRect(
       borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
       child: Image.memory(
@@ -85,6 +89,7 @@ class ChatImageThumbnail extends StatelessWidget {
         height: size,
         fit: BoxFit.cover,
         gaplessPlayback: true,
+        cacheWidth: thumbCacheWidth,
       ),
     );
     final tap = onTap;

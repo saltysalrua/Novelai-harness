@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
@@ -39,19 +40,35 @@ class CanvasStreamController {
           alignment: 0.5,
         ),
       );
-    } else if (scrollController.hasClients) {
-      final targetOffset = (index * 750.0).clamp(
-        0.0,
-        scrollController.position.maxScrollExtent,
-      );
-      _animateAnchor(
-        scrollController.animateTo(
+      return;
+    }
+    if (!scrollController.hasClients) return;
+    // 目标图在懒加载视口外尚未构建：先按估算高度滚到附近，
+    // 等卡片真实挂载后再二次精准居中 (单靠估算信高度会“只露个头”)
+    final targetOffset = (index * 750.0).clamp(
+      0.0,
+      scrollController.position.maxScrollExtent,
+    );
+    isAdjustingAnchor = true;
+    scrollController
+        .animateTo(
           targetOffset,
           duration: const Duration(milliseconds: 350),
           curve: Curves.easeOutCubic,
-        ),
-      );
-    }
+        )
+        .then((_) {
+          final ctx = _itemKeys[imageId]?.currentContext;
+          if (ctx == null || !ctx.mounted) {
+            isAdjustingAnchor = false;
+            return;
+          }
+          Scrollable.ensureVisible(
+            ctx,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            alignment: 0.5,
+          ).then((_) => isAdjustingAnchor = false);
+        });
   }
 
   /// 无动画锚定到指定图 (保持用户正在浏览的历史图视野不动)
@@ -208,6 +225,10 @@ class _ImageStreamViewState extends State<ImageStreamView> {
           child: ListView.separated(
             controller: controller.scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
+            // 预构建上下各 1200px 的卡片：历史图侧栏点选远端图时目标卡片
+            // 大概率已在缓存内挂载，二次居中修正不再落空
+            scrollCacheExtent: const ScrollCacheExtent.pixels(1200),
+            addAutomaticKeepAlives: false,
             padding: EdgeInsets.only(
               left: 20,
               right: 20,
@@ -403,9 +424,15 @@ class CanvasGeneratingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final params = viewModel.params;
-    final aspectRatio = imageAspectRatioOf(params);
     final previewBytes = viewModel.livePreviewBytes;
     final isSelected = viewModel.isViewingLatest;
+    final aspectRatio = imageAspectRatioOf(params);
+    // 按实际显示尺寸解码 (预览帧每步全量重解码，全分辨率纹理会拖慢 UI 线程)
+    final displayWidth =
+        maxCardWidth < maxCardHeight * aspectRatio
+        ? maxCardWidth
+        : maxCardHeight * aspectRatio;
+    final previewCacheWidth = (displayWidth * 1.5).round().clamp(64, 4096);
 
     return Center(
       child: GestureDetector(
@@ -427,6 +454,7 @@ class CanvasGeneratingCard extends StatelessWidget {
                     previewBytes,
                     fit: BoxFit.contain,
                     gaplessPlayback: true,
+                    cacheWidth: previewCacheWidth,
                   )
                 else
                   Center(
@@ -498,6 +526,15 @@ class CanvasImageCard extends StatelessWidget {
     final isPositionOverlayActive =
         isEditingPositions && isSelected && isAspectMatching;
 
+    // 按实际显示尺寸解码：全分辨率纹理 (1216px 级) 在多图滚动时
+    // 造成大量纹理内存与光栅化压力
+    final displayWidth =
+        maxCardWidth < maxCardHeight * itemAspect
+        ? maxCardWidth
+        : maxCardHeight * itemAspect;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (displayWidth * dpr).round().clamp(64, 4096);
+
     return Center(
       child: GestureDetector(
         key: controller.keyFor(item.id),
@@ -529,6 +566,7 @@ class CanvasImageCard extends StatelessWidget {
                   item.uint8Bytes,
                   fit: BoxFit.contain,
                   gaplessPlayback: true,
+                  cacheWidth: cacheWidth,
                 ),
                 if (isPositionOverlayActive)
                   if (viewModel.isEditingWatermarkPosition)

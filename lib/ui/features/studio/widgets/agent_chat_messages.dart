@@ -295,28 +295,43 @@ class ToolResultBlock extends StatelessWidget {
             ),
           ),
           // 工具结果附带的图片 (如查看画板图片工具) 不藏在折叠块里，
-          // 单独平铺在工具结果下方，收起时也直接可见；点击全屏放大查看
+          // 单独平铺在工具结果下方，收起时也直接可见；点击全屏放大查看。
+          // 按面板实际宽度解码 (cacheWidth)，避免 1536px 级全分辨率纹理拖慢滚动
           if (message.imageBase64 != null && message.imageBase64!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 2),
-              child: GestureDetector(
-                onTap: () => showImageLightboxBytes(
-                  context,
-                  Uint8List.fromList(base64Decode(message.imageBase64!)),
-                ),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.zoomIn,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                    child: Image.memory(
-                      base64Decode(message.imageBase64!),
-                      width: double.infinity,
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              child: Builder(
+                builder: (context) {
+                  final bytes = Uint8List.fromList(
+                    base64Decode(message.imageBase64!),
+                  );
+                  final panelWidth = MediaQuery.sizeOf(context).width;
+                  final dpr = MediaQuery.devicePixelRatioOf(context);
+                  // 对话卡面板宽度为窗口的一小部分，钳到安全上限保留清晰度
+                  final cacheWidth = (panelWidth * dpr / 2)
+                      .round()
+                      .clamp(320, 1600);
+                  return GestureDetector(
+                    onTap: () => showImageLightboxBytes(context, bytes),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.zoomIn,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusSmall,
+                        ),
+                        child: Image.memory(
+                          bytes,
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                          cacheWidth: cacheWidth,
+                          filterQuality: FilterQuality.medium,
+                          gaplessPlayback: true,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
         ],
