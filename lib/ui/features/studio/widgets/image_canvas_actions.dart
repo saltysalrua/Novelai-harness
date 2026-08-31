@@ -130,6 +130,18 @@ void showImageContextMenu(
         label: '查看大图',
         onTap: () => showImageLightbox(context, image),
       ),
+      const ContextMenuDivider(),
+      ContextMenuItem(
+        icon: Icons.delete_outline_rounded,
+        label: '从历史记录删除',
+        isDestructive: true,
+        onTap: () async {
+          await viewModel.deleteImageFromHistory(image.id);
+          if (context.mounted) {
+            showCanvasSnackBar(context, '已从历史记录删除图片');
+          }
+        },
+      ),
     ],
   );
 }

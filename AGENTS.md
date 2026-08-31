@@ -201,6 +201,7 @@ Novelai-harness/
 │   ├── image_annotation_ui_test.dart           # 批注画板与历史侧栏 Widget 渲染测试
 │   ├── annotation_edit_tools_test.dart         # Agent 批注增删改查工具执行测试
 │   ├── view_image_annotations_tool_test.dart   # 批注查看工具与覆盖层离屏渲染测试
+│   ├── delete_image_history_test.dart          # 右键菜单删除历史图片与 ViewModel 历史管理集成测试
 │   ├── window_state_persistence_test.dart      # 窗口尺寸、位置与最大化状态持久化及防抖测试
 │   └── widget_test.dart                        # 核心组件渲染测试
 │

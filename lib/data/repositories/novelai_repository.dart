@@ -354,6 +354,36 @@ class NovelAiRepository {
     return image;
   }
 
+  /// 从历史记录中删除单张图片，同步更新持久化 JSON，并可选择是否删除本地文件
+  Future<bool> deleteImage({
+    required String imageId,
+    required String saveDir,
+    bool enablePersistence = true,
+    int maxImages = 50,
+    bool deleteLocalFile = true,
+  }) async {
+    final index = _history.indexWhere((img) => img.id == imageId);
+    if (index < 0) return false;
+
+    final removedImage = _history.removeAt(index);
+
+    if (deleteLocalFile &&
+        removedImage.localFilePath != null &&
+        removedImage.localFilePath!.isNotEmpty) {
+      final file = File(removedImage.localFilePath!);
+      if (file.existsSync()) {
+        try {
+          file.deleteSync();
+        } catch (_) {}
+      }
+    }
+
+    if (enablePersistence && saveDir.isNotEmpty) {
+      await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
+    }
+    return true;
+  }
+
   /// 清理历史 (传 saveDir 时一并删除持久化索引文件)
   void clearHistory({String? saveDir}) {
     _history.clear();

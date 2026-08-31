@@ -278,6 +278,66 @@ void main() {
     });
 
     test(
+      'deleteImage removes image from history, deletes file, and updates persistence',
+      () async {
+        final repo = NovelAiRepository();
+        const params = NaiGenerationParams(prompt: 'delete test');
+
+        final imgPath1 = p.join(tempDir.path, 'img1.png');
+        final imgPath2 = p.join(tempDir.path, 'img2.png');
+        final file1 = File(imgPath1)..writeAsBytesSync([10, 20, 30]);
+        final file2 = File(imgPath2)..writeAsBytesSync([40, 50, 60]);
+
+        final img1 = NaiGeneratedImage(
+          id: 'img1',
+          bytes: [10, 20, 30],
+          localFilePath: imgPath1,
+          params: params,
+          createdAt: DateTime.now(),
+          seed: 100,
+          isOpusFree: true,
+        );
+        final img2 = NaiGeneratedImage(
+          id: 'img2',
+          bytes: [40, 50, 60],
+          localFilePath: imgPath2,
+          params: params,
+          createdAt: DateTime.now(),
+          seed: 200,
+          isOpusFree: true,
+        );
+
+        repo.addImageForTesting(img1);
+        repo.addImageForTesting(img2);
+        expect(repo.history.length, equals(2));
+
+        await repo.savePersistedHistory(saveDir: tempDir.path);
+        final historyFile = File(p.join(tempDir.path, 'image_history.json'));
+        expect(historyFile.existsSync(), isTrue);
+
+        final deleted = await repo.deleteImage(
+          imageId: 'img1',
+          saveDir: tempDir.path,
+        );
+        expect(deleted, isTrue);
+        expect(repo.history.length, equals(1));
+        expect(repo.history.first.id, equals('img2'));
+        expect(file1.existsSync(), isFalse);
+        expect(file2.existsSync(), isTrue);
+
+        final persistedList = jsonDecode(historyFile.readAsStringSync()) as List;
+        expect(persistedList.length, equals(1));
+        expect(persistedList.first['id'], equals('img2'));
+
+        final deletedNonExistent = await repo.deleteImage(
+          imageId: 'non_existent',
+          saveDir: tempDir.path,
+        );
+        expect(deletedNonExistent, isFalse);
+      },
+    );
+
+    test(
       'clearHistory removes image_history.json file when saveDir provided',
       () {
         final repo = NovelAiRepository();

@@ -659,6 +659,89 @@ class StudioViewModel extends ChangeNotifier
     notifyListeners();
   }
 
+  /// 从历史记录中删除单张图片并同步持久化
+  Future<void> deleteImageFromHistory(String imageId) async {
+    final deletedIndex = gallery.indexWhere((img) => img.id == imageId);
+    if (deletedIndex < 0) return;
+
+    final wasSelected = _selectedImage?.id == imageId;
+    await _repository.deleteImage(
+      imageId: imageId,
+      saveDir: _config.saveDirectory,
+      enablePersistence: _config.enableImagePersistence,
+      maxImages: _config.maxPersistentImages,
+    );
+
+    if (wasSelected) {
+      if (gallery.isNotEmpty) {
+        final nextIndex =
+            deletedIndex < gallery.length ? deletedIndex : gallery.length - 1;
+        _selectedImage = gallery[nextIndex];
+      } else {
+        _selectedImage = null;
+      }
+    }
+
+    if (gallery.isEmpty ||
+        (_selectedImage != null && _selectedImage!.id == gallery.first.id)) {
+      _hasUnseenLatest = false;
+    }
+
+    // 同步大画布节点 (若大画布已加载)
+    final bData = _boardData;
+    if (bData != null) {
+      final hasNode = bData.imageNodes.any((n) => n.image.id == imageId);
+      if (hasNode) {
+        final remainingNodes = <CanvasImageNode>[];
+        for (final node in bData.imageNodes) {
+          if (node.image.id == imageId) {
+            if (node.isMain && _selectedImage != null) {
+              remainingNodes.add(
+                node.copyWith(
+                  image: _selectedImage!,
+                  annotations: _selectedImage!.annotations,
+                ),
+              );
+            }
+            // 非主图节点或无替代图时直接移除
+          } else {
+            remainingNodes.add(node);
+          }
+        }
+
+        final removedNodeIds = bData.imageNodes
+            .where((n) => !remainingNodes.any((rem) => rem.id == n.id))
+            .map((n) => n.id)
+            .toSet();
+
+        final updatedNotes = bData.noteNodes.map((n) {
+          if (removedNodeIds.contains(n.targetImageId)) {
+            return n.copyWith(clearConnection: true);
+          }
+          return n;
+        }).toList();
+
+        final updatedLinks = bData.imageLinks
+            .where(
+              (l) =>
+                  !removedNodeIds.contains(l.sourceImageId) &&
+                  !removedNodeIds.contains(l.targetImageId),
+            )
+            .toList();
+
+        _boardData = bData.copyWith(
+          imageNodes: remainingNodes,
+          noteNodes: updatedNotes,
+          imageLinks: updatedLinks,
+        );
+        _scheduleBoardSave();
+      }
+    }
+
+    _statusMessage = '已从历史记录删除图片';
+    notifyListeners();
+  }
+
   // ------------------------- 杂项状态 -------------------------
 
   void clearError() {

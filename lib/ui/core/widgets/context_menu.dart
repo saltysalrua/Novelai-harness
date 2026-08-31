@@ -12,8 +12,14 @@ class ContextMenuItem extends ContextMenuAction {
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
+  final bool isDestructive;
 
-  const ContextMenuItem({required this.icon, required this.label, this.onTap});
+  const ContextMenuItem({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.isDestructive = false,
+  });
 }
 
 /// 菜单分隔线
@@ -182,6 +188,17 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
     }
     if (action is ContextMenuItem) {
       final isEnabled = action.onTap != null;
+      final isDestructive = action.isDestructive;
+      final iconColor = !isEnabled
+          ? AppTheme.stone
+          : (isDestructive ? AppTheme.coral : AppTheme.textSecondary);
+      final textColor = !isEnabled
+          ? AppTheme.stone
+          : (isDestructive ? AppTheme.coral : AppTheme.textPrimary);
+      final hoverColor = isDestructive
+          ? AppTheme.coral.withValues(alpha: 0.08)
+          : AppTheme.surfaceMuted;
+
       return InkWell(
         onTap: isEnabled
             ? () {
@@ -190,7 +207,7 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
               }
             : null,
         borderRadius: BorderRadius.circular(6),
-        hoverColor: AppTheme.surfaceMuted,
+        hoverColor: hoverColor,
         child: Container(
           height: _itemHeight,
           padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -199,7 +216,7 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
               Icon(
                 action.icon,
                 size: 16,
-                color: isEnabled ? AppTheme.textSecondary : AppTheme.stone,
+                color: iconColor,
               ),
               const SizedBox(width: 10),
               Text(
@@ -207,7 +224,7 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: isEnabled ? AppTheme.textPrimary : AppTheme.stone,
+                  color: textColor,
                 ),
               ),
             ],
