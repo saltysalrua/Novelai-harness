@@ -228,6 +228,8 @@ mixin _StudioHarnessMixin on _StudioCore {
 
     // 长程配置：单次对话最大工具轮数 (设置页 Defaults 可调)
     _harness.maxTurns = _config.agentMaxTurns;
+    // 上下文压缩窗口：按当前模型卡片的上下文窗口自适应触发
+    _harness.contextWindowTokens = activeModel.contextWindow;
   }
 
   /// 动态调整 Agent 思考强度 (在对话工作台中随点随切)

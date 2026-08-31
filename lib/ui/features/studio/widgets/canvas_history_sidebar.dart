@@ -204,12 +204,51 @@ class _ImageHistoryThumb extends StatelessWidget {
         viewModel: viewModel,
         image: item,
       ),
-      content: Image.memory(
-        item.uint8Bytes,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-        // 侧栏缩略图宽约 104px，按 2x 解码已够清晰，避免全分辨率纹理
-        cacheWidth: 240,
+      content: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.memory(
+            item.uint8Bytes,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            // 侧栏缩略图宽约 104px，按 2x 解码已够清晰，避免全分辨率纹理
+            cacheWidth: 240,
+          ),
+          // 特殊来源角标：超分放大图 / 外部导入参考图
+          if (item.historyBadgeLabel != null)
+            Positioned(
+              top: 5,
+              right: 5,
+              child: _HistoryThumbBadge(label: item.historyBadgeLabel!),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 缩略图角标：黑底半透明小胶囊，白色短文案 (放大 / 导入)
+class _HistoryThumbBadge extends StatelessWidget {
+  final String label;
+
+  const _HistoryThumbBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 9.5,
+          height: 1.1,
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

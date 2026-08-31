@@ -160,6 +160,13 @@ class AgentMessage {
 
   /// 用户消息附带的图片 (粘贴/选择文件上传，仅 role == user)
   final List<AgentMessageImage> images;
+
+  /// 图片所属的发送轮次 (AgentHarness 每次自增)。
+  /// 只有与当前轮次相等时图片数据才会真正发给模型 (一次性展示)，
+  /// 更早轮次的图片在构建请求时折叠为固定占位文本，控制视觉 Token
+  /// 并保持提示缓存前缀稳定。不落盘会话记录，恢复的历史消息恒为 0。
+  final int imageEpoch;
+
   final bool isStreaming;
   final DateTime createdAt;
 
@@ -184,6 +191,7 @@ class AgentMessage {
     this.imageBase64,
     this.imageMimeType = 'image/png',
     this.images = const [],
+    this.imageEpoch = 0,
     this.isStreaming = false,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -205,6 +213,7 @@ class AgentMessage {
     String? imageBase64,
     String? imageMimeType,
     List<AgentMessageImage>? images,
+    int? imageEpoch,
   }) {
     return AgentMessage(
       id: id ?? this.id,
@@ -221,8 +230,40 @@ class AgentMessage {
       imageBase64: imageBase64 ?? this.imageBase64,
       imageMimeType: imageMimeType ?? this.imageMimeType,
       images: images ?? this.images,
+      imageEpoch: imageEpoch ?? this.imageEpoch,
       isStreaming: isStreaming ?? this.isStreaming,
       createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  /// 是否携带供视觉模型查看的图片数据 (用户附件或工具结果附带)
+  bool get hasVisionImages =>
+      (role == AgentRole.user && images.isNotEmpty) ||
+      (role == AgentRole.tool &&
+          imageBase64 != null &&
+          imageBase64!.isNotEmpty);
+
+  /// 生成"图片已折叠"的请求替身：清除全部图片数据，正文末尾附加固定占位符。
+  /// 仅用于构建 LLM 请求 (UI 展示与会话落盘仍保留原消息)，占位文本必须
+  /// 恒定不变，否则会击穿提示缓存前缀。
+  AgentMessage withVisionImagesCollapsed(String placeholder) {
+    return AgentMessage(
+      id: id,
+      role: role,
+      content: content.isEmpty ? placeholder : '$content\n\n$placeholder',
+      thoughts: thoughts,
+      toolCalls: toolCalls,
+      toolCallId: toolCallId,
+      toolName: toolName,
+      isError: isError,
+      usage: usage,
+      provider: provider,
+      model: model,
+      imageMimeType: imageMimeType,
+      images: const [],
+      imageEpoch: imageEpoch,
+      isStreaming: isStreaming,
+      createdAt: createdAt,
     );
   }
 
@@ -331,5 +372,24 @@ class RetryEvent extends HarnessEvent {
     required this.maxAttempts,
     required this.reason,
     required this.delay,
+  });
+}
+
+/// 上下文自动压缩完成通知：更早的消息已被摘要替换。
+/// 原始消息仍保留在 UI 消息流与会话落盘中，仅从 LLM 请求上下文里移出。
+class CompactionEvent extends HarnessEvent {
+  /// 压缩生成的结构化摘要文本
+  final String summary;
+
+  /// 压缩前的上下文 Token 估算值
+  final int tokensBefore;
+
+  /// 压缩后的上下文 Token 估算值 (含保留的近期消息窗口)
+  final int tokensAfter;
+
+  const CompactionEvent({
+    required this.summary,
+    required this.tokensBefore,
+    required this.tokensAfter,
   });
 }

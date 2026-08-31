@@ -126,6 +126,11 @@ mixin _StudioChatMixin on _StudioCore {
             _notifyNow();
           } else if (event is UsageEvent) {
             _recordModelUsage(event.usage);
+          } else if (event is CompactionEvent) {
+            // 上下文自动压缩完成：状态栏提示 (原始消息仍完整保留在对话流中)
+            _statusMessage =
+                '上下文已自动压缩 (${event.tokensBefore} → ${event.tokensAfter} tokens)，更早消息已摘要替换';
+            _notifyNow();
           } else if (event is ToolResultEvent) {
             _notifyNow();
           } else if (event is ErrorEvent) {

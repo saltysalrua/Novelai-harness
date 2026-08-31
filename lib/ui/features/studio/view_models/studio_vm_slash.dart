@@ -64,6 +64,113 @@ mixin _StudioSlashMixin on _StudioCore {
         notifyListeners();
         break;
 
+      case '/compact':
+        {
+          if (_harness.provider == null) {
+            _harness.addInfoMessage('未配置 LLM 提供商，无法压缩上下文。');
+            notifyListeners();
+            break;
+          }
+          if (_harness.messages.isEmpty) {
+            _harness.addInfoMessage('当前对话为空，无需压缩上下文。');
+            notifyListeners();
+            break;
+          }
+          _statusMessage = '正在压缩对话上下文...';
+          notifyListeners();
+          final evt = await _harness.compactContext(force: true);
+          if (evt == null) {
+            _statusMessage = null;
+            _harness.addInfoMessage('上下文没有可压缩的内容 (需要至少两轮对话)，或摘要生成失败。');
+          } else {
+            _statusMessage = null;
+            _harness.addInfoMessage(
+              '上下文压缩完成 (${evt.tokensBefore} → ${evt.tokensAfter} tokens)。'
+              '更早的消息已替换为以下摘要，原始消息仍保留在对话流与会话记录中：\n\n${evt.summary}',
+            );
+          }
+          notifyListeners();
+        }
+
+      case '/new':
+        {
+          await createNewSession(title: args.isEmpty ? null : args);
+          _harness.addInfoMessage(
+            args.isEmpty ? '已创建新会话，开始新的对话吧。' : '已创建新会话: $args',
+          );
+          notifyListeners();
+        }
+
+      case '/undo':
+        {
+          // 撤销上一轮对话：回退到最后一条真实用户消息的前一条，
+          // 回复、工具结果与同期参数修改随回溯一并回滚 (轮数上限收尾提示不算)
+          final msgs = _harness.messages;
+          var lastUserIdx = -1;
+          for (var i = msgs.length - 1; i >= 0; i--) {
+            final m = msgs[i];
+            if (m.role == AgentRole.user && !m.id.startsWith('limit_')) {
+              lastUserIdx = i;
+              break;
+            }
+          }
+          if (lastUserIdx <= 0) {
+            _harness.addInfoMessage('没有可撤销的上一轮对话 (首轮之前的消息不存在)。');
+            notifyListeners();
+            break;
+          }
+          final target = msgs[lastUserIdx - 1];
+          await rewindToMessage(target.id);
+        }
+
+      case '/rename':
+        {
+          if (args.isEmpty) {
+            _harness.addInfoMessage('用法: /rename <新标题>');
+            notifyListeners();
+            break;
+          }
+          final sid = currentSessionId;
+          if (sid == null) {
+            _harness.addInfoMessage('当前没有活跃会话，无法重命名。');
+          } else {
+            await renameSession(sid, args);
+            _harness.addInfoMessage('会话已重命名为 "$args"');
+          }
+          notifyListeners();
+        }
+
+      case '/sessions':
+        {
+          await refreshSessions();
+          final list = sessions;
+          if (list.isEmpty) {
+            _harness.addInfoMessage('暂无已保存的会话。');
+          } else {
+            final buffer = StringBuffer('已保存的会话 (共 ${list.length} 个，按最近使用排序)：');
+            final shown = list.take(12).toList();
+            for (var i = 0; i < shown.length; i++) {
+              final s = shown[i];
+              final marker = s.isActive ? ' [当前]' : '';
+              final time = s.lastModified
+                  .toIso8601String()
+                  .replaceAll('T', ' ')
+                  .split('.')
+                  .first;
+              buffer.writeln(
+                '\n${i + 1}. ${s.title}$marker (${s.messageCount} 条消息, $time)',
+              );
+            }
+            if (list.length > shown.length) {
+              buffer.writeln(
+                '\n…… 其余 ${list.length - shown.length} 个会话请打开会话管理视图查看。',
+              );
+            }
+            _harness.addInfoMessage(buffer.toString().trim());
+          }
+          notifyListeners();
+        }
+
       case '/clear':
         _harness.clearMessages();
         _sessionModelUsage = {};

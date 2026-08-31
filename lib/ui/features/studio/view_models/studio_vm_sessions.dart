@@ -42,6 +42,7 @@ mixin _StudioSessionsMixin on _StudioCore {
   }
 
   /// 创建全新会话
+  @override
   Future<void> createNewSession({String? title}) async {
     if (_isChatStreaming) {
       await abortChat();
@@ -74,6 +75,7 @@ mixin _StudioSessionsMixin on _StudioCore {
   }
 
   /// 重命名指定会话
+  @override
   Future<void> renameSession(String sessionId, String newTitle) async {
     await _sessionLog.renameSession(sessionId, newTitle);
     await refreshSessions();
@@ -83,6 +85,7 @@ mixin _StudioSessionsMixin on _StudioCore {
   // ------------------------- 历史回溯 -------------------------
 
   /// 回退/撤销到指定历史消息时刻 (按两次 ESC 触发选择)
+  @override
   Future<void> rewindToMessage(String messageId) async {
     if (_isChatStreaming) {
       await abortChat();

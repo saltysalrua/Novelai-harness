@@ -49,22 +49,11 @@ mixin _StudioGenerationMixin on _StudioCore {
       return;
     }
 
-    // 付费闸门: 预计消耗非零时先向用户确认 (覆盖非 Opus 订阅与 V5 体力透支场景)
+    // 用户手动生图不再弹付费确认：生成坞按钮已实时显示预计点数
+    // (需点数/生成图片 (N Anlas) 警示色)，足够的 UI 提醒已前置；
+    // 点数消耗申请卡片只保留给 Agent (模型主动调用生图工具) 场景。
     if (_accountInfo == null) {
       await refreshAccountInfo();
-    }
-    final estimatedCost = estimatedGenerationCost;
-    if (estimatedCost > 0) {
-      final confirmed = await _confirmPaidGeneration(
-        params: _params,
-        estimatedCost: estimatedCost,
-      );
-      if (!confirmed) {
-        _statusMessage = '已取消生成 (预计消耗 $estimatedCost Anlas)';
-        _errorMessage = null;
-        notifyListeners();
-        return;
-      }
     }
 
     final wasViewingLatest = isViewingLatest;
@@ -248,33 +237,8 @@ mixin _StudioGenerationMixin on _StudioCore {
       return;
     }
 
-    // 付费闸门: 官方超分按输入面积分档计费，非零消耗时先向用户确认
-    final dims = await AnlasCalculator.decodeImageDimensions(
-      _selectedImage!.bytes,
-    );
-    if (dims != null) {
-      if (_accountInfo == null) {
-        await refreshAccountInfo();
-      }
-      final upscaleCost = AnlasCalculator.estimateUpscaleCost(
-        inputWidth: dims.width,
-        inputHeight: dims.height,
-        isOpus: _accountInfo?.isOpus ?? false,
-      );
-      if (upscaleCost > 0) {
-        final confirmed = await _confirmPaidUpscale(
-          estimatedCost: upscaleCost,
-          inputWidth: dims.width,
-          inputHeight: dims.height,
-        );
-        if (!confirmed) {
-          _statusMessage = '已取消放大 (预计消耗 $upscaleCost Anlas)';
-          _errorMessage = null;
-          notifyListeners();
-          return;
-        }
-      }
-    }
+    // 官方超分按输入面积分档计费；用户手动超分不弹付费确认，
+    // 画板操作条与账号栏已展示点数信息，付费确认卡片只保留给 Agent 场景。
 
     _isGenerating = true;
     _errorMessage = null;

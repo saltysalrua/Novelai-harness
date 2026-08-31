@@ -33,7 +33,7 @@ void main() {
         skills: skills,
         presets: presets,
       );
-      expect(result.length, 9);
+      expect(result.length, 14);
       expect(result.first.completion, '/help');
     });
 
@@ -43,8 +43,11 @@ void main() {
         skills: skills,
         presets: presets,
       );
-      expect(result.map((s) => s.completion), containsAll(['/upscale']));
-      expect(result.length, 1);
+      expect(
+        result.map((s) => s.completion),
+        containsAll(['/upscale', '/undo']),
+      );
+      expect(result.length, 2);
     });
 
     test('无匹配返回空列表', () {

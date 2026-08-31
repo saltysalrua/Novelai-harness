@@ -22,6 +22,9 @@ class NaiGeneratedImage {
   /// 是否为用户外部拖入/粘贴导入的参考图
   final bool isImportedReference;
 
+  /// 是否为官方超分放大的产物 (历史缩略图角标用)
+  final bool isUpscaled;
+
   const NaiGeneratedImage({
     required this.id,
     required this.bytes,
@@ -32,7 +35,15 @@ class NaiGeneratedImage {
     required this.isOpusFree,
     this.annotations = const [],
     this.isImportedReference = false,
+    this.isUpscaled = false,
   });
+
+  /// 历史缩略图角标文案：超分图 > 导入图 优先级，普通生成图返回 null
+  String? get historyBadgeLabel {
+    if (isUpscaled) return '放大';
+    if (isImportedReference) return '导入';
+    return null;
+  }
 
   /// 缓存并获取 Uint8List 引用 (避免每次重绘创建新对象导致图片重复解码闪烁)
   Uint8List get uint8Bytes =>
@@ -48,6 +59,7 @@ class NaiGeneratedImage {
     bool? isOpusFree,
     List<ImageAnnotation>? annotations,
     bool? isImportedReference,
+    bool? isUpscaled,
   }) {
     return NaiGeneratedImage(
       id: id ?? this.id,
@@ -59,6 +71,7 @@ class NaiGeneratedImage {
       isOpusFree: isOpusFree ?? this.isOpusFree,
       annotations: annotations ?? this.annotations,
       isImportedReference: isImportedReference ?? this.isImportedReference,
+      isUpscaled: isUpscaled ?? this.isUpscaled,
     );
   }
 
@@ -71,6 +84,7 @@ class NaiGeneratedImage {
     'isOpusFree': isOpusFree,
     'annotations': annotations.map((a) => a.toJson()).toList(),
     if (isImportedReference) 'isImportedReference': true,
+    if (isUpscaled) 'isUpscaled': true,
   };
 
   factory NaiGeneratedImage.fromJson(
@@ -105,6 +119,7 @@ class NaiGeneratedImage {
       isOpusFree: json['isOpusFree'] as bool? ?? false,
       annotations: annotations,
       isImportedReference: json['isImportedReference'] as bool? ?? false,
+      isUpscaled: json['isUpscaled'] as bool? ?? false,
     );
   }
 }

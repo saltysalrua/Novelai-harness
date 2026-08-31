@@ -9,6 +9,7 @@ import '../../../data/models/novelai_models.dart';
 import '../../../data/services/anlas_calculator.dart';
 import '../types.dart';
 import 'agent_tool.dart';
+import 'vision_image_codec.dart';
 
 /// 历史图片列表获取器 (从新到旧排序，索引 0 为最新生成的一张)
 typedef CanvasHistoryGetter = List<NaiGeneratedImage> Function();
@@ -294,32 +295,38 @@ class ViewCanvasImageTool extends AgentTool {
   final CanvasHistoryGetter getHistory;
   final ModelVisionChecker isModelMultimodal;
 
-  ViewCanvasImageTool({
-    required this.getHistory,
-    required this.isModelMultimodal,
-  }) : super(
-         name: 'view_canvas_image',
-         label: '查看画板图片',
-         description:
-             '获取已生成的历史图片供视觉检查。通过 index 参数从新到旧指定图片（0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。'
-             '默认返回叠加了角色位置覆盖层的版本 (各启用角色的编号锚点与名称标签，'
-             'V5 附带中心十字参考线，V4/V4.5 附带 5x5 网格)，便于核对多角色构图与布局；'
-             '传入 with_overlay=false 可获取未处理的原图。注意：当前对话模型需要具备图像理解能力。',
-         parameters: const {
-           'type': 'object',
-           'properties': {
-             'index': {
-               'type': 'integer',
-               'description':
-                   '要查看的图片索引（从新到旧排序，0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。',
-             },
-             'with_overlay': {
-               'type': 'boolean',
-               'description': '是否叠加角色位置覆盖层 (默认 true)。false 时返回原图。',
-             },
-           },
-         },
-       );
+  ViewCanvasImageTool({required this.getHistory, required this.isModelMultimodal})
+    : super(
+        name: 'view_canvas_image',
+        label: '查看画板图片',
+        description:
+            '获取已生成的历史图片供视觉检查。通过 index 参数从新到旧指定图片（0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。'
+            '默认返回叠加了角色位置覆盖层的版本 (各启用角色的编号锚点与名称标签，'
+            'V5 附带中心十字参考线，V4/V4.5 附带 5x5 网格)，便于核对多角色构图与布局；'
+            '传入 with_overlay=false 可获取未处理的原图。'
+            '返回的图片默认压缩到最长边 1024px 以控制视觉 Token；'
+            '若因分辨率不足看不清细节（小字、纹理、面部瑕疵等），可传 full_resolution=true 获取未压缩的原始尺寸图片。'
+            '注意：当前对话模型需要具备图像理解能力。',
+        parameters: const {
+          'type': 'object',
+          'properties': {
+            'index': {
+              'type': 'integer',
+              'description':
+                  '要查看的图片索引（从新到旧排序，0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。',
+            },
+            'with_overlay': {
+              'type': 'boolean',
+              'description': '是否叠加角色位置覆盖层 (默认 true)。false 时返回原图。',
+            },
+            'full_resolution': {
+              'type': 'boolean',
+              'description':
+                  '是否返回未压缩的原始尺寸图片 (默认 false，压缩到最长边 1024px)。仅在压缩版看不清细节时使用，原图会消耗更多视觉 Token。',
+            },
+          },
+        },
+      );
 
   @override
   Future<ToolResult> execute(
@@ -375,6 +382,9 @@ class ViewCanvasImageTool extends AgentTool {
     final withOverlay = args['with_overlay'] is bool
         ? args['with_overlay'] as bool
         : true;
+    final fullResolution = args['full_resolution'] is bool
+        ? args['full_resolution'] as bool
+        : false;
 
     final enabledCharacters = params.characterPrompts
         .where((c) => c.enabled)
@@ -403,8 +413,16 @@ class ViewCanvasImageTool extends AgentTool {
       overlayNote = '该图片生成时没有启用的角色提示词，已返回原图。';
     }
 
-    final dims = await AnlasCalculator.decodeImageDimensions(finalBytes);
-    final mime = _sniffMimeType(finalBytes);
+    // 视觉附件压缩：默认压到最长边 1024px 控制视觉 Token，
+    // 模型看不清细节时可传 full_resolution=true 获取原图
+    String mime = sniffImageMimeType(finalBytes);
+    if (!fullResolution) {
+      final compressed = await compressVisionImage(finalBytes);
+      finalBytes = compressed.bytes;
+      mime = compressed.mimeType;
+    }
+
+    final dims = await AnlasCalculator.decodeImageDimensions(imageBytes);
 
     final isLatest = index == 0;
     final timeStr = targetImage.createdAt
@@ -428,6 +446,9 @@ class ViewCanvasImageTool extends AgentTool {
           '• V4/V4.5 网格模式: 锚点吸附到 5x5 网格格心',
       ],
       if (overlayNote != null) '• $overlayNote',
+      fullResolution
+          ? '• 本次为原始尺寸图片 (未压缩)。'
+          : '• 本次附件已压缩到最长边 1024px。若看不清细节（小字、纹理等），请再次调用本工具并传 full_resolution: true 获取原图。',
       '图片已作为附件随本条结果返回，请直接查看图片内容进行检查。',
     ];
 
@@ -437,19 +458,5 @@ class ViewCanvasImageTool extends AgentTool {
       imageBase64: base64Encode(finalBytes),
       imageMimeType: mime,
     );
-  }
-
-  static String _sniffMimeType(Uint8List bytes) {
-    if (bytes.length >= 8 &&
-        bytes[0] == 0x89 &&
-        bytes[1] == 0x50 &&
-        bytes[2] == 0x4E &&
-        bytes[3] == 0x47) {
-      return 'image/png';
-    }
-    if (bytes.length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xD8) {
-      return 'image/jpeg';
-    }
-    return 'image/png';
   }
 }

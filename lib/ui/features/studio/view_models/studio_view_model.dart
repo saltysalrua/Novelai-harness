@@ -16,6 +16,7 @@ import '../../../../core/harness/tools/load_skill_tool.dart';
 import '../../../../core/harness/tools/novelai_tools.dart';
 import '../../../../core/harness/tools/prompt_library_tools.dart';
 import '../../../../core/harness/tools/studio_params_tool.dart';
+import '../../../../core/harness/tools/vision_image_codec.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
@@ -388,6 +389,15 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 刷新会话列表
   Future<void> refreshSessions();
+
+  /// 创建全新会话
+  Future<void> createNewSession({String? title});
+
+  /// 重命名指定会话
+  Future<void> renameSession(String sessionId, String newTitle);
+
+  /// 回退/撤销到指定历史消息时刻
+  Future<void> rewindToMessage(String messageId);
 
   /// 从剩余消息中重新聚合本会话各模型用量
   void _recomputeSessionUsage();

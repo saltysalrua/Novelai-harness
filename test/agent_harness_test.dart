@@ -95,6 +95,35 @@ class TestEchoTool extends AgentTool {
   }
 }
 
+/// 返回附带图片的测试工具 (验证工具结果图片的折叠行为)
+class TestImageEchoTool extends AgentTool {
+  TestImageEchoTool()
+    : super(
+        name: 'echo_test',
+        label: 'Echo Image Test',
+        description: 'Echoes back the input with an image',
+        parameters: {
+          'type': 'object',
+          'properties': {
+            'text': {'type': 'string'},
+          },
+          'required': ['text'],
+        },
+      );
+
+  @override
+  Future<ToolResult> execute(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    return ToolResult(
+      toolCallId: toolCallId,
+      content: 'Echo: ${args['text']}',
+      imageBase64: 'dG9vbF9pbWFnZQ==',
+    );
+  }
+}
+
 void main() {
   group('AgentHarness Loop Tests', () {
     late ToolRegistry tools;
@@ -477,6 +506,307 @@ void main() {
 
       harness.maxTurns = 50;
       expect(harness.maxTurns, equals(50));
+    });
+  });
+
+  group('图片一次性展示与占位符', () {
+    late ToolRegistry tools;
+
+    setUp(() {
+      tools = ToolRegistry();
+      tools.register(TestEchoTool());
+    });
+
+    test('用户图片只在本轮请求可见，后续轮次折叠为固定占位符', () async {
+      final receivedBatches = <List<AgentMessage>>[];
+      final provider = MockLlmProvider((messages, toolList) {
+        receivedBatches.add(messages);
+        return [ContentDeltaEvent('OK')];
+      });
+      final harness = AgentHarness(tools: tools, provider: provider);
+
+      const img = AgentMessageImage(base64: 'aGk=');
+      await harness.send('看这张图', images: [img]).toList();
+
+      // 本轮请求：用户消息携带原图
+      final firstUser = receivedBatches.first.firstWhere(
+        (m) => m.role == AgentRole.user && m.content == '看这张图',
+      );
+      expect(firstUser.images.length, equals(1));
+      expect(firstUser.images.first.base64, equals('aGk='));
+
+      // 下一轮：旧图片折叠为固定占位符，不再发送图片数据
+      await harness.send('再来一张').toList();
+      final oldUser = receivedBatches.last.firstWhere(
+        (m) => m.content.contains('看这张图'),
+      );
+      expect(oldUser.images, isEmpty);
+      expect(oldUser.content, contains('图片附件已折叠'));
+
+      // 占位文本必须逐字稳定 (保证提示缓存前缀不被击穿)
+      await harness.send('第三张').toList();
+      final again = receivedBatches.last.firstWhere(
+        (m) => m.content.contains('看这张图'),
+      );
+      expect(again.content, equals(oldUser.content));
+
+      // 会话消息流仍保留原图 (仅请求折叠)
+      final storedUser = harness.messages.firstWhere(
+        (m) => m.content == '看这张图',
+      );
+      expect(storedUser.images.length, equals(1));
+    });
+
+    test('工具结果图片同轮各次请求均可见，跨轮后折叠', () async {
+      final receivedBatches = <List<AgentMessage>>[];
+      int turn = 0;
+      final provider = MockLlmProvider((messages, toolList) {
+        receivedBatches.add(messages);
+        turn++;
+        if (turn == 1) {
+          return [
+            ToolCallEvent(
+              const ToolCall(
+                id: 'call_img',
+                name: 'echo_test',
+                arguments: {'text': 'x'},
+              ),
+            ),
+          ];
+        }
+        return [ContentDeltaEvent('看完图片了')];
+      });
+      // 本测试需要返回图片的工具，单独构建注册表
+      final imageTools = ToolRegistry()..register(TestImageEchoTool());
+      final harness = AgentHarness(
+        tools: imageTools,
+        provider: provider,
+        retryBaseDelay: Duration.zero,
+        initialPreset: AgentPreset(
+          id: 'p',
+          name: 'P',
+          description: '',
+          systemPrompt: 'S',
+          enabledToolNames: ['echo_test'],
+        ),
+      );
+
+      await harness.send('看看结果').toList();
+
+      // 同一轮的第二轮请求：工具结果携带图片 (本轮内可见)
+      final toolMsg = receivedBatches[1].firstWhere(
+        (m) => m.role == AgentRole.tool,
+      );
+      expect(toolMsg.imageBase64, isNotNull);
+
+      // 下一轮发送：工具结果图片折叠为占位符
+      await harness.send('继续').toList();
+      final oldTool = receivedBatches.last.firstWhere(
+        (m) => m.role == AgentRole.tool,
+      );
+      expect(oldTool.imageBase64, isNull);
+      expect(oldTool.content, contains('图片附件已折叠'));
+
+      // 会话消息流仍保留工具图片
+      final storedTool = harness.messages.firstWhere(
+        (m) => m.role == AgentRole.tool,
+      );
+      expect(storedTool.imageBase64, isNotNull);
+    });
+
+    test('恢复的历史消息图片不会重新发送 (启动续接场景)', () async {
+      final receivedBatches = <List<AgentMessage>>[];
+      final provider = MockLlmProvider((messages, toolList) {
+        receivedBatches.add(messages);
+        return [ContentDeltaEvent('OK')];
+      });
+      final harness = AgentHarness(tools: tools, provider: provider);
+      harness.restoreMessages([
+        AgentMessage(
+          id: 'old_user',
+          role: AgentRole.user,
+          content: '昨天的图',
+          images: const [AgentMessageImage(base64: 'b2xk')],
+        ),
+      ]);
+
+      await harness.send('新问题').toList();
+
+      final oldUser = receivedBatches.first.firstWhere(
+        (m) => m.content.contains('昨天的图'),
+      );
+      expect(oldUser.images, isEmpty);
+      expect(oldUser.content, contains('图片附件已折叠'));
+    });
+  });
+
+  group('上下文自动压缩', () {
+    late ToolRegistry tools;
+
+    setUp(() {
+      tools = ToolRegistry();
+      tools.register(TestEchoTool());
+    });
+
+    /// 生成指定长度的填充文本
+    String pad(int len) => 'x' * len;
+
+    MockLlmProvider buildCompactionProvider(
+      List<List<AgentMessage>> receivedBatches,
+    ) {
+      return MockLlmProvider((messages, toolList) {
+        receivedBatches.add(messages);
+        // 摘要请求 (包含 <conversation> 标签) 返回结构化摘要
+        if (messages.any((m) => m.content.contains('<conversation>'))) {
+          return [ContentDeltaEvent('## 目标\n生成一张插画\n## 关键上下文\n- 提示词: 1girl')];
+        }
+        return [ContentDeltaEvent('好的，继续')];
+      });
+    }
+
+    test('上下文超过窗口阈值时自动压缩并注入摘要替身', () async {
+      final receivedBatches = <List<AgentMessage>>[];
+      final provider = buildCompactionProvider(receivedBatches);
+      final harness =
+          AgentHarness(
+              tools: tools,
+              provider: provider,
+              initialPreset: AgentPreset(
+                id: 'p',
+                name: 'P',
+                description: '',
+                systemPrompt: 'S',
+              ),
+            )
+            ..contextWindowTokens = 3000
+            ..compactionReserveTokens = 1000
+            ..compactionKeepRecentTokens = 100;
+
+      // 预置一段超阈值的历史 (每条 400 字符 ≈ 100 tokens)
+      harness.restoreMessages([
+        AgentMessage(id: 'm1', role: AgentRole.user, content: pad(400)),
+        AgentMessage(id: 'm2', role: AgentRole.assistant, content: pad(400)),
+        AgentMessage(id: 'm3', role: AgentRole.user, content: pad(400)),
+        AgentMessage(id: 'm4', role: AgentRole.assistant, content: pad(400)),
+      ]);
+
+      final events = await harness.send('新问题').toList();
+
+      // 自动压缩已触发并发出事件
+      final compaction = events.whereType<CompactionEvent>().toList();
+      expect(compaction, isNotEmpty);
+      expect(compaction.first.summary, contains('生成一张插画'));
+      expect(harness.isCompacted, isTrue);
+
+      // 主请求携带摘要替身与近期窗口，且不再携带被压缩的旧消息
+      final mainRequest = receivedBatches.firstWhere(
+        (b) => b.any((m) => m.content.contains('新问题')),
+      );
+      expect(mainRequest.any((m) => m.content.contains('更早内容的压缩摘要')), isTrue);
+      // m1 (被压缩) 不应出现在请求里；m4 (保留窗口) 与新问题应在
+      expect(mainRequest.any((m) => m.id == 'm1'), isFalse);
+      expect(mainRequest.any((m) => m.id == 'm4'), isTrue);
+      expect(
+        mainRequest.any((m) => m.role == AgentRole.user && m.content == '新问题'),
+        isTrue,
+      );
+
+      // 原始消息仍完整保留在消息流中
+      expect(harness.messages.any((m) => m.id == 'm1'), isTrue);
+      expect(harness.messages.length, equals(6)); // 4 历史 + user + assistant
+    });
+
+    test('强制压缩保留最后一轮 user 对话，后续请求携带摘要', () async {
+      final receivedBatches = <List<AgentMessage>>[];
+      final provider = buildCompactionProvider(receivedBatches);
+      final harness = AgentHarness(
+        tools: tools,
+        provider: provider,
+        initialPreset: AgentPreset(
+          id: 'p',
+          name: 'P',
+          description: '',
+          systemPrompt: 'S',
+        ),
+      );
+      harness.restoreMessages([
+        AgentMessage(id: 'm1', role: AgentRole.user, content: '第一问'),
+        AgentMessage(id: 'm2', role: AgentRole.assistant, content: '第一答'),
+        AgentMessage(id: 'm3', role: AgentRole.user, content: '第二问'),
+        AgentMessage(id: 'm4', role: AgentRole.assistant, content: '第二答'),
+      ]);
+
+      final evt = await harness.compactContext(force: true);
+      expect(evt, isNotNull);
+      expect(harness.isCompacted, isTrue);
+      expect(harness.messages.length, equals(4));
+
+      final events = await harness.send('第三问').toList();
+      expect(events.whereType<CompactionEvent>(), isEmpty);
+      // 第三问轮次：请求里应有 m3/m4 + 摘要替身，无 m1/m2
+      final mainRequest = receivedBatches.firstWhere(
+        (b) => b.any((m) => m.content.contains('第三问')),
+      );
+      expect(mainRequest.any((m) => m.id == 'm1'), isFalse);
+      expect(mainRequest.any((m) => m.id == 'm2'), isFalse);
+      expect(mainRequest.any((m) => m.id == 'm3'), isTrue);
+      expect(mainRequest.any((m) => m.id == 'm4'), isTrue);
+      expect(mainRequest.any((m) => m.content.contains('更早内容的压缩摘要')), isTrue);
+    });
+
+    test('摘要生成失败时放弃压缩，不破坏现有上下文', () async {
+      final provider = MockLlmProvider((messages, toolList) {
+        if (messages.any((m) => m.content.contains('<conversation>'))) {
+          return [const ErrorEvent('摘要接口异常')];
+        }
+        return [ContentDeltaEvent('回答')];
+      });
+      final harness = AgentHarness(tools: tools, provider: provider)
+        ..contextWindowTokens = 1000
+        ..compactionReserveTokens = 500
+        ..compactionKeepRecentTokens = 50;
+      harness.restoreMessages([
+        AgentMessage(id: 'm1', role: AgentRole.user, content: pad(400)),
+        AgentMessage(id: 'm2', role: AgentRole.assistant, content: pad(400)),
+        AgentMessage(id: 'm3', role: AgentRole.user, content: pad(400)),
+        AgentMessage(id: 'm4', role: AgentRole.assistant, content: pad(400)),
+      ]);
+
+      final evt = await harness.compactContext(force: true);
+      expect(evt, isNull);
+      expect(harness.isCompacted, isFalse);
+      expect(harness.messages.length, equals(4));
+    });
+
+    test('回溯到压缩窗口之外时重置压缩状态', () async {
+      final provider = buildCompactionProvider([]);
+      final harness = AgentHarness(tools: tools, provider: provider);
+      harness.restoreMessages([
+        AgentMessage(id: 'm1', role: AgentRole.user, content: '第一问'),
+        AgentMessage(id: 'm2', role: AgentRole.assistant, content: '第一答'),
+        AgentMessage(id: 'm3', role: AgentRole.user, content: '第二问'),
+        AgentMessage(id: 'm4', role: AgentRole.assistant, content: '第二答'),
+      ]);
+
+      final evt = await harness.compactContext(force: true);
+      expect(evt, isNotNull);
+      expect(harness.isCompacted, isTrue);
+
+      // 回溯到 m2 (保留前两条，落在压缩窗口之外) → 压缩状态重置
+      expect(harness.rewindToMessage('m2'), isTrue);
+      expect(harness.isCompacted, isFalse);
+      expect(harness.messages.length, equals(2));
+    });
+
+    test('单一轮次对话无法压缩 (无更早内容)', () async {
+      final provider = buildCompactionProvider([]);
+      final harness = AgentHarness(tools: tools, provider: provider);
+      harness.restoreMessages([
+        AgentMessage(id: 'm1', role: AgentRole.user, content: '唯一一问'),
+      ]);
+      final evt = await harness.compactContext(force: true);
+      expect(evt, isNull);
+      expect(harness.isCompacted, isFalse);
     });
   });
 }

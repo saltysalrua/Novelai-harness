@@ -329,29 +329,72 @@ void main() {
     );
 
     test('LlmModelFetcher detects reasoning capabilities accurately', () {
-      expect(LlmModelFetcher.detectReasoningCapability('deepseek-reasoner'), isTrue);
+      expect(
+        LlmModelFetcher.detectReasoningCapability('deepseek-reasoner'),
+        isTrue,
+      );
       expect(LlmModelFetcher.detectReasoningCapability('deepseek-r1'), isTrue);
       expect(LlmModelFetcher.detectReasoningCapability('o3-mini'), isTrue);
       expect(LlmModelFetcher.detectReasoningCapability('o1-preview'), isTrue);
-      expect(LlmModelFetcher.detectReasoningCapability('claude-3-7-sonnet-20250219'), isTrue);
-      expect(LlmModelFetcher.detectReasoningCapability('qwq-32b-preview'), isTrue);
+      expect(
+        LlmModelFetcher.detectReasoningCapability('claude-3-7-sonnet-20250219'),
+        isTrue,
+      );
+      expect(
+        LlmModelFetcher.detectReasoningCapability('qwq-32b-preview'),
+        isTrue,
+      );
 
-      expect(LlmModelFetcher.detectReasoningCapability('deepseek-chat'), isFalse);
+      expect(
+        LlmModelFetcher.detectReasoningCapability('deepseek-chat'),
+        isFalse,
+      );
       expect(LlmModelFetcher.detectReasoningCapability('gpt-4o'), isFalse);
-      expect(LlmModelFetcher.detectReasoningCapability('claude-3-5-sonnet-20241022'), isFalse);
+      expect(
+        LlmModelFetcher.detectReasoningCapability('claude-3-5-sonnet-20241022'),
+        isFalse,
+      );
     });
 
-    test('LlmModelFetcher detects multimodal vision capabilities accurately', () {
-      expect(LlmModelFetcher.detectMultimodalCapability('gpt-4o'), isTrue);
-      expect(LlmModelFetcher.detectMultimodalCapability('gpt-4o-mini'), isTrue);
-      expect(LlmModelFetcher.detectMultimodalCapability('claude-3-7-sonnet-20250219'), isTrue);
-      expect(LlmModelFetcher.detectMultimodalCapability('claude-3-5-sonnet-20241022'), isTrue);
-      expect(LlmModelFetcher.detectMultimodalCapability('gemini-2.5-flash'), isTrue);
-      expect(LlmModelFetcher.detectMultimodalCapability('qwen-vl-max'), isTrue);
+    test(
+      'LlmModelFetcher detects multimodal vision capabilities accurately',
+      () {
+        expect(LlmModelFetcher.detectMultimodalCapability('gpt-4o'), isTrue);
+        expect(
+          LlmModelFetcher.detectMultimodalCapability('gpt-4o-mini'),
+          isTrue,
+        );
+        expect(
+          LlmModelFetcher.detectMultimodalCapability(
+            'claude-3-7-sonnet-20250219',
+          ),
+          isTrue,
+        );
+        expect(
+          LlmModelFetcher.detectMultimodalCapability(
+            'claude-3-5-sonnet-20241022',
+          ),
+          isTrue,
+        );
+        expect(
+          LlmModelFetcher.detectMultimodalCapability('gemini-2.5-flash'),
+          isTrue,
+        );
+        expect(
+          LlmModelFetcher.detectMultimodalCapability('qwen-vl-max'),
+          isTrue,
+        );
 
-      expect(LlmModelFetcher.detectMultimodalCapability('deepseek-chat'), isFalse);
-      expect(LlmModelFetcher.detectMultimodalCapability('deepseek-reasoner'), isFalse);
-    });
+        expect(
+          LlmModelFetcher.detectMultimodalCapability('deepseek-chat'),
+          isFalse,
+        );
+        expect(
+          LlmModelFetcher.detectMultimodalCapability('deepseek-reasoner'),
+          isFalse,
+        );
+      },
+    );
 
     test('LlmModelFetcher formats /models endpoint correctly', () {
       expect(
@@ -386,7 +429,12 @@ void main() {
         apiKey: 'sk-test',
         activeModelId: 'm2',
         models: const [
-          LlmModelConfig(id: 'm1', name: 'Model 1', reasoning: false, input: ['text']),
+          LlmModelConfig(
+            id: 'm1',
+            name: 'Model 1',
+            reasoning: false,
+            input: ['text'],
+          ),
           LlmModelConfig(
             id: 'm2',
             name: 'Model 2',
@@ -406,9 +454,61 @@ void main() {
       expect(decoded.activeModel.id, equals('m2'));
       expect(decoded.activeModel.reasoning, isTrue);
       expect(decoded.activeModel.isMultimodal, isTrue);
-      expect(decoded.activeModel.supportedThinkingLevels, contains(ThinkingEffort.high));
+      expect(
+        decoded.activeModel.supportedThinkingLevels,
+        contains(ThinkingEffort.high),
+      );
       expect(decoded.activeModel.temperature, equals(0.6));
-      expect(decoded.fullEndpointUrl, equals('https://api.example.com/v1/chat/completions'));
+      expect(
+        decoded.fullEndpointUrl,
+        equals('https://api.example.com/v1/chat/completions'),
+      );
+    });
+  });
+
+  group('NaiGeneratedImage 历史角标与序列化', () {
+    test('isUpscaled / isImportedReference JSON 往返与角标文案优先级', () {
+      const params = NaiGenerationParams(prompt: '1girl');
+      final upscaled = NaiGeneratedImage(
+        id: 'img_up',
+        bytes: [1, 2, 3],
+        params: params,
+        createdAt: DateTime(2026, 12, 1),
+        seed: 42,
+        isOpusFree: false,
+        isUpscaled: true,
+      );
+
+      // 角标文案：放大 > 导入 优先
+      expect(upscaled.historyBadgeLabel, equals('放大'));
+      final imported = upscaled.copyWith(
+        isUpscaled: false,
+        isImportedReference: true,
+      );
+      expect(imported.historyBadgeLabel, equals('导入'));
+      final normal = NaiGeneratedImage(
+        id: 'img_n',
+        bytes: const [],
+        params: params,
+        createdAt: DateTime(2026, 12, 2),
+        seed: -1,
+        isOpusFree: true,
+      );
+      expect(normal.historyBadgeLabel, isNull);
+
+      // JSON 往返：标记保留，普通图不携带字段
+      final upJson = upscaled.toJson();
+      expect(upJson['isUpscaled'], isTrue);
+      final restored = NaiGeneratedImage.fromJson(upJson);
+      expect(restored.isUpscaled, isTrue);
+      expect(restored.historyBadgeLabel, equals('放大'));
+
+      final normalJson = normal.toJson();
+      expect(normalJson.containsKey('isUpscaled'), isFalse);
+      expect(normalJson.containsKey('isImportedReference'), isFalse);
+      final restoredNormal = NaiGeneratedImage.fromJson(normalJson);
+      expect(restoredNormal.isUpscaled, isFalse);
+      expect(restoredNormal.isImportedReference, isFalse);
     });
   });
 }

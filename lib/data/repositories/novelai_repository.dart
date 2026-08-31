@@ -350,6 +350,8 @@ class NovelAiRepository {
       createdAt: now,
       seed: sourceImage.seed,
       isOpusFree: false,
+      isImportedReference: sourceImage.isImportedReference,
+      isUpscaled: true,
     );
 
     _history.insert(0, upscaledImage);

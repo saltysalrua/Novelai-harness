@@ -10,6 +10,7 @@ import '../../../data/services/anlas_calculator.dart';
 import '../types.dart';
 import 'agent_tool.dart';
 import 'canvas_view_tool.dart' show CanvasHistoryGetter, ModelVisionChecker;
+import 'vision_image_codec.dart';
 
 /// 图像与批注覆盖层离屏渲染结果
 class AnnotationOverlayRenderResult {
@@ -323,7 +324,8 @@ class ViewImageAnnotationsTool extends AgentTool {
              '获取画板历史图片及其关联的全部用户批注（包含圈选矩形选区、图钉锚点、整图修改意见，'
              '以及精确的相对百分比位置与绝对像素坐标）。'
              '通过 index 参数从新到旧指定图片（0 表示最新生成/当前图片，默认 0）。'
-             '默认返回已离屏合成批注选框与编号的图像版本，便于具备视觉能力的多模态模型直接核对修改位置。',
+             '默认返回已离屏合成批注选框与编号的图像版本，便于具备视觉能力的多模态模型直接核对修改位置。'
+             '返回的图片默认压缩到最长边 1024px；看不清批注细节时可传 full_resolution=true 获取原始尺寸图片。',
          parameters: const {
            'type': 'object',
            'properties': {
@@ -338,6 +340,11 @@ class ViewImageAnnotationsTool extends AgentTool {
              'with_overlay': {
                'type': 'boolean',
                'description': '是否在返回的图片上离屏绘制批注选框与编号图钉（默认 true）。false 时返回原图。',
+             },
+             'full_resolution': {
+               'type': 'boolean',
+               'description':
+                   '是否返回未压缩的原始尺寸图片 (默认 false，压缩到最长边 1024px)。仅在压缩版看不清批注细节时使用。',
              },
            },
          },
@@ -392,6 +399,9 @@ class ViewImageAnnotationsTool extends AgentTool {
     final withOverlay = args['with_overlay'] is bool
         ? args['with_overlay'] as bool
         : true;
+    final fullResolution = args['full_resolution'] is bool
+        ? args['full_resolution'] as bool
+        : false;
 
     final dims = await AnlasCalculator.decodeImageDimensions(imageBytes);
     final width = dims?.width ?? params.width;
@@ -417,6 +427,15 @@ class ViewImageAnnotationsTool extends AgentTool {
       } else {
         finalImageBytes = imageBytes;
       }
+    }
+
+    // 视觉附件压缩：默认压到最长边 1024px 控制视觉 Token，
+    // 模型看不清批注细节时可传 full_resolution=true 获取原图
+    String resultMime = 'image/png';
+    if (finalImageBytes != null && !fullResolution) {
+      final compressed = await compressVisionImage(finalImageBytes);
+      finalImageBytes = compressed.bytes;
+      resultMime = compressed.mimeType;
     }
 
     final isLatest = index == 0;
@@ -485,6 +504,11 @@ class ViewImageAnnotationsTool extends AgentTool {
             ? '已随结果附带叠加了选区框与编号图钉的批注图像，请结合视觉图像与上述坐标信息进行分析。'
             : '已随结果附带原始图像。',
       );
+      lines.add(
+        fullResolution
+            ? '本次附件为原始尺寸图片 (未压缩)。'
+            : '本次附件已压缩到最长边 1024px。若看不清批注细节，请再次调用本工具并传 full_resolution: true 获取原图。',
+      );
     }
 
     return ToolResult(
@@ -494,7 +518,7 @@ class ViewImageAnnotationsTool extends AgentTool {
       imageBase64: finalImageBytes != null
           ? base64Encode(finalImageBytes)
           : null,
-      imageMimeType: 'image/png',
+      imageMimeType: resultMime,
     );
   }
 }

@@ -46,6 +46,7 @@ Novelai-harness/
 │   │       │   ├── load_skill_tool.dart        # Pi 标准按需加载专业技能工具 (Progressive Disclosure)
 │   │       │   ├── prompt_library_tools.dart   # 词组合预设库增删改查工具
 │   │       │   ├── studio_params_tool.dart     # 实时同步修改工作台 UI 生图参数工具
+│   │       │   ├── vision_image_codec.dart     # 视觉附件压缩 (最长边 1024 等比重编码 PNG) 与 MIME 嗔探
 │   │       │   └── novelai_tools.dart          # 生图、放大、标签联想与账号查询工具实现
 │   │       └── skills/
 │   │           └── skills.dart                 # 内置技能库 (V5 自然语言与空间视觉架构师)
@@ -56,7 +57,7 @@ Novelai-harness/
 │   │   │   ├── nai_catalog.dart                # NaiModel/采样器/噪声调度/分辨率预设枚举
 │   │   │   ├── nai_character_prompt.dart       # 多角色提示词与位置布局模型
 │   │   │   ├── nai_generation_params.dart      # 生图参数与官方 payload 构建
-│   │   │   ├── nai_image_result.dart           # 生成结果图片与流式进度数据
+│   │   │   ├── nai_image_result.dart           # 生成结果图片与流式进度数据 (含放大/导入来源标记与角标文案)
 │   │   │   ├── nai_account_info.dart           # 账号/体力池与 Tag 联想响应
 │   │   │   ├── nai_prompt_presets.dart         # 质量词/UC 预设与提示词文本后处理
 │   │   │   ├── prompt_library_models.dart     # 词组合预设分类常量与 PromptComboEntry 模型
@@ -155,7 +156,7 @@ Novelai-harness/
 │                   ├── image_canvas_card.dart  # 中间：大图交互画板与历史轮播主壳 (支持拖入带元数据图片自动识别)
 │                   ├── image_stream_view.dart  # 流式生图预览与当前图渲染 (含生成中卡片)
 │                   ├── image_canvas_actions.dart # 画板操作工具条 (复制脱敏/复制原图/放大/打开目录)
-│                   ├── canvas_history_sidebar.dart # 历史图像侧栏 (缩略图轮播)
+│                   ├── canvas_history_sidebar.dart # 历史图像侧栏 (缩略图轮播 + 放大/导入来源角标)
 │                   ├── canvas_overlays.dart     # 画板悬浮层 (未读新图横幅等)
 │                   ├── freeform_annotation_board.dart # 自由大画布主壳：无限漫游缩放/参考图拖入粘贴/连线拖拽与落点命中
 │                   ├── board_toolbar.dart      # 大画布顶部浮动工具坞 (漫游/圈选/图钉/便利贴/参考图/粘贴/适应视口) + AnnotationToolMode 枚举
@@ -272,7 +273,7 @@ Novelai-harness/
 - **基础公式 (现代计费，V3+ 全系适用)**：`ceil(2.951823174884865e-6 × 像素数 + 5.753298233447344e-7 × 像素数 × 步数)`，再乘模型倍率 (`NaiModel.anlasMultiplier`，仅 V5 为 1.5，其余 1.0)，单张下限 2 Anlas、上限 140 Anlas (超出返回 `invalidCost = -3`)。
 - **Opus 折扣**：`isOpus && 步数 <= 28 && 像素 <= 1,048,576` 时首张免费；仅 V5 受体力配额池限制 (`NaiAccountInfo.v5QuotaExhausted`，来自 `subscription.usage.isNegative`，透支后不再抵扣)；单次请求多张 (`n_samples > 1`) 只有第一张享受免费折扣。
 - **官方超分**：按输入面积分档计费，无倍率参数 (新超分模型固定倍率)：`<= 1,048,576 → 1 Anlas`、`<= 1,747,627 → 2`、`<= 2,446,678 → 3`、`<= 3,145,728 → 4`，超过最高档返回 `invalidCost`；Opus 用户输入不超过 `640x640` 时免费。输入尺寸用 `AnlasCalculator.decodeImageDimensions` 从图片字节解码 (不信任 params 上的宽高，可能是文件加载的假参数)，输出尺寸同样从结果字节解码。
-- **接入点**：GenerateDock 生成按钮点数标识与提示 (`StudioViewModel.estimatedGenerationCost`)、手动生成/超分的付费确认闸门 (预计非零时先弹问)、Agent 生图/超分工具的确认与结果文本、`get_studio_parameters` 报表 (无账号信息时按 Opus/无订阅双价位展示)。服务端计费仍是最终依据。
+- **接入点**：GenerateDock 生成按钮点数标识与提示 (`StudioViewModel.estimatedGenerationCost`)、Agent 生图/超分工具的确认与结果文本、`get_studio_parameters` 报表 (无账号信息时按 Opus/无订阅双价位展示)。服务端计费仍是最终依据。用户手动生图/手动超分**不再弹付费确认卡片** (2026-12)：生成坞按钮已实时显示“生成图片 (N Anlas)”警示色，足够的 UI 提醒已前置；“点数消耗申请”内嵌卡片仅在模型主动调用生图/超分工具 (消耗非零) 时出现。
 
 ### 3.3c 图像导出管道：元数据嵌入/抹除、可见水印与盲水印
 
@@ -314,6 +315,11 @@ Novelai-harness/
 - `/tag <关键词>`：查询 Danbooru 官方标签联想与使用频次。
 - `/upscale`：超分放大画板当前图片 (官方新超分模型，固定倍率，无倍率参数)。
 - `/account`：查询账号等级与 V5 专属体力池余量。
+- `/compact`：手动压缩对话上下文 (把更早消息摘要后移出 LLM 请求，原始消息仍保留在对话流与会话记录中)。
+- `/new [标题]`：新建一个空白会话并切换过去。
+- `/undo`：撤销上一轮对话 (回复、工具结果与同期参数修改一并回滚；轮数上限收尾提示不算一轮)。
+- `/rename <标题>`：重命名当前会话。
+- `/sessions`：列出已保存的会话 (前 12 个，带当前标记/消息数/时间)。
 - `/clear`：清空会话消息流。
 
 ### 3.7 Agent 循环长程执行规范
@@ -322,6 +328,17 @@ Novelai-harness/
 - **瞬态自动重试**：`ErrorEvent.transient` 标记瞬态错误 (网络异常/HTTP 408/429/5xx/流解析中断)，Harness 按指数退避 (1s/2s/4s...) 自动重试同轮请求，总预算 `maxRetryAttempts` (默认 3，含首次)。重试前发 `RetryEvent` (ViewModel 转为流式气泡顶部的重试提示)，可重试错误**不直接透传** ErrorEvent，彻底失败才统一报错。重试时重发 `TurnStartEvent` 复位流式缓冲。
 - **空响应保护**：无正文无思考无工具调用的空响应视为异常，占用同一重试预算。
 - **失败不落盘**：重试预算耗尽的轮次不保存 assistant 消息，半截内容不进上下文与会话记录。
+
+### 3.7b 上下文自适应压缩 (2026-12，参考 pi compaction)
+
+AgentHarness 内置上下文压缩 (lib/core/harness/agent_harness.dart)：
+
+- **自动触发**：每轮请求前估算上下文 Token (优先取窗口内最后一条带用量的 assistant 消息 totalTokens，其后消息按 chars/4 启发式累加，图片按 1200 token/张计)，超过 `contextWindowTokens - compactionReserveTokens` (默认 128000-16384，窗口大小由 ViewModel 装配时写入当前模型卡片的 contextWindow) 时自动压缩。
+- **切点算法**：从新到旧回溯累计估算 Token，达到 `compactionKeepRecentTokens` (默认 20000) 预算后取其后最近的 user/assistant 消息为保留窗口起点；绝不在 tool 结果上切 (工具结果必须与其调用同进退)。当前轮的新用户消息永远在保留窗口内。
+- **摘要生成**：把待压缩消息序列化为纯文本对话稿 (序列化上限 30 万字符防摘要请求自身超窗)，用当前 LLM 无工具一次性生成结构化中文摘要 (目标/约束与偏好/进展/关键决定/下一步/关键上下文)，已有旧摘要时迭代合并。失败或空摘要时放弃本次压缩，绝不破坏现有上下文。
+- **数据模型**：摘要仅存于内存 (`_compactionSummary` + `_contextStartIndex`)，构建请求时注入为一条 user 消息替身；**原始消息仍完整保留在 UI 消息流、`messages` getter 与会话 JSONL 落盘中**，重启后全量回放 (旧图不重发，见 3.9b)，若仍超阈值会在下一次 send 时自动重新压缩。
+- **手动触发**：`/compact` 斜杠指令调 `compactContext(force: true)`，跳过预算判断，保留最后一个 user 轮次开始的近期对话，摘要文本以普通消息形式展示在对话流中。
+- **状态重置**：回溯到压缩窗口之外、切换会话、清空消息时重置压缩状态 (isCompacted=false)；回溯点在窗口内则压缩状态保留。
 
 ### 3.8 LLM 思考参数格式兼容矩阵 (对齐 pi)
 
@@ -346,6 +363,14 @@ Novelai-harness/
 - 发送链路：`AgentMessageImage` (types.dart) → `AgentMessage.images` → `toOpenAiJson` 升级为 text + image_url(data URL) 多模态内容块 → harness.send(images:) 透传；空文本纯图片消息允许发送。
 - 会话落盘：user 消息 JSONL 内容块追加 `{type:'image', mimeType, data}`，恢复时原样回读。
 - 非多模态模型发送带图消息时拦截并提示；工具结果附带图片 (查看画板) 平铺渲染在折叠块外，不藏在内。
+
+### 3.9b 图片一次性展示与视觉附件压缩 (2026-12)
+
+解决“agent 吃了一堆图片后不认最新图”的核心机制：
+
+- **图片只给模型看一次**：`AgentMessage.imageEpoch` 记录图片所属的发送轮次 (AgentHarness 每次自增)。构建请求时 (`_buildRequestMessages`)，仅当前轮次新增的图片 (用户附件与工具结果图) 原样发送，更早轮次与重启恢复的历史图片一律通过 `withVisionImagesCollapsed` 折叠为**固定占位文本** (清除 images/imageBase64，正文末尾追加恒定不变的占位符)——控制视觉 Token 且保证提示缓存前缀逐字稳定不被击穿。UI 消息流与会话落盘仍保留原图，模型需要再看画板图时可调 `view_canvas_image`。
+- **视觉附件压缩**：`vision_image_codec.dart` 的 `compressVisionImage` 把工具返回的图片 (查看画板/批注合成图 1536px 级 PNG) 等比压到最长边 1024px 重编码 PNG (透明底涂白)，失败回退原字节。接入点：ViewCanvasImageTool、ViewImageAnnotationsTool 默认路径，以及 `sendAnnotationsToChat` 的主图合成图/参考图附件。用户粘贴附件归一化 (1024px PNG) 维持不变。
+- **模型可请求原图**：`view_canvas_image` 与 `view_image_annotations` 新增 `full_resolution` 布尔参数 (默认 false)，压缩版看不清细节时传 true 获取未压缩原始尺寸图片；工具结果文本会提示该参数的存在。
 
 ### 3.10 自由大画布批注与动态连线 (2026-12)
 

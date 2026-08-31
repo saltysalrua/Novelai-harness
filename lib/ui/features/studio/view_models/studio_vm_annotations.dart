@@ -875,14 +875,21 @@ mixin _StudioAnnotationsMixin on _StudioCore {
           mainNode.image.uint8Bytes,
           mainNode.annotations,
         );
-        final base64Str = base64Encode(renderRes.bytes);
+        // 压缩到最长边 1024px 控制视觉 Token (文字批注同时以文本形式附在消息里)
+        final payload = await compressVisionImage(renderRes.bytes);
         messageImages.add(
-          AgentMessageImage(base64: base64Str, mimeType: 'image/png'),
+          AgentMessageImage(
+            base64: base64Encode(payload.bytes),
+            mimeType: payload.mimeType,
+          ),
         );
       } catch (_) {
-        final base64Str = base64Encode(mainNode.image.uint8Bytes);
+        final payload = await compressVisionImage(mainNode.image.uint8Bytes);
         messageImages.add(
-          AgentMessageImage(base64: base64Str, mimeType: 'image/png'),
+          AgentMessageImage(
+            base64: base64Encode(payload.bytes),
+            mimeType: payload.mimeType,
+          ),
         );
       }
     }
@@ -896,10 +903,11 @@ mixin _StudioAnnotationsMixin on _StudioCore {
           .firstOrNull;
       if (refNode == null) continue;
       linkedRefIds.add(link.sourceImageId);
+      final payload = await compressVisionImage(refNode.image.uint8Bytes);
       messageImages.add(
         AgentMessageImage(
-          base64: base64Encode(refNode.image.uint8Bytes),
-          mimeType: 'image/png',
+          base64: base64Encode(payload.bytes),
+          mimeType: payload.mimeType,
         ),
       );
     }
