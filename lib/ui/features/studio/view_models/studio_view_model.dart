@@ -318,6 +318,8 @@ mixin _StudioCore on ChangeNotifier {
       _configService.saveApplyFixedPrompts(_params.applyFixedPrompts);
       _configService.saveCharacterPrompts(_params.characterPrompts);
       _configService.saveCharacterAiPosition(_params.characterAiPosition);
+      _configService.saveSeedMode(_params.seedMode);
+      _configService.saveSeedTiming(_params.seedTiming);
       if (_params.negativePrompt != _config.negativePrompt ||
           _params.prefixPrompt != _config.prefixPrompt ||
           _params.suffixPrompt != _config.suffixPrompt) {
@@ -340,6 +342,16 @@ mixin _StudioCore on ChangeNotifier {
   /// 便捷更新负面提示词
   void updateNegativePrompt(String negativePrompt) {
     updateParams(_params.copyWith(negativePrompt: negativePrompt));
+  }
+
+  /// 便捷设置种子模式
+  void setSeedMode(NaiSeedMode mode) {
+    updateParams(_params.copyWith(seedMode: mode));
+  }
+
+  /// 便捷设置种子生成控制时机
+  void setSeedTiming(NaiSeedTiming timing) {
+    updateParams(_params.copyWith(seedTiming: timing));
   }
 
   // ------------- 跨分部方法签名 (由各分部 Mixin 实现) -------------
@@ -518,6 +530,8 @@ class StudioViewModel extends ChangeNotifier
       applyFixedPrompts: applyFixed,
       characterPrompts: await _configService.loadCharacterPrompts(),
       characterAiPosition: await _configService.loadCharacterAiPosition(),
+      seedMode: await _configService.loadSeedMode(),
+      seedTiming: await _configService.loadSeedTiming(),
     );
 
     // 参数时间轴基线：后续每轮对话发出前再各记一次快照，供回溯时回滚
@@ -818,31 +832,27 @@ class StudioViewModel extends ChangeNotifier
 
     final bData = _boardData;
     if (bData != null) {
-      final remainingNodes =
-          bData.imageNodes
-              .where((n) => !historyIds.contains(n.image.id))
-              .toList();
-      final removedNodeIds =
-          bData.imageNodes
-              .where((n) => historyIds.contains(n.image.id))
-              .map((n) => n.id)
-              .toSet();
+      final remainingNodes = bData.imageNodes
+          .where((n) => !historyIds.contains(n.image.id))
+          .toList();
+      final removedNodeIds = bData.imageNodes
+          .where((n) => historyIds.contains(n.image.id))
+          .map((n) => n.id)
+          .toSet();
       if (removedNodeIds.isNotEmpty) {
-        final updatedNotes =
-            bData.noteNodes.map((n) {
-              if (removedNodeIds.contains(n.targetImageId)) {
-                return n.copyWith(clearConnection: true);
-              }
-              return n;
-            }).toList();
-        final updatedLinks =
-            bData.imageLinks
-                .where(
-                  (l) =>
-                      !removedNodeIds.contains(l.sourceImageId) &&
-                      !removedNodeIds.contains(l.targetImageId),
-                )
-                .toList();
+        final updatedNotes = bData.noteNodes.map((n) {
+          if (removedNodeIds.contains(n.targetImageId)) {
+            return n.copyWith(clearConnection: true);
+          }
+          return n;
+        }).toList();
+        final updatedLinks = bData.imageLinks
+            .where(
+              (l) =>
+                  !removedNodeIds.contains(l.sourceImageId) &&
+                  !removedNodeIds.contains(l.targetImageId),
+            )
+            .toList();
         _boardData = bData.copyWith(
           imageNodes: remainingNodes,
           noteNodes: updatedNotes,

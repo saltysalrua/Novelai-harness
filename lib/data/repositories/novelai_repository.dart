@@ -141,9 +141,7 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
   }) async* {
-    final effectiveSeed = params.seed < 0
-        ? (DateTime.now().millisecondsSinceEpoch % 4294967295)
-        : params.seed;
+    final effectiveSeed = params.seed < 0 ? generateRandomSeed() : params.seed;
 
     final requestParams = params.copyWith(seed: effectiveSeed);
 
@@ -231,9 +229,7 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
   }) async {
-    final effectiveSeed = params.seed < 0
-        ? (DateTime.now().millisecondsSinceEpoch % 4294967295)
-        : params.seed;
+    final effectiveSeed = params.seed < 0 ? generateRandomSeed() : params.seed;
 
     final requestParams = params.copyWith(seed: effectiveSeed);
     final imageBytesList = await _service.generateImage(
@@ -515,9 +511,7 @@ class NovelAiRepository {
         } catch (_) {}
       }
     }
-    clearHistory(
-      saveDir: (enablePersistence ? saveDir : null),
-    );
+    clearHistory(saveDir: (enablePersistence ? saveDir : null));
   }
 
   // ==================== 自由大画布布局持久化 ====================

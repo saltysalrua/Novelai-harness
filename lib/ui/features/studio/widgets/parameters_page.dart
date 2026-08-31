@@ -1,6 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
+
+import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
@@ -27,20 +27,33 @@ class _ParametersPageState extends State<ParametersPage> {
     super.initState();
     final seed = widget.viewModel.params.seed;
     _seedController = TextEditingController(text: seed < 0 ? '' : '$seed');
+    widget.viewModel.addListener(_syncSeedFromViewModel);
+  }
+
+  void _syncSeedFromViewModel() {
+    final seed = widget.viewModel.params.seed;
+    final seedStr = seed < 0 ? '' : '$seed';
+    if (_seedController.text != seedStr) {
+      _seedController.value = TextEditingValue(
+        text: seedStr,
+        selection: TextSelection.collapsed(offset: seedStr.length),
+      );
+    }
   }
 
   @override
   void didUpdateWidget(covariant ParametersPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final seed = widget.viewModel.params.seed;
-    final seedStr = seed < 0 ? '' : '$seed';
-    if (_seedController.text != seedStr) {
-      _seedController.text = seedStr;
+    if (oldWidget.viewModel != widget.viewModel) {
+      oldWidget.viewModel.removeListener(_syncSeedFromViewModel);
+      widget.viewModel.addListener(_syncSeedFromViewModel);
+      _syncSeedFromViewModel();
     }
   }
 
   @override
   void dispose() {
+    widget.viewModel.removeListener(_syncSeedFromViewModel);
     _seedController.dispose();
     super.dispose();
   }
@@ -121,7 +134,7 @@ class _ParametersPageState extends State<ParametersPage> {
 }
 
 /// Seed 输入框与 Sampler 下拉并排 (官方两栏排版，高度 40)
-class _SeedAndSamplerRow extends StatelessWidget {
+class _SeedAndSamplerRow extends StatefulWidget {
   final StudioViewModel viewModel;
   final TextEditingController seedController;
 
@@ -131,8 +144,23 @@ class _SeedAndSamplerRow extends StatelessWidget {
   });
 
   @override
+  State<_SeedAndSamplerRow> createState() => _SeedAndSamplerRowState();
+}
+
+class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
+  final GlobalKey _buttonKey = GlobalKey();
+
+  IconData _modeIcon(NaiSeedMode mode) {
+    return switch (mode) {
+      NaiSeedMode.random => Icons.eco_rounded,
+      NaiSeedMode.increase => Icons.trending_up_rounded,
+      NaiSeedMode.fixed => Icons.lock_outline_rounded,
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final params = viewModel.params;
+    final params = widget.viewModel.params;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,7 +184,7 @@ class _SeedAndSamplerRow extends StatelessWidget {
                   children: [
                     Expanded(
                       child: TextField(
-                        controller: seedController,
+                        controller: widget.seedController,
                         keyboardType: TextInputType.number,
                         style: const TextStyle(
                           fontSize: 13,
@@ -181,41 +209,59 @@ class _SeedAndSamplerRow extends StatelessWidget {
                           errorBorder: InputBorder.none,
                           disabledBorder: InputBorder.none,
                         ),
+                        onChanged: (val) {
+                          final trimmed = val.trim();
+                          if (trimmed.isEmpty) {
+                            if (params.seed != -1) {
+                              widget.viewModel.updateParams(
+                                params.copyWith(seed: -1),
+                              );
+                            }
+                          } else {
+                            final parsed = int.tryParse(trimmed);
+                            if (parsed != null && parsed != params.seed) {
+                              widget.viewModel.updateParams(
+                                params.copyWith(seed: parsed),
+                              );
+                            }
+                          }
+                        },
                         onSubmitted: (val) {
-                          final parsed = int.tryParse(val);
-                          viewModel.updateParams(
+                          final parsed = int.tryParse(val.trim());
+                          widget.viewModel.updateParams(
                             params.copyWith(seed: parsed ?? -1),
                           );
                         },
                       ),
                     ),
-                    // 随机种子按钮 (幼苗图标，随机模式高亮)
+                    // 种子模式与生成控制按钮 (弹出小选择框)
                     Tooltip(
-                      message: 'Randomize Seed',
+                      message:
+                          '种子设置 (${params.seedMode.chineseLabel} · ${params.seedTiming.label})',
                       child: InkWell(
-                        onTap: () {
-                          final newSeed = Random().nextInt(4294967295);
-                          viewModel.updateParams(
-                            params.copyWith(seed: newSeed),
-                          );
-                        },
+                        key: _buttonKey,
+                        onTap: () => _showSeedSettingsMenu(
+                          context,
+                          widget.viewModel,
+                          _buttonKey,
+                        ),
                         borderRadius: BorderRadius.circular(4),
                         child: Container(
                           width: 32,
                           height: 32,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: params.seed < 0
-                                ? AppTheme.skyTint
-                                : AppTheme.paperWarmth,
+                            color: params.seedMode == NaiSeedMode.fixed
+                                ? AppTheme.paperWarmth
+                                : AppTheme.skyTint,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Icon(
-                            Icons.eco_rounded,
+                            _modeIcon(params.seedMode),
                             size: 16,
-                            color: params.seed < 0
-                                ? AppTheme.notionBlue
-                                : AppTheme.graphite,
+                            color: params.seedMode == NaiSeedMode.fixed
+                                ? AppTheme.graphite
+                                : AppTheme.notionBlue,
                           ),
                         ),
                       ),
@@ -240,12 +286,406 @@ class _SeedAndSamplerRow extends StatelessWidget {
                 labelOf: (s) => s.label,
                 fontSize: 12.5,
                 onChanged: (s) =>
-                    viewModel.updateParams(params.copyWith(sampler: s)),
+                    widget.viewModel.updateParams(params.copyWith(sampler: s)),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 在 Seed 按钮下方弹出种子模式与生成控制小选择框
+void _showSeedSettingsMenu(
+  BuildContext context,
+  StudioViewModel viewModel,
+  GlobalKey buttonKey,
+) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+
+  final renderBox = buttonKey.currentContext?.findRenderObject() as RenderBox?;
+  if (renderBox == null) return;
+
+  final buttonTopLeft = renderBox.localToGlobal(Offset.zero);
+  final position = Offset(
+    buttonTopLeft.dx,
+    buttonTopLeft.dy + renderBox.size.height + 4,
+  );
+
+  late final OverlayEntry entry;
+  var removed = false;
+  void dismiss() {
+    if (removed) return;
+    removed = true;
+    if (entry.mounted) entry.remove();
+  }
+
+  entry = OverlayEntry(
+    builder: (_) => _SeedSettingsOverlay(
+      position: position,
+      buttonWidth: renderBox.size.width,
+      viewModel: viewModel,
+      onDismiss: dismiss,
+    ),
+  );
+  overlay.insert(entry);
+}
+
+class _SeedSettingsOverlay extends StatefulWidget {
+  final Offset position;
+  final double buttonWidth;
+  final StudioViewModel viewModel;
+  final VoidCallback onDismiss;
+
+  const _SeedSettingsOverlay({
+    required this.position,
+    required this.buttonWidth,
+    required this.viewModel,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_SeedSettingsOverlay> createState() => _SeedSettingsOverlayState();
+}
+
+class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
+  bool _visible = false;
+  static const double _menuWidth = 248.0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final left = (widget.position.dx + widget.buttonWidth - _menuWidth).clamp(
+      8.0,
+      (screenSize.width - _menuWidth - 8.0).clamp(8.0, double.infinity),
+    );
+    final top = widget.position.dy.clamp(
+      8.0,
+      (screenSize.height - 380.0 - 8.0).clamp(8.0, double.infinity),
+    );
+
+    return Shortcuts(
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          DismissIntent: CallbackAction<DismissIntent>(
+            onInvoke: (_) {
+              widget.onDismiss();
+              return null;
+            },
+          ),
+        },
+        child: FocusScope(
+          autofocus: true,
+          child: Stack(
+            children: [
+              // 点击背景关闭
+              Positioned.fill(
+                child: Listener(
+                  onPointerSignal: (_) => widget.onDismiss(),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (_) => widget.onDismiss(),
+                    onSecondaryTapDown: (_) => widget.onDismiss(),
+                  ),
+                ),
+              ),
+
+              // 浮层卡片本体
+              Positioned(
+                left: left,
+                top: top,
+                child: AnimatedOpacity(
+                  opacity: _visible ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 100),
+                  curve: Curves.easeOut,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      width: _menuWidth,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.pureWhite,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 18,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: ListenableBuilder(
+                        listenable: widget.viewModel,
+                        builder: (context, _) {
+                          final params = widget.viewModel.params;
+
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 1. 种子模式
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(6, 4, 6, 6),
+                                child: Text(
+                                  '种子模式',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.textMuted,
+                                  ),
+                                ),
+                              ),
+                              _buildModeOption(
+                                mode: NaiSeedMode.random,
+                                icon: Icons.eco_rounded,
+                                title: '1. Random (随机)',
+                                subtitle: '生图时自动生成全新随机种子',
+                                isSelected:
+                                    params.seedMode == NaiSeedMode.random,
+                              ),
+                              const SizedBox(height: 2),
+                              _buildModeOption(
+                                mode: NaiSeedMode.increase,
+                                icon: Icons.trending_up_rounded,
+                                title: '2. Increase (递增)',
+                                subtitle: '生图时种子数值自动 +1',
+                                isSelected:
+                                    params.seedMode == NaiSeedMode.increase,
+                              ),
+                              const SizedBox(height: 2),
+                              _buildModeOption(
+                                mode: NaiSeedMode.fixed,
+                                icon: Icons.lock_outline_rounded,
+                                title: '3. Fixed (固定)',
+                                subtitle: '保持当前设置的种子数值不变',
+                                isSelected:
+                                    params.seedMode == NaiSeedMode.fixed,
+                              ),
+
+                              // 分隔线
+                              Container(
+                                height: 1,
+                                color: AppTheme.border,
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                              ),
+
+                              // 2. 生成控制
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(6, 2, 6, 6),
+                                child: Text(
+                                  '生成控制',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.textMuted,
+                                  ),
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildTimingChip(
+                                      timing: NaiSeedTiming.before,
+                                      title: '生成前',
+                                      isSelected:
+                                          params.seedTiming ==
+                                          NaiSeedTiming.before,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: _buildTimingChip(
+                                      timing: NaiSeedTiming.after,
+                                      title: '生成后',
+                                      isSelected:
+                                          params.seedTiming ==
+                                          NaiSeedTiming.after,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              // 分隔线
+                              Container(
+                                height: 1,
+                                color: AppTheme.border,
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                              ),
+
+                              // 3. 原功能与快捷操作
+                              _buildActionRow(
+                                icon: Icons.casino_outlined,
+                                title: '立即随机种子',
+                                onTap: () {
+                                  final newSeed = generateRandomSeed();
+                                  widget.viewModel.updateParams(
+                                    params.copyWith(seed: newSeed),
+                                  );
+                                },
+                              ),
+
+                              if (params.seed >= 0) ...[
+                                const SizedBox(height: 2),
+                                _buildActionRow(
+                                  icon: Icons.restart_alt_rounded,
+                                  title: '清空重置为随机 (-1)',
+                                  onTap: () {
+                                    widget.viewModel.updateParams(
+                                      params.copyWith(seed: -1),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeOption({
+    required NaiSeedMode mode,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+  }) {
+    return InkWell(
+      onTap: () => widget.viewModel.setSeedMode(mode),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.skyTint : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? AppTheme.notionBlue : AppTheme.textMuted,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: isSelected
+                          ? AppTheme.notionBlue
+                          : AppTheme.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: AppTheme.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_rounded,
+                size: 16,
+                color: AppTheme.notionBlue,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimingChip({
+    required NaiSeedTiming timing,
+    required String title,
+    required bool isSelected,
+  }) {
+    return InkWell(
+      onTap: () => widget.viewModel.setSeedTiming(timing),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.skyTint : AppTheme.paperWarmth,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected ? AppTheme.notionBlue : AppTheme.border,
+            width: isSelected ? 1.2 : 1.0,
+          ),
+        ),
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? AppTheme.notionBlue : AppTheme.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionRow({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(6)),
+        child: Row(
+          children: [
+            Icon(icon, size: 15, color: AppTheme.notionBlue),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

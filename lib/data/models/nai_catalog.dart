@@ -1,6 +1,7 @@
 /// NovelAI 官方模型、采样器、噪声调度与分辨率预设目录。
 library;
 
+import 'dart:math';
 import 'nai_character_prompt.dart';
 
 /// NovelAI 官方支持的模型列表
@@ -19,14 +20,21 @@ enum NaiModel {
   const NaiModel(this.id, this.label);
 
   static NaiModel fromId(String id) {
-    final normalized = id.toLowerCase().replaceAll('.', '-').replaceAll('_', '-');
+    final normalized = id
+        .toLowerCase()
+        .replaceAll('.', '-')
+        .replaceAll('_', '-');
     for (final m in NaiModel.values) {
-      if (m.id == id || m.id == normalized || m.label.toLowerCase() == normalized) {
+      if (m.id == id ||
+          m.id == normalized ||
+          m.label.toLowerCase() == normalized) {
         return m;
       }
     }
     if (normalized.contains('5')) return NaiModel.v5Full;
-    if (normalized.contains('4-5') || normalized.contains('4.5')) return NaiModel.v45Full;
+    if (normalized.contains('4-5') || normalized.contains('4.5')) {
+      return NaiModel.v45Full;
+    }
     if (normalized.contains('4')) return NaiModel.v4Full;
     if (normalized.contains('furry')) return NaiModel.v3Furry;
     if (normalized.contains('3')) return NaiModel.v3;
@@ -272,5 +280,54 @@ enum ResolutionPreset {
       (r) => r.key == key,
       orElse: () => ResolutionPreset.portrait,
     );
+  }
+}
+
+/// 种子模式 (Seed Mode)
+enum NaiSeedMode {
+  random('random', 'Random', '随机'),
+  increase('increase', 'Increase', '递增'),
+  fixed('fixed', 'Fixed', '固定');
+
+  final String id;
+  final String label;
+  final String chineseLabel;
+
+  const NaiSeedMode(this.id, this.label, this.chineseLabel);
+
+  static NaiSeedMode fromId(String? id) {
+    if (id == null) return NaiSeedMode.random;
+    for (final mode in NaiSeedMode.values) {
+      if (mode.id == id || mode.name == id) return mode;
+    }
+    return NaiSeedMode.random;
+  }
+}
+
+/// 种子生成控制 / 变更时机 (Generation Timing)
+enum NaiSeedTiming {
+  before('before', '生成前'),
+  after('after', '生成后');
+
+  final String id;
+  final String label;
+
+  const NaiSeedTiming(this.id, this.label);
+
+  static NaiSeedTiming fromId(String? id) {
+    if (id == null) return NaiSeedTiming.before;
+    for (final t in NaiSeedTiming.values) {
+      if (t.id == id || t.name == id) return t;
+    }
+    return NaiSeedTiming.before;
+  }
+}
+
+/// 生成均匀真随机 32 位无符号整数种子 (0 ~ 4294967295)
+int generateRandomSeed() {
+  try {
+    return Random.secure().nextInt(1 << 32);
+  } catch (_) {
+    return Random().nextInt(4294967295);
   }
 }

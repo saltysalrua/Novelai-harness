@@ -38,7 +38,6 @@ class AppConfig {
   final bool keepOriginalImage;
   final WatermarkConfig watermarkConfig;
 
-
   // LLM 设置 (多供应商配置)
   final List<LlmProviderConfig> llmProviders;
   final String activeLlmProviderId;
@@ -191,7 +190,6 @@ class AppConfig {
       customTools: customTools ?? this.customTools,
     );
   }
-
 }
 
 /// 配置持久化与自适应加载服务
@@ -230,6 +228,8 @@ class ConfigService {
   static const String _keyApplyFixedPrompts = 'novelai_apply_fixed_prompts';
   static const String _keyCharacterPrompts = 'novelai_character_prompts';
   static const String _keyCharacterAiPosition = 'novelai_character_ai_position';
+  static const String _keySeedMode = 'novelai_seed_mode';
+  static const String _keySeedTiming = 'novelai_seed_timing';
 
   // 页面布局持久化 Keys
   static const String _keySplitLeftWidth = 'novelai_layout_split_left_width';
@@ -674,6 +674,32 @@ class ConfigService {
   Future<void> saveCharacterAiPosition(bool aiPosition) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyCharacterAiPosition, aiPosition);
+  }
+
+  /// 加载种子模式 (random, increase, fixed)
+  Future<NaiSeedMode> loadSeedMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString(_keySeedMode);
+    return NaiSeedMode.fromId(str);
+  }
+
+  /// 保存种子模式
+  Future<void> saveSeedMode(NaiSeedMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySeedMode, mode.id);
+  }
+
+  /// 加载种子生成控制时机 (before, after)
+  Future<NaiSeedTiming> loadSeedTiming() async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString(_keySeedTiming);
+    return NaiSeedTiming.fromId(str);
+  }
+
+  /// 保存种子生成控制时机
+  Future<void> saveSeedTiming(NaiSeedTiming timing) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySeedTiming, timing.id);
   }
 
   // --- 页面布局状态持久化 ---

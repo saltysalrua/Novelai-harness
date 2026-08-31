@@ -8,15 +8,73 @@ import 'package:novelai_harness/ui/features/studio/widgets/image_lightbox.dart';
 void main() {
   // A tiny 1x1 transparent PNG
   final sampleBytes = Uint8List.fromList([
-    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-    0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-    0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-    0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
-    0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-    0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
-    0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-    0x42, 0x60, 0x82,
+    0x89,
+    0x50,
+    0x4E,
+    0x47,
+    0x0D,
+    0x0A,
+    0x1A,
+    0x0A,
+    0x00,
+    0x00,
+    0x00,
+    0x0D,
+    0x49,
+    0x48,
+    0x44,
+    0x52,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x08,
+    0x06,
+    0x00,
+    0x00,
+    0x00,
+    0x1F,
+    0x15,
+    0xC4,
+    0x89,
+    0x00,
+    0x00,
+    0x00,
+    0x0A,
+    0x49,
+    0x44,
+    0x41,
+    0x54,
+    0x78,
+    0x9C,
+    0x63,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x05,
+    0x00,
+    0x01,
+    0x0D,
+    0x0A,
+    0x2D,
+    0xB4,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x49,
+    0x45,
+    0x4E,
+    0x44,
+    0xAE,
+    0x42,
+    0x60,
+    0x82,
   ]);
 
   final testImage = NaiGeneratedImage(
@@ -32,45 +90,48 @@ void main() {
     isOpusFree: true,
   );
 
-  testWidgets('ImageLightboxDialog renders without old info banner text and has close button', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => ElevatedButton(
-              onPressed: () => showImageLightbox(context, testImage),
-              child: const Text('Open Lightbox'),
+  testWidgets(
+    'ImageLightboxDialog renders without old info banner text and has close button',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => showImageLightbox(context, testImage),
+                child: const Text('Open Lightbox'),
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    // Open lightbox
-    await tester.tap(find.text('Open Lightbox'));
-    await tester.pumpAndSettle();
+      // Open lightbox
+      await tester.tap(find.text('Open Lightbox'));
+      await tester.pumpAndSettle();
 
-    // Verify old info banner text is NOT present
-    expect(find.textContaining('可使用滚轮自由缩放与拖拽平移'), findsNothing);
-    expect(find.textContaining('种子: 123456789'), findsNothing);
+      // Verify old info banner text is NOT present
+      expect(find.textContaining('可使用滚轮自由缩放与拖拽平移'), findsNothing);
+      expect(find.textContaining('种子: 123456789'), findsNothing);
 
-    // Verify close button is present
-    final closeBtn = find.byTooltip('关闭大图展示');
-    expect(closeBtn, findsOneWidget);
+      // Verify close button is present
+      final closeBtn = find.byTooltip('关闭大图展示');
+      expect(closeBtn, findsOneWidget);
 
-    // Tap close button and verify lightbox is dismissed
-    await tester.tap(closeBtn);
-    await tester.pumpAndSettle();
+      // Tap close button and verify lightbox is dismissed
+      await tester.tap(closeBtn);
+      await tester.pumpAndSettle();
 
-    expect(find.byType(ImageLightboxDialog), findsNothing);
-  });
+      expect(find.byType(ImageLightboxDialog), findsNothing);
+    },
+  );
 
-  testWidgets('ImageLightboxDialog double tap zooms to 2x and resets to 1x', (tester) async {
+  testWidgets('ImageLightboxDialog double tap zooms to 2x and resets to 1x', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: ImageLightboxDialog(bytes: testImage.uint8Bytes),
-        ),
+        home: Scaffold(body: ImageLightboxDialog(bytes: testImage.uint8Bytes)),
       ),
     );
     await tester.pumpAndSettle();
@@ -81,7 +142,10 @@ void main() {
     expect(iv.scaleEnabled, isFalse);
 
     // Initial scale is 1.0
-    expect(iv.transformationController?.value.getMaxScaleOnAxis(), closeTo(1.0, 0.001));
+    expect(
+      iv.transformationController?.value.getMaxScaleOnAxis(),
+      closeTo(1.0, 0.001),
+    );
 
     // Double tap to zoom
     await tester.tap(ivFinder);
@@ -89,7 +153,10 @@ void main() {
     await tester.tap(ivFinder);
     await tester.pumpAndSettle();
 
-    expect(iv.transformationController?.value.getMaxScaleOnAxis(), closeTo(2.0, 0.001));
+    expect(
+      iv.transformationController?.value.getMaxScaleOnAxis(),
+      closeTo(2.0, 0.001),
+    );
 
     // Double tap again to reset
     await tester.tap(ivFinder);
@@ -97,7 +164,10 @@ void main() {
     await tester.tap(ivFinder);
     await tester.pumpAndSettle();
 
-    expect(iv.transformationController?.value.getMaxScaleOnAxis(), closeTo(1.0, 0.001));
+    expect(
+      iv.transformationController?.value.getMaxScaleOnAxis(),
+      closeTo(1.0, 0.001),
+    );
   });
 
   testWidgets('PointerScrollEvent zooms centered on viewport', (tester) async {
@@ -110,9 +180,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: ImageLightboxDialog(bytes: testImage.uint8Bytes),
-        ),
+        home: Scaffold(body: ImageLightboxDialog(bytes: testImage.uint8Bytes)),
       ),
     );
     await tester.pumpAndSettle();
@@ -122,15 +190,14 @@ void main() {
 
     // Scroll up (zoom in) with mouse at non-center location (100, 100)
     final pointer = TestPointer(1, PointerDeviceKind.mouse);
-    await tester.sendEventToBinding(
-      pointer.hover(const Offset(100, 100)),
-    );
+    await tester.sendEventToBinding(pointer.hover(const Offset(100, 100)));
     await tester.sendEventToBinding(
       pointer.scroll(const Offset(0, -100), timeStamp: Duration.zero),
     );
     await tester.pump();
 
-    final scaleAfterZoomIn = iv.transformationController?.value.getMaxScaleOnAxis() ?? 1.0;
+    final scaleAfterZoomIn =
+        iv.transformationController?.value.getMaxScaleOnAxis() ?? 1.0;
     expect(scaleAfterZoomIn, greaterThan(1.0));
 
     // Viewport center is at (400, 300)
@@ -145,4 +212,3 @@ void main() {
     expect(worldCenterY, closeTo(300.0, 0.1));
   });
 }
-

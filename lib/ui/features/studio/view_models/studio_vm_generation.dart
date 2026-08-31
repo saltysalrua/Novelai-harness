@@ -69,6 +69,11 @@ mixin _StudioGenerationMixin on _StudioCore {
 
     final wasViewingLatest = isViewingLatest;
 
+    // 种子生成控制：生图前变更种子 (若 timing == before)
+    if (_params.seedTiming == NaiSeedTiming.before) {
+      _applySeedMutationBefore();
+    }
+
     _isGenerating = true;
     _livePreviewBytes = null;
     _liveCurrentStep = 0;
@@ -113,6 +118,10 @@ mixin _StudioGenerationMixin on _StudioCore {
                   // 发起前在看最新，或生成期间已滚回顶部看预览，都视为正在看最新
                   wasViewingLatest: wasViewingLatest || isViewingLatest,
                 );
+                // 种子生成控制：生图后变更种子 (若 timing == after)
+                if (_params.seedTiming == NaiSeedTiming.after) {
+                  _applySeedMutationAfter(newImage.seed);
+                }
               }
               _livePreviewBytes = null;
               _liveProgress = 1.0;
@@ -169,6 +178,10 @@ mixin _StudioGenerationMixin on _StudioCore {
             results.first,
             wasViewingLatest: wasViewingLatest || isViewingLatest,
           );
+          // 种子生成控制：生图后变更种子 (若 timing == after)
+          if (_params.seedTiming == NaiSeedTiming.after) {
+            _applySeedMutationAfter(results.first.seed);
+          }
         }
       } catch (e) {
         _errorMessage = '生图失败: $e';
@@ -179,6 +192,44 @@ mixin _StudioGenerationMixin on _StudioCore {
         notifyListeners();
         refreshAccountInfo();
       }
+    }
+  }
+
+  /// 生图前根据种子模式更新种子 (当 timing == before 时触发)
+  void _applySeedMutationBefore() {
+    switch (_params.seedMode) {
+      case NaiSeedMode.random:
+        final newSeed = generateRandomSeed();
+        _params = _params.copyWith(seed: newSeed);
+        break;
+      case NaiSeedMode.increase:
+        final current = _params.seed;
+        final next = current < 0
+            ? generateRandomSeed()
+            : (current + 1) % 4294967295;
+        _params = _params.copyWith(seed: next);
+        break;
+      case NaiSeedMode.fixed:
+        break;
+    }
+  }
+
+  /// 生图后根据种子模式更新种子 (当 timing == after 时触发)
+  void _applySeedMutationAfter(int generatedSeed) {
+    switch (_params.seedMode) {
+      case NaiSeedMode.random:
+        final nextSeed = generateRandomSeed();
+        _params = _params.copyWith(seed: nextSeed);
+        break;
+      case NaiSeedMode.increase:
+        final base = generatedSeed >= 0
+            ? generatedSeed
+            : (_params.seed >= 0 ? _params.seed : 0);
+        final nextSeed = (base + 1) % 4294967295;
+        _params = _params.copyWith(seed: nextSeed);
+        break;
+      case NaiSeedMode.fixed:
+        break;
     }
   }
 

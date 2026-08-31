@@ -18,6 +18,8 @@ class NaiGenerationParams {
   final NaiSampler sampler;
   final NoiseSchedule noiseSchedule;
   final int seed;
+  final NaiSeedMode seedMode;
+  final NaiSeedTiming seedTiming;
   final int nSamples;
   final bool qualityToggle;
   final String qualityPreset;
@@ -46,6 +48,8 @@ class NaiGenerationParams {
     this.sampler = NaiSampler.kEuler,
     this.noiseSchedule = NoiseSchedule.karras,
     this.seed = -1,
+    this.seedMode = NaiSeedMode.random,
+    this.seedTiming = NaiSeedTiming.before,
     this.nSamples = 1,
     this.qualityToggle = true,
     this.qualityPreset = 'Standard',
@@ -303,6 +307,8 @@ class NaiGenerationParams {
     NaiSampler? sampler,
     NoiseSchedule? noiseSchedule,
     int? seed,
+    NaiSeedMode? seedMode,
+    NaiSeedTiming? seedTiming,
     int? nSamples,
     bool? qualityToggle,
     String? qualityPreset,
@@ -326,6 +332,8 @@ class NaiGenerationParams {
       sampler: sampler ?? this.sampler,
       noiseSchedule: noiseSchedule ?? this.noiseSchedule,
       seed: seed ?? this.seed,
+      seedMode: seedMode ?? this.seedMode,
+      seedTiming: seedTiming ?? this.seedTiming,
       nSamples: nSamples ?? this.nSamples,
       qualityToggle: qualityToggle ?? this.qualityToggle,
       qualityPreset: qualityPreset ?? this.qualityPreset,
@@ -351,6 +359,8 @@ class NaiGenerationParams {
     'sampler': sampler.id,
     'noiseSchedule': noiseSchedule.id,
     'seed': seed,
+    'seedMode': seedMode.id,
+    'seedTiming': seedTiming.id,
     'nSamples': nSamples,
     'qualityToggle': qualityToggle,
     'qualityPreset': qualityPreset,
@@ -400,6 +410,8 @@ class NaiGenerationParams {
           ? NoiseSchedule.fromId(json['noiseSchedule'] as String)
           : NoiseSchedule.karras,
       seed: parseInt('seed', -1),
+      seedMode: NaiSeedMode.fromId(json['seedMode'] as String?),
+      seedTiming: NaiSeedTiming.fromId(json['seedTiming'] as String?),
       nSamples: parseInt('nSamples', 1),
       qualityToggle: json['qualityToggle'] as bool? ?? true,
       qualityPreset: json['qualityPreset'] as String? ?? 'Standard',
