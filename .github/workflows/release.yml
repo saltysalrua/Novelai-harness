@@ -5,7 +5,7 @@ name: Release
 on:
   push:
     branches: [master]
-    paths: ['pubspec.yaml']
+    paths: ["pubspec.yaml"]
   workflow_dispatch:
 
 permissions:
@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
-          fetch-depth: 0  # 完整历史，用于生成 commit 总结
+          fetch-depth: 0 # 完整历史，用于生成 commit 总结
 
       # subosito/flutter-action v2.21.0
       - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
@@ -66,6 +66,7 @@ jobs:
           cache: true
 
       - name: Build Windows release
+        shell: bash
         run: |
           flutter pub get
           flutter build windows --release \
