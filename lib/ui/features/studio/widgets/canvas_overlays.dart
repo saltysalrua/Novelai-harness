@@ -127,6 +127,53 @@ class CanvasParamBadges extends StatelessWidget {
   }
 }
 
+/// 右下角手动保存按钮 (自动保存关闭且当前图为未保存缓存图时展示)
+class CanvasSaveButton extends StatelessWidget {
+  final StudioViewModel viewModel;
+
+  const CanvasSaveButton({super.key, required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '保存当前图片到本地存储目录 (按导出设置处理元数据与水印)',
+      child: InkWell(
+        onTap: () async {
+          final ok = await viewModel.saveCurrentImageToDisk();
+          if (!context.mounted) return;
+          showCanvasSnackBar(
+            context,
+            ok
+                ? '已保存: ${viewModel.selectedImage?.localFilePath ?? ''}'
+                : (viewModel.errorMessage ?? '保存失败，请检查存储目录设置'),
+          );
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: canvasBadgeDecoration(),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.save_rounded, size: 17, color: AppTheme.notionBlue),
+              SizedBox(width: 6),
+              Text(
+                '保存图片',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 顶部浮动提示：有新图片生成且用户正在浏览历史时显示，点击回到最新
 class UnseenLatestBanner extends StatelessWidget {
   final VoidCallback onViewLatest;

@@ -19,7 +19,54 @@ mixin _StudioGenerationMixin on _StudioCore {
     } else {
       _hasUnseenLatest = true;
     }
-    _statusMessage = '生图完成，已保存在 ${image.localFilePath ?? '本地'}';
+    _statusMessage = image.isUnsaved
+        ? '生图完成 (未保存，可点击画板右下角保存)'
+        : '生图完成，已保存在 ${image.localFilePath ?? '本地'}';
+  }
+
+  /// 手动保存当前选中的未保存 (缓存) 图片到本地存储目录。
+  ///
+  /// 自动保存关闭时画板右下角保存按钮调用；按全局导出设置处理元数据与
+  /// 水印后落盘，删除旧缓存文件。返回是否保存成功。
+  @override
+  Future<bool> saveCurrentImageToDisk() async {
+    final image = _selectedImage;
+    if (image == null || !image.isUnsaved) return false;
+
+    if (_config.saveDirectory.isEmpty) {
+      _errorMessage = '未设置本地存储目录，请先在设置中配置保存路径。';
+      notifyListeners();
+      return false;
+    }
+
+    try {
+      final saved = await _repository.saveUnsavedImageToDisk(
+        imageId: image.id,
+        saveDir: _config.saveDirectory,
+        enablePersistence: _config.enableImagePersistence,
+        maxImages: _config.maxPersistentImages,
+        stripMetadata: _config.stripMetadata,
+        enableWatermark: _config.enableWatermark,
+        keepOriginalImage: _config.keepOriginalImage,
+        watermarkConfig: _config.watermarkConfig,
+        watermarkBytes: _config.watermarkConfig.imageBytes,
+      );
+      if (saved == null) {
+        _errorMessage = '保存图片失败：未找到图片或存储目录不可写。';
+        notifyListeners();
+        return false;
+      }
+      if (_selectedImage?.id == saved.id) {
+        _selectedImage = saved;
+      }
+      _statusMessage = '已保存到 ${saved.localFilePath}';
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = '保存图片失败: $e';
+      notifyListeners();
+      return false;
+    }
   }
 
   /// 强行中止当前正在执行的生图流
@@ -88,6 +135,7 @@ mixin _StudioGenerationMixin on _StudioCore {
           keepOriginalImage: _config.keepOriginalImage,
           watermarkConfig: _config.watermarkConfig,
           watermarkBytes: _config.watermarkConfig.imageBytes,
+          autoSave: _config.autoSaveImages,
         );
 
         _generationSubscription = stream.listen(
@@ -160,6 +208,7 @@ mixin _StudioGenerationMixin on _StudioCore {
           keepOriginalImage: _config.keepOriginalImage,
           watermarkConfig: _config.watermarkConfig,
           watermarkBytes: _config.watermarkConfig.imageBytes,
+          autoSave: _config.autoSaveImages,
         );
 
         if (results.isNotEmpty) {
@@ -257,10 +306,12 @@ mixin _StudioGenerationMixin on _StudioCore {
         keepOriginalImage: _config.keepOriginalImage,
         watermarkConfig: _config.watermarkConfig,
         watermarkBytes: _config.watermarkConfig.imageBytes,
+        autoSave: _config.autoSaveImages,
       );
       _selectedImage = upscaled;
-      _statusMessage =
-          '放大完成 (${upscaled.params.width}x${upscaled.params.height})';
+      _statusMessage = upscaled.isUnsaved
+          ? '放大完成 (${upscaled.params.width}x${upscaled.params.height}，未保存)'
+          : '放大完成 (${upscaled.params.width}x${upscaled.params.height})';
     } catch (e) {
       _errorMessage = '放大失败: $e';
       _statusMessage = null;

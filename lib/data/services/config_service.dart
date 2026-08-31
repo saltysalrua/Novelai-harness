@@ -29,6 +29,11 @@ class AppConfig {
   final bool enableTagDictionaryAutoUpdate;
   final bool enableImagePersistence;
   final int maxPersistentImages;
+
+  /// 自动保存生成图片：开启时生图直接写入本地存储目录；
+  /// 关闭时先生成到缓存目录 (无水印)，由用户在画板右下角手动保存
+  final bool autoSaveImages;
+
   final String prefixPrompt;
   final String suffixPrompt;
   final String negativePrompt;
@@ -95,6 +100,7 @@ class AppConfig {
     this.enableTagDictionaryAutoUpdate = true,
     this.enableImagePersistence = true,
     this.maxPersistentImages = 50,
+    this.autoSaveImages = false,
     this.prefixPrompt = '',
     this.suffixPrompt = '',
     this.negativePrompt = '',
@@ -131,6 +137,7 @@ class AppConfig {
     bool? enableTagDictionaryAutoUpdate,
     bool? enableImagePersistence,
     int? maxPersistentImages,
+    bool? autoSaveImages,
     String? prefixPrompt,
     String? suffixPrompt,
     String? negativePrompt,
@@ -173,6 +180,7 @@ class AppConfig {
       enableImagePersistence:
           enableImagePersistence ?? this.enableImagePersistence,
       maxPersistentImages: maxPersistentImages ?? this.maxPersistentImages,
+      autoSaveImages: autoSaveImages ?? this.autoSaveImages,
       prefixPrompt: prefixPrompt ?? this.prefixPrompt,
       suffixPrompt: suffixPrompt ?? this.suffixPrompt,
       negativePrompt: negativePrompt ?? this.negativePrompt,
@@ -216,6 +224,7 @@ class ConfigService {
   static const String _keyEnableImagePersistence =
       'novelai_enable_image_persistence';
   static const String _keyMaxPersistentImages = 'novelai_max_persistent_images';
+  static const String _keyAutoSaveImages = 'novelai_auto_save_images';
   static const String _keyPrefix = 'novelai_prefix';
   static const String _keySuffix = 'novelai_suffix';
   static const String _keyNegative = 'novelai_negative';
@@ -307,6 +316,7 @@ class ConfigService {
         prefs.getBool(_keyEnableTagDictAutoUpdate) ?? true;
     bool enableImgPersist = prefs.getBool(_keyEnableImagePersistence) ?? true;
     int maxPersistImgs = prefs.getInt(_keyMaxPersistentImages) ?? 50;
+    bool autoSaveImgs = prefs.getBool(_keyAutoSaveImages) ?? false;
     String saveDir = prefs.getString(_keySaveDir) ?? '';
     bool stripMeta = prefs.getBool(_keyStripMetadata) ?? false;
     bool enableWm = prefs.getBool(_keyEnableWatermark) ?? false;
@@ -516,6 +526,7 @@ class ConfigService {
       enableTagDictionaryAutoUpdate: enableTagDictAutoUpdate,
       enableImagePersistence: enableImgPersist,
       maxPersistentImages: maxPersistImgs,
+      autoSaveImages: autoSaveImgs,
       prefixPrompt: prefix,
       suffixPrompt: suffix,
       negativePrompt: negative,
@@ -568,6 +579,7 @@ class ConfigService {
       config.enableImagePersistence,
     );
     await prefs.setInt(_keyMaxPersistentImages, config.maxPersistentImages);
+    await prefs.setBool(_keyAutoSaveImages, config.autoSaveImages);
     await prefs.setString(_keyPrefix, config.prefixPrompt);
     await prefs.setString(_keySuffix, config.suffixPrompt);
     await prefs.setString(_keyNegative, config.negativePrompt);

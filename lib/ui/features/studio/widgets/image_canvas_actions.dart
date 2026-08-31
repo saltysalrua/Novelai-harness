@@ -208,7 +208,9 @@ Future<bool?> _confirmClearHistory(
         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
       content: Text(
-        '确定要删除全部 ${viewModel.gallery.length} 张历史图片吗？对应本地文件会一并删除，此操作无法撤销。',
+        viewModel.autoSaveImages
+            ? '确定要清空画板历史中的 ${viewModel.gallery.length} 张图片吗？仅清空界面记录，本地已保存的图片文件会保留，此操作无法撤销。'
+            : '确定要清空历史中的 ${viewModel.gallery.length} 张图片吗？缓存中未保存的图片会被删除，已手动保存到存储目录的文件会保留，此操作无法撤销。',
         style: const TextStyle(fontSize: 12.5, color: AppTheme.charcoal),
       ),
       actions: [

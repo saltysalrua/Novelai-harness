@@ -24,6 +24,20 @@ class NovelAiRepository {
   /// 大画布参考图存子目录 (仅画布使用，不进入生图历史)
   static const String kBoardRefsDirName = 'board_refs';
 
+  /// 未保存图片缓存子目录 (自动保存关闭时生图先落这里，无水印无导出处理)
+  static const String kCacheDirName = 'cache';
+
+  /// 解析存储目录对应的缓存目录 (存储目录为空时返回空串，表示不落盘)
+  static String cacheDirOf(String saveDir) =>
+      saveDir.isEmpty ? '' : p.join(saveDir, kCacheDirName);
+
+  /// 判断文件路径是否位于缓存目录内
+  static bool isCacheFilePath(String saveDir, String filePath) {
+    final cacheDir = cacheDirOf(saveDir);
+    return cacheDir.isNotEmpty &&
+        p.equals(p.dirname(filePath), p.normalize(cacheDir));
+  }
+
   /// 从本地存储目录加载持久化的图像历史记录
   Future<List<NaiGeneratedImage>> loadPersistedHistory({
     required String saveDir,
@@ -78,7 +92,20 @@ class NovelAiRepository {
     }
 
     if (_history.length > maxImages) {
+      final removed = _history.sublist(maxImages);
       _history.removeRange(maxImages, _history.length);
+      // 超出上限的未保存缓存图片直接删除 (已保存文件保留由用户自行管理)
+      for (final img in removed) {
+        if (!img.isUnsaved) continue;
+        final path = img.localFilePath;
+        if (path == null || path.isEmpty) continue;
+        final file = File(path);
+        if (file.existsSync()) {
+          try {
+            file.deleteSync();
+          } catch (_) {}
+        }
+      }
     }
 
     try {
@@ -114,6 +141,7 @@ class NovelAiRepository {
     String? filePath,
     required NaiGenerationParams params,
     required int seed,
+    bool isUnsaved = false,
   }) {
     final image = NaiGeneratedImage(
       id: id,
@@ -123,6 +151,7 @@ class NovelAiRepository {
       createdAt: DateTime.now(),
       seed: seed,
       isOpusFree: params.isOpusFree,
+      isUnsaved: isUnsaved,
     );
     _history.insert(0, image);
     return image;
@@ -140,6 +169,7 @@ class NovelAiRepository {
     bool keepOriginalImage = false,
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
+    bool autoSave = true,
   }) async* {
     final effectiveSeed = params.seed < 0 ? generateRandomSeed() : params.seed;
 
@@ -160,12 +190,40 @@ class NovelAiRepository {
           seed: effectiveSeed,
         );
 
-        // 若需要处理落盘图片 (去元数据/加水印)
-        final needsProcessing =
-            stripMetadata ||
-            (enableWatermark &&
-                watermarkBytes != null &&
-                watermarkBytes.isNotEmpty);
+        // 自动保存关闭时：未保存图片写入缓存目录 (无水印、无导出处理)，
+        // 重启后从缓存恢复到 UI 的始终是无水印原图
+        if (!autoSave) {
+          final cachePath = _writeImageFile(
+            cacheDirOf(saveDir),
+            'nai_${timeStr}_$effectiveSeed.png',
+            rawFinal,
+          );
+
+          final generatedImage = _recordGenerated(
+            id: '${now.millisecondsSinceEpoch}_0',
+            bytes: rawFinal,
+            filePath: cachePath,
+            params: requestParams,
+            seed: effectiveSeed,
+            isUnsaved: true,
+          );
+
+          if (enablePersistence && saveDir.isNotEmpty) {
+            await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
+          }
+
+          yield NaiStreamProgress.finalResult(
+            finalImage: rawFinal,
+            generatedImage: generatedImage,
+            totalSteps: requestParams.steps,
+          );
+        } else {
+          // 若需要处理落盘图片 (去元数据/加水印)
+          final needsProcessing =
+              stripMetadata ||
+              (enableWatermark &&
+                  watermarkBytes != null &&
+                  watermarkBytes.isNotEmpty);
 
         if (needsProcessing && keepOriginalImage) {
           // 保存一份原图 (_raw.png)
@@ -210,6 +268,7 @@ class NovelAiRepository {
           generatedImage: generatedImage,
           totalSteps: requestParams.steps,
         );
+        }
       } else {
         yield progress;
       }
@@ -228,6 +287,7 @@ class NovelAiRepository {
     bool keepOriginalImage = false,
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
+    bool autoSave = true,
   }) async {
     final effectiveSeed = params.seed < 0 ? generateRandomSeed() : params.seed;
 
@@ -255,6 +315,26 @@ class NovelAiRepository {
       final baseName = imageBytesList.length == 1
           ? 'nai_${timeStr}_$effectiveSeed'
           : 'nai_${timeStr}_${effectiveSeed}_${i + 1}';
+
+      // 自动保存关闭时：未保存图片写入缓存目录 (无水印、无导出处理)
+      if (!autoSave) {
+        final cachePath = _writeImageFile(
+          cacheDirOf(saveDir),
+          '$baseName.png',
+          rawWithMeta,
+        );
+        results.add(
+          _recordGenerated(
+            id: '${now.millisecondsSinceEpoch}_$i',
+            bytes: rawWithMeta,
+            filePath: cachePath,
+            params: requestParams,
+            seed: effectiveSeed,
+            isUnsaved: true,
+          ),
+        );
+        continue;
+      }
 
       if (needsProcessing && keepOriginalImage) {
         _writeImageFile(saveDir, '${baseName}_raw.png', rawWithMeta);
@@ -303,6 +383,7 @@ class NovelAiRepository {
     bool keepOriginalImage = false,
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
+    bool autoSave = true,
   }) async {
     final upscaledBytes = await _service.upscaleImage(
       apiKey: apiKey,
@@ -319,28 +400,42 @@ class NovelAiRepository {
     final now = DateTime.now();
     final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
     final baseName = 'nai_${timeStr}_upscaled_${sourceImage.seed}';
-    final needsProcessing =
-        stripMetadata ||
-        (enableWatermark &&
-            watermarkBytes != null &&
-            watermarkBytes.isNotEmpty);
 
-    if (needsProcessing && keepOriginalImage) {
-      _writeImageFile(saveDir, '${baseName}_raw.png', upscaledBytes);
-    }
-
-    List<int> fileBytes = upscaledBytes;
-    if (needsProcessing) {
-      fileBytes = await WatermarkService.processExportImage(
-        rawBytes: Uint8List.fromList(upscaledBytes),
-        stripMetadata: stripMetadata,
-        enableWatermark: enableWatermark,
-        watermarkConfig: watermarkConfig,
-        watermarkBytes: watermarkBytes,
+    String? filePath;
+    final bool isUnsaved;
+    if (!autoSave) {
+      // 自动保存关闭时：超分结果同样先落缓存目录 (无水印、无导出处理)
+      filePath = _writeImageFile(
+        cacheDirOf(saveDir),
+        '$baseName.png',
+        upscaledBytes,
       );
-    }
+      isUnsaved = true;
+    } else {
+      final needsProcessing =
+          stripMetadata ||
+          (enableWatermark &&
+              watermarkBytes != null &&
+              watermarkBytes.isNotEmpty);
 
-    final filePath = _writeImageFile(saveDir, '$baseName.png', fileBytes);
+      if (needsProcessing && keepOriginalImage) {
+        _writeImageFile(saveDir, '${baseName}_raw.png', upscaledBytes);
+      }
+
+      List<int> fileBytes = upscaledBytes;
+      if (needsProcessing) {
+        fileBytes = await WatermarkService.processExportImage(
+          rawBytes: Uint8List.fromList(upscaledBytes),
+          stripMetadata: stripMetadata,
+          enableWatermark: enableWatermark,
+          watermarkConfig: watermarkConfig,
+          watermarkBytes: watermarkBytes,
+        );
+      }
+
+      filePath = _writeImageFile(saveDir, '$baseName.png', fileBytes);
+      isUnsaved = false;
+    }
 
     final upscaledImage = NaiGeneratedImage(
       id: '${now.millisecondsSinceEpoch}_upscaled',
@@ -352,6 +447,7 @@ class NovelAiRepository {
       isOpusFree: false,
       isImportedReference: sourceImage.isImportedReference,
       isUpscaled: true,
+      isUnsaved: isUnsaved,
     );
 
     _history.insert(0, upscaledImage);
@@ -361,6 +457,81 @@ class NovelAiRepository {
     }
 
     return upscaledImage;
+  }
+
+  /// 手动保存未保存 (缓存) 图片到本地存储目录 (自动保存关闭时画板保存按钮专用)。
+  ///
+  /// 按全局导出设置处理元数据与水印后写入存储目录，删除旧缓存文件，
+  /// 并把历史条目标记为已保存；返回更新后的图片 (未找到或无存储目录时返回 null)。
+  Future<NaiGeneratedImage?> saveUnsavedImageToDisk({
+    required String imageId,
+    required String saveDir,
+    bool enablePersistence = true,
+    int maxImages = 50,
+    bool stripMetadata = false,
+    bool enableWatermark = false,
+    bool keepOriginalImage = false,
+    WatermarkConfig? watermarkConfig,
+    Uint8List? watermarkBytes,
+  }) async {
+    final index = _history.indexWhere((img) => img.id == imageId);
+    if (index < 0) return null;
+
+    final image = _history[index];
+    if (!image.isUnsaved) return image;
+    if (saveDir.isEmpty) return null;
+
+    final now = DateTime.now();
+    final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
+    final baseName = 'nai_${timeStr}_${image.seed}';
+    final rawBytes = Uint8List.fromList(image.bytes);
+
+    final needsProcessing =
+        stripMetadata ||
+        (enableWatermark &&
+            watermarkBytes != null &&
+            watermarkBytes.isNotEmpty);
+
+    if (needsProcessing && keepOriginalImage) {
+      // 保存一份无处理原图 (_raw.png)
+      _writeImageFile(saveDir, '${baseName}_raw.png', rawBytes);
+    }
+
+    List<int> fileBytes = rawBytes;
+    if (needsProcessing) {
+      fileBytes = await WatermarkService.processExportImage(
+        rawBytes: rawBytes,
+        stripMetadata: stripMetadata,
+        enableWatermark: enableWatermark,
+        watermarkConfig: watermarkConfig,
+        watermarkBytes: watermarkBytes,
+      );
+    }
+
+    final filePath = _writeImageFile(saveDir, '$baseName.png', fileBytes);
+    if (filePath == null) return null;
+
+    // 删除旧缓存文件 (图片已正式落盘保存)
+    final oldPath = image.localFilePath;
+    if (oldPath != null && oldPath.isNotEmpty) {
+      final oldFile = File(oldPath);
+      if (oldFile.existsSync()) {
+        try {
+          oldFile.deleteSync();
+        } catch (_) {}
+      }
+    }
+
+    final updated = image.copyWith(
+      localFilePath: filePath,
+      isUnsaved: false,
+    );
+    _history[index] = updated;
+
+    if (enablePersistence) {
+      await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
+    }
+    return updated;
   }
 
   /// 查询 Danbooru Tag 建议
@@ -488,30 +659,18 @@ class NovelAiRepository {
     }
   }
 
-  /// 一键清空全部历史图片：删除每张图的本地文件 (含 _raw 原图副本)
-  /// 并移除持久化索引 (右键菜单「清空历史记录」专用)
+  /// 一键清空全部历史图片：清空内存历史并移除持久化索引。
+  ///
+  /// [autoSave] 为 true (自动保存开启) 时仅清空界面记录，本地已保存的
+  /// 图片文件全部保留；为 false (手动保存模式) 时一并删除缓存目录中的
+  /// 未保存图片 (右键菜单「清空历史记录」专用)。
   Future<void> clearAllHistory({
     String? saveDir,
     bool enablePersistence = true,
+    bool autoSave = false,
   }) async {
-    for (final img in _history) {
-      final path = img.localFilePath;
-      if (path == null || path.isEmpty) continue;
-      final file = File(path);
-      if (file.existsSync()) {
-        try {
-          file.deleteSync();
-        } catch (_) {}
-      }
-      // keepOriginalImage 开启时同目录还会存一份 _raw.png 原图副本
-      final rawFile = File(
-        '${path.substring(0, path.lastIndexOf('.'))}_raw.png',
-      );
-      if (rawFile.existsSync()) {
-        try {
-          rawFile.deleteSync();
-        } catch (_) {}
-      }
+    if (saveDir != null && saveDir.isNotEmpty && !autoSave) {
+      await _deleteIfExists(Directory(cacheDirOf(saveDir)));
     }
     clearHistory(saveDir: (enablePersistence ? saveDir : null));
   }

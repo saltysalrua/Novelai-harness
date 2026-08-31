@@ -239,6 +239,18 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                   ),
                 ),
 
+              // 4.5 右下角手动保存按钮 (当前图为未保存缓存图时展示；
+              //     含自动保存开启后残留的旧未保存图，避免无处可存)
+              if (selectedImage != null &&
+                  selectedImage.isUnsaved &&
+                  !isEditingPositions &&
+                  !isAnnotating)
+                Positioned(
+                  bottom: 18,
+                  right: 18,
+                  child: CanvasSaveButton(viewModel: viewModel),
+                ),
+
               // 5. 右上角浮动 History 展开按键 (仅在收回状态且非编辑/非批注模式时显示)
               if (!_isHistoryOpen && !isEditingPositions && !isAnnotating)
                 Positioned(

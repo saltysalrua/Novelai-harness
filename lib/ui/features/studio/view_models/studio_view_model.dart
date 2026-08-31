@@ -384,6 +384,9 @@ mixin _StudioCore on ChangeNotifier {
     required bool wasViewingLatest,
   });
 
+  /// 手动保存当前选中的未保存 (缓存) 图片到本地存储目录
+  Future<bool> saveCurrentImageToDisk();
+
   /// 强行中止当前对话生成与工具执行
   Future<void> abortChat();
 
@@ -835,6 +838,7 @@ class StudioViewModel extends ChangeNotifier
     await _repository.clearAllHistory(
       saveDir: _config.saveDirectory,
       enablePersistence: _config.enableImagePersistence,
+      autoSave: _config.autoSaveImages,
     );
 
     _selectedImage = null;
@@ -880,6 +884,7 @@ class StudioViewModel extends ChangeNotifier
 
   bool get stripMetadata => _config.stripMetadata;
   bool get enableWatermark => _config.enableWatermark;
+  bool get autoSaveImages => _config.autoSaveImages;
   bool get keepOriginalImage => _config.keepOriginalImage;
   WatermarkConfig get watermarkConfig => _config.watermarkConfig;
   bool get isEditingWatermarkPosition => _isEditingWatermarkPosition;

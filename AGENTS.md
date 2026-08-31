@@ -285,6 +285,16 @@ Novelai-harness/
 - **智能选位** (`autoPosition`)：降采样 (≤480) 后算亮度梯度能量积分图，32x32 滑窗找能量最低 (细节/边缘最少) 的放置区；`StudioViewModel.applySmartWatermarkPosition` 基于当前画板图一键预览选位。
 - **盲水印** (Koch-Zhao DCT)：`_blindPairs` 中频系数对 + xorshift32 PRNG 选对，载荷 `magic('NHWM')+len(2B)+CRC16(2B)+UTF-8 文本` 循环嵌入全图 8x8 块 (≥2 倍容量冗余)；提取时前 64 块直读头部得真实长度，再按 i, i+N, i+2N... 多数投票还原；强度 1~5 控制系数对间距 (10+12s)。UI 入口：WatermarkPadPicker 盲水印区 (开关/文本/强度) + MetadataReaderDialog「提取盲水印」按钮 (注意服务返回 null=无水印，UI 需 `text ?? ''` 与未提取区分)。
 
+### 3.3d 自动保存开关与未保存图片缓存 (2026-08 增)
+
+全局设置 `AppConfig.autoSaveImages` (默认**关**)：
+
+- **开启**：维持旧行为，生图直接按导出设置 (元数据/水印) 写入存储目录根。
+- **关闭**：生图/超分结果写入 `<saveDir>/cache/` 子目录 (`NovelAiRepository.kCacheDirName`)，**无水印无导出处理**，图片带 `isUnsaved: true` 标记 (历史缩略图显示「未保存」角标)；重启后从索引恢复的仍是干净原图。持久化索引仍是根目录单一的 `image_history.json` (含缓存与已保存条目，靠 isUnsaved 字段区分)。
+- **手动保存**：画板右下角 `CanvasSaveButton` (当前选中图 isUnsaved 时显示) → `StudioViewModel.saveCurrentImageToDisk` → `NovelAiRepository.saveUnsavedImageToDisk`：按导出设置处理 (含 keepOriginalImage 的 `_raw.png` 副本) 写入存储目录根、删除旧缓存文件、更新历史条目为已保存。
+- **上限淘汰**：`savePersistedHistory` 裁剪历史时，被裁掉的未保存条目直接删除其缓存文件 ("超出上限直接删掉")；已保存文件永不自动删除。
+- **清空历史语义**：`clearAllHistory(autoSave:)` — 自动保存**开启**时仅清空 UI 与索引 (本地文件全部保留)；**关闭**时一并删除整个 cache 子目录 (已保存文件保留)。
+
 ### 3.4 NovelAI V5 自然语言提示词架构
 
 - **连续自然语言散文**：单人或单场景使用连贯英文散文，禁止堆叠标签，禁止使用 `{}`、`()` 权重修饰符。

@@ -164,6 +164,7 @@ class NovelAiGenerateTool extends AgentTool {
           saveDir: config.saveDirectory,
           enablePersistence: config.enableImagePersistence,
           maxImages: config.maxPersistentImages,
+          autoSave: config.autoSaveImages,
         );
 
         await for (final p in stream) {
@@ -179,6 +180,7 @@ class NovelAiGenerateTool extends AgentTool {
           saveDir: config.saveDirectory,
           enablePersistence: config.enableImagePersistence,
           maxImages: config.maxPersistentImages,
+          autoSave: config.autoSaveImages,
         );
         if (generatedList.isNotEmpty) {
           resultImage = generatedList.first;
@@ -202,7 +204,9 @@ class NovelAiGenerateTool extends AgentTool {
 
       final resultBuffer = StringBuffer();
       resultBuffer.writeln('生图完成：');
-      if (image.localFilePath != null) {
+      if (image.isUnsaved) {
+        resultBuffer.writeln('状态: 未保存 (已进入缓存，可在画板右下角手动保存)');
+      } else if (image.localFilePath != null) {
         resultBuffer.writeln('保存路径: ${image.localFilePath}');
       }
       resultBuffer.writeln('模型: ${params.model.label}');
@@ -349,6 +353,7 @@ class NovelAiUpscaleTool extends AgentTool {
         saveDir: config.saveDirectory,
         enablePersistence: config.enableImagePersistence,
         maxImages: config.maxPersistentImages,
+        autoSave: config.autoSaveImages,
       );
 
       _onUpscaled?.call(upscaled);
@@ -356,12 +361,15 @@ class NovelAiUpscaleTool extends AgentTool {
       final costSuffix = dims == null
           ? ''
           : '\n点数消耗: ${AnlasCalculator.describeCost(upscaleCost)}';
+      final saveSuffix = upscaled.isUnsaved
+          ? '\n状态: 未保存 (已进入缓存，可在画板右下角手动保存)'
+          : '\n保存路径: ${upscaled.localFilePath ?? '内存中'}';
 
       return ToolResult(
         toolCallId: toolCallId,
         content:
-            '图像超分放大完成 (${upscaled.params.width}x${upscaled.params.height})\n'
-            '保存路径: ${upscaled.localFilePath ?? '内存中'}'
+            '图像超分放大完成 (${upscaled.params.width}x${upscaled.params.height})'
+            '$saveSuffix'
             '$costSuffix',
       );
     } catch (e) {

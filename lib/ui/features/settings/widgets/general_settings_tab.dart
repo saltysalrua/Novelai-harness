@@ -19,7 +19,8 @@ class GeneralSettingsDraft {
       showTagCategoryColors = config.showTagCategoryColors,
       enableTagDictionaryAutoUpdate = config.enableTagDictionaryAutoUpdate,
       enableImagePersistence = config.enableImagePersistence,
-      maxPersistentImages = config.maxPersistentImages;
+      maxPersistentImages = config.maxPersistentImages,
+      autoSaveImages = config.autoSaveImages;
 
   final TextEditingController naiKeyController;
   final TextEditingController saveDirController;
@@ -31,6 +32,7 @@ class GeneralSettingsDraft {
   bool enableTagDictionaryAutoUpdate;
   bool enableImagePersistence;
   int maxPersistentImages;
+  bool autoSaveImages;
 
   void dispose() {
     naiKeyController.dispose();
@@ -152,6 +154,17 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   onPressed: _pickDirectory,
                 ),
               ],
+            ),
+          ),
+          SettingsCard(
+            title: '自动保存生成图片',
+            subtitle: _draft.autoSaveImages
+                ? '生成图片自动写入本地存储目录 (按导出设置处理元数据与水印)'
+                : '生成图片先存入缓存目录 (无水印)，在画板右下角点击保存按钮手动保存；超出历史上限的缓存图片自动删除',
+            control: Switch(
+              value: _draft.autoSaveImages,
+              activeThumbColor: AppTheme.notionBlue,
+              onChanged: (val) => setState(() => _draft.autoSaveImages = val),
             ),
           ),
           SettingsCard(

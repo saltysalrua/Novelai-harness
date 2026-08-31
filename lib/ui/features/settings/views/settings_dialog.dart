@@ -84,6 +84,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
           _generalDraft.enableTagDictionaryAutoUpdate,
       enableImagePersistence: _generalDraft.enableImagePersistence,
       maxPersistentImages: _generalDraft.maxPersistentImages,
+      autoSaveImages: _generalDraft.autoSaveImages,
       llmProviders: _modelsDraft.providers,
       activeLlmProviderId: _modelsDraft.selectedProviderId,
       presets: _presetsDraft.presets,
