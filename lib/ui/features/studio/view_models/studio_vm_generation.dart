@@ -4,10 +4,10 @@ part of 'studio_view_model.dart';
 mixin _StudioGenerationMixin on _StudioCore {
   /// 生成完成后统一落图 (手动生成与 Agent 工具共用)。
   ///
-  /// [wasViewingLatest] 由调用方决定取值时机：手动生图在发起前捕获，但
-  /// 完成时会叠加当时的实时 isViewingLatest (用户生成期间滚回顶部看预览时
-  /// 视为正在看最新，避免画面已跳到新图却残留“有新图”横幅与旧选中框)；
-  /// Agent 工具在完成时刻取当前值。
+  /// [wasViewingLatest] 由调用方决定取值时机：手动生图与 Agent 工具
+  /// (经 onBeforeGenerate 回调) 都在发起前捕获，但完成时会叠加当时的
+  /// 实时 isViewingLatest (用户生成期间滚回顶部看预览时视为正在看最新，
+  /// 避免画面已跳到新图却残留“有新图”横幅与旧选中框)。
   @override
   void _applyGeneratedImage(
     NaiGeneratedImage image, {

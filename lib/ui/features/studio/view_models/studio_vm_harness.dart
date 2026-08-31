@@ -10,11 +10,15 @@ mixin _StudioHarnessMixin on _StudioCore {
 
     // 重置工具注册表并注册全部内置工具
     _toolRegistry.clear();
+    // Agent 生图发起前的"是否正在看最新图"快照 (与手动生图同语义，
+    // 完成时叠加实时 isViewingLatest，避免新图已入历史后误报"有新图"横幅)
+    var agentWasViewingLatest = false;
     _toolRegistry.register(
       NovelAiGenerateTool(
         repository: _repository,
         configService: _configService,
         getCurrentParams: () => _params,
+        onBeforeGenerate: () => agentWasViewingLatest = isViewingLatest,
         onProgress: (progress) {
           if (progress.isFinal) {
             _livePreviewBytes = null;
@@ -33,7 +37,11 @@ mixin _StudioHarnessMixin on _StudioCore {
         onGenerated: (image) {
           _isGenerating = false;
           _livePreviewBytes = null;
-          _applyGeneratedImage(image, wasViewingLatest: isViewingLatest);
+          _applyGeneratedImage(
+            image,
+            // 发起前在看最新，或生成期间滚回顶部看预览，都视为正在看最新
+            wasViewingLatest: agentWasViewingLatest || isViewingLatest,
+          );
           notifyListeners();
           refreshAccountInfo();
         },

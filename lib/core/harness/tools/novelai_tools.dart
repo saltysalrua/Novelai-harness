@@ -12,6 +12,10 @@ typedef OnImageGeneratedCallback = void Function(NaiGeneratedImage image);
 typedef OnStreamProgressCallback = void Function(NaiStreamProgress progress);
 typedef OnParamsUsedCallback = void Function(NaiGenerationParams params);
 
+/// 回调类型：生图请求真正发出前通知 UI
+/// (供工作台在发起前捕获"是否正在看最新图"快照，与手动生图同语义)
+typedef OnBeforeGenerateCallback = void Function();
+
 /// 回调类型：获取当前已缓存的账号信息 (可能为 null，表示未加载)
 typedef CurrentAccountInfoGetter = NaiAccountInfo? Function();
 
@@ -61,6 +65,7 @@ class NovelAiGenerateTool extends AgentTool {
   final OnStreamProgressCallback? onProgress;
   final OnConfirmPaidGenerationCallback? onConfirmPaidGeneration;
   final CurrentAccountInfoGetter? getAccountInfo;
+  final OnBeforeGenerateCallback? onBeforeGenerate;
 
   NovelAiGenerateTool({
     required this.repository,
@@ -70,6 +75,7 @@ class NovelAiGenerateTool extends AgentTool {
     this.onProgress,
     this.onConfirmPaidGeneration,
     this.getAccountInfo,
+    this.onBeforeGenerate,
   }) : super(
          name: 'novelai_generate',
          label: '图像生成',
@@ -146,6 +152,10 @@ class NovelAiGenerateTool extends AgentTool {
       }
 
       NaiGeneratedImage? resultImage;
+
+      // 发起前通知 UI 捕获"是否正在看最新图"快照
+      // (此时新图尚未入历史，isViewingLatest 反映的是生成前的真实浏览位置)
+      onBeforeGenerate?.call();
 
       if (config.enableStreamPreview) {
         final stream = repository.generateStream(
