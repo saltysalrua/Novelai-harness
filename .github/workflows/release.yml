@@ -4,7 +4,7 @@ name: Release
 # 若 pubspec 里的 version 没有新增（对应 Release 已存在），流程会在检查阶段直接跳过。
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths: ['pubspec.yaml']
   workflow_dispatch:
 
