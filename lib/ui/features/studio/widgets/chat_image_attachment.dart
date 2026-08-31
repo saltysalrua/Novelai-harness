@@ -55,12 +55,15 @@ Future<AgentMessageImage?> processImageAttachment(Uint8List rawBytes) async {
 }
 
 /// 对话图片附件缩略图：输入栏待发送预览与用户消息历史渲染共用。
-/// 传入 [onRemove] 时右上角叠加关闭按钮。
+/// 传入 [onRemove] 时右上角叠加关闭按钮；传入 [onTap] 时可点击 (历史消息中放大查看)。
 class ChatImageThumbnail extends StatelessWidget {
   final Uint8List bytes;
 
   /// 点击右上角关闭按钮移除附件 (仅输入栏待发送预览使用)
   final VoidCallback? onRemove;
+
+  /// 点击缩略图本体 (历史消息中点开全屏大图)
+  final VoidCallback? onTap;
 
   final double size;
 
@@ -68,12 +71,13 @@ class ChatImageThumbnail extends StatelessWidget {
     super.key,
     required this.bytes,
     this.onRemove,
+    this.onTap,
     this.size = 64,
   });
 
   @override
   Widget build(BuildContext context) {
-    final thumb = ClipRRect(
+    Widget thumb = ClipRRect(
       borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
       child: Image.memory(
         bytes,
@@ -83,6 +87,16 @@ class ChatImageThumbnail extends StatelessWidget {
         gaplessPlayback: true,
       ),
     );
+    final tap = onTap;
+    if (tap != null) {
+      thumb = GestureDetector(
+        onTap: tap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.zoomIn,
+          child: thumb,
+        ),
+      );
+    }
     final remove = onRemove;
     if (remove == null) return thumb;
 

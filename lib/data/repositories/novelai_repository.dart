@@ -490,6 +490,36 @@ class NovelAiRepository {
     }
   }
 
+  /// 一键清空全部历史图片：删除每张图的本地文件 (含 _raw 原图副本)
+  /// 并移除持久化索引 (右键菜单「清空历史记录」专用)
+  Future<void> clearAllHistory({
+    String? saveDir,
+    bool enablePersistence = true,
+  }) async {
+    for (final img in _history) {
+      final path = img.localFilePath;
+      if (path == null || path.isEmpty) continue;
+      final file = File(path);
+      if (file.existsSync()) {
+        try {
+          file.deleteSync();
+        } catch (_) {}
+      }
+      // keepOriginalImage 开启时同目录还会存一份 _raw.png 原图副本
+      final rawFile = File(
+        '${path.substring(0, path.lastIndexOf('.'))}_raw.png',
+      );
+      if (rawFile.existsSync()) {
+        try {
+          rawFile.deleteSync();
+        } catch (_) {}
+      }
+    }
+    clearHistory(
+      saveDir: (enablePersistence ? saveDir : null),
+    );
+  }
+
   // ==================== 自由大画布布局持久化 ====================
 
   /// 将大画布布局 (节点位置尺寸/便利贴/连线/视口) 写入 canvas_board.json

@@ -7,6 +7,7 @@ import '../../../../core/harness/types.dart';
 import '../../../core/theme/app_theme.dart';
 import 'agent_chat_blocks.dart';
 import 'chat_image_attachment.dart';
+import 'image_lightbox.dart';
 
 /// 单条对话消息的 Pi 风格平铺渲染入口
 /// (system 隐藏 / user 纯文本 / assistant Markdown / tool 结果块)
@@ -91,6 +92,10 @@ class UserMessageRow extends StatelessWidget {
                     ChatImageThumbnail(
                       bytes: Uint8List.fromList(base64Decode(img.base64)),
                       size: 72,
+                      onTap: () => showImageLightboxBytes(
+                        context,
+                        Uint8List.fromList(base64Decode(img.base64)),
+                      ),
                     ),
                 ],
               ),
@@ -290,18 +295,27 @@ class ToolResultBlock extends StatelessWidget {
             ),
           ),
           // 工具结果附带的图片 (如查看画板图片工具) 不藏在折叠块里，
-          // 单独平铺在工具结果下方，收起时也直接可见
+          // 单独平铺在工具结果下方，收起时也直接可见；点击全屏放大查看
           if (message.imageBase64 != null && message.imageBase64!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 2),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                child: Image.memory(
-                  base64Decode(message.imageBase64!),
-                  width: double.infinity,
-                  fit: BoxFit.contain,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              child: GestureDetector(
+                onTap: () => showImageLightboxBytes(
+                  context,
+                  Uint8List.fromList(base64Decode(message.imageBase64!)),
+                ),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.zoomIn,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    child: Image.memory(
+                      base64Decode(message.imageBase64!),
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
                 ),
               ),
             ),

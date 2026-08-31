@@ -1,22 +1,28 @@
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Uint8List;
 import '../../../../data/models/novelai_models.dart';
 
 /// 全屏大图查看器：自由平移缩放画板 (滚轮纯缩放、不随鼠标偏移) + 顶部关闭按钮
 void showImageLightbox(BuildContext context, NaiGeneratedImage image) {
+  showImageLightboxBytes(context, image.uint8Bytes);
+}
+
+/// 裸字节版全屏大图查看器 (对话卡图片附件/工具结果图等无参数模型场景共用)
+void showImageLightboxBytes(BuildContext context, Uint8List bytes) {
   showDialog(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.9),
     barrierDismissible: true,
-    builder: (ctx) => ImageLightboxDialog(image: image),
+    builder: (ctx) => ImageLightboxDialog(bytes: bytes),
   );
 }
 
 class ImageLightboxDialog extends StatefulWidget {
-  final NaiGeneratedImage image;
+  final Uint8List bytes;
 
-  const ImageLightboxDialog({super.key, required this.image});
+  const ImageLightboxDialog({super.key, required this.bytes});
 
   @override
   State<ImageLightboxDialog> createState() => _ImageLightboxDialogState();
@@ -118,7 +124,7 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
                       boundaryMargin: const EdgeInsets.all(double.infinity),
                       child: Center(
                         child: Image.memory(
-                          widget.image.uint8Bytes,
+                          widget.bytes,
                           fit: BoxFit.contain,
                           gaplessPlayback: true,
                         ),

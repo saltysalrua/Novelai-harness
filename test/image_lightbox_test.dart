@@ -69,7 +69,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ImageLightboxDialog(image: testImage),
+          body: ImageLightboxDialog(bytes: testImage.uint8Bytes),
         ),
       ),
     );
@@ -111,7 +111,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ImageLightboxDialog(image: testImage),
+          body: ImageLightboxDialog(bytes: testImage.uint8Bytes),
         ),
       ),
     );

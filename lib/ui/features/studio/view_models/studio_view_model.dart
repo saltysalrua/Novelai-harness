@@ -801,6 +801,61 @@ class StudioViewModel extends ChangeNotifier
     notifyListeners();
   }
 
+  /// 一键清空全部历史图片 (右键菜单)：删除本地文件与持久化索引，
+  /// 同步移除大画布上来自历史的图片节点 (保留外部导入的参考卡片与自由便利贴，
+  /// 指向已删节点的连线/便签连接同步解绑)
+  Future<void> clearImageHistory() async {
+    if (gallery.isEmpty) return;
+
+    final historyIds = gallery.map((img) => img.id).toSet();
+    await _repository.clearAllHistory(
+      saveDir: _config.saveDirectory,
+      enablePersistence: _config.enableImagePersistence,
+    );
+
+    _selectedImage = null;
+    _hasUnseenLatest = false;
+
+    final bData = _boardData;
+    if (bData != null) {
+      final remainingNodes =
+          bData.imageNodes
+              .where((n) => !historyIds.contains(n.image.id))
+              .toList();
+      final removedNodeIds =
+          bData.imageNodes
+              .where((n) => historyIds.contains(n.image.id))
+              .map((n) => n.id)
+              .toSet();
+      if (removedNodeIds.isNotEmpty) {
+        final updatedNotes =
+            bData.noteNodes.map((n) {
+              if (removedNodeIds.contains(n.targetImageId)) {
+                return n.copyWith(clearConnection: true);
+              }
+              return n;
+            }).toList();
+        final updatedLinks =
+            bData.imageLinks
+                .where(
+                  (l) =>
+                      !removedNodeIds.contains(l.sourceImageId) &&
+                      !removedNodeIds.contains(l.targetImageId),
+                )
+                .toList();
+        _boardData = bData.copyWith(
+          imageNodes: remainingNodes,
+          noteNodes: updatedNotes,
+          imageLinks: updatedLinks,
+        );
+        _scheduleBoardSave();
+      }
+    }
+
+    _statusMessage = '已清空历史记录';
+    notifyListeners();
+  }
+
   // ------------------------- 元数据与水印设置 -------------------------
 
   bool get stripMetadata => _config.stripMetadata;

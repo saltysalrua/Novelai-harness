@@ -204,7 +204,9 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       offset: defaultPos,
       width: displayW,
       height: displayH,
-      isMain: curData.imageNodes.isEmpty,
+      // 参考卡片永远不占主图位：主图节点只由 _initBoardData 依据当前
+      // 选中/生成图创建，画布无主图时也保持纯参考布局
+      isMain: false,
       annotations: image.annotations,
     );
 
@@ -741,9 +743,31 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     if (_isAnnotatingImage) {
       addImageNodeToBoard(refImage, position: dropPosition);
     } else {
-      _selectedImage = refImage;
+      // 进入批注模式展示参考图，但绝不占据主图位、不劫持当前选中图：
+      // 主图仍为当前选中/最新生成图 (无历史时画布仅含参考卡片)，
+      // 导入的外部图只作为纯参考卡片落位
       _isAnnotatingImage = true;
-      _initBoardData();
+      if (_isEditingCharacterPositions) {
+        _isEditingCharacterPositions = false;
+      }
+      if (_isEditingWatermarkPosition) {
+        _isEditingWatermarkPosition = false;
+      }
+      final bData = _boardData;
+      final mainImg =
+          _selectedImage ??
+          (_repository.history.isNotEmpty ? _repository.history.first : null);
+      final currentMainId = bData?.imageNodes
+          .where((n) => n.isMain)
+          .firstOrNull
+          ?.image
+          .id;
+      final needsRebuild =
+          bData == null || mainImg == null || currentMainId != mainImg.id;
+      if (needsRebuild) {
+        _initBoardData();
+      }
+      addImageNodeToBoard(refImage, position: dropPosition);
     }
     notifyListeners();
     return refImage;

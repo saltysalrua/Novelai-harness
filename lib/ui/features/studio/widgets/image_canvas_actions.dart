@@ -6,6 +6,7 @@ import 'package:pasteboard/pasteboard.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_lightbox.dart';
@@ -172,6 +173,58 @@ void showImageContextMenu(
           }
         },
       ),
+      ContextMenuItem(
+        icon: Icons.delete_sweep_outlined,
+        label: '清空历史记录',
+        isDestructive: true,
+        onTap: () async {
+          final ok = await _confirmClearHistory(context, viewModel);
+          if (ok != true) return;
+          await viewModel.clearImageHistory();
+          if (context.mounted) {
+            showCanvasSnackBar(context, '已清空历史记录');
+          }
+        },
+      ),
     ],
+  );
+}
+
+/// 清空全部历史前的确认弹窗 (删除本地文件且无法撤销)
+Future<bool?> _confirmClearHistory(
+  BuildContext context,
+  StudioViewModel viewModel,
+) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppTheme.pureWhite,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        side: const BorderSide(color: AppTheme.border),
+      ),
+      title: const Text(
+        '清空历史记录',
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      content: Text(
+        '确定要删除全部 ${viewModel.gallery.length} 张历史图片吗？对应本地文件会一并删除，此操作无法撤销。',
+        style: const TextStyle(fontSize: 12.5, color: AppTheme.charcoal),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('取消'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.coral,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('清空'),
+        ),
+      ],
+    ),
   );
 }
