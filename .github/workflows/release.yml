@@ -132,7 +132,7 @@ jobs:
               | grep -viE \
                 -e '^(feat|fix|perf|refactor|docs)(\(|:)' \
                 -e '^(test|chore|build|ci|style)(\(|:)' \
-              | awk -F'|' '{printf "- %s (%s)\n", $1, $NF}')
+              | awk -F'|' '{printf "- %s (%s)\n", $1, $NF}' || true)
             if [ -n "$OTHERS" ]; then
               echo "### 其他"
               echo ""
