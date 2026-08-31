@@ -81,7 +81,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   Uint8List? _previewBytes;
   bool _isSaving = false;
 
-  bool get _isEdit => widget.initialEntry != null;
+  bool get _isEdit =>
+      widget.initialEntry != null && widget.initialEntry!.id.trim().isNotEmpty;
 
   bool get _isCharacterCategory => PromptComboEntry.isCharacterCategory(
     _isCustomCategory ? _customCategoryController.text : _selectedCategory,

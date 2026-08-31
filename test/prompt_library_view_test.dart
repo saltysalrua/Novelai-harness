@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/views/studio_view.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/character_card_item.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_combo_card.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_combo_edit_dialog.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_library_view.dart';
@@ -191,6 +193,83 @@ void main() {
           viewModel.params.characterPrompts.last.prompt,
           contains('hatsune miku'),
         );
+      },
+    );
+
+    testWidgets(
+      'CharacterCardItem has save to library button and opens prefilled dialog',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final char = NaiCharacterPrompt.create(
+          name: '月见八千代',
+          prompt: 'twin tails, hair rings, kimono',
+          negativePrompt: 'blurry, bad hands',
+        );
+
+        await tester.pumpWidget(
+          buildTestApp(
+            CharacterCardItem(
+              character: char,
+              index: 0,
+              enabledTotal: 1,
+              viewModel: viewModel,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 验证卡片头部有保存到词库按钮
+        final saveBtn = find.byTooltip('保存角色到词库');
+        expect(saveBtn, findsOneWidget);
+
+        // 点击保存到词库
+        await tester.tap(saveBtn);
+        await tester.pumpAndSettle();
+
+        // 应该弹出新建词组合弹窗，并且预填充角色的名称与提示词
+        final dialogFinder = find.byType(PromptComboEditDialog);
+        expect(dialogFinder, findsOneWidget);
+        expect(
+          find.descendant(of: dialogFinder, matching: find.text('月见八千代')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: dialogFinder,
+            matching: find.text('twin tails, hair rings, kimono'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: dialogFinder,
+            matching: find.text('blurry, bad hands'),
+          ),
+          findsOneWidget,
+        );
+
+        // 点击保存并在 runAsync 中等待 I/O 完成
+        final submitBtn = find.widgetWithText(ElevatedButton, '创建词组合');
+        expect(submitBtn, findsOneWidget);
+        await tester.runAsync(() async {
+          await tester.tap(submitBtn);
+          await Future.delayed(const Duration(milliseconds: 300));
+        });
+        await tester.pump();
+
+        // 验证词库中已新增该角色条目
+        final entry = viewModel.promptLibraryEntries.firstWhere(
+          (e) => e.title == '月见八千代',
+        );
+        expect(entry.prompt, 'twin tails, hair rings, kimono');
+        expect(entry.negativePrompt, 'blurry, bad hands');
+        expect(entry.category, '角色');
       },
     );
   });

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/models/prompt_library_models.dart';
+import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
 import 'character_position_canvas_view.dart';
 import 'pill_widgets.dart';
+import 'prompt_combo_edit_dialog.dart';
 import 'prompt_resize_handle.dart';
 import 'rich_prompt_text_controller.dart';
 
@@ -73,6 +75,26 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
 
   void _update(NaiCharacterPrompt updated) {
     widget.viewModel.updateCharacterPrompt(updated);
+  }
+
+  void _saveToLibrary() {
+    final character = widget.character;
+    final title = character.name.trim().isNotEmpty
+        ? character.name.trim()
+        : '角色 ${widget.index + 1}';
+    PromptComboEditDialog.show(
+      context,
+      viewModel: widget.viewModel,
+      initialEntry: PromptComboEntry(
+        id: '',
+        title: title,
+        category: PromptComboCategories.character,
+        prompt: character.prompt.trim(),
+        negativePrompt: character.negativePrompt.trim(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
   }
 
   /// 位置标签：AI 自动布局时显示 AI；自定义定位在 V5 显示百分比 (如 50%, 50%)，在 V4/V4.5 显示网格参考 (如 B2)
@@ -220,6 +242,8 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                         ),
                       ),
                       const SizedBox(width: 4),
+                      _SaveToLibraryIcon(onTap: _saveToLibrary),
+                      const SizedBox(width: 2),
                       _DeleteIcon(
                         onTap: () =>
                             viewModel.removeCharacterPrompt(character.id),
@@ -391,6 +415,32 @@ class _PositionPill extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 保存到词库图标按钮
+class _SaveToLibraryIcon extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _SaveToLibraryIcon({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '保存角色到词库',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: const Padding(
+          padding: EdgeInsets.all(5),
+          child: Icon(
+            Icons.bookmark_add_outlined,
+            size: 15,
+            color: AppTheme.textMuted,
           ),
         ),
       ),
