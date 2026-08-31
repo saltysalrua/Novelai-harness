@@ -150,6 +150,7 @@ class PromptComboCard extends StatelessWidget {
                           File(combo.previewImagePath!),
                           fit: BoxFit.cover,
                           alignment: Alignment.topCenter,
+                          gaplessPlayback: true,
                           errorBuilder: (_, _, _) =>
                               _buildPlaceholderBanner(isChar),
                         )

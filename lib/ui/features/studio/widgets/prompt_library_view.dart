@@ -278,7 +278,13 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     final filtered = _filterEntries(allEntries);
 
     return Container(
-      color: AppTheme.background,
+      margin: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: AppTheme.pureWhite,
+        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        border: Border.all(color: AppTheme.border),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -286,19 +292,27 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
           _buildTopBar(allEntries.length),
           const Divider(height: 1, color: AppTheme.border),
 
-          // 2. 主体区：左侧分类标签栏 + 右侧词组合网格
+          // 2. 主体区：左侧分类标签栏 + 竖向分割线 + 右侧词组合网格
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 侧边分类标签栏
-                _buildCategorySidebar(categories, allEntries),
+                // 侧边分类标签栏 (固定宽度 200)
+                SizedBox(
+                  width: 200,
+                  child: _buildCategorySidebar(categories, allEntries),
+                ),
+
+                const VerticalDivider(width: 1, color: AppTheme.border),
 
                 // 右侧词组合网格
                 Expanded(
-                  child: filtered.isEmpty
-                      ? _buildEmptyState(allEntries.isEmpty)
-                      : _buildGrid(filtered),
+                  child: Container(
+                    color: AppTheme.surfaceElevated,
+                    child: filtered.isEmpty
+                        ? _buildEmptyState(allEntries.isEmpty)
+                        : _buildGrid(filtered),
+                  ),
                 ),
               ],
             ),
@@ -501,18 +515,12 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     List<PromptComboEntry> allEntries,
   ) {
     return Container(
-      width: 190,
-      margin: const EdgeInsets.fromLTRB(12, 12, 0, 12),
-      decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        border: Border.all(color: AppTheme.border),
-      ),
+      color: AppTheme.pureWhite,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
             child: Row(
               children: [
                 const Icon(
@@ -553,95 +561,102 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                     : allEntries.where((e) => e.category.trim() == cat).length;
                 final icon = _getCategoryIcon(cat);
 
+                final activeColor =
+                    isChar ? AppTheme.coral : AppTheme.notionBlue;
+                final activeBgColor =
+                    isChar ? const Color(0xFFFFECEB) : AppTheme.skyTint;
+                final activeBorderColor = isChar
+                    ? AppTheme.coral.withValues(alpha: 0.35)
+                    : AppTheme.notionBlue.withValues(alpha: 0.35);
+
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: InkWell(
-                    onTap: () => setState(() => _selectedCategory = cat),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 120),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? (isChar
-                                  ? const Color(0xFFFFECEB)
-                                  : AppTheme.skyTint)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusButton,
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => setState(() => _selectedCategory = cat),
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusButton),
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      hoverColor: isSelected
+                          ? Colors.transparent
+                          : AppTheme.surfaceMuted.withValues(alpha: 0.6),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 100),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
                         ),
-                        border: Border.all(
-                          color: isSelected
-                              ? (isChar
-                                    ? AppTheme.coral.withValues(alpha: 0.4)
-                                    : AppTheme.notionBlue.withValues(
-                                        alpha: 0.4,
-                                      ))
-                              : Colors.transparent,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            icon,
-                            size: 15,
-                            color: isSelected
-                                ? (isChar
-                                      ? AppTheme.coral
-                                      : AppTheme.notionBlue)
-                                : AppTheme.graphite,
+                        decoration: BoxDecoration(
+                          color: isSelected ? activeBgColor : Colors.transparent,
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusButton,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              cat,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
-                                color: isSelected
-                                    ? (isChar
-                                          ? AppTheme.coral
-                                          : AppTheme.notionBlue)
-                                    : AppTheme.charcoal,
+                          border: Border.all(
+                            color: isSelected
+                                ? activeBorderColor
+                                : activeBorderColor.withValues(alpha: 0.0),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              icon,
+                              size: 15,
+                              color: isSelected
+                                  ? activeColor
+                                  : AppTheme.graphite,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                cat,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: isSelected
+                                      ? activeColor
+                                      : AppTheme.charcoal,
+                                ),
                               ),
                             ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1.5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? (isChar
-                                        ? AppTheme.coral.withValues(alpha: 0.15)
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 100),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? (isChar
+                                        ? AppTheme.coral.withValues(
+                                            alpha: 0.15,
+                                          )
                                         : AppTheme.notionBlue.withValues(
                                             alpha: 0.15,
                                           ))
-                                  : AppTheme.surfaceMuted,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '$count',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
-                                color: isSelected
-                                    ? (isChar
-                                          ? AppTheme.coral
-                                          : AppTheme.notionBlue)
-                                    : AppTheme.graphite,
+                                    : AppTheme.surfaceMuted,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$count',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: isSelected
+                                      ? activeColor
+                                      : AppTheme.graphite,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
