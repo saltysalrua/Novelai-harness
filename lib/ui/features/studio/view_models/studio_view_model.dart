@@ -109,6 +109,25 @@ mixin _StudioCore on ChangeNotifier {
   int _deckActiveTab = 0;
   bool _canvasHistoryOpen = false;
 
+  // 提示词输入框高度
+  double _promptHeightStacked = 116.0;
+  double _negativePromptHeightStacked = 92.0;
+  double _promptHeightTabbed = 212.0;
+  double _negativePromptHeightTabbed = 212.0;
+  double _prefixPromptHeight = 88.0;
+  double _suffixPromptHeight = 64.0;
+  double _characterPromptHeight = 72.0;
+  double _characterNegativePromptHeight = 56.0;
+
+  /// 提示词输入框高度防抖保存计时器
+  Timer? _promptHeightsSaveTimer;
+
+  /// Agent 对话草稿输入文本
+  String _chatDraft = '';
+
+  /// Agent 对话草稿输入防抖保存计时器
+  Timer? _chatDraftSaveTimer;
+
   /// 分割线宽度防抖落盘计时器 (拖动过程每帧回调，写盘必须节流)
   Timer? _splitWidthSaveTimer;
 
@@ -449,6 +468,20 @@ class StudioViewModel extends ChangeNotifier
     _deckActiveTab = await _configService.loadDeckActiveTab();
     _canvasHistoryOpen = await _configService.loadCanvasHistoryOpen();
 
+    // 加载提示词输入框高度
+    final promptHeights = await _configService.loadPromptFieldHeights();
+    _promptHeightStacked = promptHeights.promptStacked;
+    _negativePromptHeightStacked = promptHeights.negativeStacked;
+    _promptHeightTabbed = promptHeights.promptTabbed;
+    _negativePromptHeightTabbed = promptHeights.negativeTabbed;
+    _prefixPromptHeight = promptHeights.prefix;
+    _suffixPromptHeight = promptHeights.suffix;
+    _characterPromptHeight = promptHeights.characterPrompt;
+    _characterNegativePromptHeight = promptHeights.characterNegative;
+
+    // 加载 Agent 对话草稿
+    _chatDraft = await _configService.loadChatDraft();
+
     // 加载词组合库
     await loadPromptLibrary();
 
@@ -777,6 +810,8 @@ class StudioViewModel extends ChangeNotifier
     _generationSubscription?.cancel();
     _paramSaveDebounceTimer?.cancel();
     _splitWidthSaveTimer?.cancel();
+    _promptHeightsSaveTimer?.cancel();
+    _chatDraftSaveTimer?.cancel();
     _chatSubscription?.cancel();
     _streamNotifyTimer?.cancel();
     // 大画布布局：取消防抖并立即落盘一次

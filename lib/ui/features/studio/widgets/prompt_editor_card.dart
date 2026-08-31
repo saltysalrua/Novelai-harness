@@ -28,6 +28,12 @@ class PromptEditorCard extends StatelessWidget {
   final double minHeight;
   final double maxHeight;
 
+  /// 初始高度 (持久化加载的高度)
+  final double? initialHeight;
+
+  /// 高度变更回调 (用于持久化)
+  final ValueChanged<double>? onHeightChanged;
+
   /// 输入框上方只读标签 (如 PREFIX 前置词)
   final List<GrayTag> headerTags;
 
@@ -61,6 +67,8 @@ class PromptEditorCard extends StatelessWidget {
     this.maxLines = 10,
     this.minHeight = 70.0,
     this.maxHeight = 600.0,
+    this.initialHeight,
+    this.onHeightChanged,
     this.headerTags = const [],
     this.footerTags = const [],
     this.toolbar,
@@ -112,6 +120,8 @@ class PromptEditorCard extends StatelessWidget {
             onChanged: onChanged,
             hintText: hintText,
             defaultHeight: _defaultInputHeight,
+            initialHeight: initialHeight,
+            onHeightChanged: onHeightChanged,
             minHeight: minHeight,
             maxHeight: maxHeight,
             resizeTooltip: '拖动调整提示词输入区高度 (双击重置)',

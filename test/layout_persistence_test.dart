@@ -57,6 +57,48 @@ void main() {
       expect(await configService.loadDeckActiveTab(), 1);
       expect(await configService.loadCanvasHistoryOpen(), isTrue);
     });
+
+    test('prompt field heights default and save/load', () async {
+      final configService = ConfigService();
+      final defaults = await configService.loadPromptFieldHeights();
+      expect(defaults.promptStacked, 116.0);
+      expect(defaults.negativeStacked, 92.0);
+      expect(defaults.promptTabbed, 212.0);
+      expect(defaults.negativeTabbed, 212.0);
+      expect(defaults.prefix, 88.0);
+      expect(defaults.suffix, 64.0);
+      expect(defaults.characterPrompt, 72.0);
+      expect(defaults.characterNegative, 56.0);
+
+      await configService.savePromptFieldHeights(
+        promptStacked: 150.0,
+        negativeStacked: 120.0,
+        promptTabbed: 280.0,
+        negativeTabbed: 260.0,
+        prefix: 110.0,
+        suffix: 90.0,
+        characterPrompt: 100.0,
+        characterNegative: 80.0,
+      );
+
+      final loaded = await configService.loadPromptFieldHeights();
+      expect(loaded.promptStacked, 150.0);
+      expect(loaded.negativeStacked, 120.0);
+      expect(loaded.promptTabbed, 280.0);
+      expect(loaded.negativeTabbed, 260.0);
+      expect(loaded.prefix, 110.0);
+      expect(loaded.suffix, 90.0);
+      expect(loaded.characterPrompt, 100.0);
+      expect(loaded.characterNegative, 80.0);
+    });
+
+    test('chat draft default and save/load', () async {
+      final configService = ConfigService();
+      expect(await configService.loadChatDraft(), '');
+
+      await configService.saveChatDraft('test chat draft构思');
+      expect(await configService.loadChatDraft(), 'test chat draft构思');
+    });
   });
 
   group('StudioViewModel Layout State Tests', () {
@@ -69,6 +111,15 @@ void main() {
         'novelai_layout_prompt_active_tab': 1,
         'novelai_layout_deck_active_tab': 1,
         'novelai_layout_canvas_history_open': true,
+        'novelai_layout_prompt_height_stacked': 140.0,
+        'novelai_layout_negative_height_stacked': 110.0,
+        'novelai_layout_prompt_height_tabbed': 260.0,
+        'novelai_layout_negative_height_tabbed': 250.0,
+        'novelai_layout_prefix_height': 105.0,
+        'novelai_layout_suffix_height': 85.0,
+        'novelai_layout_char_prompt_height': 95.0,
+        'novelai_layout_char_negative_height': 75.0,
+        'novelai_chat_draft': 'draft message',
       });
 
       final vm = StudioViewModel();
@@ -81,6 +132,15 @@ void main() {
       expect(vm.promptActiveTab, 1);
       expect(vm.deckActiveTab, 1);
       expect(vm.canvasHistoryOpen, isTrue);
+      expect(vm.promptHeightStacked, 140.0);
+      expect(vm.negativePromptHeightStacked, 110.0);
+      expect(vm.promptHeightTabbed, 260.0);
+      expect(vm.negativePromptHeightTabbed, 250.0);
+      expect(vm.prefixPromptHeight, 105.0);
+      expect(vm.suffixPromptHeight, 85.0);
+      expect(vm.characterPromptHeight, 95.0);
+      expect(vm.characterNegativePromptHeight, 75.0);
+      expect(vm.chatDraft, 'draft message');
     });
 
     test('updates layout and saves to SharedPreferences', () async {
@@ -93,6 +153,15 @@ void main() {
       vm.setPromptActiveTab(1);
       vm.setDeckActiveTab(1);
       vm.setCanvasHistoryOpen(true);
+      vm.updatePromptHeightStacked(160.0);
+      vm.updateNegativePromptHeightStacked(130.0);
+      vm.updatePromptHeightTabbed(300.0);
+      vm.updateNegativePromptHeightTabbed(290.0);
+      vm.updatePrefixPromptHeight(120.0);
+      vm.updateSuffixPromptHeight(95.0);
+      vm.updateCharacterPromptHeight(115.0);
+      vm.updateCharacterNegativePromptHeight(85.0);
+      vm.updateChatDraft('updated draft message');
 
       expect(vm.splitLeftWidth, 340.0);
       expect(vm.splitRightWidth, 420.0);
@@ -101,8 +170,17 @@ void main() {
       expect(vm.promptActiveTab, 1);
       expect(vm.deckActiveTab, 1);
       expect(vm.canvasHistoryOpen, isTrue);
+      expect(vm.promptHeightStacked, 160.0);
+      expect(vm.negativePromptHeightStacked, 130.0);
+      expect(vm.promptHeightTabbed, 300.0);
+      expect(vm.negativePromptHeightTabbed, 290.0);
+      expect(vm.prefixPromptHeight, 120.0);
+      expect(vm.suffixPromptHeight, 95.0);
+      expect(vm.characterPromptHeight, 115.0);
+      expect(vm.characterNegativePromptHeight, 85.0);
+      expect(vm.chatDraft, 'updated draft message');
 
-      // 分割线宽度防抖落盘：立即冲刷尚未到期的保存，模拟拖动停止后落盘
+      // 分割线与高度宽度防抖落盘：立即冲刷尚未到期的保存，模拟拖动停止后落盘
       await vm.flushPendingLayoutSave();
 
       // 验证重启后新建 ViewModel 加载保存的布局
@@ -116,6 +194,15 @@ void main() {
       expect(restartedVm.promptActiveTab, 1);
       expect(restartedVm.deckActiveTab, 1);
       expect(restartedVm.canvasHistoryOpen, isTrue);
+      expect(restartedVm.promptHeightStacked, 160.0);
+      expect(restartedVm.negativePromptHeightStacked, 130.0);
+      expect(restartedVm.promptHeightTabbed, 300.0);
+      expect(restartedVm.negativePromptHeightTabbed, 290.0);
+      expect(restartedVm.prefixPromptHeight, 120.0);
+      expect(restartedVm.suffixPromptHeight, 95.0);
+      expect(restartedVm.characterPromptHeight, 115.0);
+      expect(restartedVm.characterNegativePromptHeight, 85.0);
+      expect(restartedVm.chatDraft, 'updated draft message');
     });
   });
 

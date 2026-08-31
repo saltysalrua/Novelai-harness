@@ -34,6 +34,19 @@ mixin _StudioChatMixin on _StudioCore {
     notifyListeners();
   }
 
+  /// 当前 Agent 对话草稿输入文本
+  String get chatDraft => _chatDraft;
+
+  /// 更新 Agent 对话草稿输入文本 (300ms 防抖落盘)
+  void updateChatDraft(String draft) {
+    if (_chatDraft == draft) return;
+    _chatDraft = draft;
+    _chatDraftSaveTimer?.cancel();
+    _chatDraftSaveTimer = Timer(const Duration(milliseconds: 300), () {
+      _configService.saveChatDraft(_chatDraft);
+    });
+  }
+
   /// 发送对话消息 (支持 Slash 命令行；[images] 为用户粘贴/上传的图片附件，
   /// 仅普通对话路径生效，斜杠指令不支持附带图片)
   @override
@@ -54,6 +67,11 @@ mixin _StudioChatMixin on _StudioCore {
 
     // 流式进行中禁止重入：并发监听会往同一流式缓冲写入，造成重复文本
     if (_isChatStreaming) return;
+
+    // 发送消息后清空草稿
+    _chatDraft = '';
+    _chatDraftSaveTimer?.cancel();
+    unawaited(_configService.saveChatDraft(''));
 
     // 1. 处理 Slash 指令 (指令内部可能发起网络请求，统一兜底避免未捕获异常)
     if (trimmed.startsWith('/')) {

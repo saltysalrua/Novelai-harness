@@ -81,6 +81,12 @@ class ResizableTextField extends StatefulWidget {
   /// 默认高度 (双击重置目标)
   final double defaultHeight;
 
+  /// 初始高度 (持久化加载的高度，若为 null 则使用 defaultHeight)
+  final double? initialHeight;
+
+  /// 高度变化回调 (拖拽手柄或双击重置时触发，供外层持久化)
+  final ValueChanged<double>? onHeightChanged;
+
   /// 最小与最大高度限制
   final double minHeight;
   final double maxHeight;
@@ -110,6 +116,8 @@ class ResizableTextField extends StatefulWidget {
     required this.onChanged,
     required this.hintText,
     required this.defaultHeight,
+    this.initialHeight,
+    this.onHeightChanged,
     this.minHeight = 44,
     this.maxHeight = 400,
     this.resizeTooltip = '拖动调整高度 (双击重置)',
@@ -133,7 +141,10 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
   @override
   void initState() {
     super.initState();
-    _height = widget.defaultHeight;
+    _height = (widget.initialHeight ?? widget.defaultHeight).clamp(
+      widget.minHeight,
+      widget.maxHeight,
+    );
     if (widget.focusNode != null) {
       _focusNode = widget.focusNode!;
     } else {
@@ -145,8 +156,18 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
   @override
   void didUpdateWidget(covariant ResizableTextField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.defaultHeight != widget.defaultHeight) {
-      _height = widget.defaultHeight;
+    if (widget.initialHeight != null &&
+        widget.initialHeight != oldWidget.initialHeight) {
+      _height = widget.initialHeight!.clamp(
+        widget.minHeight,
+        widget.maxHeight,
+      );
+    } else if (oldWidget.defaultHeight != widget.defaultHeight &&
+        widget.initialHeight == null) {
+      _height = widget.defaultHeight.clamp(
+        widget.minHeight,
+        widget.maxHeight,
+      );
     }
     if (oldWidget.focusNode != widget.focusNode) {
       if (_internalFocusNode) {
@@ -171,13 +192,27 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
   }
 
   void _applyDelta(double delta) {
-    setState(() {
-      _height = (_height + delta).clamp(widget.minHeight, widget.maxHeight);
-    });
+    final newHeight = (_height + delta).clamp(
+      widget.minHeight,
+      widget.maxHeight,
+    );
+    if ((newHeight - _height).abs() > 0.01) {
+      setState(() {
+        _height = newHeight;
+      });
+      widget.onHeightChanged?.call(_height);
+    }
   }
 
   void _reset() {
-    setState(() => _height = widget.defaultHeight);
+    final target = widget.defaultHeight.clamp(
+      widget.minHeight,
+      widget.maxHeight,
+    );
+    if ((target - _height).abs() > 0.01) {
+      setState(() => _height = target);
+      widget.onHeightChanged?.call(_height);
+    }
   }
 
   @override

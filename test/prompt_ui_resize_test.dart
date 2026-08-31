@@ -99,6 +99,52 @@ void main() {
       expect(resetBox.size.height, closeTo(initialHeight, 2.0));
     });
 
+    testWidgets('PromptEditorCard respects initialHeight and emits onHeightChanged', (
+      WidgetTester tester,
+    ) async {
+      final controller = TextEditingController(text: '1girl, solo');
+      addTearDown(controller.dispose);
+
+      double? changedHeight;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: PromptEditorCard(
+                controller: controller,
+                onChanged: (_) {},
+                hintText: 'Enter prompt',
+                minLines: 4,
+                initialHeight: 180.0,
+                onHeightChanged: (h) => changedHeight = h,
+                tokenEstimate: 5,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final resizableField = tester.renderObject<RenderBox>(find.byType(ResizableTextField));
+      expect(resizableField.size.height, closeTo(192.0, 2.0)); // 180.0 input + 12.0 handle
+
+      final handle = find.byType(PromptResizeHandle);
+      await tester.drag(handle, const Offset(0, 40));
+      await tester.pumpAndSettle();
+
+      expect(changedHeight, isNotNull);
+      expect(changedHeight!, greaterThan(180.0));
+
+      // 双击重置回 defaultHeight (4 * 24 + 20 = 116.0)
+      await tester.tap(handle);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(handle);
+      await tester.pumpAndSettle();
+
+      expect(changedHeight, closeTo(116.0, 2.0));
+    });
+
     testWidgets(
       '+0.1 and -0.1 buttons adjust tag weight in x.x::tag:: format',
       (WidgetTester tester) async {

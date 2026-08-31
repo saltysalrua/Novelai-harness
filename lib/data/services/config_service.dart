@@ -221,6 +221,25 @@ class ConfigService {
   static const String _keyCanvasHistoryOpen =
       'novelai_layout_canvas_history_open';
 
+  // 提示词输入框高度持久化 Keys
+  static const String _keyPromptHeightStacked =
+      'novelai_layout_prompt_height_stacked';
+  static const String _keyNegativeHeightStacked =
+      'novelai_layout_negative_height_stacked';
+  static const String _keyPromptHeightTabbed =
+      'novelai_layout_prompt_height_tabbed';
+  static const String _keyNegativeHeightTabbed =
+      'novelai_layout_negative_height_tabbed';
+  static const String _keyPrefixHeight = 'novelai_layout_prefix_height';
+  static const String _keySuffixHeight = 'novelai_layout_suffix_height';
+  static const String _keyCharacterPromptHeight =
+      'novelai_layout_char_prompt_height';
+  static const String _keyCharacterNegativeHeight =
+      'novelai_layout_char_negative_height';
+
+  // Agent 对话草稿输入持久化 Key
+  static const String _keyChatDraft = 'novelai_chat_draft';
+
   // 窗口状态持久化 Keys
   static const String _keyWindowWidth = 'novelai_window_width';
   static const String _keyWindowHeight = 'novelai_window_height';
@@ -687,6 +706,99 @@ class ConfigService {
   Future<void> saveCanvasHistoryOpen(bool isOpen) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyCanvasHistoryOpen, isOpen);
+  }
+
+  /// 加载提示词输入框高度
+  Future<
+    ({
+      double promptStacked,
+      double negativeStacked,
+      double promptTabbed,
+      double negativeTabbed,
+      double prefix,
+      double suffix,
+      double characterPrompt,
+      double characterNegative,
+    })
+  >
+  loadPromptFieldHeights({
+    double defaultPromptStacked = 116.0,
+    double defaultNegativeStacked = 92.0,
+    double defaultPromptTabbed = 212.0,
+    double defaultNegativeTabbed = 212.0,
+    double defaultPrefix = 88.0,
+    double defaultSuffix = 64.0,
+    double defaultCharacterPrompt = 72.0,
+    double defaultCharacterNegative = 56.0,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    return (
+      promptStacked:
+          prefs.getDouble(_keyPromptHeightStacked) ?? defaultPromptStacked,
+      negativeStacked:
+          prefs.getDouble(_keyNegativeHeightStacked) ?? defaultNegativeStacked,
+      promptTabbed:
+          prefs.getDouble(_keyPromptHeightTabbed) ?? defaultPromptTabbed,
+      negativeTabbed:
+          prefs.getDouble(_keyNegativeHeightTabbed) ?? defaultNegativeTabbed,
+      prefix: prefs.getDouble(_keyPrefixHeight) ?? defaultPrefix,
+      suffix: prefs.getDouble(_keySuffixHeight) ?? defaultSuffix,
+      characterPrompt:
+          prefs.getDouble(_keyCharacterPromptHeight) ?? defaultCharacterPrompt,
+      characterNegative:
+          prefs.getDouble(_keyCharacterNegativeHeight) ??
+          defaultCharacterNegative,
+    );
+  }
+
+  /// 保存提示词输入框高度
+  Future<void> savePromptFieldHeights({
+    double? promptStacked,
+    double? negativeStacked,
+    double? promptTabbed,
+    double? negativeTabbed,
+    double? prefix,
+    double? suffix,
+    double? characterPrompt,
+    double? characterNegative,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (promptStacked != null) {
+      await prefs.setDouble(_keyPromptHeightStacked, promptStacked);
+    }
+    if (negativeStacked != null) {
+      await prefs.setDouble(_keyNegativeHeightStacked, negativeStacked);
+    }
+    if (promptTabbed != null) {
+      await prefs.setDouble(_keyPromptHeightTabbed, promptTabbed);
+    }
+    if (negativeTabbed != null) {
+      await prefs.setDouble(_keyNegativeHeightTabbed, negativeTabbed);
+    }
+    if (prefix != null) {
+      await prefs.setDouble(_keyPrefixHeight, prefix);
+    }
+    if (suffix != null) {
+      await prefs.setDouble(_keySuffixHeight, suffix);
+    }
+    if (characterPrompt != null) {
+      await prefs.setDouble(_keyCharacterPromptHeight, characterPrompt);
+    }
+    if (characterNegative != null) {
+      await prefs.setDouble(_keyCharacterNegativeHeight, characterNegative);
+    }
+  }
+
+  /// 加载 Agent 对话草稿输入文本
+  Future<String> loadChatDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyChatDraft) ?? '';
+  }
+
+  /// 保存 Agent 对话草稿输入文本
+  Future<void> saveChatDraft(String draft) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyChatDraft, draft);
   }
 
   // --- 桌面窗口状态持久化 ---

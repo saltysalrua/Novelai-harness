@@ -10,6 +10,89 @@ mixin _StudioLayoutMixin on _StudioCore {
   int get deckActiveTab => _deckActiveTab;
   bool get canvasHistoryOpen => _canvasHistoryOpen;
 
+  // 提示词输入框高度 Getters
+  double get promptHeightStacked => _promptHeightStacked;
+  double get negativePromptHeightStacked => _negativePromptHeightStacked;
+  double get promptHeightTabbed => _promptHeightTabbed;
+  double get negativePromptHeightTabbed => _negativePromptHeightTabbed;
+  double get prefixPromptHeight => _prefixPromptHeight;
+  double get suffixPromptHeight => _suffixPromptHeight;
+  double get characterPromptHeight => _characterPromptHeight;
+  double get characterNegativePromptHeight => _characterNegativePromptHeight;
+
+  /// 提示词输入框高度防抖落盘
+  void _schedulePromptHeightsSave() {
+    _promptHeightsSaveTimer?.cancel();
+    _promptHeightsSaveTimer = Timer(const Duration(milliseconds: 300), () {
+      _configService.savePromptFieldHeights(
+        promptStacked: _promptHeightStacked,
+        negativeStacked: _negativePromptHeightStacked,
+        promptTabbed: _promptHeightTabbed,
+        negativeTabbed: _negativePromptHeightTabbed,
+        prefix: _prefixPromptHeight,
+        suffix: _suffixPromptHeight,
+        characterPrompt: _characterPromptHeight,
+        characterNegative: _characterNegativePromptHeight,
+      );
+    });
+  }
+
+  void updatePromptHeightStacked(double height) {
+    if ((_promptHeightStacked - height).abs() < 0.5) return;
+    _promptHeightStacked = height;
+    _schedulePromptHeightsSave();
+    notifyListeners();
+  }
+
+  void updateNegativePromptHeightStacked(double height) {
+    if ((_negativePromptHeightStacked - height).abs() < 0.5) return;
+    _negativePromptHeightStacked = height;
+    _schedulePromptHeightsSave();
+    notifyListeners();
+  }
+
+  void updatePromptHeightTabbed(double height) {
+    if ((_promptHeightTabbed - height).abs() < 0.5) return;
+    _promptHeightTabbed = height;
+    _schedulePromptHeightsSave();
+    notifyListeners();
+  }
+
+  void updateNegativePromptHeightTabbed(double height) {
+    if ((_negativePromptHeightTabbed - height).abs() < 0.5) return;
+    _negativePromptHeightTabbed = height;
+    _schedulePromptHeightsSave();
+    notifyListeners();
+  }
+
+  void updatePrefixPromptHeight(double height) {
+    if ((_prefixPromptHeight - height).abs() < 0.5) return;
+    _prefixPromptHeight = height;
+    _schedulePromptHeightsSave();
+    notifyListeners();
+  }
+
+  void updateSuffixPromptHeight(double height) {
+    if ((_suffixPromptHeight - height).abs() < 0.5) return;
+    _suffixPromptHeight = height;
+    _schedulePromptHeightsSave();
+    notifyListeners();
+  }
+
+  void updateCharacterPromptHeight(double height) {
+    if ((_characterPromptHeight - height).abs() < 0.5) return;
+    _characterPromptHeight = height;
+    _schedulePromptHeightsSave();
+    notifyListeners();
+  }
+
+  void updateCharacterNegativePromptHeight(double height) {
+    if ((_characterNegativePromptHeight - height).abs() < 0.5) return;
+    _characterNegativePromptHeight = height;
+    _schedulePromptHeightsSave();
+    notifyListeners();
+  }
+
   /// 拖动分割线时指针每个帧都会回调：内存值即时更新，落盘防抖 300ms 节流，
   /// 避免一次拖拽触发几十次 SharedPreferences 写盘
   void updateSplitWidths(double left, double right) {
@@ -31,6 +114,25 @@ mixin _StudioLayoutMixin on _StudioCore {
     if (timer != null && timer.isActive) {
       timer.cancel();
       await _configService.saveSplitWidths(_splitLeftWidth, _splitRightWidth);
+    }
+    final heightsTimer = _promptHeightsSaveTimer;
+    if (heightsTimer != null && heightsTimer.isActive) {
+      heightsTimer.cancel();
+      await _configService.savePromptFieldHeights(
+        promptStacked: _promptHeightStacked,
+        negativeStacked: _negativePromptHeightStacked,
+        promptTabbed: _promptHeightTabbed,
+        negativeTabbed: _negativePromptHeightTabbed,
+        prefix: _prefixPromptHeight,
+        suffix: _suffixPromptHeight,
+        characterPrompt: _characterPromptHeight,
+        characterNegative: _characterNegativePromptHeight,
+      );
+    }
+    final draftTimer = _chatDraftSaveTimer;
+    if (draftTimer != null && draftTimer.isActive) {
+      draftTimer.cancel();
+      await _configService.saveChatDraft(_chatDraft);
     }
   }
 

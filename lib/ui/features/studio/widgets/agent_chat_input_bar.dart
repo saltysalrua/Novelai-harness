@@ -59,6 +59,8 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   @override
   void initState() {
     super.initState();
+    _inputController.text = widget.viewModel.chatDraft;
+    _inputController.addListener(_handleDraftChanged);
     _inputController.addListener(_updateSlashSuggestions);
     _inputFocusNode.addListener(_handleInputFocusChanged);
     // 焦点节点自身拦截 Ctrl+V：剪贴板无文本时尝试读取图片附件。
@@ -67,12 +69,26 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   }
 
   @override
+  void didUpdateWidget(covariant AgentChatInputBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.viewModel.chatDraft != oldWidget.viewModel.chatDraft &&
+        widget.viewModel.chatDraft != _inputController.text) {
+      _inputController.text = widget.viewModel.chatDraft;
+    }
+  }
+
+  @override
   void dispose() {
+    _inputController.removeListener(_handleDraftChanged);
     _inputController.removeListener(_updateSlashSuggestions);
     _inputFocusNode.removeListener(_handleInputFocusChanged);
     _inputController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handleDraftChanged() {
+    widget.viewModel.updateChatDraft(_inputController.text);
   }
 
   /// 失焦时收起补全面板，重新聚焦时按当前文本重算
@@ -98,6 +114,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     }
 
     _inputController.clear();
+    widget.viewModel.updateChatDraft('');
     setState(() => _pendingAttachments.clear());
     widget.viewModel.sendChatMessage(
       text,
