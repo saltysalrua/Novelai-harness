@@ -68,3 +68,7 @@ app.*.map.json
 /windows/flutter/ephemeral/
 /linux/flutter/ephemeral/
 /macos/Flutter/ephemeral/
+
+# 运行产物 (生图输出/浏览器截图)
+output/
+.playwright-mcp/

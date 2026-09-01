@@ -58,7 +58,10 @@ class CanvasParamBadges extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 height: 38,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: canvasBadgeDecoration(),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -96,7 +99,10 @@ class CanvasParamBadges extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 height: 38,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: canvasBadgeDecoration(),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,

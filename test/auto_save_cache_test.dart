@@ -9,12 +9,73 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 final kTestPngBytes = Uint8List.fromList([
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-  0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-  0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0A,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x63,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
 ]);
 
 /// 假图服务：跳过网络直接返回 1x1 测试 PNG
@@ -28,11 +89,8 @@ class _FakeNovelAiService extends NovelAiService {
   }
 }
 
-NaiGenerationParams get _params => const NaiGenerationParams(
-  prompt: 'test',
-  width: 64,
-  height: 64,
-);
+NaiGenerationParams get _params =>
+    const NaiGenerationParams(prompt: 'test', width: 64, height: 64);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -234,8 +292,9 @@ void main() {
         ..writeAsBytesSync(kTestPngBytes);
       final rawFile = File(p.join(saveDir.path, 'nai_saved_raw.png'))
         ..writeAsBytesSync(kTestPngBytes);
-      File(p.join(saveDir.path, 'image_history.json'))
-          .writeAsStringSync('[{"id":"x"}]');
+      File(
+        p.join(saveDir.path, 'image_history.json'),
+      ).writeAsStringSync('[{"id":"x"}]');
 
       repo.addImageForTesting(
         NaiGeneratedImage(
@@ -325,10 +384,12 @@ void main() {
   group('StudioViewModel.saveCurrentImageToDisk', () {
     test('保存当前选中未保存图片并更新选中状态', () async {
       SharedPreferences.setMockInitialValues({});
-      final sessionBase =
-          Directory.systemTemp.createTempSync('nai_autosave_vm_test_');
-      final vmSaveDir =
-          Directory.systemTemp.createTempSync('nai_autosave_vm_save_');
+      final sessionBase = Directory.systemTemp.createTempSync(
+        'nai_autosave_vm_test_',
+      );
+      final vmSaveDir = Directory.systemTemp.createTempSync(
+        'nai_autosave_vm_save_',
+      );
       final cacheDir = Directory(p.join(vmSaveDir.path, 'cache'))
         ..createSync(recursive: true);
       final cacheFile = File(p.join(cacheDir.path, 'cache_vm.png'))
@@ -341,7 +402,10 @@ void main() {
       );
       await vm.init();
       await vm.updateConfig(
-        vm.config.copyWith(saveDirectory: vmSaveDir.path, autoSaveImages: false),
+        vm.config.copyWith(
+          saveDirectory: vmSaveDir.path,
+          autoSaveImages: false,
+        ),
       );
 
       final unsaved = NaiGeneratedImage(
