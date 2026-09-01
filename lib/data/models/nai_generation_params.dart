@@ -1,6 +1,8 @@
 /// NovelAI 图像生成请求参数与官方 payload 构建。
 library;
 
+import 'dart:convert';
+import 'dart:typed_data';
 import 'nai_catalog.dart';
 import 'nai_character_prompt.dart';
 import 'nai_prompt_presets.dart';
@@ -274,6 +276,99 @@ class NaiGenerationParams {
       'input': apiPrompt,
       'model': model.id,
       'action': 'generate',
+      'parameters': {...baseParameters, 'sm': false, 'sm_dyn': false},
+    };
+  }
+
+  /// 构建发送给 NovelAI 官方的 Inpainting (局部重绘 / Infill) 请求体
+  Map<String, dynamic> toInfillApiPayload({
+    required Uint8List sourceBytes,
+    required Uint8List maskBytes,
+    required int requestWidth,
+    required int requestHeight,
+    double strength = 0.70,
+    double noise = 0.00,
+    bool streaming = false,
+  }) {
+    final apiPrompt = effectivePrompt;
+    final apiNegative = effectiveNegativePrompt;
+    final inpaintModel = model.inpaintModelId;
+    final isV4OrAbove = model.isV4OrAbove;
+
+    final usesBrownianEulerAncestral =
+        sampler == NaiSampler.kEulerAncestral &&
+        noiseSchedule != NoiseSchedule.native;
+
+    final baseParameters = <String, dynamic>{
+      'width': requestWidth,
+      'height': requestHeight,
+      'scale': scale,
+      'cfg_rescale': cfgRescale,
+      'sampler': sampler.id,
+      'noise_schedule': noiseSchedule.id,
+      'steps': steps,
+      'n_samples': nSamples,
+      'ucPresetId': _ucPresetId,
+      'qualityPresetId': _qualityPresetId,
+      'tag_hint_uc_preset': _ucPresetTagHint,
+      'tag_hint_qt': _qualityTagHint,
+      'dynamic_thresholding': false,
+      'controlnet_strength': 1,
+      'legacy': false,
+      'add_original_image': false,
+      'image_format': 'png',
+      'image': base64Encode(sourceBytes),
+      'mask': base64Encode(maskBytes),
+      'strength': strength,
+      'noise': noise,
+      'extra_noise_seed': seed - 1,
+      if (streaming) 'stream': 'msgpack',
+      if (apiNegative.isEmpty) 'uc': '' else 'negative_prompt': apiNegative,
+      'seed': seed,
+      if (usesBrownianEulerAncestral) ...{
+        'deliberate_euler_ancestral_bug': false,
+        'prefer_brownian': true,
+      },
+    };
+
+    if (isV4OrAbove) {
+      final parts = _buildCharacterPayloadParts();
+      final useCoords = this.useCoords;
+
+      return {
+        'input': apiPrompt,
+        'model': inpaintModel,
+        'action': 'infill',
+        'parameters': {
+          ...baseParameters,
+          'params_version': 4,
+          'use_coords': useCoords,
+          'legacy_v3_extend': false,
+          'legacy_uc': false,
+          'characterPrompts': parts.characterPrompts,
+          'v4_prompt': {
+            'caption': {
+              'base_caption': apiPrompt,
+              'char_captions': parts.charCaptions,
+            },
+            'use_coords': useCoords,
+            'use_order': true,
+          },
+          'v4_negative_prompt': {
+            'caption': {
+              'base_caption': apiNegative,
+              'char_captions': parts.negativeCharCaptions,
+            },
+            'legacy_uc': false,
+          },
+        },
+      };
+    }
+
+    return {
+      'input': apiPrompt,
+      'model': inpaintModel,
+      'action': 'infill',
       'parameters': {...baseParameters, 'sm': false, 'sm_dyn': false},
     };
   }

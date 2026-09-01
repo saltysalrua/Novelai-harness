@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Rect;
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import '../models/novelai_models.dart';
 import '../services/anlas_calculator.dart';
 import '../services/image_metadata_service.dart';
+import '../services/inpaint_service.dart';
 import '../services/watermark_service.dart';
 import '../services/novelai_service.dart';
 
@@ -142,6 +145,8 @@ class NovelAiRepository {
     required NaiGenerationParams params,
     required int seed,
     bool isUnsaved = false,
+    bool isUpscaled = false,
+    bool isInpainted = false,
   }) {
     final image = NaiGeneratedImage(
       id: id,
@@ -152,6 +157,8 @@ class NovelAiRepository {
       seed: seed,
       isOpusFree: params.isOpusFree,
       isUnsaved: isUnsaved,
+      isUpscaled: isUpscaled,
+      isInpainted: isInpainted,
     );
     _history.insert(0, image);
     return image;
@@ -225,49 +232,49 @@ class NovelAiRepository {
                   watermarkBytes != null &&
                   watermarkBytes.isNotEmpty);
 
-        if (needsProcessing && keepOriginalImage) {
-          // 保存一份原图 (_raw.png)
-          _writeImageFile(
+          if (needsProcessing && keepOriginalImage) {
+            // 保存一份原图 (_raw.png)
+            _writeImageFile(
+              saveDir,
+              'nai_${timeStr}_${effectiveSeed}_raw.png',
+              rawFinal,
+            );
+          }
+
+          List<int> fileBytes = rawFinal;
+          if (needsProcessing) {
+            fileBytes = await WatermarkService.processExportImage(
+              rawBytes: Uint8List.fromList(rawFinal),
+              stripMetadata: stripMetadata,
+              enableWatermark: enableWatermark,
+              watermarkConfig: watermarkConfig,
+              watermarkBytes: watermarkBytes,
+            );
+          }
+
+          final filePath = _writeImageFile(
             saveDir,
-            'nai_${timeStr}_${effectiveSeed}_raw.png',
-            rawFinal,
+            'nai_${timeStr}_$effectiveSeed.png',
+            fileBytes,
           );
-        }
 
-        List<int> fileBytes = rawFinal;
-        if (needsProcessing) {
-          fileBytes = await WatermarkService.processExportImage(
-            rawBytes: Uint8List.fromList(rawFinal),
-            stripMetadata: stripMetadata,
-            enableWatermark: enableWatermark,
-            watermarkConfig: watermarkConfig,
-            watermarkBytes: watermarkBytes,
+          final generatedImage = _recordGenerated(
+            id: '${now.millisecondsSinceEpoch}_0',
+            bytes: rawFinal,
+            filePath: filePath,
+            params: requestParams,
+            seed: effectiveSeed,
           );
-        }
 
-        final filePath = _writeImageFile(
-          saveDir,
-          'nai_${timeStr}_$effectiveSeed.png',
-          fileBytes,
-        );
+          if (enablePersistence && saveDir.isNotEmpty) {
+            await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
+          }
 
-        final generatedImage = _recordGenerated(
-          id: '${now.millisecondsSinceEpoch}_0',
-          bytes: rawFinal,
-          filePath: filePath,
-          params: requestParams,
-          seed: effectiveSeed,
-        );
-
-        if (enablePersistence && saveDir.isNotEmpty) {
-          await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
-        }
-
-        yield NaiStreamProgress.finalResult(
-          finalImage: rawFinal,
-          generatedImage: generatedImage,
-          totalSteps: requestParams.steps,
-        );
+          yield NaiStreamProgress.finalResult(
+            finalImage: rawFinal,
+            generatedImage: generatedImage,
+            totalSteps: requestParams.steps,
+          );
         }
       } else {
         yield progress;
@@ -369,6 +376,402 @@ class NovelAiRepository {
     }
 
     return results;
+  }
+
+  // --------------------------------------------------------------------------
+  // 局部修复 / 焦点特写 (共享管线)
+  // --------------------------------------------------------------------------
+
+  /// 修复管线共享准备结果：几何、请求源图/蒙版、源图尺寸蒙版与生效参数
+  ///
+  /// generateInpaintStream 与 generateInpaint 共用这一份单一事实源：
+  /// 提示词/模型/步数/CFG 覆盖链 → 源图尺寸蒙版 (画笔描边优先) →
+  /// 焦点几何 (1MP 超采样) 或常规请求尺寸 (源图分辨率 64 网格对齐)。
+  Future<
+    ({
+      NaiGenerationParams requestParams,
+      int seed,
+      bool isFocus,
+      InpaintGeometry geometry,
+      Uint8List requestSourceBytes,
+      Uint8List requestMaskBytes,
+      Uint8List sourceMaskBytes,
+      int srcW,
+      int srcH,
+    })
+  >
+  _prepareInpaintRequest({
+    required Uint8List sourceImageBytes,
+    required InpaintParams inpaintParams,
+    required NaiGenerationParams generationParams,
+  }) async {
+    final effectiveSeed = generationParams.seed < 0
+        ? generateRandomSeed()
+        : generationParams.seed;
+
+    final effectivePrompt = inpaintParams.useMainPrompt
+        ? generationParams.prompt
+        : inpaintParams.customPrompt;
+    final effectiveNegative = inpaintParams.useMainNegative
+        ? generationParams.negativePrompt
+        : inpaintParams.customNegativePrompt;
+    final effectiveModel = inpaintParams.customModel ?? generationParams.model;
+    final effectiveSteps = inpaintParams.customSteps ?? generationParams.steps;
+    final effectiveScale = inpaintParams.customScale ?? generationParams.scale;
+
+    final resolvedDims = await AnlasCalculator.decodeImageDimensions(
+      sourceImageBytes,
+    );
+    final srcW = resolvedDims?.width ?? generationParams.width;
+    final srcH = resolvedDims?.height ?? generationParams.height;
+
+    final isFocus = inpaintParams.mode == InpaintMode.focus;
+
+    // 1. 源图尺寸蒙版：画笔描边优先；无描边时焦点模式用生效选区、
+    //    常规模式无选区则整图重绘
+    final sourceMask = InpaintService.buildSourceMask(
+      sourceWidth: srcW,
+      sourceHeight: srcH,
+      brushStrokes: inpaintParams.brushStrokes,
+      selectionRect: isFocus
+          ? inpaintParams.effectiveSelectionRect
+          : inpaintParams.selectionRect,
+    );
+    final sourceMaskBytes = Uint8List.fromList(
+      img.encodePng(sourceMask, level: 1),
+    );
+
+    // 2. 几何与请求数据
+    final InpaintGeometry geometry;
+    final int reqW;
+    final int reqH;
+    final Uint8List requestSourceBytes;
+    final Uint8List requestMaskBytes;
+
+    if (isFocus) {
+      final pixelRect = Rect.fromLTWH(
+        inpaintParams.effectiveSelectionRect.left * srcW,
+        inpaintParams.effectiveSelectionRect.top * srcH,
+        inpaintParams.effectiveSelectionRect.width * srcW,
+        inpaintParams.effectiveSelectionRect.height * srcH,
+      );
+      geometry = InpaintService.resolveGeometry(
+        sourceWidth: srcW,
+        sourceHeight: srcH,
+        selectionRect: pixelRect,
+        contextPadding: inpaintParams.contextPadding,
+      );
+      final reqData = InpaintService.prepareFocusedRequestData(
+        sourceImageBytes: sourceImageBytes,
+        geometry: geometry,
+        sourceMask: sourceMask,
+      );
+      requestSourceBytes = reqData.sourceBytes;
+      requestMaskBytes = reqData.maskBytes;
+      reqW = geometry.requestWidth;
+      reqH = geometry.requestHeight;
+    } else {
+      final reqSize = InpaintService.resolveStandardRequestSize(srcW, srcH);
+      geometry = InpaintGeometry(
+        focusBounds: Rect.fromLTWH(0, 0, srcW.toDouble(), srcH.toDouble()),
+        contextCrop: Rect.fromLTWH(0, 0, srcW.toDouble(), srcH.toDouble()),
+        requestWidth: reqSize.width,
+        requestHeight: reqSize.height,
+        scale: 1.0,
+      );
+      final reqData = InpaintService.prepareStandardRequestData(
+        sourceImageBytes: sourceImageBytes,
+        requestWidth: reqSize.width,
+        requestHeight: reqSize.height,
+        sourceMask: sourceMask,
+      );
+      requestSourceBytes = reqData.sourceBytes;
+      requestMaskBytes = reqData.maskBytes;
+      reqW = reqSize.width;
+      reqH = reqSize.height;
+    }
+
+    final requestParams = generationParams.copyWith(
+      prompt: effectivePrompt,
+      negativePrompt: effectiveNegative,
+      model: effectiveModel,
+      steps: effectiveSteps,
+      scale: effectiveScale,
+      width: reqW,
+      height: reqH,
+      seed: effectiveSeed,
+    );
+
+    return (
+      requestParams: requestParams,
+      seed: effectiveSeed,
+      isFocus: isFocus,
+      geometry: geometry,
+      requestSourceBytes: requestSourceBytes,
+      requestMaskBytes: requestMaskBytes,
+      sourceMaskBytes: sourceMaskBytes,
+      srcW: srcW,
+      srcH: srcH,
+    );
+  }
+
+  /// 将生成补丁按蒙版回贴合成并嵌入元数据
+  Uint8List _compositeInpaintResult({
+    required Uint8List sourceImageBytes,
+    required ({
+      NaiGenerationParams requestParams,
+      int seed,
+      bool isFocus,
+      InpaintGeometry geometry,
+      Uint8List requestSourceBytes,
+      Uint8List requestMaskBytes,
+      Uint8List sourceMaskBytes,
+      int srcW,
+      int srcH,
+    })
+    prepared,
+    required Uint8List generatedBytes,
+  }) {
+    final compositedBytes = prepared.isFocus
+        ? InpaintService.compositeFocusedResult(
+            originalSourceBytes: sourceImageBytes,
+            generatedPatchBytes: generatedBytes,
+            geometry: prepared.geometry,
+            sourceMask: InpaintService.decodeMaskOrNull(
+              prepared.sourceMaskBytes,
+            ),
+          )
+        : InpaintService.compositeStandardResult(
+            originalSourceBytes: sourceImageBytes,
+            generatedImageBytes: generatedBytes,
+            maskBytes: prepared.requestMaskBytes,
+          );
+
+    return ImageMetadataService.embedNovelAiMetadata(
+      pngBytes: compositedBytes,
+      params: prepared.requestParams.copyWith(
+        width: prepared.srcW,
+        height: prepared.srcH,
+      ),
+      seed: prepared.seed,
+    );
+  }
+
+  /// 修复结果统一落盘入史 (自动保存分支写缓存目录并带未保存标记)
+  Future<NaiGeneratedImage> _persistInpaintResult({
+    required List<int> rawFinal,
+    required NaiGenerationParams requestParams,
+    required int seed,
+    required int srcW,
+    required int srcH,
+    required String saveDir,
+    required bool enablePersistence,
+    required int maxImages,
+    required bool stripMetadata,
+    required bool enableWatermark,
+    required bool keepOriginalImage,
+    WatermarkConfig? watermarkConfig,
+    Uint8List? watermarkBytes,
+    required bool autoSave,
+  }) async {
+    final now = DateTime.now();
+    final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
+    final displayParams = requestParams.copyWith(width: srcW, height: srcH);
+
+    // 自动保存关闭时：未保存图片写入缓存目录 (无水印、无导出处理)，
+    // 重启后从缓存恢复到 UI 的始终是无水印原图
+    if (!autoSave) {
+      final cachePath = _writeImageFile(
+        cacheDirOf(saveDir),
+        'nai_inpaint_${timeStr}_$seed.png',
+        rawFinal,
+      );
+      final generatedImage = _recordGenerated(
+        id: '${now.millisecondsSinceEpoch}_inpaint',
+        bytes: rawFinal,
+        filePath: cachePath,
+        params: displayParams,
+        seed: seed,
+        isUnsaved: true,
+        isInpainted: true,
+      );
+      if (enablePersistence && saveDir.isNotEmpty) {
+        await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
+      }
+      return generatedImage;
+    }
+
+    final needsProcessing =
+        stripMetadata ||
+        (enableWatermark &&
+            watermarkBytes != null &&
+            watermarkBytes.isNotEmpty);
+
+    if (needsProcessing && keepOriginalImage) {
+      _writeImageFile(
+        saveDir,
+        'nai_inpaint_${timeStr}_${seed}_raw.png',
+        rawFinal,
+      );
+    }
+
+    List<int> fileBytes = rawFinal;
+    if (needsProcessing) {
+      fileBytes = await WatermarkService.processExportImage(
+        rawBytes: Uint8List.fromList(rawFinal),
+        stripMetadata: stripMetadata,
+        enableWatermark: enableWatermark,
+        watermarkConfig: watermarkConfig,
+        watermarkBytes: watermarkBytes,
+      );
+    }
+
+    final filePath = _writeImageFile(
+      saveDir,
+      'nai_inpaint_${timeStr}_$seed.png',
+      fileBytes,
+    );
+    final generatedImage = _recordGenerated(
+      id: '${now.millisecondsSinceEpoch}_inpaint',
+      bytes: rawFinal,
+      filePath: filePath,
+      params: displayParams,
+      seed: seed,
+      isInpainted: true,
+    );
+
+    if (enablePersistence && saveDir.isNotEmpty) {
+      await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
+    }
+    return generatedImage;
+  }
+
+  /// 执行局部修复 / 焦点特写流式生成
+  Stream<NaiStreamProgress> generateInpaintStream({
+    required String apiKey,
+    required Uint8List sourceImageBytes,
+    required InpaintParams inpaintParams,
+    required NaiGenerationParams generationParams,
+    required String saveDir,
+    bool enablePersistence = true,
+    int maxImages = 50,
+    bool stripMetadata = false,
+    bool enableWatermark = false,
+    bool keepOriginalImage = false,
+    WatermarkConfig? watermarkConfig,
+    Uint8List? watermarkBytes,
+    bool autoSave = true,
+  }) async* {
+    final prepared = await _prepareInpaintRequest(
+      sourceImageBytes: sourceImageBytes,
+      inpaintParams: inpaintParams,
+      generationParams: generationParams,
+    );
+
+    final stream = _service.generateInfillStream(
+      apiKey: apiKey,
+      params: prepared.requestParams,
+      sourceBytes: prepared.requestSourceBytes,
+      maskBytes: prepared.requestMaskBytes,
+      requestWidth: prepared.requestParams.width,
+      requestHeight: prepared.requestParams.height,
+      strength: inpaintParams.strength,
+      noise: inpaintParams.noise,
+    );
+
+    await for (final progress in stream) {
+      if (progress.isFinal && progress.finalImage != null) {
+        final rawFinal = _compositeInpaintResult(
+          sourceImageBytes: sourceImageBytes,
+          prepared: prepared,
+          generatedBytes: Uint8List.fromList(progress.finalImage!),
+        );
+        final generatedImage = await _persistInpaintResult(
+          rawFinal: rawFinal,
+          requestParams: prepared.requestParams,
+          seed: prepared.seed,
+          srcW: prepared.srcW,
+          srcH: prepared.srcH,
+          saveDir: saveDir,
+          enablePersistence: enablePersistence,
+          maxImages: maxImages,
+          stripMetadata: stripMetadata,
+          enableWatermark: enableWatermark,
+          keepOriginalImage: keepOriginalImage,
+          watermarkConfig: watermarkConfig,
+          watermarkBytes: watermarkBytes,
+          autoSave: autoSave,
+        );
+        yield NaiStreamProgress.finalResult(
+          finalImage: rawFinal,
+          generatedImage: generatedImage,
+          totalSteps: prepared.requestParams.steps,
+        );
+      } else {
+        yield progress;
+      }
+    }
+  }
+
+  /// 执行局部修复 / 焦点特写生成 (标准归档模式)
+  Future<NaiGeneratedImage> generateInpaint({
+    required String apiKey,
+    required Uint8List sourceImageBytes,
+    required InpaintParams inpaintParams,
+    required NaiGenerationParams generationParams,
+    required String saveDir,
+    bool enablePersistence = true,
+    int maxImages = 50,
+    bool stripMetadata = false,
+    bool enableWatermark = false,
+    bool keepOriginalImage = false,
+    WatermarkConfig? watermarkConfig,
+    Uint8List? watermarkBytes,
+    bool autoSave = true,
+  }) async {
+    final prepared = await _prepareInpaintRequest(
+      sourceImageBytes: sourceImageBytes,
+      inpaintParams: inpaintParams,
+      generationParams: generationParams,
+    );
+
+    final imageBytesList = await _service.generateInfill(
+      apiKey: apiKey,
+      params: prepared.requestParams,
+      sourceBytes: prepared.requestSourceBytes,
+      maskBytes: prepared.requestMaskBytes,
+      requestWidth: prepared.requestParams.width,
+      requestHeight: prepared.requestParams.height,
+      strength: inpaintParams.strength,
+      noise: inpaintParams.noise,
+    );
+
+    if (imageBytesList.isEmpty) {
+      throw StateError('局部重绘未返回有效图像。');
+    }
+
+    final rawFinal = _compositeInpaintResult(
+      sourceImageBytes: sourceImageBytes,
+      prepared: prepared,
+      generatedBytes: imageBytesList.first,
+    );
+
+    return _persistInpaintResult(
+      rawFinal: rawFinal,
+      requestParams: prepared.requestParams,
+      seed: prepared.seed,
+      srcW: prepared.srcW,
+      srcH: prepared.srcH,
+      saveDir: saveDir,
+      enablePersistence: enablePersistence,
+      maxImages: maxImages,
+      stripMetadata: stripMetadata,
+      enableWatermark: enableWatermark,
+      keepOriginalImage: keepOriginalImage,
+      watermarkConfig: watermarkConfig,
+      watermarkBytes: watermarkBytes,
+      autoSave: autoSave,
+    );
   }
 
   /// 图像超分放大 (官方新超分模型，固定倍率输出)
@@ -522,10 +925,7 @@ class NovelAiRepository {
       }
     }
 
-    final updated = image.copyWith(
-      localFilePath: filePath,
-      isUnsaved: false,
-    );
+    final updated = image.copyWith(localFilePath: filePath, isUnsaved: false);
     _history[index] = updated;
 
     if (enablePersistence) {

@@ -66,6 +66,8 @@ class PresetToolKeys {
   static const String updateImageAnnotation = 'update_image_annotation';
   static const String removeImageAnnotation = 'remove_image_annotation';
   static const String clearImageAnnotations = 'clear_image_annotations';
+  static const String inpaint = 'novelai_inpaint';
+  static const String inpaintGeometry = 'get_inpaint_geometry';
   static const String searchPromptLibrary = 'search_prompt_library';
   static const String addPromptLibraryEntry = 'add_prompt_library_entry';
   static const String updatePromptLibraryEntry = 'update_prompt_library_entry';
@@ -74,6 +76,8 @@ class PresetToolKeys {
   static const Map<String, String> labels = {
     generate: '图像生成',
     upscale: '图像放大',
+    inpaint: '局部修复',
+    inpaintGeometry: '修复几何计算',
     suggestTags: '标签联想',
     danbooruSearch: '语义搜词',
     danbooruRelated: '关联推荐',
@@ -107,6 +111,8 @@ class PresetToolKeys {
 const List<String> _fullTools = [
   PresetToolKeys.generate,
   PresetToolKeys.upscale,
+  PresetToolKeys.inpaint,
+  PresetToolKeys.inpaintGeometry,
   PresetToolKeys.suggestTags,
   PresetToolKeys.danbooruSearch,
   PresetToolKeys.danbooruRelated,
@@ -134,6 +140,8 @@ const List<String> _fullTools = [
 
 const List<String> _coreTools = [
   PresetToolKeys.generate,
+  PresetToolKeys.inpaint,
+  PresetToolKeys.inpaintGeometry,
   PresetToolKeys.suggestTags,
   PresetToolKeys.danbooruSearch,
   PresetToolKeys.danbooruRelated,
@@ -161,6 +169,8 @@ const List<String> _coreTools = [
 const List<String> _coreUpscaleTools = [
   PresetToolKeys.generate,
   PresetToolKeys.upscale,
+  PresetToolKeys.inpaint,
+  PresetToolKeys.inpaintGeometry,
   PresetToolKeys.suggestTags,
   PresetToolKeys.danbooruSearch,
   PresetToolKeys.danbooruRelated,

@@ -136,6 +136,7 @@ mixin _StudioLayoutMixin on _StudioCore {
     }
   }
 
+  @override
   void setActiveSidebarTab(StudioSidebarTab tab) {
     if (_activeSidebarTab == tab) return;
     _activeSidebarTab = tab;

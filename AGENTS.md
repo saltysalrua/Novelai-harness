@@ -44,19 +44,21 @@ Novelai-harness/
 │   │       │   ├── character_prompt_tools.dart  # 多角色提示词增删改查四件套工具
 │   │       │   ├── danbooru_search_tools.dart  # Danbooru 离线/在线语义搜索与画师推荐工具
 │   │       │   ├── load_skill_tool.dart        # Pi 标准按需加载专业技能工具 (Progressive Disclosure)
+│   │       │   ├── novelai_tools.dart          # 生图、放大、标签联想与账号查询工具实现
+│   │       │   ├── novelai_inpaint_tool.dart   # 局部修复与焦点特写工具 (novelai_inpaint / get_inpaint_geometry)
 │   │       │   ├── prompt_library_tools.dart   # 词组合预设库增删改查工具
 │   │       │   ├── studio_params_tool.dart     # 实时同步修改工作台 UI 生图参数工具
-│   │       │   ├── vision_image_codec.dart     # 视觉附件压缩 (最长边 1024 等比重编码 PNG) 与 MIME 嗔探
-│   │       │   └── novelai_tools.dart          # 生图、放大、标签联想与账号查询工具实现
+│   │       │   └── vision_image_codec.dart     # 视觉附件压缩 (最长边 1024 等比重编码 PNG) 与 MIME 嗔探
 │   │       └── skills/
 │   │           └── skills.dart                 # 内置技能库 (V5 自然语言与空间视觉架构师)
 │   │
 │   ├── data/                                   # 数据层
 │   │   ├── models/
 │   │   │   ├── novelai_models.dart             # 聚合出口 barrel (转发导出下列拆分文件，保持旧 import 路径不变)
-│   │   │   ├── nai_catalog.dart                # NaiModel/采样器/噪声调度/分辨率预设枚举
+│   │   │   ├── inpaint_models.dart             # 局部重绘与焦点特写几何/参数数据模型 (InpaintMode / InpaintGeometry / InpaintParams)
+│   │   │   ├── nai_catalog.dart                # NaiModel/采样器/噪声调度/分辨率预设枚举 (含 inpaintModelId 映射)
 │   │   │   ├── nai_character_prompt.dart       # 多角色提示词与位置布局模型
-│   │   │   ├── nai_generation_params.dart      # 生图参数与官方 payload 构建
+│   │   │   ├── nai_generation_params.dart      # 生图参数与官方 payload 构建 (含 toInfillApiPayload)
 │   │   │   ├── nai_image_result.dart           # 生成结果图片与流式进度数据 (含放大/导入来源标记与角标文案)
 │   │   │   ├── nai_account_info.dart           # 账号/体力池与 Tag 联想响应
 │   │   │   ├── nai_prompt_presets.dart         # 质量词/UC 预设与提示词文本后处理
@@ -67,7 +69,8 @@ Novelai-harness/
 │   │   │   ├── canvas_board_models.dart        # 自由大画布节点模型 (图片卡/便利贴/画布数据，含 JSON 序列化)
 │   │   │   └── image_metadata_models.dart      # 图像元数据与水印配置数据模型 (ImageMetadataResult / WatermarkConfig)
 │   │   ├── services/
-│   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与 Zip 解包
+│   │   │   ├── inpaint_service.dart            # 焦点特写外延几何计算 (对齐 1MP 潜空间与 64 步长网格)、裁剪放大与客户端无损回贴引擎
+│   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与 Zip 解包 (含 generateInfill / generateInfillStream)
 │   │   │   ├── config_service.dart             # 本地配置与 ~/.pi/agent/novelai.json 自动识别
 │   │   │   ├── session_log_service.dart        # Pi 官方会话格式 JSONL 记录与恢复
 │   │   │   ├── usage_ledger_service.dart       # Token 用量增量账本 (pi-bill 式按天/供应商/模型聚合)
@@ -80,7 +83,7 @@ Novelai-harness/
 │   │   │   └── image_metadata_service.dart     # PNG Chunks/Alpha LSB 隐写读取、元数据抹除与嵌入服务 (水印/盲水印管道已迁至 watermark_service)
 │   │   │   └── watermark_service.dart        # 水印合成 (自动对比度/智能选位)、盲水印 Koch-Zhao DCT 嵌入提取与统一导出管道
 │   │   └── repositories/
-│   │       └── novelai_repository.dart         # 图片落盘存储、历史记录与业务聚合 (支持 keepOriginalImage 保存 _raw.png)
+│   │       └── novelai_repository.dart         # 图片落盘存储、历史记录与业务聚合 (含 generateInpaint / generateInpaintStream 管道)
 │   │
 │   └── ui/                                     # 表现层
 │       ├── core/
@@ -114,6 +117,7 @@ Novelai-harness/
 │               │   ├── studio_vm_layout.dart    # 布局分部：分割线防抖落盘/侧栏页签 (同库 part+Mixin)
 │               │   ├── studio_vm_harness.dart   # Harness 分部：工具装配/LLM与思考强度切换/预设技能工具 CRUD
 │               │   ├── studio_vm_generation.dart # 生图分部：生图/超分/实时预览/账号 (含 _applyGeneratedImage 统一落图与 _raw.png 保护)
+│               │   ├── studio_vm_inpaint.dart   # 修复分部：工具状态/描边增删/发送到修复/批注转选区与执行流水线 (含中间帧预览透传)
 │               │   ├── studio_vm_chat.dart      # 对话分部：对话流/图片附件/ask_user/付费确认/用量记录/流式通知节流
 │               │   ├── studio_vm_sessions.dart  # 会话分部：会话管理/回溯
 │               │   ├── studio_vm_characters.dart # 角色分部：多角色提示词编辑与画板定位
@@ -126,10 +130,12 @@ Novelai-harness/
 │               ├── views/
 │               │   └── studio_view.dart        # 工作台主界面
 │               └── widgets/
-│                   ├── studio_sidebar.dart      # 最左侧导航栏 (参数/提示词双页切换)
-│                   ├── parameter_card.dart      # 左侧面板薄壳：双页 IndexedStack + 生成坞
+│                   ├── studio_sidebar.dart      # 最左侧导航栏 (参数/提示词/修复/词库多页切换)
+│                   ├── parameter_card.dart      # 左侧面板薄壳：三页 IndexedStack + 生成坞
 │                   ├── parameters_page.dart     # 页面一：模型/分辨率/采样属性/高级选项 (含元数据删除/水印 2D 面板/保持原图开关)
 │                   ├── prompts_page.dart        # 页面二：正负提示词双模式与提示词扩展甲板
+│                   ├── inpaint_page.dart        # 页面三：Notion 极简修复卡片 (模式切换/几何卡片/上下文外延与噪声滑块/提示词复用)
+│                   ├── inpaint_canvas_overlay.dart # 修复画板 InpaintRepairCanvas：独立单图画布 (contain 居中与源图严格对齐) + 框选/画笔/橡皮三工具 + 四角手柄缩放 + 外延上下文虚线框 + 执行中预览帧 + 顶部浮动工具坞
 │                   ├── prompt_extension_deck.dart # 提示词扩展甲板 (多角色 ↔ 固定词缀左右滑动切换)
 │                   ├── character_card_item.dart # 单角色编辑卡 (名称/启停/位置胶囊+正负词拖拽调高)
 │                   ├── character_position_canvas_view.dart # 中间画板角色位置交互层 (锚点拖拽/5x5 网格/悬浮控制)
@@ -215,10 +221,10 @@ Novelai-harness/
 │   ├── watermark_processor_test.dart           # 水印合成、自动对比度、智能选位、盲水印嵌入提取与导出管道测试
 │   ├── metadata_reader_dialog_test.dart        # Notion 风格元数据读取弹窗与工作台参数应用测试
 │   ├── advanced_settings_metadata_test.dart    # 高级设置元数据抹除/水印 2D 面板/保持原图开关集成测试
+│   ├── inpaint_service_test.dart               # 局部重绘与焦点特写几何、潜空间 1MP 超采样与无损回贴测试
+│   ├── inpaint_tools_test.dart                 # Agent 局部修复与几何检查工具执行测试
+│   ├── inpaint_ui_test.dart                    # Notion 修复卡片与画板选区交互层 Widget 测试
 │   └── widget_test.dart                        # 核心组件渲染测试
-│
-├── pubspec.yaml                                # 项目依赖配置文件
-└── AGENTS.md                                   # 本开发规范文档
 │
 ├── pubspec.yaml                                # 项目依赖配置文件
 └── AGENTS.md                                   # 本开发规范文档
@@ -412,7 +418,21 @@ AgentHarness 内置上下文压缩 (lib/core/harness/agent_harness.dart)：
 
 **画布布局持久化 (2026-12 增)**：全部变更入口 (移动/缩放/便利贴/连线/批注) 经 `_scheduleBoardSave` 防抖 600ms 写入 `<saveDir>/canvas_board.json` (仓库 `saveBoardLayout`/`loadBoardLayout`)，dispose 与关闭持久化时立即落盘/删除；外部导入的参考图字节写入 `<saveDir>/board_refs/` (`writeBoardReferenceImage`，不进生图历史)，保存时清理孤立文件；视口矩阵经 `updateBoardViewport` 记录，首帧 `hasSavedViewport` 时原样还原、否则居中。
 
-**Agent 工具** (annotation_tools.dart)：`view/add/update/remove/clear_image_annotations` 五件套统一经 `StudioViewModel.replaceImageAnnotations` 单一写入口 (仓库持久化 + 大画布同步 + 选图引用刷新 + 解绑指向已删除批注的便签与连线，防止幽灵连接)；`renderImageWithAnnotationOverlay` 把批注覆盖层离屏绘制进图片字节 (选区边框/锚点/编号徽章，最长边上限 1536px) 用于多模态视觉附件。`sendAnnotationsToChat` 汇总全部选区像素坐标与便签文本 (含未连接自由便签) 发送到对话并附主图合成图。
+**Agent 工具** (annotation_tools.dart)：`view/add/update/remove/clear_image_annotations` 五件套统一经 `StudioViewModel.replaceImageAnnotations` 单一写入口 (仓库持久化 + 大画布同步 + 选图引用刷新 + 解绑指向已删除批注的便签与连线，防止幽灵连接)；`renderImageWithAnnotationOverlay` 把批注覆盖层离屏绘制进图片字节 (选区边框/锚点/编号徽章，最长边上限 1536px) 用于多模态视觉附件。`sendAnnotationsToChat` 汇总全部选区像素坐标与便签文本 (含未连接自由便签) 发送到对话并附主图合成图。选区批注右键菜单「发送到修复」直达修复页 (底图+选区+备注一并带入，`sendAnnotationToInpaint`)。
+
+### 3.11 局部修复与焦点特写 (Inpaint / Focus Inpaint，2026-12 重构)
+
+**入口与画板**：侧栏「修复」页签 (`StudioSidebarTab.inpaint`)；开启时中间画板整体切换为独立修复画板 `InpaintRepairCanvas` (不再叠加在图像瀑布流上)：单张底图 contain 居中、与交互层严格同矩形，彻底消除旧覆盖层「用整块画布算 contain 导致选区与图片错位」的问题。图片 contain 区域顶部预留 56px (`_dockTopReserve`) 给浮动工具坞 (工具坞限高约 36px，笔刷滑条 SizedBox 限高 28)，工具坞永不遮挡图片。历史侧栏与右上角展开按钮在修复页签下隐藏 (修复底图不与历史侧栏联动，换底图走图片右键「发送到修复」)。右键菜单入口：图片右键「发送到修复」(`sendImageToInpaint`) / 批注选区右键「发送到修复」(`sendAnnotationToInpaint`)。
+
+**三工具** (`InpaintTool` rect/brush/eraser)：框选 (空白处拖出新选区、选区内拖拽平移、四角 28x28 命中盒手柄缩放)、画笔 (自由绘制描边，归一化轨迹点 + 相对短边半径，提交为 `InpaintBrushStroke`，单击也提交单点盖章)、橡皮 (反向画笔：描边带 isEraser 标记按提交顺序在蒙版上打黑，不是删除描边；覆盖层渲染用 saveLayer 隔离层 + BlendMode.clear，橡皮视觉上真正打穿粉色笔迹，绝不能画成白色叠层)。所有拖拽用「起点+增量」状态机 (`_dragBaseRect` + `_dragStartNorm`，注意新建选区时 base 为 null 不能早退)；手柄缩放必须用 globalPosition 差值且起点存 State 字段——手柄 RenderObject 随选区移动且 rebuild 后局部闭包会丢基准，localPosition 会跳变。蒙版优先级：正向画笔描边优先于矩形选区 (橡皮描边只减不增，`hasBrushMask`/`effectiveSelectionRect` 只统计非 eraser 描边；`buildSourceMask` 仅在存在非橡皮描边时走描边栅格化，只有橡皮描边时回退矩形选区)；`effectiveSelectionRect` 仅做几何计算，UI 渲染选框必须用 `selectionRect`(null=不画框，不得用兜底默认框)。橡皮拖拽不参与实时生效选区 (`_liveEffectiveSelNorm` 只算画笔轨迹包围盒)，外延裁剪框不跟随橡皮轨迹。笔刷大小滑条本地拖动、松手 onChangeEnd 才提交 (拖动期间零 notifyListeners)。已提交描层录制为 ui.Picture 缓存 (identical 身份比对 + 尺寸变化才重录)，每帧只增量画进行中的描层。**Picture 必须用图层本地坐标录制** (原点 = 图片左上角)：回放发生在蒙版层 CustomPaint 里，其画布原点已经是 imageRect.topLeft，录制时再加 imageRect.left/top 会被平移两次，描边整体向右下漂移。
+
+**执行入口与完成行为 (2026-12 统一)**：执行修复全局唯一入口是左侧 GenerateDock 主按钮——修复页签下显示「开始修复」(执行中「修复中...」)，其余页签为「生成图片」；修复页与画板工具坞不再携带各自的执行按钮 (旧三按钮已删)。修复完成时强制选中新图 (不弹「有新图」横幅) 并把 `_inpaintSourceImage` 切到新图，画板立即展示修复结果便于继续迭代。修复结果带 `isInpainted` 标记 (`_recordGenerated` 参数)，历史缩略图角标「修复」(优先级：未保存 > 放大 > 修复 > 导入)。
+
+**几何与回贴** (InpaintService 单一事实源，对齐官方网页端/Aaalice 潜空间蒙版协议)：焦点模式 `resolveGeometry` 外延 contextPadding 后等比上采样至 1MP 潜空间 (64 网格对齐)；常规模式 `resolveStandardRequestSize` 按源图实际分辨率 64 网格对齐 (禁止用工作台生成参数宽高去拉伸任意源图，超 3MP 等比收敛)。**发 API 的请求蒙版必须先 `quantizeMaskToLatentGrid` 量化到 8px 潜空间网格** (格中心采样+亮度阈值，与官方一致)；服务端实际重绘区 = 量化后整格。回贴 `compositeFocusedResult`：合成蒙版 = 量化网格再膨胀 4 格 (`latentDilationIterations`) + 盒式模糊羽化 (20px×2，前缀和 O(1)/像素) + alpha 匹配亮度；生成图 RGB + 合成蒙版 alpha 组出补丁、缩小后 BlendMode.alpha 盖回原图——不膨胀会残留原图色环 (量化多出的格子边缘贴不回去)，不羽化会硬接缝。蒙版黑白均为 alpha 255，判定只看 RGB 亮度，禁止把 alpha 计入。image 包 `compositeImage` 的 mask 参数默认按 luminance 通道混合，标准模式可直接用。
+
+**Agent 工具联动 (novelai_inpaint / get_inpaint_geometry ↔ 批注，2026-12 修复)**：`annotation_id` 复用画板批注——矩形批注直用其选区；图钉锚点转为中心 12% 短边小选区 (`kPointAnnotationHalfExtent`)；整图批注无位置明确报错。未显式传 prompt 时批注文字自动作为修复提示词 (与 UI「发送到修复」同语义)，结果文本注明选区来源与提示词来源。focus 模式无 rect/annotation_id 必须报错，**禁止静默回退修图片中心** (旧默认 0.25~0.75 框已废除)；rect 解析统一走 `parseToolRectArg`/`normalizeRectPoints` (钳制 0~1、纠正乱序、容错字符串数字)。流式 `errorMessage` 必须透传到工具错误文本，不得吞成笼统的「未能生成修复图像」。`get_inpaint_geometry` 支持 annotation_id 且按实际图片字节解码尺寸 (导入图 params 可能是假宽高)。`view_image_annotations` 每条批注输出批注 ID，并在存在矩形/图钉批注时提示可用 `annotation_id` 联动修复——否则模型拿不到 ID，联动链路是断的。
+
+**仓库共享管线**：`generateInpaintStream` 与 `generateInpaint` 共用 `_prepareInpaintRequest` (覆盖链/蒙版/几何/请求字节) + `_compositeInpaintResult` (回贴+元数据) + `_persistInpaintResult` (autoSave 缓存/导出处理分支)，禁止再复制双胞胎长函数。中间帧预览走 `_inpaintPreviewBytes` 独立通道 (不占生图预览)。inpaint 模型 ID 映射：V5 Curated 重绘权重尚未就绪，官方网页端映射到 `nai-diffusion-4-5-curated-inpainting` (对齐 Aaalice resolveInpaintingModel)。侧栏页签持久化含 'inpaint' 键名映射。
 
 ---
 

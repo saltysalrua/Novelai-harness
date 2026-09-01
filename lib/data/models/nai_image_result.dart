@@ -25,6 +25,9 @@ class NaiGeneratedImage {
   /// 是否为官方超分放大的产物 (历史缩略图角标用)
   final bool isUpscaled;
 
+  /// 是否为局部修复 / 焦点特写的产物 (历史缩略图角标用)
+  final bool isInpainted;
+
   /// 是否为未保存的缓存图片 (自动保存关闭时生图先落缓存目录，手动保存后置 false)
   final bool isUnsaved;
 
@@ -39,13 +42,15 @@ class NaiGeneratedImage {
     this.annotations = const [],
     this.isImportedReference = false,
     this.isUpscaled = false,
+    this.isInpainted = false,
     this.isUnsaved = false,
   });
 
-  /// 历史缩略图角标文案：未保存 > 超分图 > 导入图 优先级，普通生成图返回 null
+  /// 历史缩略图角标文案：未保存 > 超分图 > 修复图 > 导入图 优先级，普通生成图返回 null
   String? get historyBadgeLabel {
     if (isUnsaved) return '未保存';
     if (isUpscaled) return '放大';
+    if (isInpainted) return '修复';
     if (isImportedReference) return '导入';
     return null;
   }
@@ -65,6 +70,7 @@ class NaiGeneratedImage {
     List<ImageAnnotation>? annotations,
     bool? isImportedReference,
     bool? isUpscaled,
+    bool? isInpainted,
     bool? isUnsaved,
   }) {
     return NaiGeneratedImage(
@@ -78,6 +84,7 @@ class NaiGeneratedImage {
       annotations: annotations ?? this.annotations,
       isImportedReference: isImportedReference ?? this.isImportedReference,
       isUpscaled: isUpscaled ?? this.isUpscaled,
+      isInpainted: isInpainted ?? this.isInpainted,
       isUnsaved: isUnsaved ?? this.isUnsaved,
     );
   }
@@ -92,6 +99,7 @@ class NaiGeneratedImage {
     'annotations': annotations.map((a) => a.toJson()).toList(),
     if (isImportedReference) 'isImportedReference': true,
     if (isUpscaled) 'isUpscaled': true,
+    if (isInpainted) 'isInpainted': true,
     if (isUnsaved) 'isUnsaved': true,
   };
 
@@ -128,6 +136,7 @@ class NaiGeneratedImage {
       annotations: annotations,
       isImportedReference: json['isImportedReference'] as bool? ?? false,
       isUpscaled: json['isUpscaled'] as bool? ?? false,
+      isInpainted: json['isInpainted'] as bool? ?? false,
       isUnsaved: json['isUnsaved'] as bool? ?? false,
     );
   }

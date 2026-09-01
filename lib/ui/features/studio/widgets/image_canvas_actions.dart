@@ -118,6 +118,11 @@ void showImageContextMenu(
         onTap: () =>
             viewModel.setAnnotatingImage(true, targetImageId: image.id),
       ),
+      ContextMenuItem(
+        icon: Icons.auto_fix_high_outlined,
+        label: '发送到修复',
+        onTap: () => viewModel.sendImageToInpaint(image),
+      ),
       const ContextMenuDivider(),
       ContextMenuItem(
         icon: Icons.zoom_in_rounded,

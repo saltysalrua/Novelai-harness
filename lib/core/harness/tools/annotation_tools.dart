@@ -468,6 +468,7 @@ class ViewImageAnnotationsTool extends AgentTool {
         final note = ann.note.trim().isEmpty ? '（未填写文字描述）' : ann.note.trim();
 
         lines.add('【批注 $num】[$typeLabel]');
+        lines.add('• 批注 ID: ${ann.id}');
         lines.add('• 批注内容: "$note"');
 
         if (ann.type == AnnotationType.rect && ann.rect != null) {
@@ -508,6 +509,17 @@ class ViewImageAnnotationsTool extends AgentTool {
         fullResolution
             ? '本次附件为原始尺寸图片 (未压缩)。'
             : '本次附件已压缩到最长边 1024px。若看不清批注细节，请再次调用本工具并传 full_resolution: true 获取原图。',
+      );
+    }
+
+    // 批注 ↔ 修复联动提示：矩形/图钉批注可直接作为修复区域
+    final hasPositionalAnnotation = annotations.any(
+      (a) => a.type == AnnotationType.rect || a.type == AnnotationType.point,
+    );
+    if (hasPositionalAnnotation) {
+      lines.add('');
+      lines.add(
+        '提示：矩形/图钉批注可通过 novelai_inpaint 的 annotation_id 参数直接作为修复区域 (图钉会自动转为以其为中心的小选区)，未显式传 prompt 时批注文字会自动作为修复提示词；也可先用 get_inpaint_geometry 预演几何与点数消耗。',
       );
     }
 

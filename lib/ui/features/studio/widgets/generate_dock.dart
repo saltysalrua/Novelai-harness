@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
 
-/// 左侧面板底部常驻操作坞：账号等级 / 点数 / Opus 免点标识 / V5 体力条 / 刷新 + 生成按钮
+/// 左侧面板底部常驻操作坞：账号等级 / 点数 / Opus 免点标识 / V5 体力条 / 刷新 + 主操作按钮
+///
+/// 主操作按钮随侧栏页签切换：修复页签下为「开始修复」(执行局部修复)，
+/// 其余页签为「生成图片」(结合预计点数 / 生成中可点击终止)。
 class GenerateDock extends StatelessWidget {
   final StudioViewModel viewModel;
 
@@ -38,6 +41,9 @@ class GenerateDock extends StatelessWidget {
   Widget build(BuildContext context) {
     final info = viewModel.accountInfo;
     final estimatedCost = viewModel.estimatedGenerationCost;
+    // 修复页签下主按钮切换为「开始修复」，执行局部修复 (全局唯一入口)
+    final isInpaintTab = viewModel.activeSidebarTab == StudioSidebarTab.inpaint;
+    final isRepairing = viewModel.isExecutingInpaint;
 
     final percent = info != null
         ? (info.staminaPercent / 100.0).clamp(0.0, 1.0)
@@ -155,10 +161,12 @@ class GenerateDock extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // 生成按钮 (Primary CTA / 结合预计点数 / 生成中可点击终止)
+          // 主操作按钮 (修复页签 = 开始修复；其余 = 生成图片)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _buildButtonColor(estimatedCost),
+              backgroundColor: isInpaintTab
+                  ? AppTheme.notionBlue
+                  : _buildButtonColor(estimatedCost),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 13),
               elevation: 0,
@@ -166,14 +174,22 @@ class GenerateDock extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppTheme.radiusButton),
               ),
             ),
-            onPressed: viewModel.isGenerating
-                ? () => viewModel.abortGeneration()
-                : () => viewModel.generateImage(),
-            icon: viewModel.isGenerating
-                ? const Icon(Icons.stop_circle_outlined, size: 17)
-                : const Icon(Icons.auto_awesome, size: 17),
+            onPressed: isInpaintTab
+                ? (isRepairing || viewModel.isGenerating
+                      ? null
+                      : () => viewModel.executeInpaint())
+                : (viewModel.isGenerating
+                      ? () => viewModel.abortGeneration()
+                      : () => viewModel.generateImage()),
+            icon: isInpaintTab
+                ? const Icon(Icons.auto_fix_high_outlined, size: 17)
+                : (viewModel.isGenerating
+                      ? const Icon(Icons.stop_circle_outlined, size: 17)
+                      : const Icon(Icons.auto_awesome, size: 17)),
             label: Text(
-              _buildButtonLabel(estimatedCost),
+              isInpaintTab
+                  ? (isRepairing ? '修复中...' : '开始修复')
+                  : _buildButtonLabel(estimatedCost),
               style: const TextStyle(
                 fontSize: 14.5,
                 fontWeight: FontWeight.w700,

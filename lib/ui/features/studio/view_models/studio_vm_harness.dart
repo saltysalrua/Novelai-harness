@@ -62,6 +62,44 @@ mixin _StudioHarnessMixin on _StudioCore {
       ),
     );
     _toolRegistry.register(
+      NovelAiInpaintTool(
+        repository: _repository,
+        configService: _configService,
+        getCurrentParams: () => _params,
+        onBeforeGenerate: () => agentWasViewingLatest = isViewingLatest,
+        onProgress: (progress) {
+          if (progress.isFinal) {
+            _livePreviewBytes = null;
+            _liveProgress = 1.0;
+          } else {
+            _isGenerating = true;
+            _livePreviewBytes = progress.previewImage;
+            _liveCurrentStep = progress.currentStep;
+            _liveTotalSteps = progress.totalSteps;
+            _liveProgress = progress.progress;
+            _statusMessage =
+                '修复中 · 步数: $_liveCurrentStep / $_liveTotalSteps (${(_liveProgress * 100).toInt()}%)';
+          }
+          notifyListeners();
+        },
+        onGenerated: (image) {
+          _isGenerating = false;
+          _livePreviewBytes = null;
+          _applyGeneratedImage(
+            image,
+            wasViewingLatest: agentWasViewingLatest || isViewingLatest,
+          );
+          notifyListeners();
+          refreshAccountInfo();
+        },
+        onConfirmPaidGeneration: _confirmPaidGeneration,
+        getAccountInfo: () => _accountInfo,
+      ),
+    );
+    _toolRegistry.register(
+      NovelAiInpaintGeometryTool(repository: _repository),
+    );
+    _toolRegistry.register(
       NovelAiSuggestTagsTool(
         repository: _repository,
         configService: _configService,

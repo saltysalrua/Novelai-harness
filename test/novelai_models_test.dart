@@ -642,13 +642,15 @@ void main() {
         isUpscaled: true,
       );
 
-      // 角标文案：放大 > 导入 优先
+      // 角标文案：放大 > 修复 > 导入 优先
       expect(upscaled.historyBadgeLabel, equals('放大'));
       final imported = upscaled.copyWith(
         isUpscaled: false,
         isImportedReference: true,
       );
       expect(imported.historyBadgeLabel, equals('导入'));
+      final repaired = upscaled.copyWith(isUpscaled: false, isInpainted: true);
+      expect(repaired.historyBadgeLabel, equals('修复'));
       final normal = NaiGeneratedImage(
         id: 'img_n',
         bytes: const [],
@@ -666,9 +668,17 @@ void main() {
       expect(restored.isUpscaled, isTrue);
       expect(restored.historyBadgeLabel, equals('放大'));
 
+      // 修复标记 JSON 往返同样保留
+      final repairedJson = repaired.toJson();
+      expect(repairedJson['isInpainted'], isTrue);
+      final restoredRepaired = NaiGeneratedImage.fromJson(repairedJson);
+      expect(restoredRepaired.isInpainted, isTrue);
+      expect(restoredRepaired.historyBadgeLabel, equals('修复'));
+
       final normalJson = normal.toJson();
       expect(normalJson.containsKey('isUpscaled'), isFalse);
       expect(normalJson.containsKey('isImportedReference'), isFalse);
+      expect(normalJson.containsKey('isInpainted'), isFalse);
       final restoredNormal = NaiGeneratedImage.fromJson(normalJson);
       expect(restoredNormal.isUpscaled, isFalse);
       expect(restoredNormal.isImportedReference, isFalse);

@@ -47,6 +47,15 @@ class StudioSidebar extends StatelessWidget {
           ),
           const SizedBox(height: 6),
 
+          // 导航分类项：修复
+          _buildTabItem(
+            tab: StudioSidebarTab.inpaint,
+            icon: Icons.auto_fix_high_outlined,
+            label: '修复',
+            isSelected: activeTab == StudioSidebarTab.inpaint,
+          ),
+          const SizedBox(height: 6),
+
           // 导航分类项：词库 (覆盖三栏的沉浸式管理)
           _buildTabItem(
             tab: StudioSidebarTab.library,

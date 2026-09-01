@@ -3,6 +3,7 @@ part of 'studio_view_model.dart';
 /// 画板图片批注与多参考图自由大画布管理
 mixin _StudioAnnotationsMixin on _StudioCore {
   /// 是否正在画板上批注当前选中的图片
+  @override
   bool get isAnnotatingImage => _isAnnotatingImage;
 
   /// 当前大画布布局防抖落盘 (仅图片持久化开启时生效)
@@ -125,6 +126,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
   ///
   /// 退出时保留大画布数据，下次进入原样恢复；仅当画布不存在或
   /// 目标主图发生变化时才重建，避免清空用户手工摆放的布局。
+  @override
   void setAnnotatingImage(bool annotating, {String? targetImageId}) {
     NaiGeneratedImage? target;
     if (targetImageId != null) {

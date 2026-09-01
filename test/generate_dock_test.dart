@@ -28,9 +28,7 @@ void main() {
 
   Widget buildTestWidget(StudioViewModel vm) {
     return MaterialApp(
-      home: Scaffold(
-        body: GenerateDock(viewModel: vm),
-      ),
+      home: Scaffold(body: GenerateDock(viewModel: vm)),
     );
   }
 
@@ -72,10 +70,7 @@ void main() {
     expect(find.text('生成图片'), findsOneWidget);
     final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
     final style = button.style;
-    expect(
-      style?.backgroundColor?.resolve({}),
-      equals(AppTheme.notionBlue),
-    );
+    expect(style?.backgroundColor?.resolve({}), equals(AppTheme.notionBlue));
   });
 
   testWidgets('超出免费区间消耗点数时：按钮变黄并结合显示「生成图片 (X Anlas)」', (
@@ -114,9 +109,7 @@ void main() {
     );
   });
 
-  testWidgets('切换为非 V5 模型时：不展示 V5 体力条', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('切换为非 V5 模型时：不展示 V5 体力条', (WidgetTester tester) async {
     final opusAccount = NaiAccountInfo.fromJson({
       'subscription': {
         'tier': 3,
@@ -139,5 +132,29 @@ void main() {
 
     // 验证 V5 体力条不渲染
     expect(find.text('V5 体力'), findsNothing);
+  });
+
+  testWidgets('修复页签下：主按钮切换为「开始修复」并可执行局部修复', (WidgetTester tester) async {
+    // 切到修复页签 (无账号信息也能渲染)
+    viewModel.setActiveSidebarTab(StudioSidebarTab.inpaint);
+
+    await tester.pumpWidget(buildTestWidget(viewModel));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('生成图片'), findsNothing);
+    expect(find.text('开始修复'), findsOneWidget);
+    final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    expect(
+      button.style?.backgroundColor?.resolve({}),
+      equals(AppTheme.notionBlue),
+    );
+    expect(button.onPressed, isNotNull);
+
+    // 切回参数页签：恢复「生成图片」(无 ListenableBuilder 包裹，重新 pump)
+    viewModel.setActiveSidebarTab(StudioSidebarTab.parameters);
+    await tester.pumpWidget(buildTestWidget(viewModel));
+    await tester.pumpAndSettle();
+    expect(find.text('开始修复'), findsNothing);
+    expect(find.textContaining('生成图片'), findsOneWidget);
   });
 }

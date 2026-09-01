@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HardwareKeyboard;
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
 import 'board_toolbar.dart';
 import 'board_wire_painter.dart';
@@ -434,9 +435,23 @@ class _BoardImageCardState extends State<BoardImageCard> {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // 选框本体：点击选中 + 拖拽移动选区
+            // 选框本体：点击选中 + 拖拽移动选区 + 右键发送到修复
             GestureDetector(
               onTap: () => widget.viewModel.selectAnnotationId(ann.id),
+              onSecondaryTapUp: (details) => showStudioContextMenu(
+                context,
+                position: details.globalPosition,
+                actions: [
+                  ContextMenuItem(
+                    icon: Icons.auto_fix_high_outlined,
+                    label: '发送到修复',
+                    onTap: () => widget.viewModel.sendAnnotationToInpaint(
+                      imgNode.image,
+                      ann,
+                    ),
+                  ),
+                ],
+              ),
               onPanStart: (details) {
                 widget.viewModel.selectAnnotationId(ann.id);
                 setState(() {

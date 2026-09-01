@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui' show Offset;
+import 'dart:ui' show Offset, Rect;
 import 'package:flutter/foundation.dart';
 import '../../../../core/harness/agent_harness.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
@@ -13,6 +13,7 @@ import '../../../../core/harness/tools/canvas_view_tool.dart';
 import '../../../../core/harness/tools/character_prompt_tools.dart';
 import '../../../../core/harness/tools/danbooru_search_tools.dart';
 import '../../../../core/harness/tools/load_skill_tool.dart';
+import '../../../../core/harness/tools/novelai_inpaint_tool.dart';
 import '../../../../core/harness/tools/novelai_tools.dart';
 import '../../../../core/harness/tools/prompt_library_tools.dart';
 import '../../../../core/harness/tools/studio_params_tool.dart';
@@ -24,6 +25,7 @@ import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/image_metadata_service.dart';
+import '../../../../data/services/inpaint_service.dart';
 import '../../../../data/services/watermark_service.dart';
 import '../../../../data/services/prompt_library_service.dart';
 import '../../../../data/services/session_log_service.dart';
@@ -38,12 +40,13 @@ part 'studio_vm_characters.dart';
 part 'studio_vm_chat.dart';
 part 'studio_vm_generation.dart';
 part 'studio_vm_harness.dart';
+part 'studio_vm_inpaint.dart';
 part 'studio_vm_layout.dart';
 part 'studio_vm_library.dart';
 part 'studio_vm_sessions.dart';
 part 'studio_vm_slash.dart';
 
-enum StudioSidebarTab { parameters, prompts, library }
+enum StudioSidebarTab { parameters, prompts, inpaint, library }
 
 /// 核心状态 Mixin：集中声明全部状态字段、Getters 与跨分部共享的读写入口。
 ///
@@ -102,6 +105,13 @@ mixin _StudioCore on ChangeNotifier {
   bool _hasUnseenLatest = false;
   String? _statusMessage;
   String? _errorMessage;
+
+  // --- 局部修复状态 ---
+  InpaintParams _inpaintParams = const InpaintParams();
+  bool _isExecutingInpaint = false;
+  NaiGeneratedImage? _inpaintSourceImage;
+  InpaintTool _inpaintTool = InpaintTool.rect;
+  Uint8List? _inpaintPreviewBytes;
 
   // --- 页面布局持久化状态 ---
   double _splitLeftWidth = 320.0;
@@ -447,6 +457,15 @@ mixin _StudioCore on ChangeNotifier {
     String imageId,
     List<ImageAnnotation> annotations,
   );
+
+  /// 切换侧边栏激活页签 (修复分部右键发送后跳转用)
+  void setActiveSidebarTab(StudioSidebarTab tab);
+
+  /// 是否处于自由大画布批注模式
+  bool get isAnnotatingImage;
+
+  /// 进入/退出自由大画布批注模式
+  void setAnnotatingImage(bool annotating, {String? targetImageId});
 }
 
 /// Studio 状态管理中枢 (MVVM)。
@@ -461,7 +480,8 @@ class StudioViewModel extends ChangeNotifier
         _StudioCharactersMixin,
         _StudioSlashMixin,
         _StudioLibraryMixin,
-        _StudioAnnotationsMixin {
+        _StudioAnnotationsMixin,
+        _StudioInpaintMixin {
   StudioViewModel({
     ConfigService? configService,
     NovelAiRepository? repository,
@@ -498,6 +518,7 @@ class StudioViewModel extends ChangeNotifier
     final savedTabName = await _configService.loadSidebarActiveTab();
     _activeSidebarTab = switch (savedTabName) {
       'prompts' => StudioSidebarTab.prompts,
+      'inpaint' => StudioSidebarTab.inpaint,
       'library' => StudioSidebarTab.library,
       _ => StudioSidebarTab.parameters,
     };

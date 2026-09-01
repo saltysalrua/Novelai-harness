@@ -10,6 +10,7 @@ import 'character_position_canvas_view.dart';
 import 'freeform_annotation_board.dart';
 import 'image_canvas_actions.dart';
 import 'image_stream_view.dart';
+import 'inpaint_canvas_overlay.dart';
 import 'metadata_reader_dialog.dart';
 
 /// 中间画板卡片：垂直图像流 + 可收起历史侧边栏 + 浮动徽章/横幅 + 角色位置交互画板 + 外部图片拖拽与粘贴导入
@@ -83,6 +84,9 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
         viewModel.isEditingCharacterPositions ||
         viewModel.isEditingWatermarkPosition;
     final isAnnotating = viewModel.isAnnotatingImage;
+    final isInpaintTab =
+        viewModel.activeSidebarTab == StudioSidebarTab.inpaint &&
+        !isEditingPositions;
     final selectedImage =
         viewModel.selectedImage ?? (gallery.isNotEmpty ? gallery.first : null);
 
@@ -122,25 +126,31 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 1.1 主画布：批注模式下为自由大画布 (Freeform Infinite Board)，普通模式下为垂直图像流
+                    // 1.1 主画布：批注模式下为自由大画布，修复页签下为独立修复
+                    //     画板 (无滚动干扰、选区与源图严格对齐)，普通模式下为垂直图像流
                     Expanded(
                       child: isAnnotating
                           ? FreeformAnnotationBoard(viewModel: viewModel)
-                          : (showEmptyState
-                                ? const CanvasEmptyState()
-                                : ImageStreamView(
-                                    viewModel: viewModel,
-                                    controller: _stream,
-                                  )),
+                          : (isInpaintTab
+                                ? InpaintRepairCanvas(viewModel: viewModel)
+                                : (showEmptyState
+                                      ? const CanvasEmptyState()
+                                      : ImageStreamView(
+                                          viewModel: viewModel,
+                                          controller: _stream,
+                                        ))),
                     ),
 
-                    // 1.2 右侧垂直 History 缩略图侧边栏 (Notion 蓝白纯净卡片，非批注模式下展示)
+                    // 1.2 右侧垂直 History 缩略图侧边栏 (Notion 蓝白纯净卡片；
+                    //     修复页签下隐藏——修复画板底图不与历史侧栏联动，
+                    //     换底图走图片右键「发送到修复」)
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       width:
                           (_isHistoryOpen &&
                               !isEditingPositions &&
-                              !isAnnotating)
+                              !isAnnotating &&
+                              !isInpaintTab)
                           ? 120
                           : 0,
                       curve: Curves.easeInOut,
@@ -251,8 +261,11 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                   child: CanvasSaveButton(viewModel: viewModel),
                 ),
 
-              // 5. 右上角浮动 History 展开按键 (仅在收回状态且非编辑/非批注模式时显示)
-              if (!_isHistoryOpen && !isEditingPositions && !isAnnotating)
+              // 5. 右上角浮动 History 展开按键 (仅在收回状态且非编辑/非批注/非修复页签时显示)
+              if (!_isHistoryOpen &&
+                  !isEditingPositions &&
+                  !isAnnotating &&
+                  !isInpaintTab)
                 Positioned(
                   top: 14,
                   right: 14,

@@ -99,6 +99,18 @@ enum NaiModel {
 
   /// Opus 免费生成是否受 V5 体力配额池限制 (透支后不再抵扣，按正常价扣点)
   bool get hasOpusUsageLimit => isV5;
+
+  /// 对应的 NovelAI 官方 Inpainting 重绘模型 ID
+  String get inpaintModelId => switch (this) {
+    NaiModel.v5Full => 'nai-diffusion-5-full-inpainting',
+    NaiModel.v5Curated => 'nai-diffusion-4-5-curated-inpainting',
+    NaiModel.v45Full => 'nai-diffusion-4-5-full-inpainting',
+    NaiModel.v45Curated => 'nai-diffusion-4-5-curated-inpainting',
+    NaiModel.v4Full => 'nai-diffusion-4-full-inpainting',
+    NaiModel.v4Curated => 'nai-diffusion-4-curated-inpainting',
+    NaiModel.v3 => 'nai-diffusion-3-inpainting',
+    NaiModel.v3Furry => 'nai-diffusion-furry-3-inpainting',
+  };
 }
 
 /// 采样算法

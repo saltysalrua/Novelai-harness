@@ -265,6 +265,230 @@ class NovelAiService {
     });
   }
 
+  /// 实时流式局部重绘 (Infill)
+  Stream<NaiStreamProgress> generateInfillStream({
+    required String apiKey,
+    required NaiGenerationParams params,
+    required Uint8List sourceBytes,
+    required Uint8List maskBytes,
+    required int requestWidth,
+    required int requestHeight,
+    double strength = 0.70,
+    double noise = 0.00,
+  }) async* {
+    if (apiKey.trim().isEmpty) {
+      throw Exception('未配置 NovelAI API Key，请在设置中输入有效的 Token。');
+    }
+
+    if (!params.model.isV4OrAbove) {
+      final images = await generateInfill(
+        apiKey: apiKey,
+        params: params,
+        sourceBytes: sourceBytes,
+        maskBytes: maskBytes,
+        requestWidth: requestWidth,
+        requestHeight: requestHeight,
+        strength: strength,
+        noise: noise,
+      );
+      if (images.isEmpty) {
+        yield NaiStreamProgress.error('重绘响应中未包含任何图片。');
+      } else {
+        yield NaiStreamProgress.finalResult(
+          finalImage: images.first,
+          totalSteps: params.steps,
+        );
+      }
+      return;
+    }
+
+    await _lock.acquire();
+    try {
+      final payload = params.toInfillApiPayload(
+        sourceBytes: sourceBytes,
+        maskBytes: maskBytes,
+        requestWidth: requestWidth,
+        requestHeight: requestHeight,
+        strength: strength,
+        noise: noise,
+        streaming: true,
+      );
+      final body = jsonEncode(payload);
+
+      final requestHeaders = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/x-msgpack',
+        'Authorization': 'Bearer ${apiKey.trim()}',
+        'x-correlation-id': _generateCorrelationId(),
+        'x-initiated-at': DateTime.now().toUtc().toIso8601String(),
+      };
+
+      http.StreamedResponse streamedResponse;
+      final uri = Uri.parse(_generateStreamEndpoint);
+
+      http.Request createRequest() {
+        final req = http.Request('POST', uri);
+        req.headers.addAll(requestHeaders);
+        req.body = body;
+        return req;
+      }
+
+      streamedResponse = await _httpClient.send(createRequest());
+
+      if (streamedResponse.statusCode == 429) {
+        await Future.delayed(const Duration(milliseconds: 2500));
+        streamedResponse = await _httpClient.send(createRequest());
+      }
+
+      if (streamedResponse.statusCode != 200) {
+        final errorBytes = await streamedResponse.stream.toBytes();
+        final errorBody = utf8.decode(errorBytes, allowMalformed: true);
+        throw _parseHttpError(
+          http.Response(errorBody, streamedResponse.statusCode),
+          '流式重绘请求失败',
+        );
+      }
+
+      final buffer = <int>[];
+      var messageCount = 0;
+      var hasYieldedFinal = false;
+      Uint8List? lastReceivedImage;
+
+      await for (final chunk in streamedResponse.stream) {
+        buffer.addAll(chunk);
+
+        while (buffer.length >= 4) {
+          final messageLength = _readLength(buffer);
+          if (buffer.length < 4 + messageLength) break;
+
+          final messageBytes = Uint8List.fromList(
+            buffer.sublist(4, 4 + messageLength),
+          );
+          buffer.removeRange(0, 4 + messageLength);
+          messageCount += 1;
+
+          try {
+            final decoded = msgpack.deserialize(messageBytes);
+            if (decoded is! Map) continue;
+
+            final msgMap = decoded.map(
+              (key, value) => MapEntry(key.toString(), value),
+            );
+
+            final eventType = msgMap['event_type']?.toString();
+            if (eventType == 'error' || msgMap.containsKey('error')) {
+              final err = msgMap['message'] ?? msgMap['error'] ?? '重绘流异常中断';
+              yield NaiStreamProgress.error(err.toString());
+              return;
+            }
+
+            final imageBytes = _decodeStreamImage(
+              msgMap['image'] ?? msgMap['data'],
+            );
+            if (imageBytes == null || imageBytes.isEmpty) continue;
+
+            lastReceivedImage = imageBytes;
+
+            if (eventType == 'final') {
+              hasYieldedFinal = true;
+              yield NaiStreamProgress.finalResult(
+                finalImage: imageBytes,
+                totalSteps: params.steps,
+              );
+            } else if (eventType == null ||
+                eventType.isEmpty ||
+                eventType == 'intermediate') {
+              final stepIx = _asInt(msgMap['step_ix']);
+              final currentStep = (stepIx != null ? stepIx + 1 : messageCount);
+              yield NaiStreamProgress.intermediate(
+                previewImage: imageBytes,
+                currentStep: currentStep,
+                totalSteps: params.steps,
+              );
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (!hasYieldedFinal) {
+        if (buffer.isNotEmpty) {
+          final leftoverBytes = Uint8List.fromList(buffer);
+          if (_isZip(leftoverBytes)) {
+            final images = _extractImagesFromZip(leftoverBytes);
+            if (images.isNotEmpty) {
+              hasYieldedFinal = true;
+              yield NaiStreamProgress.finalResult(
+                finalImage: images.first,
+                totalSteps: params.steps,
+              );
+              return;
+            }
+          }
+        }
+        if (lastReceivedImage != null && lastReceivedImage.isNotEmpty) {
+          hasYieldedFinal = true;
+          yield NaiStreamProgress.finalResult(
+            finalImage: lastReceivedImage,
+            totalSteps: params.steps,
+          );
+        }
+      }
+
+      if (!hasYieldedFinal) {
+        yield NaiStreamProgress.error('流式重绘响应已结束，但未收到任何成图数据。');
+      }
+    } finally {
+      _lock.release();
+    }
+  }
+
+  /// 执行局部重绘 (标准 ZIP 归档模式)
+  Future<List<Uint8List>> generateInfill({
+    required String apiKey,
+    required NaiGenerationParams params,
+    required Uint8List sourceBytes,
+    required Uint8List maskBytes,
+    required int requestWidth,
+    required int requestHeight,
+    double strength = 0.70,
+    double noise = 0.00,
+  }) async {
+    if (apiKey.trim().isEmpty) {
+      throw Exception('未配置 NovelAI API Key，请在设置中输入有效的 Token。');
+    }
+
+    final payload = params.toInfillApiPayload(
+      sourceBytes: sourceBytes,
+      maskBytes: maskBytes,
+      requestWidth: requestWidth,
+      requestHeight: requestHeight,
+      strength: strength,
+      noise: noise,
+      streaming: false,
+    );
+    final body = jsonEncode(payload);
+
+    return await _lock.runExclusive(() async {
+      http.Response response = await _postWithAuth(
+        _generateEndpoint,
+        apiKey,
+        body,
+      );
+
+      if (response.statusCode == 429) {
+        await Future.delayed(const Duration(milliseconds: 2500));
+        response = await _postWithAuth(_generateEndpoint, apiKey, body);
+      }
+
+      if (response.statusCode != 200) {
+        throw _parseHttpError(response, '局部重绘请求失败');
+      }
+
+      final zipBytes = response.bodyBytes;
+      return _extractImagesFromZip(zipBytes);
+    });
+  }
+
   /// 图像超分放大 (V5 换代后的官方新超分模型，固定倍率输出)
   ///
   /// 新协议为 multipart 表单：图片 PNG 文件 + request JSON 文件
