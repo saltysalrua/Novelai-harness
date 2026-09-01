@@ -208,6 +208,169 @@ void main() {
       },
     );
 
+    test('V5 Auto Text injects quoted strings as teXt: block after quality tags', () {
+      // 官网行为：引号文字自动注入 teXt: 段，质量词落在它之前
+      const v5 = NaiGenerationParams(
+        prompt: '1girl, "WELCOME", neon sign',
+        model: NaiModel.v5Full,
+      );
+      expect(
+        v5.effectivePrompt,
+        equals(
+          '1girl, "WELCOME", neon sign, very aesthetic, masterpiece, no text, teXt: WELCOME',
+        ),
+      );
+
+      // 多段引号文字用空行分隔
+      const multi = NaiGenerationParams(
+        prompt: '1girl, "first", "second"',
+        model: NaiModel.v5Full,
+      );
+      expect(
+        multi.effectivePrompt,
+        equals(
+          '1girl, "first", "second", very aesthetic, masterpiece, no text, teXt: first\n\nsecond',
+        ),
+      );
+
+      // 已有手写 text: 标记时跳过注入 (大小写不敏感检测)
+      const manual = NaiGenerationParams(
+        prompt: '1girl, "WELCOME", text: "WELCOME"',
+        model: NaiModel.v5Full,
+      );
+      expect(
+        manual.effectivePrompt,
+        equals(
+          '1girl, "WELCOME", very aesthetic, masterpiece, no text text: "WELCOME"',
+        ),
+      );
+
+      // V4/V4.5 无 Auto Text，引号文字不注入
+      const v4 = NaiGenerationParams(
+        prompt: '1girl, "WELCOME"',
+        model: NaiModel.v45Full,
+      );
+      expect(
+        v4.effectivePrompt,
+        equals(
+          '1girl, "WELCOME", location, very aesthetic, masterpiece, no text',
+        ),
+      );
+
+      // 中文/日文引号 (“”、「」) 同样提取；日文占比>30% 时倒序
+      const jp = NaiGenerationParams(
+        prompt: '1girl, 「こんにちは」, 「さようなら」',
+        model: NaiModel.v5Curated,
+      );
+      expect(
+        jp.effectivePrompt,
+        equals(
+          '1girl, 「こんにちは」, 「さようなら」, very aesthetic, masterpiece, no text, teXt: さようなら\n\nこんにちは',
+        ),
+      );
+
+      // 无引号文字时不注入
+      const noQuotes = NaiGenerationParams(
+        prompt: '1girl, neon sign',
+        model: NaiModel.v5Full,
+      );
+      expect(
+        noQuotes.effectivePrompt,
+        equals('1girl, neon sign, very aesthetic, masterpiece, no text'),
+      );
+    });
+
+    test('V5 Auto Text collects quoted strings from character prompts', () {
+      const multi = NaiGenerationParams(
+        prompt: '2girls, street',
+        model: NaiModel.v5Full,
+        characterPrompts: [
+          NaiCharacterPrompt(id: 'a', name: 'A', prompt: 'girl, "HELLO"'),
+          NaiCharacterPrompt(id: 'b', name: 'B', prompt: 'girl, "BYE"'),
+        ],
+      );
+      expect(
+        multi.effectivePrompt,
+        equals(
+          '2girls, street, very aesthetic, masterpiece, no text, teXt: HELLO\n\nBYE',
+        ),
+      );
+    });
+
+    test(
+      'applySuffix handles prompt-mix chunks per official two-layer logic',
+      () {
+        // V4+：prompt-mix 只有第 0 段是基础提示词，质量词只加第 0 段
+        // (段首尾空白原样保留)
+        const v5Mix = NaiGenerationParams(
+          prompt: '1girl, solo | 1boy, solo',
+          model: NaiModel.v5Full,
+        );
+        expect(
+          v5Mix.effectivePrompt,
+          equals(
+            '1girl, solo, very aesthetic, masterpiece, no text | 1boy, solo',
+          ),
+        );
+
+        // ||…|| 随机区间内的 | 不算分段分隔
+        const v5Random = NaiGenerationParams(
+          prompt: '1girl, ||red | blue|| dress',
+          model: NaiModel.v5Full,
+        );
+        expect(
+          v5Random.effectivePrompt,
+          equals(
+            '1girl, ||red | blue|| dress, very aesthetic, masterpiece, no text',
+          ),
+        );
+
+        // V3：每段都追加且保留段尾 :权重 (官网按字面 | 切，权重必须在段尾)
+        const v3Mix = NaiGenerationParams(
+          prompt: '1girl:0.7|landscape:0.3',
+          model: NaiModel.v3,
+        );
+        expect(
+          v3Mix.effectivePrompt,
+          equals(
+            '1girl, best quality, amazing quality, very aesthetic, absurdres:0.7|landscape, best quality, amazing quality, very aesthetic, absurdres:0.3',
+          ),
+        );
+
+        // 段尾带空格时权重正则不匹配，权重作为普通字符保留 (官网同行为)
+        const v3Spaced = NaiGenerationParams(
+          prompt: '1girl:0.7 | landscape',
+          model: NaiModel.v3,
+        );
+        expect(v3Spaced.effectivePrompt, contains('1girl:0.7, best quality'));
+      },
+    );
+
+    test('NovelAiAutoText stripGeneratedBlock round-trip and safety', () {
+      // 注入 → 剥离还原
+      const params = NaiGenerationParams(
+        prompt: '1girl, "WELCOME"',
+        model: NaiModel.v5Full,
+      );
+      final effective = params.effectivePrompt;
+      expect(
+        NovelAiAutoText.stripGeneratedBlock(effective),
+        equals('1girl, "WELCOME", very aesthetic, masterpiece, no text'),
+      );
+
+      // 用户手写的 teXt: 内容与引号提取不一致时保留
+      expect(
+        NovelAiAutoText.stripGeneratedBlock('1girl, teXt: something else'),
+        equals('1girl, teXt: something else'),
+      );
+
+      // 用户手写但内容恰好一致时也会剥离 (官网同款歧义，接受)
+      expect(
+        NovelAiAutoText.stripGeneratedBlock('1girl, "HI", teXt: HI'),
+        equals('1girl, "HI"'),
+      );
+    });
+
     test('NaiAccountInfo parses json properly', () {
       final json = {
         'subscription': {

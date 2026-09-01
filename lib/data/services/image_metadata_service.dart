@@ -285,8 +285,8 @@ class ImageMetadataService {
         if (nested != null) return nested;
       }
 
-      final prompt = map['prompt'] as String? ?? '';
-      final negativePrompt =
+      var prompt = map['prompt'] as String? ?? '';
+      var negativePrompt =
           map['uc'] as String? ?? map['negative_prompt'] as String? ?? '';
       final seed =
           (map['seed'] as num?)?.toInt() ??
@@ -300,14 +300,47 @@ class ImageMetadataService {
       final width = (map['width'] as num?)?.toInt();
       final height = (map['height'] as num?)?.toInt();
       final noiseSchedule = map['noise_schedule'] as String?;
-      final qualityToggle = map['qualityToggle'] as bool?;
-      final qualityPreset = map['qualityPreset'] as String?;
-      final ucPreset = map['ucPreset'] as String?;
+
+      // ---- 结构化预设提示解析 (本程序字段 + 官方 V5 数字提示双兼容) ----
+      // tag_hint_qt: 0=关 1=Standard 3=Light；tag_hint_uc_preset: 0=None
+      // 2=Heavy 3=Light 4=Human Focus 5=Furry Focus (官网新数字提示)
+      final tagHintQt = (map['tag_hint_qt'] as num?)?.toInt();
+      final tagHintUc = (map['tag_hint_uc_preset'] as num?)?.toInt();
+      final qualityToggle =
+          (map['qualityToggle'] as bool?) ??
+          (map['quality_toggle'] as bool?) ??
+          (tagHintQt != null ? tagHintQt != 0 : null);
+      final qualityPreset =
+          map['qualityPreset'] as String? ??
+          switch (tagHintQt) {
+            1 => 'Standard',
+            3 => 'Light',
+            _ => null,
+          };
+      // 旧版官方 uc_preset 是请求 int 字段 (0=Heavy 1=Light 2=Human Focus
+      // 3=None 7=Furry Focus)，与 tag_hint 数字提示是两套编码，优先新提示
+      final ucPreset =
+          map['ucPreset'] as String? ??
+          switch (tagHintUc) {
+            0 => 'None',
+            2 => 'Heavy',
+            3 => 'Light',
+            4 => 'Human Focus',
+            5 => 'Furry Focus',
+            _ => switch ((map['uc_preset'] as num?)?.toInt()) {
+              0 => 'Heavy',
+              1 => 'Light',
+              2 => 'Human Focus',
+              3 => 'None',
+              7 => 'Furry Focus',
+              _ => null,
+            },
+          };
       final transparentBg =
           map['tag_hint_transparent_background'] as bool? ??
           map['transparent_background'] as bool?;
 
-      // 解析多角色提示词 (characterPrompts / v4_prompt.caption.char_captions)
+      // 解析多角色提示词 (本程序 characterPrompts / 官方 v4_prompt 正负向 char_captions)
       final characterPrompts = <String>[];
       final characterNegativePrompts = <String>[];
       if (map['characterPrompts'] is List) {
@@ -327,6 +360,16 @@ class ImageMetadataService {
             if (item is Map) {
               final p = item['char_caption'] as String? ?? '';
               if (p.isNotEmpty) characterPrompts.add(p);
+            }
+          }
+        }
+        final v4Neg = map['v4_negative_prompt'] as Map?;
+        final negCaption = v4Neg?['caption'] as Map?;
+        if (negCaption != null && negCaption['char_captions'] is List) {
+          for (final item in negCaption['char_captions'] as List) {
+            if (item is Map) {
+              final uc = item['char_caption'] as String? ?? '';
+              if (uc.isNotEmpty) characterNegativePrompts.add(uc);
             }
           }
         }
@@ -356,6 +399,58 @@ class ImageMetadataService {
           } else {
             model = source;
           }
+        }
+      }
+
+      // ---- 反向剥离质量词 / UC 预设 / nsfw 前置，还原基础提示词 ----
+      // Comment 携带的是完整生效文本 (本程序与官网一致)，一键填入前必须
+      // 还原为工作台的基础文本，否则会与质量词开关叠加重复。
+      final naiModel = model != null ? NaiModel.fromId(model) : null;
+      if (naiModel != null) {
+        // 官网 V5 Auto Text：先剥离自动注入的 teXt: 段 (内容与引号提取一致才剥)，
+        // 再剥质量词后缀；顺序与官网注入顺序 (质量词 → teXt:) 相反。
+        // stripGeneratedBlock 自带 teXt: 标记校验，无标记时原样返回。
+        prompt = NovelAiAutoText.stripGeneratedBlock(
+          prompt,
+          characters: [
+            for (final p in characterPrompts)
+              (prompt: p, centerX: 0.5, centerY: 0.5),
+          ],
+        );
+        if (qualityToggle == true && qualityPreset != null) {
+          final qualityTags = NovelAiQualityTagsHelper.getQualityTags(
+            naiModel,
+            qualityPreset,
+          );
+          prompt = NovelAiPromptText.stripTrailingTagSegmentsTextAware(
+            prompt,
+            qualityTags,
+            supportsTextRendering: naiModel.isV4OrAbove,
+          );
+        }
+        if (transparentBg == true) {
+          prompt = NovelAiPromptText.stripTrailingTagSegments(
+            prompt,
+            'transparent background',
+          );
+        }
+        if (ucPreset != null) {
+          // 官方 UC 预设启用且正向词无 nsfw 时会前置 'nsfw, '，先剥掉再剥预设文本
+          if (ucPreset != 'None' &&
+              !NovelAiPromptText.containsNsfwTag(prompt)) {
+            negativePrompt = NovelAiPromptText.stripLeadingTagSegments(
+              negativePrompt,
+              'nsfw',
+            );
+          }
+          final ucText = NovelAiUndesiredContentHelper.getUndesiredContent(
+            naiModel,
+            ucPreset,
+          );
+          negativePrompt = NovelAiPromptText.stripLeadingTagSegments(
+            negativePrompt,
+            ucText,
+          );
         }
       }
 
@@ -576,7 +671,7 @@ class ImageMetadataService {
           _writeTextChunk(output, 'Title', 'AI generated image');
           _writeTextChunk(output, 'Software', 'NovelAI');
           _writeTextChunk(output, 'Source', params.model.label);
-          _writeTextChunk(output, 'Description', params.finalPrompt);
+          _writeTextChunk(output, 'Description', params.effectivePrompt);
           _writeTextChunk(output, 'Comment', commentJson);
         }
         // 过滤旧的重名文本块，避免重复
@@ -605,7 +700,7 @@ class ImageMetadataService {
         _writeTextChunk(output, 'Title', 'AI generated image');
         _writeTextChunk(output, 'Software', 'NovelAI');
         _writeTextChunk(output, 'Source', params.model.label);
-        _writeTextChunk(output, 'Description', params.finalPrompt);
+        _writeTextChunk(output, 'Description', params.effectivePrompt);
         _writeTextChunk(output, 'Comment', commentJson);
       }
 

@@ -84,17 +84,40 @@ class NaiGenerationParams {
     return parts.join(', ');
   }
 
-  /// 组合实际发送的正向词 (finalPrompt + 官方质量词后缀)。
-  /// NovelAI v4+ 的 API 不再在服务端按 qualityToggle 拼接质量词，需客户端拼好文本。
+  /// 组合实际发送的正向词：
+  /// 1. 质量词后缀 (官网两层追加：prompt-mix 分段 + text: 标记前置)；
+  /// 2. V5 系列模型的 Auto Text——把引号包住的文字注入 `teXt:` 渲染段
+  ///    (官网在质量词之后追加，因此质量词永远落在 teXt: 之前)。
   String get effectivePrompt {
     final qualityTags = qualityToggle
         ? NovelAiQualityTagsHelper.getQualityTags(model, qualityPreset)
         : '';
-    if (qualityTags.trim().isEmpty) return finalPrompt;
-    return NovelAiPromptText.appendSuffixWithTextAwareness(
-      finalPrompt,
-      qualityTags,
-      supportsTextRendering: model.supportsTextRendering,
+    final withQuality = qualityTags.trim().isEmpty
+        ? finalPrompt
+        : NovelAiPromptText.applySuffix(
+            finalPrompt,
+            qualityTags,
+            isV4OrAbove: model.isV4OrAbove,
+            supportsTextRendering: model.supportsTextRendering,
+          );
+
+    if (!model.isV5) return withQuality;
+    final enabled = enabledCharacterPrompts;
+    final characters = <NaiAutoTextCharacter>[
+      for (var i = 0; i < enabled.length; i++)
+        () {
+          final center = enabled[i].resolveCenter(i, enabled.length);
+          return (
+            prompt: enabled[i].prompt,
+            centerX: center.x,
+            centerY: center.y,
+          );
+        }(),
+    ];
+    return NovelAiAutoText.apply(
+      withQuality,
+      characters: characters,
+      useCoords: useCoords,
     );
   }
 
@@ -213,48 +236,8 @@ class NaiGenerationParams {
       // 自定义定位时发送 use_coords=true 与各角色 center——手动指定过的角色
       // 用其坐标，未指定的按启用顺序自动布局；V4/V4.5 官方限制 5x5 网格，
       // 坐标量化到 1/4 步长，V5 为自由连续小数坐标。
-      final enabledCharacters = enabledCharacterPrompts;
+      final parts = _buildCharacterPayloadParts();
       final useCoords = this.useCoords;
-      final quantize = model.isV5
-          ? (double v) => v.clamp(0.0, 1.0)
-          : NaiCharacterPositionLayout.gridQuantize;
-
-      final charCaptions = <Map<String, dynamic>>[];
-      final negativeCharCaptions = <Map<String, dynamic>>[];
-      final characterPromptEntries = <Map<String, dynamic>>[];
-      for (var i = 0; i < enabledCharacters.length; i++) {
-        final character = enabledCharacters[i];
-        if (useCoords) {
-          final raw = character.resolveCenter(i, enabledCharacters.length);
-          final center = (x: quantize(raw.x), y: quantize(raw.y));
-          charCaptions.add({
-            'centers': [
-              {'x': center.x, 'y': center.y},
-            ],
-            'char_caption': character.prompt,
-          });
-          negativeCharCaptions.add({
-            'centers': [
-              {'x': center.x, 'y': center.y},
-            ],
-            'char_caption': character.negativePrompt,
-          });
-          characterPromptEntries.add({
-            'center': {'x': center.x, 'y': center.y},
-            'prompt': character.prompt,
-            'uc': character.negativePrompt,
-            'enabled': true,
-          });
-        } else {
-          charCaptions.add({'char_caption': character.prompt});
-          negativeCharCaptions.add({'char_caption': character.negativePrompt});
-          characterPromptEntries.add({
-            'prompt': character.prompt,
-            'uc': character.negativePrompt,
-            'enabled': true,
-          });
-        }
-      }
 
       return {
         'input': apiPrompt,
@@ -266,11 +249,11 @@ class NaiGenerationParams {
           'use_coords': useCoords,
           'legacy_v3_extend': false,
           'legacy_uc': false,
-          'characterPrompts': characterPromptEntries,
+          'characterPrompts': parts.characterPrompts,
           'v4_prompt': {
             'caption': {
               'base_caption': apiPrompt,
-              'char_captions': charCaptions,
+              'char_captions': parts.charCaptions,
             },
             'use_coords': useCoords,
             'use_order': true,
@@ -278,7 +261,7 @@ class NaiGenerationParams {
           'v4_negative_prompt': {
             'caption': {
               'base_caption': apiNegative,
-              'char_captions': negativeCharCaptions,
+              'char_captions': parts.negativeCharCaptions,
             },
             'legacy_uc': false,
           },
@@ -425,28 +408,142 @@ class NaiGenerationParams {
     );
   }
 
+  /// 构建 V4+ 多角色的三套官方协议结构 (正向/负向 char_captions 与
+  /// characterPrompts 条目)，toApiPayload 与 toMetadataComment 共用，
+  /// 保证请求与嵌入 PNG 的元数据完全同构。
+  _NaiCharacterPayloadParts _buildCharacterPayloadParts() {
+    final enabledCharacters = enabledCharacterPrompts;
+    final useCoords = this.useCoords;
+    final quantize = model.isV5
+        ? (double v) => v.clamp(0.0, 1.0)
+        : NaiCharacterPositionLayout.gridQuantize;
+
+    final charCaptions = <Map<String, dynamic>>[];
+    final negativeCharCaptions = <Map<String, dynamic>>[];
+    final characterPromptEntries = <Map<String, dynamic>>[];
+    for (var i = 0; i < enabledCharacters.length; i++) {
+      final character = enabledCharacters[i];
+      if (useCoords) {
+        final raw = character.resolveCenter(i, enabledCharacters.length);
+        final center = (x: quantize(raw.x), y: quantize(raw.y));
+        charCaptions.add({
+          'centers': [
+            {'x': center.x, 'y': center.y},
+          ],
+          'char_caption': character.prompt,
+        });
+        negativeCharCaptions.add({
+          'centers': [
+            {'x': center.x, 'y': center.y},
+          ],
+          'char_caption': character.negativePrompt,
+        });
+        characterPromptEntries.add({
+          'center': {'x': center.x, 'y': center.y},
+          'prompt': character.prompt,
+          'uc': character.negativePrompt,
+          'enabled': true,
+        });
+      } else {
+        charCaptions.add({'char_caption': character.prompt});
+        negativeCharCaptions.add({'char_caption': character.negativePrompt});
+        characterPromptEntries.add({
+          'prompt': character.prompt,
+          'uc': character.negativePrompt,
+          'enabled': true,
+        });
+      }
+    }
+    return _NaiCharacterPayloadParts(
+      charCaptions: charCaptions,
+      negativeCharCaptions: negativeCharCaptions,
+      characterPrompts: characterPromptEntries,
+    );
+  }
+
   /// 构造嵌入 PNG Comment 文本块的标准 NovelAI 元数据 Map
+  /// (2026-12 对齐官网实测格式: prompt/uc 携带完整生效文本)。
+  ///
+  /// 官网生成的 PNG 在 Comment 中写入的就是拼好质量词 / UC 预设 / nsfw
+  /// 互斥与 text: 标记处理的**完整生效提示词**，与实际请求完全一致；本方法
+  /// 同样使用 effectivePrompt / effectiveNegativePrompt，第三方工具 (官网、
+  /// Aaalice 等) 可直接识别。读回时的反向剥离见 ImageMetadataService。
   Map<String, dynamic> toMetadataComment({required int seed}) {
-    return {
-      'prompt': finalPrompt,
-      'uc': negativePrompt,
+    final apiPrompt = effectivePrompt;
+    final apiNegative = effectiveNegativePrompt;
+    final isV4OrAbove = model.isV4OrAbove;
+    // 官网对 Euler Ancestral + 非 Native 噪声调度固定开启布朗尼修正，保持一致
+    final usesBrownianEulerAncestral =
+        sampler == NaiSampler.kEulerAncestral &&
+        noiseSchedule != NoiseSchedule.native;
+
+    final comment = <String, dynamic>{
+      'prompt': apiPrompt,
+      'uc': apiNegative,
       'steps': steps,
-      'sampler': sampler.id,
-      'model': model.id,
-      'seed': seed,
-      'scale': scale,
-      'cfg_rescale': cfgRescale,
-      'width': width,
       'height': height,
+      'width': width,
+      'scale': scale,
+      'uncond_scale': 0.0,
+      'cfg_rescale': cfgRescale,
+      'seed': seed,
+      'n_samples': nSamples,
       'noise_schedule': noiseSchedule.id,
+      'sampler': sampler.id,
+      'sm': false,
+      'sm_dyn': false,
+      'model': model.id,
+      'version': isV4OrAbove ? 1 : 'v3',
+      'legacy_v3_extend': false,
+      'legacy_uc': false,
+      // 结构化预设提示：qualityToggle/qualityPreset/ucPreset 供本程序回读还原，
+      // tag_hint_* 为官网 V5 起随请求回显的数字提示 (qt: 0/1/3，uc: 0/2/3/4/5)
       'qualityToggle': qualityToggle,
       'qualityPreset': qualityPreset,
       'ucPreset': ucPresetKey,
-      'tag_hint_transparent_background': transparentBg,
-      'characterPrompts': characterPrompts
-          .where((c) => c.enabled)
-          .map((c) => {'prompt': c.prompt, 'uc': c.negativePrompt})
-          .toList(),
+      'tag_hint_qt': _qualityTagHint,
+      'tag_hint_uc_preset': _ucPresetTagHint,
+      if (transparentBg) 'tag_hint_transparent_background': true,
+      if (usesBrownianEulerAncestral) ...{
+        'deliberate_euler_ancestral_bug': false,
+        'prefer_brownian': true,
+      },
     };
+
+    if (isV4OrAbove) {
+      final parts = _buildCharacterPayloadParts();
+      comment['v4_prompt'] = {
+        'caption': {
+          'base_caption': apiPrompt,
+          'char_captions': parts.charCaptions,
+        },
+        'use_coords': useCoords,
+        'use_order': true,
+        'legacy_uc': false,
+      };
+      comment['v4_negative_prompt'] = {
+        'caption': {
+          'base_caption': apiNegative,
+          'char_captions': parts.negativeCharCaptions,
+        },
+        'use_coords': false,
+        'use_order': false,
+        'legacy_uc': false,
+      };
+    }
+    return comment;
   }
+}
+
+/// toMetadataComment 与 toApiPayload 共用的多角色 payload 结构
+class _NaiCharacterPayloadParts {
+  final List<Map<String, dynamic>> charCaptions;
+  final List<Map<String, dynamic>> negativeCharCaptions;
+  final List<Map<String, dynamic>> characterPrompts;
+
+  const _NaiCharacterPayloadParts({
+    required this.charCaptions,
+    required this.negativeCharCaptions,
+    required this.characterPrompts,
+  });
 }

@@ -9,7 +9,16 @@ void main() {
   group('ImageMetadataService Tests', () {
     test('isPngHeader returns true for valid PNG and false otherwise', () {
       final validPng = Uint8List.fromList([
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00,
+        0x89,
+        0x50,
+        0x4E,
+        0x47,
+        0x0D,
+        0x0A,
+        0x1A,
+        0x0A,
+        0x00,
+        0x00,
       ]);
       expect(ImageMetadataService.isPngHeader(validPng), isTrue);
 
@@ -132,7 +141,9 @@ void main() {
       final parsedAfter = ImageMetadataService.parseMetadata(strippedPng);
       expect(parsedAfter, isNull);
 
-      final textDataAfter = ImageMetadataService.extractPngTextData(strippedPng);
+      final textDataAfter = ImageMetadataService.extractPngTextData(
+        strippedPng,
+      );
       expect(textDataAfter.isEmpty, isTrue);
     });
 
@@ -168,42 +179,379 @@ void main() {
       expect(restored.height, equals(model.height));
       expect(restored.model, equals(model.model));
       expect(restored.characterPrompts, equals(model.characterPrompts));
-      expect(restored.characterNegativePrompts, equals(model.characterNegativePrompts));
+      expect(
+        restored.characterNegativePrompts,
+        equals(model.characterNegativePrompts),
+      );
       expect(restored.rawJson, equals(model.rawJson));
       expect(restored.hasData, isTrue);
     });
 
-    test('embedNovelAiMetadata embeds NovelAI chunks and parseMetadata reads it back correctly', () {
-      final blankImage = img.Image(width: 48, height: 48);
-      final rawPngBytes = Uint8List.fromList(img.encodePng(blankImage));
+    test(
+      'embedNovelAiMetadata embeds NovelAI chunks and parseMetadata reads it back correctly',
+      () {
+        final blankImage = img.Image(width: 48, height: 48);
+        final rawPngBytes = Uint8List.fromList(img.encodePng(blankImage));
 
+        const params = NaiGenerationParams(
+          prompt: '1girl, cyberpunk, neon light',
+          negativePrompt: 'blurry, low quality',
+          model: NaiModel.v5Full,
+          sampler: NaiSampler.kDpmpp2m,
+          noiseSchedule: NoiseSchedule.karras,
+          steps: 28,
+          scale: 6.5,
+          width: 832,
+          height: 1216,
+        );
+
+        final pngWithMeta = ImageMetadataService.embedNovelAiMetadata(
+          pngBytes: rawPngBytes,
+          params: params,
+          seed: 987654321,
+        );
+
+        final result = ImageMetadataService.parseMetadata(pngWithMeta);
+        expect(result, isNotNull);
+        expect(result!.prompt, equals('1girl, cyberpunk, neon light'));
+        expect(result.negativePrompt, equals('blurry, low quality'));
+        expect(result.steps, equals(28));
+        expect(result.scale, equals(6.5));
+        expect(result.seed, equals(987654321));
+        expect(result.sampler, equals('k_dpmpp_2m'));
+        expect(result.model, equals('nai-diffusion-5-full'));
+      },
+    );
+
+    test(
+      'toMetadataComment embeds full effective prompt/uc with official fields',
+      () {
+        const params = NaiGenerationParams(
+          prompt: '1girl, cyberpunk, neon light',
+          negativePrompt: 'blurry, low quality',
+          model: NaiModel.v5Full,
+          sampler: NaiSampler.kDpmpp2m,
+          noiseSchedule: NoiseSchedule.karras,
+          steps: 28,
+          scale: 6.5,
+          width: 832,
+          height: 1216,
+        );
+
+        final comment = params.toMetadataComment(seed: 42);
+
+        // prompt/uc 携带完整生效文本 (质量词后缀 + UC 预设前缀 + nsfw 前置)
+        expect(
+          comment['prompt'],
+          equals(
+            '1girl, cyberpunk, neon light, very aesthetic, masterpiece, no text',
+          ),
+        );
+        expect(
+          (comment['uc'] as String).startsWith('nsfw, lowres, artistic error'),
+          isTrue,
+        );
+        expect(
+          (comment['uc'] as String).endsWith('blank page, blurry, low quality'),
+          isTrue,
+        );
+        // 官方标准字段
+        expect(comment['version'], equals(1));
+        expect(comment['uncond_scale'], equals(0.0));
+        expect(comment['sm'], isFalse);
+        expect(comment['n_samples'], equals(1));
+        expect(comment['tag_hint_qt'], equals(1));
+        expect(comment['tag_hint_uc_preset'], equals(2));
+        expect(comment['legacy_uc'], isFalse);
+        // v4 多角色结构
+        final v4 = comment['v4_prompt'] as Map<String, dynamic>;
+        expect(
+          (v4['caption'] as Map)['base_caption'],
+          equals(comment['prompt']),
+        );
+        expect(v4['use_order'], isTrue);
+        final v4Neg = comment['v4_negative_prompt'] as Map<String, dynamic>;
+        expect(v4Neg['use_order'], isFalse);
+        expect(
+          (v4Neg['caption'] as Map)['base_caption'],
+          equals(comment['uc']),
+        );
+        // v3 模型不带 v4_prompt 结构且 version 为 'v3'
+        final v3Comment = params
+            .copyWith(model: NaiModel.v3)
+            .toMetadataComment(seed: 42);
+        expect(v3Comment['version'], equals('v3'));
+        expect(v3Comment.containsKey('v4_prompt'), isFalse);
+      },
+    );
+
+    test(
+      'toMetadataComment with multi-character mirrors payload char captions',
+      () {
+        const params = NaiGenerationParams(
+          prompt: '2girls, scenery',
+          model: NaiModel.v5Curated,
+          characterPrompts: [
+            NaiCharacterPrompt(
+              id: 'a',
+              name: 'A',
+              prompt: 'girl with dragon',
+              negativePrompt: 'bad anatomy',
+            ),
+          ],
+          characterAiPosition: false,
+        );
+
+        final comment = params.toMetadataComment(seed: 7);
+        final payload = params.toApiPayload();
+
+        final v4 = comment['v4_prompt'] as Map<String, dynamic>;
+        final captions =
+            (v4['caption'] as Map<String, dynamic>)['char_captions'] as List;
+        expect(captions.first['char_caption'], equals('girl with dragon'));
+        expect(captions.first.containsKey('centers'), isTrue);
+        expect(v4['use_coords'], isTrue);
+
+        // 与 payload 的 char_captions 完全同构
+        final payloadCaptions =
+            ((payload['parameters']['v4_prompt'] as Map)['caption']
+                    as Map)['char_captions']
+                as List;
+        expect(captions.first, equals(payloadCaptions.first));
+      },
+    );
+
+    test('parses official tag-hint-only comment and restores base prompts', () {
+      // 官网/第三方 comment：仅带数字提示，无 qualityToggle/qualityPreset/ucPreset 字段
+      final naiJson = jsonEncode({
+        'prompt': '1girl, solo, very aesthetic, masterpiece, no text',
+        'uc':
+            'nsfw, lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, blurry, low quality',
+        'steps': 28,
+        'scale': 7.0,
+        'seed': 12345678,
+        'sampler': 'k_euler_ancestral',
+        'noise_schedule': 'karras',
+        'width': 832,
+        'height': 1216,
+        'model': 'nai-diffusion-5-curated',
+        'version': 1,
+        'tag_hint_qt': 1,
+        'tag_hint_uc_preset': 2,
+      });
+
+      final testImage = img.Image(width: 64, height: 64);
+      testImage.textData = {'Comment': naiJson};
+      final pngBytes = Uint8List.fromList(img.encodePng(testImage));
+
+      final result = ImageMetadataService.parseMetadata(pngBytes);
+      expect(result, isNotNull);
+      expect(result!.prompt, equals('1girl, solo'));
+      expect(result.negativePrompt, equals('blurry, low quality'));
+      expect(result.qualityToggle, isTrue);
+      expect(result.qualityPreset, equals('Standard'));
+      expect(result.ucPreset, equals('Heavy'));
+    });
+
+    test('restores Light tier from tag_hint_qt 3', () {
+      final naiJson = jsonEncode({
+        'prompt': '1girl, solo, very aesthetic, amazing quality, no text',
+        'uc':
+            'nsfw, lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::, extra tag',
+        'steps': 28,
+        'scale': 7.0,
+        'seed': 12345678,
+        'width': 832,
+        'height': 1216,
+        'model': 'nai-diffusion-5-full',
+        'tag_hint_qt': 3,
+        'tag_hint_uc_preset': 3,
+      });
+
+      final testImage = img.Image(width: 64, height: 64);
+      testImage.textData = {'Comment': naiJson};
+      final pngBytes = Uint8List.fromList(img.encodePng(testImage));
+
+      final result = ImageMetadataService.parseMetadata(pngBytes);
+      expect(result, isNotNull);
+      expect(result!.prompt, equals('1girl, solo'));
+      expect(result.negativePrompt, equals('extra tag'));
+      expect(result.qualityPreset, equals('Light'));
+      expect(result.ucPreset, equals('Light'));
+    });
+
+    test('strips quality words inserted before text: render markers', () {
       const params = NaiGenerationParams(
-        prompt: '1girl, cyberpunk, neon light',
-        negativePrompt: 'blurry, low quality',
+        prompt: '1girl, sign, text: "Welcome"',
+        negativePrompt: 'blurry',
         model: NaiModel.v5Full,
-        sampler: NaiSampler.kDpmpp2m,
-        noiseSchedule: NoiseSchedule.karras,
-        steps: 28,
-        scale: 6.5,
-        width: 832,
-        height: 1216,
+      );
+      // 生效文本: 质量词被插到 text: 标记之前 (标记前尾逗号接空格)
+      final effective = params.effectivePrompt;
+      expect(
+        effective,
+        equals(
+          '1girl, sign, very aesthetic, masterpiece, no text text: "Welcome"',
+        ),
       );
 
+      final naiJson = jsonEncode({
+        'prompt': effective,
+        'uc': params.effectiveNegativePrompt,
+        'steps': 28,
+        'scale': 7.0,
+        'seed': 12345678,
+        'width': 832,
+        'height': 1216,
+        'model': 'nai-diffusion-5-full',
+        'qualityToggle': true,
+        'qualityPreset': 'Standard',
+        'ucPreset': 'Heavy',
+      });
+
+      final testImage = img.Image(width: 64, height: 64);
+      testImage.textData = {'Comment': naiJson};
+      final pngBytes = Uint8List.fromList(img.encodePng(testImage));
+
+      final result = ImageMetadataService.parseMetadata(pngBytes);
+      expect(result, isNotNull);
+      expect(result!.prompt, equals('1girl, sign text: "Welcome"'));
+      expect(result.negativePrompt, equals('blurry'));
+    });
+
+    test('strips transparent background tag when hint is set', () {
+      final naiJson = jsonEncode({
+        'prompt':
+            '1girl, solo, transparent background, very aesthetic, masterpiece, no text',
+        'uc': 'nsfw, lowres, artistic error, worst quality',
+        'steps': 28,
+        'scale': 7.0,
+        'seed': 12345678,
+        'width': 832,
+        'height': 1216,
+        'model': 'nai-diffusion-5-full',
+        'qualityToggle': true,
+        'qualityPreset': 'Standard',
+        'ucPreset': 'Heavy',
+        'tag_hint_transparent_background': true,
+      });
+
+      final testImage = img.Image(width: 64, height: 64);
+      testImage.textData = {'Comment': naiJson};
+      final pngBytes = Uint8List.fromList(img.encodePng(testImage));
+
+      final result = ImageMetadataService.parseMetadata(pngBytes);
+      expect(result, isNotNull);
+      expect(result!.prompt, equals('1girl, solo'));
+      expect(result.transparentBackground, isTrue);
+    });
+
+    test(
+      'parses character negatives from v4_negative_prompt char captions',
+      () {
+        final naiJson = jsonEncode({
+          'prompt': '2girls, scenery',
+          'uc': 'nsfw, lowres',
+          'steps': 28,
+          'scale': 7.0,
+          'seed': 12345678,
+          'width': 832,
+          'height': 1216,
+          'model': 'nai-diffusion-5-full',
+          'version': 1,
+          'v4_prompt': {
+            'caption': {
+              'base_caption': '2girls, scenery',
+              'char_captions': [
+                {'char_caption': 'girl with dragon'},
+                {'char_caption': 'girl with sword'},
+              ],
+            },
+            'use_coords': false,
+          },
+          'v4_negative_prompt': {
+            'caption': {
+              'base_caption': 'nsfw, lowres',
+              'char_captions': [
+                {'char_caption': 'bad anatomy'},
+                {'char_caption': 'bad hands'},
+              ],
+            },
+          },
+        });
+
+        final testImage = img.Image(width: 64, height: 64);
+        testImage.textData = {'Comment': naiJson};
+        final pngBytes = Uint8List.fromList(img.encodePng(testImage));
+
+        final result = ImageMetadataService.parseMetadata(pngBytes);
+        expect(result, isNotNull);
+        expect(
+          result!.characterPrompts,
+          equals(['girl with dragon', 'girl with sword']),
+        );
+        expect(
+          result.characterNegativePrompts,
+          equals(['bad anatomy', 'bad hands']),
+        );
+      },
+    );
+
+    test('round-trips V5 Auto Text teXt: block back to base prompt', () {
+      const params = NaiGenerationParams(
+        prompt: '1girl, "WELCOME", neon sign',
+        negativePrompt: 'blurry',
+        model: NaiModel.v5Full,
+      );
+
+      final blank = img.Image(width: 48, height: 48);
       final pngWithMeta = ImageMetadataService.embedNovelAiMetadata(
-        pngBytes: rawPngBytes,
+        pngBytes: Uint8List.fromList(img.encodePng(blank)),
         params: params,
-        seed: 987654321,
+        seed: 1234567,
       );
 
+      // 生效文本: 质量词在 teXt: 之前 (官网顺序)
+      final textData = ImageMetadataService.extractPngTextData(pngWithMeta);
+      final comment = jsonDecode(textData['Comment']!) as Map<String, dynamic>;
+      expect(
+        comment['prompt'],
+        equals(
+          '1girl, "WELCOME", neon sign, very aesthetic, masterpiece, no text, teXt: WELCOME',
+        ),
+      );
+
+      // 读回：剥 teXt: 段 + 质量词后缀 → 还原基础提示词
       final result = ImageMetadataService.parseMetadata(pngWithMeta);
       expect(result, isNotNull);
-      expect(result!.prompt, equals('1girl, cyberpunk, neon light'));
-      expect(result.negativePrompt, equals('blurry, low quality'));
-      expect(result.steps, equals(28));
-      expect(result.scale, equals(6.5));
-      expect(result.seed, equals(987654321));
-      expect(result.sampler, equals('k_dpmpp_2m'));
-      expect(result.model, equals('nai-diffusion-5-full'));
+      expect(result!.prompt, equals('1girl, "WELCOME", neon sign'));
+      expect(result.negativePrompt, equals('blurry'));
+    });
+
+    test('keeps legacy comment intact when no preset hints present', () {
+      // 旧格式/第三方 comment：无任何预设字段时不做剥离，保留完整文本
+      final naiJson = jsonEncode({
+        'prompt': '1girl, masterpiece, solo',
+        'uc': 'lowres, bad anatomy',
+        'steps': 28,
+        'scale': 5.5,
+        'seed': 12345678,
+        'sampler': 'k_euler',
+        'width': 832,
+        'height': 1216,
+        'Source': 'NovelAI Diffusion V5',
+      });
+
+      final testImage = img.Image(width: 64, height: 64);
+      testImage.textData = {'Comment': naiJson};
+      final pngBytes = Uint8List.fromList(img.encodePng(testImage));
+
+      final result = ImageMetadataService.parseMetadata(pngBytes);
+      expect(result, isNotNull);
+      expect(result!.prompt, equals('1girl, masterpiece, solo'));
+      expect(result.negativePrompt, equals('lowres, bad anatomy'));
+      expect(result.qualityToggle, isNull);
+      expect(result.ucPreset, isNull);
     });
   });
 }
