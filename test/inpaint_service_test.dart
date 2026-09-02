@@ -335,5 +335,106 @@ void main() {
       expect(huge.width % 64, 0);
       expect(huge.height % 64, 0);
     });
+
+    test('computeStrokeMaskBounds 正向描边返回含半径的归一化包围盒', () {
+      final bounds = InpaintService.computeStrokeMaskBounds(const [
+        InpaintBrushStroke(points: [Offset(0.5, 0.5)], radius: 0.10),
+      ]);
+      expect(bounds, isNotNull);
+      // 中心 0.5 ± 半径 0.1，256 栅格下误差 <= 1/256
+      expect(bounds!.left, closeTo(0.40, 0.01));
+      expect(bounds.top, closeTo(0.40, 0.01));
+      expect(bounds.right, closeTo(0.60, 0.01));
+      expect(bounds.bottom, closeTo(0.60, 0.01));
+    });
+
+    test('computeStrokeMaskBounds 橡皮擦除后包围盒收缩到剩余蒙版', () {
+      // 两个分离圆点，右侧那个被橡皮完全擦掉 → 包围盒只剩左侧
+      final bounds = InpaintService.computeStrokeMaskBounds(const [
+        InpaintBrushStroke(points: [Offset(0.2, 0.5)], radius: 0.05),
+        InpaintBrushStroke(points: [Offset(0.8, 0.5)], radius: 0.05),
+        InpaintBrushStroke(
+          points: [Offset(0.8, 0.5)],
+          radius: 0.06,
+          isEraser: true,
+        ),
+      ]);
+      expect(bounds, isNotNull);
+      expect(bounds!.right, lessThan(0.35));
+      expect(bounds.left, closeTo(0.15, 0.01));
+    });
+
+    test('computeStrokeMaskBounds 全被擦掉返回 Rect.zero，无正向描边返回 null', () {
+      expect(
+        InpaintService.computeStrokeMaskBounds(const [
+          InpaintBrushStroke(points: [Offset(0.5, 0.5)], radius: 0.10),
+          InpaintBrushStroke(
+            points: [Offset(0.5, 0.5)],
+            radius: 0.12,
+            isEraser: true,
+          ),
+        ]),
+        Rect.zero,
+      );
+      expect(
+        InpaintService.computeStrokeMaskBounds(const [
+          InpaintBrushStroke(
+            points: [Offset(0.5, 0.5)],
+            radius: 0.10,
+            isEraser: true,
+          ),
+        ]),
+        isNull,
+      );
+    });
+
+    test('InpaintParams.effectiveSelectionRect 优先栅格化包围盒并回退', () {
+      const strokes = [
+        InpaintBrushStroke(points: [Offset(0.2, 0.5)], radius: 0.05),
+        InpaintBrushStroke(points: [Offset(0.8, 0.5)], radius: 0.05),
+      ];
+      // 无 maskBounds (旧数据) → 几何并集，右缘接近 0.85
+      final legacy = InpaintParams(brushStrokes: strokes);
+      expect(legacy.effectiveSelectionRect.right, greaterThan(0.8));
+
+      // 有 maskBounds (提交时计算，右侧已被擦掉) → 收缩
+      final shrunk = InpaintParams(
+        brushStrokes: strokes,
+        maskBounds: const Rect.fromLTWH(0.15, 0.45, 0.10, 0.10),
+      );
+      expect(
+        shrunk.effectiveSelectionRect,
+        const Rect.fromLTWH(0.15, 0.45, 0.10, 0.10),
+      );
+
+      // maskBounds 为 Rect.zero (全被擦掉) → 回退矩形选区
+      const sel = Rect.fromLTWH(0.1, 0.1, 0.3, 0.3);
+      final erased = InpaintParams(
+        brushStrokes: strokes,
+        maskBounds: Rect.zero,
+        selectionRect: sel,
+      );
+      expect(erased.effectiveSelectionRect, sel);
+    });
+
+    test('InpaintParams JSON 往返保留 maskBounds', () {
+      const params = InpaintParams(
+        brushStrokes: [
+          InpaintBrushStroke(points: [Offset(0.2, 0.5)], radius: 0.05),
+        ],
+        maskBounds: Rect.fromLTWH(0.15, 0.45, 0.10, 0.10),
+      );
+      final restored = InpaintParams.fromJson(params.toJson());
+      expect(restored.maskBounds, params.maskBounds);
+      expect(restored.effectiveSelectionRect, params.maskBounds);
+
+      // 清空蒙版时 copyWith 应一并清除 maskBounds
+      final cleared = params.copyWith(
+        clearBrushStrokes: true,
+        clearMaskBounds: true,
+      );
+      expect(cleared.maskBounds, isNull);
+      expect(cleared.brushStrokes, isEmpty);
+    });
   });
 }

@@ -153,6 +153,13 @@ class InpaintParams {
   /// 自由绘制画笔描边列表 (非空时优先于 [selectionRect] 作为修复蒙版)
   final List<InpaintBrushStroke> brushStrokes;
 
+  /// 提交时栅格化的剩余白色蒙版归一化包围盒 (含橡皮抵消后的真实范围)。
+  ///
+  /// 由 [InpaintService.computeStrokeMaskBounds] 在描边提交时计算，
+  /// 拖拽中不实时重算；[Rect.zero] 表示有正向描边但全被橡皮擦掉
+  /// (回退矩形选区)；null 表示未计算 (旧数据回退几何并集)。
+  final Rect? maskBounds;
+
   /// 当前笔刷半径 (相对原图短边归一化，0.005 ~ 0.25)
   final double brushRadius;
 
@@ -190,6 +197,7 @@ class InpaintParams {
     this.mode = InpaintMode.focus,
     this.selectionRect,
     this.brushStrokes = const [],
+    this.maskBounds,
     this.brushRadius = 0.03,
     this.contextPadding = 64.0,
     this.strength = 0.70,
@@ -209,6 +217,8 @@ class InpaintParams {
     bool clearSelectionRect = false,
     List<InpaintBrushStroke>? brushStrokes,
     bool clearBrushStrokes = false,
+    Rect? maskBounds,
+    bool clearMaskBounds = false,
     double? brushRadius,
     double? contextPadding,
     double? strength,
@@ -232,6 +242,7 @@ class InpaintParams {
       brushStrokes: clearBrushStrokes
           ? const []
           : (brushStrokes ?? this.brushStrokes),
+      maskBounds: clearMaskBounds ? null : (maskBounds ?? this.maskBounds),
       brushRadius: brushRadius ?? this.brushRadius,
       contextPadding: contextPadding ?? this.contextPadding,
       strength: strength ?? this.strength,
@@ -250,11 +261,22 @@ class InpaintParams {
   bool get hasBrushMask =>
       brushStrokes.any((s) => !s.isEraser && s.points.isNotEmpty);
 
-  /// 生效选区：正向画笔描边包围盒优先，其次矩形选区，最后默认居中半幅
+  /// 生效选区：栅格化蒙版包围盒优先，其次正向描边几何并集，
+  /// 再次矩形选区，最后默认居中半幅
   ///
   /// 注意：仅为几何计算 (裁剪框/点数) 服务；UI 展示时 selectionRect == null
   /// 表示无选区，不要用本 getter 的默认兜底直接渲染选框。
   Rect get effectiveSelectionRect {
+    if (hasBrushMask) {
+      final mb = maskBounds;
+      if (mb != null) {
+        // 全被橡皮擦掉：回退矩形选区 (与 buildSourceMask 的蒙版回退同语义)
+        if (mb.width <= 0 || mb.height <= 0) {
+          return selectionRect ?? const Rect.fromLTWH(0.25, 0.25, 0.5, 0.5);
+        }
+        return mb;
+      }
+    }
     Rect? merged;
     var maxRadius = 0.0;
     for (final stroke in brushStrokes) {
@@ -303,6 +325,13 @@ class InpaintParams {
           .map((s) => s.toJson())
           .toList(growable: false),
     'brushRadius': brushRadius,
+    if (maskBounds != null)
+      'maskBounds': {
+        'left': maskBounds!.left,
+        'top': maskBounds!.top,
+        'width': maskBounds!.width,
+        'height': maskBounds!.height,
+      },
     if (customModel != null) 'customModel': customModel!.id,
     if (customSteps != null) 'customSteps': customSteps,
     if (customScale != null) 'customScale': customScale,
@@ -320,9 +349,21 @@ class InpaintParams {
       );
     }
 
+    Rect? bounds;
+    if (json['maskBounds'] is Map) {
+      final bm = json['maskBounds'] as Map<String, dynamic>;
+      bounds = Rect.fromLTWH(
+        (bm['left'] as num?)?.toDouble() ?? 0.0,
+        (bm['top'] as num?)?.toDouble() ?? 0.0,
+        (bm['width'] as num?)?.toDouble() ?? 0.0,
+        (bm['height'] as num?)?.toDouble() ?? 0.0,
+      );
+    }
+
     return InpaintParams(
       mode: InpaintMode.fromId(json['mode'] as String?),
       selectionRect: rect,
+      maskBounds: bounds,
       brushStrokes: (json['brushStrokes'] as List? ?? const [])
           .whereType<Map>()
           .map(

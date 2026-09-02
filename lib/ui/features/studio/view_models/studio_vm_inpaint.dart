@@ -109,6 +109,9 @@ mixin _StudioInpaintMixin on _StudioCore {
 
   /// 提交一条画笔描边 (归一化轨迹点，来自修复画板拖拽；单点 = 盖章一个圆点)。
   /// [erase] 为 true 时是反向画笔：在蒙版上打黑，抵消先前笔迹。
+  ///
+  /// 提交时一次性栅格化计算剩余蒙版包围盒 (非实时)，橡皮擦除后
+  /// 生效选区/外延裁剪框随之收缩；拖拽中沿用旧包围盒不跳动。
   void commitInpaintStroke(List<Offset> points, {bool erase = false}) {
     if (points.isEmpty) return;
     final strokes = List<InpaintBrushStroke>.from(_inpaintParams.brushStrokes)
@@ -119,7 +122,12 @@ mixin _StudioInpaintMixin on _StudioCore {
           isEraser: erase,
         ),
       );
-    _inpaintParams = _inpaintParams.copyWith(brushStrokes: strokes);
+    final bounds = InpaintService.computeStrokeMaskBounds(strokes);
+    _inpaintParams = _inpaintParams.copyWith(
+      brushStrokes: strokes,
+      maskBounds: bounds,
+      clearMaskBounds: bounds == null,
+    );
     notifyListeners();
   }
 
@@ -133,6 +141,7 @@ mixin _StudioInpaintMixin on _StudioCore {
       brushStrokes: const [],
       clearBrushStrokes: true,
       clearSelectionRect: true,
+      clearMaskBounds: true,
     );
     notifyListeners();
   }
@@ -201,6 +210,7 @@ mixin _StudioInpaintMixin on _StudioCore {
     _inpaintParams = _inpaintParams.copyWith(
       brushStrokes: const [],
       clearBrushStrokes: true,
+      clearMaskBounds: true,
     );
     useAnnotationAsInpaintRect(annotation);
     if (isAnnotatingImage) {

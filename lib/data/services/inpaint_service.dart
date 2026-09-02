@@ -222,6 +222,49 @@ abstract final class InpaintService {
     }
   }
 
+  /// 栅格化描边并计算剩余白色蒙版的归一化包围盒。
+  ///
+  /// **仅在描边提交时调用 (非实时)**：在 256x256 低分辨率画布上按提交顺序
+  /// 回放全部描边 (橡皮打黑抵消先前笔迹，与 [buildSourceMask] 同规则)，
+  /// 再扫描白色像素取包围盒。用于橡皮擦除后收缩生效选区/外延裁剪框。
+  ///
+  /// 方形画布下圆点在归一化坐标系呈正圆，与实际宽高比下的椭圆包围盒
+  /// 偏差不超过笔刷半径，对带 contextPadding 的裁剪框估算无影响。
+  ///
+  /// 返回值：无正向描边返回 null；有正向描边但全被橡皮擦掉返回
+  /// [Rect.zero] (调用方应回退矩形选区，与 buildSourceMask 语义一致)。
+  static Rect? computeStrokeMaskBounds(List<InpaintBrushStroke> strokes) {
+    if (!strokes.any((s) => !s.isEraser && s.points.isNotEmpty)) {
+      return null;
+    }
+    const size = 256;
+    final mask = img.Image(width: size, height: size, numChannels: 4);
+    img.fill(mask, color: img.ColorRgba8(0, 0, 0, 255));
+    _paintStrokes(mask, strokes);
+
+    var minX = size;
+    var minY = size;
+    var maxX = -1;
+    var maxY = -1;
+    for (var y = 0; y < size; y++) {
+      for (var x = 0; x < size; x++) {
+        if (mask.getPixel(x, y).r > 127) {
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return Rect.zero;
+    return Rect.fromLTWH(
+      minX / size,
+      minY / size,
+      (maxX - minX + 1) / size,
+      (maxY - minY + 1) / size,
+    );
+  }
+
   static void _stampCircle(
     img.Image mask, {
     required int cx,
