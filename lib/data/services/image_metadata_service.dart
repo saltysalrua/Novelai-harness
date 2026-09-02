@@ -710,18 +710,34 @@ class ImageMetadataService {
     }
   }
 
+  /// 判断文本是否可完整映射到 Latin-1 (PNG tEXt 块规范编码)。
+  static bool _isLatin1Text(String text) => text.runes.every((r) => r <= 0xFF);
+
+  /// 写入 PNG 文本块，遵循 PNG 规范保证官方读取器不乱码：
+  /// - 文本可映射 Latin-1 时写 tEXt (规范规定 tEXt 为 Latin-1 字节)；
+  /// - 含中文等非 Latin-1 字符时改写未压缩 iTXt (规范规定的 UTF-8 国际文本块)。
+  /// 修复前直接把 UTF-8 字节塞进 tEXt，官方读取器按 Latin-1 解码出乱码。
   static void _writeTextChunk(
     BytesBuilder builder,
     String keyword,
     String text,
   ) {
     final keywordBytes = latin1.encode(keyword);
-    final textBytes = utf8.encode(text);
-    final data = Uint8List(keywordBytes.length + 1 + textBytes.length);
-    data.setAll(0, keywordBytes);
-    data[keywordBytes.length] = 0; // null 分隔符
-    data.setAll(keywordBytes.length + 1, textBytes);
-    _writeChunk(builder, 'tEXt', data);
+    if (_isLatin1Text(text)) {
+      final textBytes = latin1.encode(text);
+      final data = Uint8List(keywordBytes.length + 1 + textBytes.length);
+      data.setAll(0, keywordBytes);
+      data[keywordBytes.length] = 0; // null 分隔符
+      data.setAll(keywordBytes.length + 1, textBytes);
+      _writeChunk(builder, 'tEXt', data);
+    } else {
+      final textBytes = utf8.encode(text);
+      // keyword 终止符 + 压缩标志 0 (未压缩) + 压缩方法 0 + 空语言标签 + 空翻译关键词，共 5 个零字节
+      final data = Uint8List(keywordBytes.length + 5 + textBytes.length);
+      data.setAll(0, keywordBytes);
+      data.setAll(keywordBytes.length + 5, textBytes);
+      _writeChunk(builder, 'iTXt', data);
+    }
   }
 
   // ==================== 3. 元数据删除 / 抹除 (Strip Metadata) ====================
@@ -816,12 +832,23 @@ class ImageMetadataService {
     return chunks;
   }
 
+  /// PNG tEXt/zTXt 正文解码：优先按 UTF-8 解码 (官方网页可能把 UTF-8 字节写入
+  /// tEXt 块)，字节序列不是合法 UTF-8 时回退 Latin-1 以兼容老图。
+  /// 纯 ASCII 内容两种编码结果一致，不受探测影响。
+  static String _decodeTextChunkValue(List<int> bytes) {
+    try {
+      return utf8.decode(bytes);
+    } catch (_) {
+      return latin1.decode(bytes);
+    }
+  }
+
   static (String, String)? _decodeTextChunk(Uint8List data) {
     final separator = data.indexOf(0);
     if (separator <= 0) return null;
     return (
       latin1.decode(data.sublist(0, separator)),
-      latin1.decode(data.sublist(separator + 1)),
+      _decodeTextChunkValue(data.sublist(separator + 1)),
     );
   }
 
@@ -856,7 +883,10 @@ class ImageMetadataService {
     final compressionMethod = data[keywordEnd + 1];
     if (compressionMethod != 0) return null;
     final decoded = ZLibCodec().decode(data.sublist(keywordEnd + 2));
-    return (latin1.decode(data.sublist(0, keywordEnd)), latin1.decode(decoded));
+    return (
+      latin1.decode(data.sublist(0, keywordEnd)),
+      _decodeTextChunkValue(decoded),
+    );
   }
 
   static void _writeChunk(BytesBuilder builder, String type, Uint8List data) {

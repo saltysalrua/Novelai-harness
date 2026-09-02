@@ -528,6 +528,155 @@ void main() {
       expect(result.negativePrompt, equals('blurry'));
     });
 
+    test(
+      'writes iTXt (not tEXt) when prompt contains Chinese, per PNG spec',
+      () {
+        // PNG 规范: tEXt 为 Latin-1 字节；含中文时必须改写 UTF-8 iTXt，
+        // 否则官方读取器按 Latin-1 解出乱码。
+        const chinesePrompt = '1girl, 男孩第一人称视角，伸出一只手看手机，屏幕顶部居中显示大号白色时间：“23:27”';
+        const params = NaiGenerationParams(
+          prompt: chinesePrompt,
+          negativePrompt: 'lowres',
+          model: NaiModel.v5Full,
+        );
+
+        final blank = img.Image(width: 48, height: 48);
+        final pngWithMeta = ImageMetadataService.embedNovelAiMetadata(
+          pngBytes: Uint8List.fromList(img.encodePng(blank)),
+          params: params,
+          seed: 7,
+        );
+
+        // 含中文的 Description/Comment 必须走 iTXt；Title/Software/Source 仍为 tEXt
+        final types = _chunkKeywordsByType(pngWithMeta);
+        expect(types['iTXt'], containsAll(['Description', 'Comment']));
+        expect(types['tEXt'], containsAll(['Title', 'Software', 'Source']));
+        expect(types['tEXt'], isNot(contains('Description')));
+        expect(types['tEXt'], isNot(contains('Comment')));
+
+        // 读回不乱码
+        final result = ImageMetadataService.parseMetadata(pngWithMeta);
+        expect(result, isNotNull);
+        expect(result!.prompt, contains('男孩第一人称视角'));
+        expect(result.prompt, contains('大号白色时间'));
+      },
+    );
+
+    test(
+      'writes Latin-1 tEXt for ASCII prompts (spec-compliant legacy layout)',
+      () {
+        const params = NaiGenerationParams(
+          prompt: '1girl, masterpiece, solo',
+          negativePrompt: 'lowres',
+          model: NaiModel.v5Full,
+        );
+
+        final blank = img.Image(width: 48, height: 48);
+        final pngWithMeta = ImageMetadataService.embedNovelAiMetadata(
+          pngBytes: Uint8List.fromList(img.encodePng(blank)),
+          params: params,
+          seed: 99,
+        );
+
+        // 纯 ASCII 时必须写 tEXt (与官方图片布局一致)，不得多余写 iTXt
+        final types = _chunkKeywordsByType(pngWithMeta);
+        expect(
+          types['tEXt'],
+          containsAll([
+            'Title',
+            'Software',
+            'Source',
+            'Description',
+            'Comment',
+          ]),
+        );
+        expect(types.containsKey('iTXt'), isFalse);
+
+        final result = ImageMetadataService.parseMetadata(pngWithMeta);
+        expect(result, isNotNull);
+        expect(result!.prompt, equals('1girl, masterpiece, solo'));
+      },
+    );
+
+    test(
+      'reads UTF-8 Chinese text chunks without mojibake (official site layout)',
+      () {
+        // 官方网页可能把 UTF-8 字节直接写进 tEXt 块，读取侧需 UTF-8 优先探测。
+        // 修复前读取侧按 Latin-1 解码，中文会变成 "ç”·å­©" 乱码。
+        const chinesePrompt =
+            '1girl, nahida_(genshin_impact), 男孩第一人称视角，伸出一只手看手机，屏幕顶部居中显示大号白色时间：“23:27”';
+        const params = NaiGenerationParams(
+          prompt: chinesePrompt,
+          negativePrompt: 'lowres',
+          model: NaiModel.v5Full,
+        );
+
+        final blank = img.Image(width: 48, height: 48);
+        final pngWithMeta = ImageMetadataService.embedNovelAiMetadata(
+          pngBytes: Uint8List.fromList(img.encodePng(blank)),
+          params: params,
+          seed: 42,
+        );
+
+        final textData = ImageMetadataService.extractPngTextData(pngWithMeta);
+        expect(textData['Description'], contains('男孩第一人称视角'));
+
+        final result = ImageMetadataService.parseMetadata(pngWithMeta);
+        expect(result, isNotNull);
+        expect(result!.prompt, contains('男孩第一人称视角'));
+        expect(result.prompt, contains('大号白色时间'));
+      },
+    );
+
+    test('falls back to Latin-1 for legacy non-UTF-8 text chunk values', () {
+      // 老图可能把 Latin-1 高位字节写进 tEXt；字节序列不是合法 UTF-8 时应回退 Latin-1。
+      int crc32(Uint8List data) {
+        var crc = 0xFFFFFFFF;
+        for (final b in data) {
+          crc ^= b;
+          for (var i = 0; i < 8; i++) {
+            final mask = (crc & 1) != 0 ? 0xEDB88320 : 0;
+            crc = (crc >> 1) ^ mask;
+          }
+        }
+        return crc ^ 0xFFFFFFFF;
+      }
+
+      Uint8List chunk(String type, List<int> data) {
+        final typeBytes = type.codeUnits;
+        final body = [...typeBytes, ...data];
+        final lengthBytes = ByteData(4)..setUint32(0, data.length);
+        final crcBytes = ByteData(4)
+          ..setUint32(0, crc32(Uint8List.fromList(body)));
+        return Uint8List.fromList(
+          lengthBytes.buffer.asUint8List().toList()
+            ..addAll(body)
+            ..addAll(crcBytes.buffer.asUint8List().toList()),
+        );
+      }
+
+      // 最小合法 PNG: 签名 + IHDR(1x1 灰度) + tEXt(Comment = 单字节 0xE9, 合法 Latin-1 "é" 但非法 UTF-8) + IEND
+      const u32one = [0, 0, 0, 1];
+      final ihdrData = [
+        ...u32one,
+        ...u32one,
+        8,
+        0,
+        0,
+        0,
+        0, // width, height, bitDepth, colorType, compression, filter, interlace
+      ];
+      final png = Uint8List.fromList([
+        ...[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+        ...chunk('IHDR', ihdrData),
+        ...chunk('tEXt', [...'Comment'.codeUnits, 0, 0xE9]),
+        ...chunk('IEND', const []),
+      ]);
+
+      final textData = ImageMetadataService.extractPngTextData(png);
+      expect(textData['Comment'], equals('é'));
+    });
+
     test('keeps legacy comment intact when no preset hints present', () {
       // 旧格式/第三方 comment：无任何预设字段时不做剥离，保留完整文本
       final naiJson = jsonEncode({
@@ -554,4 +703,26 @@ void main() {
       expect(result.ucPreset, isNull);
     });
   });
+}
+
+/// 解析 PNG 文本块，返回「块类型 → 关键字列表」映射，用于断言写入侧布局。
+Map<String, List<String>> _chunkKeywordsByType(Uint8List png) {
+  const signatureLength = 8;
+  final result = <String, List<String>>{};
+  var offset = signatureLength;
+  while (offset + 12 <= png.length) {
+    final length = ByteData.sublistView(png, offset, offset + 4).getUint32(0);
+    final type = String.fromCharCodes(png.sublist(offset + 4, offset + 8));
+    final data = png.sublist(offset + 8, offset + 8 + length);
+    if (type == 'tEXt' || type == 'iTXt') {
+      final keywordEnd = data.indexOf(0);
+      if (keywordEnd > 0) {
+        result
+            .putIfAbsent(type, () => [])
+            .add(String.fromCharCodes(data.sublist(0, keywordEnd)));
+      }
+    }
+    offset += 12 + length;
+  }
+  return result;
 }
