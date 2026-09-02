@@ -296,7 +296,9 @@ class ToolResultBlock extends StatelessWidget {
           ),
           // 工具结果附带的图片 (如查看画板图片工具) 不藏在折叠块里，
           // 单独平铺在工具结果下方，收起时也直接可见；点击全屏放大查看。
-          // 按面板实际宽度解码 (cacheWidth)，避免 1536px 级全分辨率纹理拖慢滚动
+          // 按面板实际宽度解码 (cacheWidth)，避免 1536px 级全分辨率纹理拖慢滚动。
+          // 图片异步解码完成前没有内在尺寸，先用文件头同步读出的宽高以
+          // AspectRatio 预留布局高度 (底色占位)，滚动历史时高度不再突变跳动。
           if (message.imageBase64 != null && message.imageBase64!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 2),
@@ -308,10 +310,11 @@ class ToolResultBlock extends StatelessWidget {
                   final panelWidth = MediaQuery.sizeOf(context).width;
                   final dpr = MediaQuery.devicePixelRatioOf(context);
                   // 对话卡面板宽度为窗口的一小部分，钳到安全上限保留清晰度
-                  final cacheWidth = (panelWidth * dpr / 2)
-                      .round()
-                      .clamp(320, 1600);
-                  return GestureDetector(
+                  final cacheWidth = (panelWidth * dpr / 2).round().clamp(
+                    320,
+                    1600,
+                  );
+                  final image = GestureDetector(
                     onTap: () => showImageLightboxBytes(context, bytes),
                     child: MouseRegion(
                       cursor: SystemMouseCursors.zoomIn,
@@ -321,7 +324,6 @@ class ToolResultBlock extends StatelessWidget {
                         ),
                         child: Image.memory(
                           bytes,
-                          width: double.infinity,
                           fit: BoxFit.contain,
                           cacheWidth: cacheWidth,
                           filterQuality: FilterQuality.medium,
@@ -329,6 +331,19 @@ class ToolResultBlock extends StatelessWidget {
                           errorBuilder: (_, _, _) => const SizedBox.shrink(),
                         ),
                       ),
+                    ),
+                  );
+                  final probed = probeImageHeaderSize(bytes);
+                  if (probed == null) {
+                    // 文件头解析失败 (罕见)：回退到宽度撑满、解码后才定高的旧行为
+                    return SizedBox(width: double.infinity, child: image);
+                  }
+                  return ColoredBox(
+                    // 解码完成前的占位底色，避免预留区白闪一帧
+                    color: AppTheme.paperWarmth,
+                    child: AspectRatio(
+                      aspectRatio: probed.width / probed.height,
+                      child: image,
                     ),
                   );
                 },

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/agent_harness.dart';
@@ -10,6 +11,7 @@ import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/data/services/session_log_service.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_messages.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/chat_image_attachment.dart';
 
 /// 1x1 透明 PNG
 const String _tinyPngBase64 =
@@ -292,6 +294,110 @@ void main() {
       await tester.pump();
 
       expect(find.text('看这张图'), findsOneWidget);
+      expect(find.byType(Image), findsOneWidget);
+    });
+  });
+
+  group('probeImageHeaderSize 文件头同步解析', () {
+    test('PNG IHDR 宽高 (大端)', () {
+      final bytes = Uint8List.fromList([
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // 签名
+        0x00, 0x00, 0x00, 0x0D, // IHDR 长度
+        0x49, 0x48, 0x44, 0x52, // 'IHDR'
+        0x00, 0x00, 0x03, 0x40, // width = 832
+        0x00, 0x00, 0x04, 0xC0, // height = 1216
+        0x08, 0x06, 0x00, 0x00, 0x00, // 位深/颜色类型等
+      ]);
+      final size = probeImageHeaderSize(bytes);
+      expect(size, isNotNull);
+      expect(size!.width, 832);
+      expect(size.height, 1216);
+    });
+
+    test('真实 base64 PNG (1x1 透明图) 解析', () {
+      final size = probeImageHeaderSize(base64Decode(_tinyPngBase64));
+      expect(size, isNotNull);
+      expect(size!.width, 1);
+      expect(size.height, 1);
+    });
+
+    test('JPEG SOF 段宽高 (跳过前置段)', () {
+      final bytes = Uint8List.fromList([
+        0xFF, 0xD8, // SOI
+        0xFF, 0xE0, 0x00, 0x10, // APP0 段，长度 16
+        ...List.filled(14, 0x00), // APP0 载荷
+        0xFF, 0xC0, 0x00, 0x0B, // SOF0 段
+        0x08, // 精度
+        0x02, 0x58, // height = 600
+        0x03, 0x20, // width = 800
+        0x03, // 通道数
+        0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, // 采样
+      ]);
+      final size = probeImageHeaderSize(bytes);
+      expect(size, isNotNull);
+      expect(size!.width, 800);
+      expect(size.height, 600);
+    });
+
+    test('GIF 逻辑屏幕宽高 (小端)', () {
+      final bytes = Uint8List.fromList([
+        0x47, 0x49, 0x46, 0x38, 0x39, 0x61, // 'GIF89a'
+        0x20, 0x03, // width = 800
+        0x58, 0x02, // height = 600
+        0x00, 0x00,
+      ]);
+      final size = probeImageHeaderSize(bytes);
+      expect(size, isNotNull);
+      expect(size!.width, 800);
+      expect(size.height, 600);
+    });
+
+    test('WebP VP8X 画布宽高 (24 位小端减一)', () {
+      final bytes = Uint8List.fromList([
+        0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, // 'RIFF' + 长度
+        0x57, 0x45, 0x42, 0x50, // 'WEBP'
+        0x56, 0x50, 0x38, 0x58, // 'VP8X'
+        0x0A, 0x00, 0x00, 0x00, // 块长度 10
+        0x00, // flags
+        0x00, 0x00, 0x00, // reserved
+        0x3F, 0x03, 0x00, // width - 1 = 831
+        0xBF, 0x04, 0x00, // height - 1 = 1215
+      ]);
+      final size = probeImageHeaderSize(bytes);
+      expect(size, isNotNull);
+      expect(size!.width, 832);
+      expect(size.height, 1216);
+    });
+
+    test('非图片字节与空数据返回 null', () {
+      expect(probeImageHeaderSize(Uint8List(0)), isNull);
+      expect(probeImageHeaderSize(Uint8List.fromList([1, 2, 3, 4, 5])), isNull);
+    });
+  });
+
+  group('工具结果图片渲染', () {
+    testWidgets('ToolResultBlock 以 AspectRatio 预留图片高度', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: AgentChatMessageItem(
+                message: AgentMessage(
+                  id: 't1',
+                  role: AgentRole.tool,
+                  toolName: 'view_canvas_image',
+                  content: '已查看画板图片',
+                  imageBase64: _tinyPngBase64,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 文件头解析成功 → 存在 AspectRatio 预留布局，滚动不跳动
+      expect(find.byType(AspectRatio), findsOneWidget);
       expect(find.byType(Image), findsOneWidget);
     });
   });
