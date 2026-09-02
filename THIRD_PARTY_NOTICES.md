@@ -11,7 +11,7 @@
 - **Dart / Flutter 依赖库**：采用 MIT、BSD-3-Clause 或 Apache-2.0 许可证。
 - **字体资产 (MiSans)**：遵循《MiSans 字体知识产权许可协议》，允许免费商用与嵌入。
 - **离线词库 (Danbooru TSV)**：来源于公开整理的社区标签数据集。
-- **参考项目**：涉及的所有参考项目均已在此声明出处并致谢。
+- **参考项目**：涉及的所有开源参考项目均已在此声明出处并致谢。
 
 ---
 
@@ -21,19 +21,21 @@
 
 | 依赖库 (Package) | 许可证 (License) | 用途与说明 | 源码 / 托管地址 |
 | :--- | :--- | :--- | :--- |
-| **`flutter`** (SDK) | BSD-3-Clause | 跨平台应用 UI 框架 | [flutter.dev](https://flutter.dev) |
+| **`flutter`** (SDK) | BSD-3-Clause | 跨平台应用 UI 框架与渲染引擎 | [flutter.dev](https://flutter.dev) |
 | **`http`** (`^1.2.1`) | BSD-3-Clause | HTTP 与 SSE 流式网络通信 | [pub.dev/packages/http](https://pub.dev/packages/http) |
-| **`archive`** (`^3.6.1`) | Apache-2.0 | 内存 ZIP 归档数据解包 | [pub.dev/packages/archive](https://pub.dev/packages/archive) |
+| **`archive`** (`^3.6.1`) | Apache-2.0 | 内存 ZIP 归档数据解包与流式解析 | [pub.dev/packages/archive](https://pub.dev/packages/archive) |
+| **`image`** (`^4.3.0`) | Apache-2.0 | 纯 Dart 图像处理：修复蒙版栅格化、潜空间量化、离屏覆盖层合成、DCT 盲水印频域运算与附件降采样 | [pub.dev/packages/image](https://pub.dev/packages/image) |
+| **`desktop_drop`** (`^0.8.3`) | MIT | 桌面端原生拖拽：接收外部图片、参考图与带元数据图片一键回填参数 | [pub.dev/packages/desktop_drop](https://pub.dev/packages/desktop_drop) |
 | **`sqlite3`** (`^2.4.6`) | MIT | 离线 SQLite 数据库引擎绑定 | [pub.dev/packages/sqlite3](https://pub.dev/packages/sqlite3) |
-| **`sqlite3_flutter_libs`** (`^0.5.24`) | MIT | 各平台 SQLite 原生动态链接库 | [pub.dev/packages/sqlite3_flutter_libs](https://pub.dev/packages/sqlite3_flutter_libs) |
-| **`window_manager`** (`^0.5.2`) | MIT | 桌面端无边框窗口尺寸与位置控制 | [pub.dev/packages/window_manager](https://pub.dev/packages/window_manager) |
+| **`sqlite3_flutter_libs`** (`^0.5.24`) | MIT | 各桌面平台 SQLite 原生动态链接库 | [pub.dev/packages/sqlite3_flutter_libs](https://pub.dev/packages/sqlite3_flutter_libs) |
+| **`window_manager`** (`^0.5.2`) | MIT | 桌面端无边框窗口尺寸、坐标与最大化控制 | [pub.dev/packages/window_manager](https://pub.dev/packages/window_manager) |
 | **`pasteboard`** (`^0.5.0`) | MIT | 桌面端剪贴板原生图像与文本读写 | [pub.dev/packages/pasteboard](https://pub.dev/packages/pasteboard) |
-| **`flutter_markdown`** (`^0.7.7+1`) | BSD-3-Clause | 消息流、思考链与 Skill Markdown 渲染 | [pub.dev/packages/flutter_markdown](https://pub.dev/packages/flutter_markdown) |
+| **`flutter_markdown_plus`** (`^1.0.12`) | BSD-3-Clause | AI 消息流、思考链与 Skill 规范 Markdown 渲染 | [pub.dev/packages/flutter_markdown_plus](https://pub.dev/packages/flutter_markdown_plus) |
 | **`msgpack_dart`** (`^1.0.1`) | MIT | MessagePack 二进制序列化与反序列化 | [pub.dev/packages/msgpack_dart](https://pub.dev/packages/msgpack_dart) |
 | **`shared_preferences`** (`^2.2.3`) | BSD-3-Clause | 本地轻量级持久化键值存储 | [pub.dev/packages/shared_preferences](https://pub.dev/packages/shared_preferences) |
 | **`file_picker`** (`^8.0.0`) | MIT | 跨平台文件、图片与预设库选取对话框 | [pub.dev/packages/file_picker](https://pub.dev/packages/file_picker) |
 | **`path`** (`^1.9.0`) | BSD-3-Clause | 跨平台文件系统路径操作实用工具 | [pub.dev/packages/path](https://pub.dev/packages/path) |
-| **`path_provider`** (`^2.1.3`) | BSD-3-Clause | 查找系统常用目录（文档、缓存、数据） | [pub.dev/packages/path_provider](https://pub.dev/packages/path_provider) |
+| **`path_provider`** (`^2.1.3`) | BSD-3-Clause | 查找系统标准目录（文档、缓存、应用数据） | [pub.dev/packages/path_provider](https://pub.dev/packages/path_provider) |
 | **`intl`** (`^0.19.0`) | BSD-3-Clause | 国际化、时间日期与数值格式化 | [pub.dev/packages/intl](https://pub.dev/packages/intl) |
 | **`crypto`** (`^3.0.3`) | BSD-3-Clause | SHA-256 哈希与数据完整性校验 | [pub.dev/packages/crypto](https://pub.dev/packages/crypto) |
 | **`cupertino_icons`** (`^1.0.8`) | MIT | iOS / macOS 风格常用图标集 | [pub.dev/packages/cupertino_icons](https://pub.dev/packages/cupertino_icons) |
@@ -70,18 +72,22 @@
 
 1. **NovelAI 官方服务 (Anlatan, Inc.)**
    - 端点：`https://image.novelai.net` / `https://api.novelai.net`
-   - 用途：图像生成、新版超分放大、官方 Tag 联想及用户订阅状态查询。
+   - 用途：图像生成、新版 Multipart 超分放大、官方 Tag 联想及用户订阅状态查询。
    - 约束：使用本软件需用户自备有效账户及 API 凭证，遵守 [NovelAI 服务条款](https://novelai.net/terms)。
 
 2. **models.dev 在线模型能力目录**
    - 端点：`https://models.dev/api.json`
    - 维护方：社区维护的权威 LLM 元数据中心。
-   - 用途：在线自动获取 LLM 的上下文窗口长度、Reasoning Effort 思考参数配置等能力元数据。
+   - 用途：在线自动获取 LLM 的上下文窗口长度、Reasoning Effort 思考参数配置与模态能力。
 
 3. **DanbooruSearch 在线语义检索服务**
    - 端点：`https://sakizuki-danboorusearch.hf.space/api`
    - 维护方：SAkizuki / SuzumiyaAkizuki (HuggingFace Space)
    - 用途：提供模糊自然语言转标签 (`/search`)、标签共现推荐 (`/related`) 与 NPMI 画师推荐 (`/artists`) 的网络 API。
+
+4. **第三方 OpenAI 兼容绘图模型网关 (外部图像编辑)**
+   - 用途：在 AI 整图编辑模式下，向用户自主配置的多模态模型（如 Gemini 2.5 Image、GPT Image 等）发送图片与重绘指令。
+   - 约束：Token 与绘图费用由用户自备的供应商账户承担。
 
 ---
 
