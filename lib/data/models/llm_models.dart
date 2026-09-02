@@ -75,6 +75,9 @@ class LlmModelConfig {
   final int maxTokens; // 最大输出 tokens
   final double temperature;
 
+  /// 是否具备图像生成 / 整图编辑输出能力 (如 nano banana / gpt-image)
+  final bool imageOutput;
+
   const LlmModelConfig({
     required this.id,
     required this.name,
@@ -84,10 +87,14 @@ class LlmModelConfig {
     this.contextWindow = 128000,
     this.maxTokens = 8192,
     this.temperature = 0.7,
+    this.imageOutput = false,
   });
 
   /// 是否具备多模态 / 图像视觉理解能力
   bool get isMultimodal => input.contains('image');
+
+  /// 是否为图像生成 / 编辑模型 (可执行 AI 整图编辑)
+  bool get isImageModel => imageOutput;
 
   /// 是否支持深度思考 / 推理扩展
   bool get supportsThinking => reasoning || supportedThinkingLevels.isNotEmpty;
@@ -111,6 +118,7 @@ class LlmModelConfig {
     int? contextWindow,
     int? maxTokens,
     double? temperature,
+    bool? imageOutput,
   }) {
     return LlmModelConfig(
       id: id ?? this.id,
@@ -122,6 +130,7 @@ class LlmModelConfig {
       contextWindow: contextWindow ?? this.contextWindow,
       maxTokens: maxTokens ?? this.maxTokens,
       temperature: temperature ?? this.temperature,
+      imageOutput: imageOutput ?? this.imageOutput,
     );
   }
 
@@ -136,6 +145,7 @@ class LlmModelConfig {
     'contextWindow': contextWindow,
     'maxTokens': maxTokens,
     'temperature': temperature,
+    if (imageOutput) 'imageOutput': true,
   };
 
   factory LlmModelConfig.fromJson(Map<String, dynamic> json) {
@@ -167,6 +177,7 @@ class LlmModelConfig {
       contextWindow: (json['contextWindow'] as num?)?.toInt() ?? 128000,
       maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 8192,
       temperature: (json['temperature'] as num?)?.toDouble() ?? 0.7,
+      imageOutput: json['imageOutput'] as bool? ?? false,
     );
   }
 }

@@ -27,6 +27,9 @@ class ModelsSettingsDraft {
     apiKeyController = TextEditingController(text: active.apiKey);
     protocol = active.protocol;
     thinkingParamFormat = active.thinkingParamFormat;
+    imageEditProviderId = config.imageEditProviderId;
+    imageEditModelId = config.imageEditModelId;
+    _validateImageEditSelection();
   }
 
   late final List<LlmProviderConfig> providers;
@@ -38,6 +41,10 @@ class ModelsSettingsDraft {
 
   /// 思考参数请求格式 (不同供应商用不同字段开关思维链)
   late ThinkingParamFormat thinkingParamFormat;
+
+  /// AI 整图编辑：绘图模型供应商与模型 ID (独立于对话 LLM)
+  late String imageEditProviderId;
+  late String imageEditModelId;
 
   // 在线拉取状态
   bool isFetchingModels = false;
@@ -184,6 +191,41 @@ class ModelsSettingsDraft {
     nameController.dispose();
     baseUrlController.dispose();
     apiKeyController.dispose();
+  }
+
+  /// AI 整图编辑供应商下的模型列表 (仅显示具备图像输出能力的绘图模型)
+  List<LlmModelConfig> get imageEditProviderModels {
+    final provider = providers.where((p) => p.id == imageEditProviderId);
+    if (provider.isEmpty) return const [];
+    return provider.first.models.where((m) => m.imageOutput).toList();
+  }
+
+  /// 校验绘图模型选择：供应商不存在或模型不存在时自动回落到首个可用候选
+  void _validateImageEditSelection() {
+    final provider = providers.where((p) => p.id == imageEditProviderId);
+    if (provider.isEmpty) {
+      imageEditProviderId = '';
+      imageEditModelId = '';
+      return;
+    }
+    final models = provider.first.models;
+    if (!models.any((m) => m.id == imageEditModelId)) {
+      // 优先回落到具备图像输出能力的模型，否则清空模型选择
+      final imageModel = models.where((m) => m.imageOutput).firstOrNull;
+      imageEditModelId = imageModel?.id ?? '';
+    }
+  }
+
+  /// 切换 AI 整图编辑供应商 (模型选择自动校验回落)
+  void setImageEditProvider(String providerId) {
+    imageEditProviderId = providerId;
+    imageEditModelId = '';
+    _validateImageEditSelection();
+  }
+
+  /// 选择 AI 整图编辑模型
+  void setImageEditModel(String modelId) {
+    imageEditModelId = modelId;
   }
 }
 
@@ -643,6 +685,118 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 )
               : null,
         ),
+        const SizedBox(height: 12),
+        // 4. AI 整图编辑绘图模型 (独立于对话 LLM 的供应商与模型选择)
+        const SettingsGroupTitle('AI 整图编辑'),
+        SettingsCard(
+          title: '绘图模型',
+          subtitle:
+              '修复页「AI 整图编辑」使用的供应商与模型 (仅列出绘图模型)，独立于对话 LLM；需选择具备图像输出能力的模型 (如 nano banana / gpt-image)',
+          control: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SettingsIdDropdown(
+                value: _draft.imageEditProviderId,
+                items: [
+                  const DropdownMenuItem<String>(value: '', child: Text('未配置')),
+                  ..._draft.providers.map(
+                    (p) => DropdownMenuItem<String>(
+                      value: p.id,
+                      child: Text(
+                        p.name,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() => _draft.setImageEditProvider(val));
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              SettingsIdDropdown(
+                value: _draft.imageEditModelId,
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: '',
+                    child: Text('未选择模型'),
+                  ),
+                  ..._draft.imageEditProviderModels.map(
+                    (m) => DropdownMenuItem<String>(
+                      value: m.id,
+                      child: Text(
+                        m.name,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // 防悬挂兜底：当前选中的模型被改掉能力或删除时仍保留下拉项，
+                  // 避免 DropdownButton value 不在 items 里断言
+                  if (_draft.imageEditModelId.isNotEmpty &&
+                      !_draft.imageEditProviderModels.any(
+                        (m) => m.id == _draft.imageEditModelId,
+                      ))
+                    DropdownMenuItem<String>(
+                      value: _draft.imageEditModelId,
+                      child: Text(
+                        '${_draft.imageEditModelId} (未识别为绘图模型)',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                    ),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() => _draft.setImageEditModel(val));
+                  }
+                },
+              ),
+            ],
+          ),
+          bottomChild: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppTheme.paperWarmth,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppTheme.borderSubtle),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 14,
+                  color: AppTheme.notionBlue,
+                ),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '整图编辑不消耗 Anlas 点数，计费走绘图模型供应商；未识别到能力的模型可在模型设置中手动开启「图像输出」',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
 
         // 网格区紧跟其后 (间距由网格区内部控制)
         const SizedBox(height: 4),
@@ -697,6 +851,9 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
   final TextEditingController _searchController = TextEditingController();
   _ModelSortMode _sortMode = _ModelSortMode.defaultOrder;
 
+  /// 仅显示绘图模型 (图像输出能力) 过滤开关
+  bool _imageOnly = false;
+
   @override
   void initState() {
     super.initState();
@@ -714,11 +871,12 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
     if (mounted) setState(() {});
   }
 
-  /// 按搜索词过滤 + 按排序模式整理后的可见模型列表
+  /// 按搜索词过滤 + 绘图过滤 + 按排序模式整理后的可见模型列表
   List<LlmModelConfig> get _visibleModels {
     final query = _searchController.text.trim().toLowerCase();
-    final filtered = query.isEmpty
-        ? widget.provider.models
+    final imageOnly = _imageOnly;
+    var filtered = query.isEmpty || imageOnly
+        ? List<LlmModelConfig>.of(widget.provider.models)
         : widget.provider.models
               .where(
                 (m) =>
@@ -726,6 +884,9 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
                     m.id.toLowerCase().contains(query),
               )
               .toList();
+    if (imageOnly) {
+      filtered = filtered.where((m) => m.imageOutput).toList();
+    }
     return switch (_sortMode) {
       _ModelSortMode.defaultOrder => filtered,
       _ModelSortMode.nameAsc => [
@@ -791,6 +952,53 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
             onChanged: (val) {
               if (val != null) setState(() => _sortMode = val);
             },
+          ),
+          const SizedBox(width: 8),
+          // 仅绘图模型过滤 (快速定位图像输出能力的模型)
+          Tooltip(
+            message: '仅显示具备图像输出能力的模型 (如 nano banana / gpt-image)',
+            child: InkWell(
+              onTap: () => setState(() => _imageOnly = !_imageOnly),
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: _imageOnly
+                      ? AppTheme.notionBlue.withValues(alpha: 0.12)
+                      : AppTheme.paperWarmth,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: _imageOnly
+                        ? AppTheme.notionBlue.withValues(alpha: 0.4)
+                        : AppTheme.border,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
+                      size: 13,
+                      color: _imageOnly ? AppTheme.notionBlue : AppTheme.stone,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '仅绘图模型',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _imageOnly
+                            ? AppTheme.notionBlue
+                            : AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           const Spacer(),
           Text(

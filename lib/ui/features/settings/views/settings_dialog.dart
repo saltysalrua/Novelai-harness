@@ -87,6 +87,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
       autoSaveImages: _generalDraft.autoSaveImages,
       llmProviders: _modelsDraft.providers,
       activeLlmProviderId: _modelsDraft.selectedProviderId,
+      imageEditProviderId: _modelsDraft.imageEditProviderId,
+      imageEditModelId: _modelsDraft.imageEditModelId,
       presets: _presetsDraft.presets,
       activePresetId: _presetsDraft.activePresetId,
       defaultModel: _defaultsDraft.model,

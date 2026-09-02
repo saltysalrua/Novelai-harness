@@ -93,7 +93,13 @@ enum InpaintMode {
   /// 常规局部重绘 (Standard Inpaint)
   ///
   /// 针对整图尺度或指定遮罩区域进行重绘。
-  standard('standard', '常规重绘');
+  standard('standard', '常规重绘'),
+
+  /// AI 整图编辑 (AI Image Edit)
+  ///
+  /// 把整张图片发给外部绘图模型 (如 nano banana / gpt-image)，
+  /// 按自然语言指令重绘整图，不消耗 Anlas 点数。
+  aiEdit('ai_edit', 'AI 整图编辑');
 
   final String id;
   final String label;
@@ -187,6 +193,12 @@ class InpaintParams {
   /// 专属重绘模型 (为 null 时继承主工作台模型)
   final NaiModel? customModel;
 
+  /// AI 整图编辑生图比例 (空 = 跟随原图；如 1:1 / 16:9 / 9:16 等)
+  final String aiEditAspectRatio;
+
+  /// AI 整图编辑生图分辨率 (空 = 默认；1K / 2K / 4K，仅部分模型如 Gemini 3 支持 2K 以上)
+  final String aiEditResolution;
+
   /// 专属步数 (为 null 时继承主工作台步数)
   final int? customSteps;
 
@@ -207,6 +219,8 @@ class InpaintParams {
     this.useMainPrompt = true,
     this.useMainNegative = true,
     this.customModel,
+    this.aiEditAspectRatio = '',
+    this.aiEditResolution = '',
     this.customSteps,
     this.customScale,
   });
@@ -229,6 +243,8 @@ class InpaintParams {
     bool? useMainNegative,
     NaiModel? customModel,
     bool clearCustomModel = false,
+    String? aiEditAspectRatio,
+    String? aiEditResolution,
     int? customSteps,
     bool clearCustomSteps = false,
     double? customScale,
@@ -252,6 +268,8 @@ class InpaintParams {
       useMainPrompt: useMainPrompt ?? this.useMainPrompt,
       useMainNegative: useMainNegative ?? this.useMainNegative,
       customModel: clearCustomModel ? null : (customModel ?? this.customModel),
+      aiEditAspectRatio: aiEditAspectRatio ?? this.aiEditAspectRatio,
+      aiEditResolution: aiEditResolution ?? this.aiEditResolution,
       customSteps: clearCustomSteps ? null : (customSteps ?? this.customSteps),
       customScale: clearCustomScale ? null : (customScale ?? this.customScale),
     );
@@ -333,6 +351,8 @@ class InpaintParams {
         'height': maskBounds!.height,
       },
     if (customModel != null) 'customModel': customModel!.id,
+    if (aiEditAspectRatio.isNotEmpty) 'aiEditAspectRatio': aiEditAspectRatio,
+    if (aiEditResolution.isNotEmpty) 'aiEditResolution': aiEditResolution,
     if (customSteps != null) 'customSteps': customSteps,
     if (customScale != null) 'customScale': customScale,
   };
@@ -383,6 +403,8 @@ class InpaintParams {
       customModel: json['customModel'] is String
           ? NaiModel.fromId(json['customModel'] as String)
           : null,
+      aiEditAspectRatio: json['aiEditAspectRatio'] as String? ?? '',
+      aiEditResolution: json['aiEditResolution'] as String? ?? '',
       customSteps: (json['customSteps'] as num?)?.toInt(),
       customScale: (json['customScale'] as num?)?.toDouble(),
     );

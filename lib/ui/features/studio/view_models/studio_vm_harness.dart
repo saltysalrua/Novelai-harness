@@ -96,8 +96,22 @@ mixin _StudioHarnessMixin on _StudioCore {
         getAccountInfo: () => _accountInfo,
       ),
     );
+    _toolRegistry.register(NovelAiInpaintGeometryTool(repository: _repository));
     _toolRegistry.register(
-      NovelAiInpaintGeometryTool(repository: _repository),
+      AiEditImageTool(
+        repository: _repository,
+        configService: _configService,
+        onBeforeGenerate: () => agentWasViewingLatest = isViewingLatest,
+        onGenerated: (image) {
+          _isGenerating = false;
+          _livePreviewBytes = null;
+          _applyGeneratedImage(
+            image,
+            wasViewingLatest: agentWasViewingLatest || isViewingLatest,
+          );
+          notifyListeners();
+        },
+      ),
     );
     _toolRegistry.register(
       NovelAiSuggestTagsTool(

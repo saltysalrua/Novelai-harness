@@ -112,11 +112,14 @@ class ModelsDevCatalog {
     String modelId,
     Map<String, dynamic> json,
   ) {
-    // 只索引能输出文本的对话模型 (跳过 embedding / 生图专用模型)
+    // 只索引能输出文本或图像的对话模型 (跳过 embedding 等专用模型)
     final modalities = json['modalities'];
     if (modalities is Map<String, dynamic>) {
       final output = modalities['output'];
-      if (output is List && output.isNotEmpty && !output.contains('text')) {
+      if (output is List &&
+          output.isNotEmpty &&
+          !output.contains('text') &&
+          !output.contains('image')) {
         return null;
       }
     }
@@ -144,6 +147,14 @@ class ModelsDevCatalog {
       }
     }
 
+    var imageOutput = false;
+    if (modalities is Map<String, dynamic>) {
+      final rawOutput = modalities['output'];
+      if (rawOutput is List && rawOutput.any((m) => m == 'image')) {
+        imageOutput = true;
+      }
+    }
+
     return ModelsDevModelInfo(
       providerId: providerId,
       id: modelId,
@@ -151,6 +162,7 @@ class ModelsDevCatalog {
       reasoning: json['reasoning'] as bool? ?? false,
       thinkingLevels: _parseThinkingLevels(json['reasoning_options']),
       input: input,
+      imageOutput: imageOutput,
       contextWindow: context,
       maxTokens: outputLimit,
     );
@@ -256,6 +268,10 @@ class ModelsDevModelInfo {
   final bool reasoning;
   final List<ThinkingEffort> thinkingLevels;
   final List<String> input;
+
+  /// 是否具备图像输出能力 (输出模态含 image，如 nano banana 系绘图模型)
+  final bool imageOutput;
+
   final int? contextWindow;
   final int? maxTokens;
 
@@ -266,6 +282,7 @@ class ModelsDevModelInfo {
     required this.reasoning,
     required this.thinkingLevels,
     required this.input,
+    this.imageOutput = false,
     this.contextWindow,
     this.maxTokens,
   });

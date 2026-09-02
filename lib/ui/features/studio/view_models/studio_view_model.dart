@@ -7,6 +7,8 @@ import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/providers/openai_provider.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
+// AiEditImageTool 在 part 分部 studio_vm_harness.dart 中注册使用
+import '../../../../core/harness/tools/ai_edit_image_tool.dart';
 import '../../../../core/harness/tools/annotation_tools.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
 import '../../../../core/harness/tools/canvas_view_tool.dart';
@@ -109,6 +111,7 @@ mixin _StudioCore on ChangeNotifier {
   // --- 局部修复状态 ---
   InpaintParams _inpaintParams = const InpaintParams();
   bool _isExecutingInpaint = false;
+  bool _isExecutingAiEdit = false;
   NaiGeneratedImage? _inpaintSourceImage;
   InpaintTool _inpaintTool = InpaintTool.rect;
   Uint8List? _inpaintPreviewBytes;

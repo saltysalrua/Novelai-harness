@@ -4,7 +4,21 @@ part of 'studio_view_model.dart';
 mixin _StudioInpaintMixin on _StudioCore {
   InpaintParams get inpaintParams => _inpaintParams;
   bool get isExecutingInpaint => _isExecutingInpaint;
+  bool get isExecutingAiEdit => _isExecutingAiEdit;
   InpaintTool get inpaintTool => _inpaintTool;
+
+  /// AI 整图编辑的绘图模型信息 (未配置时返回 null，修复页信息卡展示用)
+  ({String providerName, String modelName, String modelId})?
+  get imageEditModelInfo {
+    final provider = _config.imageEditProvider;
+    if (provider == null) return null;
+    final model = _config.imageEditModel;
+    return (
+      providerName: provider.name,
+      modelName: model?.name ?? _config.imageEditModelId,
+      modelId: _config.imageEditModelId,
+    );
+  }
 
   /// 修复执行中的中间帧预览 (仅修复画板展示，完成后清空)
   Uint8List? get inpaintPreviewBytes => _inpaintPreviewBytes;
@@ -176,6 +190,20 @@ mixin _StudioInpaintMixin on _StudioCore {
     notifyListeners();
   }
 
+  /// AI 整图编辑生图比例 (空 = 跟随原图)
+  void setInpaintAiEditAspectRatio(String ratio) {
+    if (_inpaintParams.aiEditAspectRatio == ratio) return;
+    _inpaintParams = _inpaintParams.copyWith(aiEditAspectRatio: ratio);
+    notifyListeners();
+  }
+
+  /// AI 整图编辑生图分辨率 (空 = 默认)
+  void setInpaintAiEditResolution(String resolution) {
+    if (_inpaintParams.aiEditResolution == resolution) return;
+    _inpaintParams = _inpaintParams.copyWith(aiEditResolution: resolution);
+    notifyListeners();
+  }
+
   void setInpaintSourceImage(NaiGeneratedImage? img) {
     _inpaintSourceImage = img;
     notifyListeners();
@@ -221,6 +249,12 @@ mixin _StudioInpaintMixin on _StudioCore {
 
   /// 执行局部修复 / 焦点特写
   Future<void> executeInpaint() async {
+    // AI 整图编辑走独立的绘图模型管线，不消耗 Anlas
+    if (_inpaintParams.mode == InpaintMode.aiEdit) {
+      await executeAiImageEdit();
+      return;
+    }
+
     final target = inpaintSourceImage;
     if (target == null) {
       _errorMessage = '未找到可供修复的底图，请先选择或生成图片。';
@@ -310,6 +344,78 @@ mixin _StudioInpaintMixin on _StudioCore {
       _errorMessage = '修复失败: $e';
     } finally {
       _isExecutingInpaint = false;
+      notifyListeners();
+    }
+  }
+
+  /// 执行 AI 整图编辑：把修复底图整张发给外部绘图模型 (如 nano banana)
+  /// 按自然语言指令重绘整图 (不消耗 Anlas，计费走绘图模型供应商)
+  Future<void> executeAiImageEdit() async {
+    final target = inpaintSourceImage;
+    if (target == null) {
+      _errorMessage = '未找到可供编辑的底图，请先选择或生成图片。';
+      notifyListeners();
+      return;
+    }
+
+    if (_isExecutingAiEdit || _isGenerating || _isExecutingInpaint) return;
+
+    final config = _config;
+    final provider = config.imageEditProvider;
+    if (provider == null) {
+      _errorMessage = '未配置 AI 整图编辑的绘图模型，请在设置 → Models 页选择绘图模型供应商与模型。';
+      notifyListeners();
+      return;
+    }
+    if (provider.apiKey.trim().isEmpty) {
+      _errorMessage = '绘图模型供应商「${provider.name}」未配置 API Key，请先在设置中填写。';
+      notifyListeners();
+      return;
+    }
+
+    // 提示词链与 NovelAI 修复同语义：复用主工作台提示词或修复专属指令
+    final prompt = _inpaintParams.useMainPrompt
+        ? _params.prompt
+        : _inpaintParams.customPrompt;
+    if (prompt.trim().isEmpty) {
+      _errorMessage = '请先输入 AI 整图编辑的修改指令 (修复页提示词设置，或关闭「复用主工作台正向词」后填写)。';
+      notifyListeners();
+      return;
+    }
+
+    _isExecutingAiEdit = true;
+    _errorMessage = null;
+    _statusMessage = 'AI 整图编辑中 (绘图模型处理中，通常需要数十秒)...';
+    notifyListeners();
+
+    try {
+      final result = await _repository.editImageAi(
+        provider: provider,
+        modelId: config.imageEditModelId,
+        prompt: prompt,
+        sourceImageBytes: Uint8List.fromList(target.bytes),
+        generationParams: _params,
+        aspectRatio: _inpaintParams.aiEditAspectRatio,
+        imageResolution: _inpaintParams.aiEditResolution,
+        saveDir: config.saveDirectory,
+        enablePersistence: config.enableImagePersistence,
+        maxImages: config.maxPersistentImages,
+        stripMetadata: config.stripMetadata,
+        enableWatermark: config.enableWatermark,
+        keepOriginalImage: config.keepOriginalImage,
+        watermarkConfig: config.watermarkConfig,
+        watermarkBytes: config.watermarkConfig.imageBytes,
+        autoSave: config.autoSaveImages,
+      );
+
+      // 完成直接跳到新图：选中新图并把编辑底图切到新图，便于继续迭代
+      _applyGeneratedImage(result, wasViewingLatest: true);
+      _inpaintSourceImage = result;
+      _statusMessage = 'AI 整图编辑完成';
+    } catch (e) {
+      _errorMessage = 'AI 整图编辑失败: $e';
+    } finally {
+      _isExecutingAiEdit = false;
       notifyListeners();
     }
   }

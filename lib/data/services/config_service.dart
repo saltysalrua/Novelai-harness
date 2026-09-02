@@ -47,6 +47,10 @@ class AppConfig {
   final List<LlmProviderConfig> llmProviders;
   final String activeLlmProviderId;
 
+  /// AI 整图编辑：绘图模型供应商与模型 ID (独立于对话 LLM，可为空 = 未配置)
+  final String imageEditProviderId;
+  final String imageEditModelId;
+
   /// Agent 单次对话最大工具调用轮数 (达到后自动收尾)
   final int agentMaxTurns;
 
@@ -67,6 +71,28 @@ class AppConfig {
       (p) => p.id == activeLlmProviderId,
       orElse: () => list.first,
     );
+  }
+
+  /// AI 整图编辑供应商 (未配置或找不到时返回 null)
+  LlmProviderConfig? get imageEditProvider {
+    if (imageEditProviderId.isEmpty || imageEditModelId.isEmpty) return null;
+    final list = llmProviders.isNotEmpty
+        ? llmProviders
+        : LlmProviderConfig.defaultProviders;
+    for (final p in list) {
+      if (p.id == imageEditProviderId) return p;
+    }
+    return null;
+  }
+
+  /// AI 整图编辑模型配置 (供应商存在且模型列表里有对应模型时返回)
+  LlmModelConfig? get imageEditModel {
+    final provider = imageEditProvider;
+    if (provider == null) return null;
+    for (final m in provider.models) {
+      if (m.id == imageEditModelId) return m;
+    }
+    return null;
   }
 
   /// 当前激活的 Agent 预设
@@ -111,6 +137,8 @@ class AppConfig {
     this.watermarkConfig = const WatermarkConfig(),
     this.llmProviders = const [],
     this.activeLlmProviderId = 'deepseek',
+    this.imageEditProviderId = '',
+    this.imageEditModelId = '',
     this.agentMaxTurns = 30,
     this.presets = const [],
     this.activePresetId = 'v5-architect-preset',
@@ -148,6 +176,8 @@ class AppConfig {
     WatermarkConfig? watermarkConfig,
     List<LlmProviderConfig>? llmProviders,
     String? activeLlmProviderId,
+    String? imageEditProviderId,
+    String? imageEditModelId,
     int? agentMaxTurns,
     List<AgentPreset>? presets,
     String? activePresetId,
@@ -191,6 +221,8 @@ class AppConfig {
       watermarkConfig: watermarkConfig ?? this.watermarkConfig,
       llmProviders: updatedProviders,
       activeLlmProviderId: targetActiveId,
+      imageEditProviderId: imageEditProviderId ?? this.imageEditProviderId,
+      imageEditModelId: imageEditModelId ?? this.imageEditModelId,
       agentMaxTurns: agentMaxTurns ?? this.agentMaxTurns,
       presets: presets ?? this.presets,
       activePresetId: activePresetId ?? this.activePresetId,
@@ -284,6 +316,8 @@ class ConfigService {
   static const String _keyLlmTemperature = 'llm_temperature';
   static const String _keyLlmProviders = 'llm_providers_json';
   static const String _keyActiveLlmProviderId = 'active_llm_provider_id';
+  static const String _keyImageEditProviderId = 'image_edit_provider_id';
+  static const String _keyImageEditModelId = 'image_edit_model_id';
   static const String _keyAgentMaxTurns = 'novelai_agent_max_turns';
   static const String _keyPresets = 'agent_presets_json';
   static const String _keyActivePresetId = 'active_preset_id';
@@ -440,6 +474,10 @@ class ConfigService {
     final activeProviderId =
         prefs.getString(_keyActiveLlmProviderId) ?? providers.first.id;
 
+    // AI 整图编辑独立供应商与模型 (空 = 未配置)
+    final imageEditProviderId = prefs.getString(_keyImageEditProviderId) ?? '';
+    final imageEditModelId = prefs.getString(_keyImageEditModelId) ?? '';
+
     // Agent 单次对话最大工具轮数 (钳制在 1..100 防止脏数据)
     final storedMaxTurns = prefs.getInt(_keyAgentMaxTurns) ?? 30;
     final agentMaxTurns = storedMaxTurns.clamp(1, 100);
@@ -537,6 +575,8 @@ class ConfigService {
       watermarkConfig: wmConfig,
       llmProviders: providers,
       activeLlmProviderId: activeProviderId,
+      imageEditProviderId: imageEditProviderId,
+      imageEditModelId: imageEditModelId,
       agentMaxTurns: agentMaxTurns,
       presets: presets,
       activePresetId: activePresetId,
@@ -598,6 +638,8 @@ class ConfigService {
     );
     await prefs.setString(_keyLlmProviders, providersJson);
     await prefs.setString(_keyActiveLlmProviderId, config.activeLlmProviderId);
+    await prefs.setString(_keyImageEditProviderId, config.imageEditProviderId);
+    await prefs.setString(_keyImageEditModelId, config.imageEditModelId);
     await prefs.setInt(_keyAgentMaxTurns, config.agentMaxTurns.clamp(1, 100));
 
     // 保存 Agent 预设配置

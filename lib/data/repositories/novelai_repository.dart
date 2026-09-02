@@ -11,13 +11,18 @@ import '../services/image_metadata_service.dart';
 import '../services/inpaint_service.dart';
 import '../services/watermark_service.dart';
 import '../services/novelai_service.dart';
+import '../services/image_edit_service.dart';
 
 class NovelAiRepository {
   final NovelAiService _service;
+  final ImageEditService _imageEditService;
   final List<NaiGeneratedImage> _history = [];
 
-  NovelAiRepository({NovelAiService? service})
-    : _service = service ?? NovelAiService();
+  NovelAiRepository({
+    NovelAiService? service,
+    ImageEditService? imageEditService,
+  }) : _service = service ?? NovelAiService(),
+       _imageEditService = imageEditService ?? ImageEditService();
 
   List<NaiGeneratedImage> get history => List.unmodifiable(_history);
 
@@ -147,6 +152,7 @@ class NovelAiRepository {
     bool isUnsaved = false,
     bool isUpscaled = false,
     bool isInpainted = false,
+    bool isAiEdited = false,
   }) {
     final image = NaiGeneratedImage(
       id: id,
@@ -159,6 +165,7 @@ class NovelAiRepository {
       isUnsaved: isUnsaved,
       isUpscaled: isUpscaled,
       isInpainted: isInpainted,
+      isAiEdited: isAiEdited,
     );
     _history.insert(0, image);
     return image;
@@ -557,7 +564,9 @@ class NovelAiRepository {
     );
   }
 
-  /// 修复结果统一落盘入史 (自动保存分支写缓存目录并带未保存标记)
+  /// 修复 / AI 编辑结果统一落盘入史 (自动保存分支写缓存目录并带未保存标记)
+  ///
+  /// [filePrefix] 与 [isAiEdited] 区分 NovelAI 修复与外部绘图模型整图编辑。
   Future<NaiGeneratedImage> _persistInpaintResult({
     required List<int> rawFinal,
     required NaiGenerationParams requestParams,
@@ -573,6 +582,8 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
     required bool autoSave,
+    String filePrefix = 'nai_inpaint',
+    bool isAiEdited = false,
   }) async {
     final now = DateTime.now();
     final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
@@ -583,7 +594,7 @@ class NovelAiRepository {
     if (!autoSave) {
       final cachePath = _writeImageFile(
         cacheDirOf(saveDir),
-        'nai_inpaint_${timeStr}_$seed.png',
+        '${filePrefix}_${timeStr}_$seed.png',
         rawFinal,
       );
       final generatedImage = _recordGenerated(
@@ -593,7 +604,8 @@ class NovelAiRepository {
         params: displayParams,
         seed: seed,
         isUnsaved: true,
-        isInpainted: true,
+        isInpainted: !isAiEdited,
+        isAiEdited: isAiEdited,
       );
       if (enablePersistence && saveDir.isNotEmpty) {
         await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
@@ -610,7 +622,7 @@ class NovelAiRepository {
     if (needsProcessing && keepOriginalImage) {
       _writeImageFile(
         saveDir,
-        'nai_inpaint_${timeStr}_${seed}_raw.png',
+        '${filePrefix}_${timeStr}_${seed}_raw.png',
         rawFinal,
       );
     }
@@ -628,7 +640,7 @@ class NovelAiRepository {
 
     final filePath = _writeImageFile(
       saveDir,
-      'nai_inpaint_${timeStr}_$seed.png',
+      '${filePrefix}_${timeStr}_$seed.png',
       fileBytes,
     );
     final generatedImage = _recordGenerated(
@@ -637,7 +649,8 @@ class NovelAiRepository {
       filePath: filePath,
       params: displayParams,
       seed: seed,
-      isInpainted: true,
+      isInpainted: !isAiEdited,
+      isAiEdited: isAiEdited,
     );
 
     if (enablePersistence && saveDir.isNotEmpty) {
@@ -771,6 +784,73 @@ class NovelAiRepository {
       watermarkConfig: watermarkConfig,
       watermarkBytes: watermarkBytes,
       autoSave: autoSave,
+    );
+  }
+
+  /// AI 整图编辑：把整张图片发给外部绘图模型 (如 nano banana) 按指令重绘
+  ///
+  /// 不消耗 Anlas 点数 (计费走绘图模型供应商)，结果带 isAiEdited 标记入史。
+  Future<NaiGeneratedImage> editImageAi({
+    required LlmProviderConfig provider,
+    required String modelId,
+    required String prompt,
+    required Uint8List sourceImageBytes,
+    required NaiGenerationParams generationParams,
+    String aspectRatio = '',
+    String imageResolution = '',
+    required String saveDir,
+    bool enablePersistence = true,
+    int maxImages = 50,
+    bool stripMetadata = false,
+    bool enableWatermark = false,
+    bool keepOriginalImage = false,
+    WatermarkConfig? watermarkConfig,
+    Uint8List? watermarkBytes,
+    bool autoSave = true,
+  }) async {
+    if (prompt.trim().isEmpty) {
+      throw StateError('请输入 AI 整图编辑的修改指令。');
+    }
+
+    final result = await _imageEditService.editImage(
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      modelId: modelId,
+      prompt: prompt.trim(),
+      imageBytes: sourceImageBytes,
+      aspectRatio: aspectRatio,
+      imageResolution: imageResolution,
+    );
+
+    // 以真实字节解码分辨率为准 (导入图 / 修复图 params 可能是假宽高)
+    final dims = await AnlasCalculator.decodeImageDimensions(result.imageBytes);
+    final srcW = dims?.width ?? generationParams.width;
+    final srcH = dims?.height ?? generationParams.height;
+
+    final displayParams = generationParams.copyWith(
+      prompt: prompt.trim(),
+      width: srcW,
+      height: srcH,
+    );
+    final seed = generateRandomSeed();
+
+    return _persistInpaintResult(
+      rawFinal: result.imageBytes,
+      requestParams: displayParams,
+      seed: seed,
+      srcW: srcW,
+      srcH: srcH,
+      saveDir: saveDir,
+      enablePersistence: enablePersistence,
+      maxImages: maxImages,
+      stripMetadata: stripMetadata,
+      enableWatermark: enableWatermark,
+      keepOriginalImage: keepOriginalImage,
+      watermarkConfig: watermarkConfig,
+      watermarkBytes: watermarkBytes,
+      autoSave: autoSave,
+      filePrefix: 'nai_ai_edit',
+      isAiEdited: true,
     );
   }
 

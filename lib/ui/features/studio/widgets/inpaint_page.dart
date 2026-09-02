@@ -3,6 +3,7 @@ import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
 import 'editable_slider.dart';
+import 'pill_widgets.dart';
 import 'studio_shared.dart';
 
 /// 侧边栏页面三：局部修复与焦点特写配置页 (Notion 极简风格)
@@ -56,6 +57,7 @@ class _InpaintPageState extends State<InpaintPage> {
     final inpaint = vm.inpaintParams;
     final geometry = vm.inpaintGeometry;
     final isFocus = inpaint.mode == InpaintMode.focus;
+    final isAiEdit = inpaint.mode == InpaintMode.aiEdit;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -85,8 +87,18 @@ class _InpaintPageState extends State<InpaintPage> {
                   mode: InpaintMode.standard,
                   label: '常规重绘',
                   subtitle: '整图尺度重绘',
-                  isSelected: !isFocus,
+                  isSelected: inpaint.mode == InpaintMode.standard,
                   onTap: () => vm.setInpaintMode(InpaintMode.standard),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildModeOption(
+                  mode: InpaintMode.aiEdit,
+                  label: 'AI 整图编辑',
+                  subtitle: '外部绘图模型重绘',
+                  isSelected: isAiEdit,
+                  onTap: () => vm.setInpaintMode(InpaintMode.aiEdit),
                 ),
               ),
             ],
@@ -99,8 +111,52 @@ class _InpaintPageState extends State<InpaintPage> {
             const SizedBox(height: 16),
           ],
 
-          // 3. 数值滑块调节
-          if (isFocus) ...[
+          // 2b. AI 整图编辑绘图模型信息卡
+          if (isAiEdit) ...[
+            _buildAiEditCard(vm.imageEditModelInfo),
+            const SizedBox(height: 16),
+          ],
+
+          // 2c. AI 整图编辑生成设置 (生图比例与分辨率，随请求透传给绘图模型)
+          if (isAiEdit) ...[
+            const SectionHeader('生成设置'),
+            const SizedBox(height: 8),
+            _buildAiEditOptionRow(
+              label: '生图比例',
+              child: PillDropdown<String>(
+                value: inpaint.aiEditAspectRatio,
+                items: const [
+                  '',
+                  '1:1',
+                  '2:3',
+                  '3:2',
+                  '3:4',
+                  '4:3',
+                  '4:5',
+                  '5:4',
+                  '9:16',
+                  '16:9',
+                  '21:9',
+                ],
+                labelOf: (v) => v.isEmpty ? '跟随原图' : v,
+                onChanged: vm.setInpaintAiEditAspectRatio,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildAiEditOptionRow(
+              label: '生图分辨率',
+              child: PillDropdown<String>(
+                value: inpaint.aiEditResolution,
+                items: const ['', '1K', '2K', '4K'],
+                labelOf: (v) => v.isEmpty ? '默认' : v,
+                onChanged: vm.setInpaintAiEditResolution,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // 3. 数值滑块调节 (NovelAI 重绘专属，AI 整图编辑不需要)
+          if (isFocus && !isAiEdit) ...[
             EditableSliderInt(
               title: '外延上下文 (px)',
               value: inpaint.contextPadding.round(),
@@ -111,32 +167,35 @@ class _InpaintPageState extends State<InpaintPage> {
             const SizedBox(height: 12),
           ],
 
-          EditableSliderDouble(
-            title: '重绘强度',
-            value: inpaint.strength,
-            min: 0.0,
-            max: 1.0,
-            fractionDigits: 2,
-            onChanged: vm.setInpaintStrength,
-          ),
-          const SizedBox(height: 12),
+          if (!isAiEdit) ...[
+            EditableSliderDouble(
+              title: '重绘强度',
+              value: inpaint.strength,
+              min: 0.0,
+              max: 1.0,
+              fractionDigits: 2,
+              onChanged: vm.setInpaintStrength,
+            ),
+            const SizedBox(height: 12),
 
-          EditableSliderDouble(
-            title: '附加噪声',
-            value: inpaint.noise,
-            min: 0.0,
-            max: 1.0,
-            fractionDigits: 2,
-            onChanged: vm.setInpaintNoise,
-          ),
-          const SizedBox(height: 16),
+            EditableSliderDouble(
+              title: '附加噪声',
+              value: inpaint.noise,
+              min: 0.0,
+              max: 1.0,
+              fractionDigits: 2,
+              onChanged: vm.setInpaintNoise,
+            ),
+            const SizedBox(height: 16),
+          ] else
+            const SizedBox(height: 4),
 
           // 4. 提示词选项 (复用 / 自定义)
-          const SectionHeader('提示词设置'),
+          SectionHeader(isAiEdit ? '修改指令设置' : '提示词设置'),
           const SizedBox(height: 8),
 
           _buildToggleRow(
-            label: '复用主工作台正向词',
+            label: isAiEdit ? '复用主工作台正向词作为指令' : '复用主工作台正向词',
             value: inpaint.useMainPrompt,
             onChanged: vm.setInpaintUseMainPrompt,
           ),
@@ -144,28 +203,126 @@ class _InpaintPageState extends State<InpaintPage> {
             const SizedBox(height: 6),
             _buildPromptInput(
               controller: _promptController,
-              hint: '输入修复专属正向提示词...',
+              hint: isAiEdit
+                  ? '输入自然语言修改指令，如: 把背景换成夕阳下的海滩...'
+                  : '输入修复专属正向提示词...',
               onChanged: vm.setInpaintCustomPrompt,
             ),
           ],
           const SizedBox(height: 10),
 
-          _buildToggleRow(
-            label: '复用主工作台负向词',
-            value: inpaint.useMainNegative,
-            onChanged: vm.setInpaintUseMainNegative,
+          if (!isAiEdit) ...[
+            _buildToggleRow(
+              label: '复用主工作台负向词',
+              value: inpaint.useMainNegative,
+              onChanged: vm.setInpaintUseMainNegative,
+            ),
+            if (!inpaint.useMainNegative) ...[
+              const SizedBox(height: 6),
+              _buildPromptInput(
+                controller: _negativeController,
+                hint: '输入修复专属负向提示词...',
+                onChanged: vm.setInpaintCustomNegativePrompt,
+              ),
+            ],
+            const SizedBox(height: 20),
+          ] else
+            const SizedBox(height: 8),
+
+          // 执行入口统一在左侧底部生成坞 (修复页签下显示为「开始修复」/「开始 AI 编辑」)
+        ],
+      ),
+    );
+  }
+
+  /// AI 整图编辑选项行 (标签 + 右侧控件)
+  Widget _buildAiEditOptionRow({required String label, required Widget child}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
+        ),
+        child,
+      ],
+    );
+  }
+
+  /// AI 整图编辑绘图模型信息卡 (未配置时给出引导提示)
+  Widget _buildAiEditCard(
+    ({String providerName, String modelName, String modelId})? info,
+  ) {
+    final configured = info != null;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceMuted.withAlpha(120),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: configured ? AppTheme.border : Colors.orange.withAlpha(120),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome,
+                size: 14,
+                color: AppTheme.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                '绘图模型',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withAlpha(25),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.orange.withAlpha(100)),
+                ),
+                child: const Text(
+                  '消耗绘图模型额度',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange,
+                  ),
+                ),
+              ),
+            ],
           ),
-          if (!inpaint.useMainNegative) ...[
-            const SizedBox(height: 6),
-            _buildPromptInput(
-              controller: _negativeController,
-              hint: '输入修复专属负向提示词...',
-              onChanged: vm.setInpaintCustomNegativePrompt,
+          const SizedBox(height: 8),
+          if (configured)
+            _buildInfoRow('供应商', info.providerName)
+          else
+            const Text(
+              '未配置绘图模型。请到设置 → Models 页「AI 整图编辑」选择具备图像输出能力的模型供应商与模型 (如 nano banana / gpt-image)。',
+              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+            ),
+          if (configured) ...[
+            const SizedBox(height: 4),
+            _buildInfoRow('模型', info.modelName),
+            const SizedBox(height: 4),
+            Text(
+              info.modelId,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontFamily: 'monospace',
+                color: AppTheme.textSecondary,
+              ),
             ),
           ],
-          const SizedBox(height: 20),
-
-          // 执行入口统一在左侧底部生成坞 (修复页签下显示为「开始修复」)
         ],
       ),
     );

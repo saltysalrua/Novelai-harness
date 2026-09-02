@@ -59,6 +59,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
   late final TextEditingController _maxTokensController;
   late bool _reasoning;
   late bool _multimodal;
+  late bool _imageOutput;
   late double _temperature;
   late Set<ThinkingEffort> _levels;
   String? _idError;
@@ -77,6 +78,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
     );
     _reasoning = m.reasoning || m.supportedThinkingLevels.isNotEmpty;
     _multimodal = m.isMultimodal;
+    _imageOutput = m.imageOutput;
     _temperature = m.temperature;
     _levels = {...m.supportedThinkingLevels};
     if (_reasoning && _levels.isEmpty) {
@@ -139,6 +141,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
           contextWindow: contextWindow <= 0 ? 128000 : contextWindow,
           maxTokens: maxTokens <= 0 ? 8192 : maxTokens,
           temperature: _temperature,
+          imageOutput: _imageOutput,
         ),
       ),
     );
@@ -291,6 +294,14 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
                         value: _multimodal,
                         activeThumbColor: AppTheme.notionBlue,
                         onChanged: (v) => setState(() => _multimodal = v),
+                      ),
+                    ),
+                    _buildFieldRow(
+                      label: '图像输出 (绘图模型)',
+                      child: Switch(
+                        value: _imageOutput,
+                        activeThumbColor: AppTheme.notionBlue,
+                        onChanged: (v) => setState(() => _imageOutput = v),
                       ),
                     ),
                     _buildFieldRow(

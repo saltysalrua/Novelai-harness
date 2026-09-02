@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../../data/models/novelai_models.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 左侧面板底部常驻操作坞：账号等级 / 点数 / Opus 免点标识 / V5 体力条 / 刷新 + 主操作按钮
@@ -41,9 +42,13 @@ class GenerateDock extends StatelessWidget {
   Widget build(BuildContext context) {
     final info = viewModel.accountInfo;
     final estimatedCost = viewModel.estimatedGenerationCost;
-    // 修复页签下主按钮切换为「开始修复」，执行局部修复 (全局唯一入口)
+    // 修复页签下主按钮切换为「开始修复」(AI 整图编辑模式下为「开始 AI 编辑」)，
+    // 其余页签为「生成图片」
     final isInpaintTab = viewModel.activeSidebarTab == StudioSidebarTab.inpaint;
-    final isRepairing = viewModel.isExecutingInpaint;
+    final isAiEditMode =
+        isInpaintTab && viewModel.inpaintParams.mode == InpaintMode.aiEdit;
+    final isRepairing =
+        viewModel.isExecutingInpaint || viewModel.isExecutingAiEdit;
 
     final percent = info != null
         ? (info.staminaPercent / 100.0).clamp(0.0, 1.0)
@@ -182,13 +187,17 @@ class GenerateDock extends StatelessWidget {
                       ? () => viewModel.abortGeneration()
                       : () => viewModel.generateImage()),
             icon: isInpaintTab
-                ? const Icon(Icons.auto_fix_high_outlined, size: 17)
+                ? (isAiEditMode
+                      ? const Icon(Icons.auto_awesome, size: 17)
+                      : const Icon(Icons.auto_fix_high_outlined, size: 17))
                 : (viewModel.isGenerating
                       ? const Icon(Icons.stop_circle_outlined, size: 17)
                       : const Icon(Icons.auto_awesome, size: 17)),
             label: Text(
               isInpaintTab
-                  ? (isRepairing ? '修复中...' : '开始修复')
+                  ? (isAiEditMode
+                        ? (isRepairing ? 'AI 编辑中...' : '开始 AI 编辑')
+                        : (isRepairing ? '修复中...' : '开始修复'))
                   : _buildButtonLabel(estimatedCost),
               style: const TextStyle(
                 fontSize: 14.5,

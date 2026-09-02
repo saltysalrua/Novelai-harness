@@ -68,6 +68,7 @@ class PresetToolKeys {
   static const String clearImageAnnotations = 'clear_image_annotations';
   static const String inpaint = 'novelai_inpaint';
   static const String inpaintGeometry = 'get_inpaint_geometry';
+  static const String aiEditImage = 'ai_edit_image';
   static const String searchPromptLibrary = 'search_prompt_library';
   static const String addPromptLibraryEntry = 'add_prompt_library_entry';
   static const String updatePromptLibraryEntry = 'update_prompt_library_entry';
@@ -78,6 +79,7 @@ class PresetToolKeys {
     upscale: '图像放大',
     inpaint: '局部修复',
     inpaintGeometry: '修复几何计算',
+    aiEditImage: 'AI 整图编辑',
     suggestTags: '标签联想',
     danbooruSearch: '语义搜词',
     danbooruRelated: '关联推荐',
@@ -113,6 +115,7 @@ const List<String> _fullTools = [
   PresetToolKeys.upscale,
   PresetToolKeys.inpaint,
   PresetToolKeys.inpaintGeometry,
+  PresetToolKeys.aiEditImage,
   PresetToolKeys.suggestTags,
   PresetToolKeys.danbooruSearch,
   PresetToolKeys.danbooruRelated,

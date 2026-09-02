@@ -57,6 +57,20 @@ final Map<String, dynamic> sampleCatalog = {
           'output': ['image'],
         },
       },
+      'text-embedding-3-large': {
+        'name': 'Text Embedding 3 Large',
+        'modalities': {
+          'input': ['text'],
+          'output': ['embedding'],
+        },
+      },
+      'gpt-4o-image-edit': {
+        'name': 'GPT-4o Image Edit',
+        'modalities': {
+          'input': ['text', 'image'],
+          'output': ['text', 'image'],
+        },
+      },
     },
   },
 };
@@ -92,8 +106,21 @@ void main() {
       // 供应商前缀形式也可裸名命中
       expect(index['deepseek-v3.1-terminus'], isNotNull);
 
-      // 纯图像输出模型不索引
-      expect(index['gpt-image-1'], isNull);
+      // 纯图像输出模型也索引，并携带 imageOutput 能力 (绘图模型识别)
+      final gptImage = index['gpt-image-1']!.first;
+      expect(gptImage.imageOutput, isTrue);
+      expect(gptImage.input, ['text']);
+
+      // 文本+图像双输出模型带 imageOutput 能力
+      final imageEdit = index['gpt-4o-image-edit']!.first;
+      expect(imageEdit.imageOutput, isTrue);
+      expect(imageEdit.input, ['text', 'image']);
+
+      // gpt-4o 纯文本输出不带图像输出能力
+      expect(gpt4o.imageOutput, isFalse);
+
+      // embedding 等专用模型仍然不索引
+      expect(index['text-embedding-3-large'], isNull);
     });
 
     test('candidateKeys 逐级放宽', () {

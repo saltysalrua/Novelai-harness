@@ -46,6 +46,7 @@ Novelai-harness/
 │   │       │   ├── load_skill_tool.dart        # Pi 标准按需加载专业技能工具 (Progressive Disclosure)
 │   │       │   ├── novelai_tools.dart          # 生图、放大、标签联想与账号查询工具实现
 │   │       │   ├── novelai_inpaint_tool.dart   # 局部修复与焦点特写工具 (novelai_inpaint / get_inpaint_geometry)
+│   │       │   ├── ai_edit_image_tool.dart    # AI 整图编辑工具 (ai_edit_image，外部绘图模型整图重绘)
 │   │       │   ├── prompt_library_tools.dart   # 词组合预设库增删改查工具
 │   │       │   ├── studio_params_tool.dart     # 实时同步修改工作台 UI 生图参数工具
 │   │       │   └── vision_image_codec.dart     # 视觉附件压缩 (最长边 1024 等比重编码 PNG) 与 MIME 嗔探
@@ -70,6 +71,7 @@ Novelai-harness/
 │   │   │   └── image_metadata_models.dart      # 图像元数据与水印配置数据模型 (ImageMetadataResult / WatermarkConfig)
 │   │   ├── services/
 │   │   │   ├── inpaint_service.dart            # 焦点特写外延几何计算 (对齐 1MP 潜空间与 64 步长网格)、裁剪放大与客户端无损回贴引擎
+│   │   │   ├── image_edit_service.dart         # AI 整图编辑服务 (OpenAI 兼容 /chat/completions 传图返图，兼容四种返回格式)
 │   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与 Zip 解包 (含 generateInfill / generateInfillStream)
 │   │   │   ├── config_service.dart             # 本地配置与 ~/.pi/agent/novelai.json 自动识别
 │   │   │   ├── session_log_service.dart        # Pi 官方会话格式 JSONL 记录与恢复
@@ -433,6 +435,17 @@ AgentHarness 内置上下文压缩 (lib/core/harness/agent_harness.dart)：
 **Agent 工具联动 (novelai_inpaint / get_inpaint_geometry ↔ 批注，2026-12 修复)**：`annotation_id` 复用画板批注——矩形批注直用其选区；图钉锚点转为中心 12% 短边小选区 (`kPointAnnotationHalfExtent`)；整图批注无位置明确报错。未显式传 prompt 时批注文字自动作为修复提示词 (与 UI「发送到修复」同语义)，结果文本注明选区来源与提示词来源。focus 模式无 rect/annotation_id 必须报错，**禁止静默回退修图片中心** (旧默认 0.25~0.75 框已废除)；rect 解析统一走 `parseToolRectArg`/`normalizeRectPoints` (钳制 0~1、纠正乱序、容错字符串数字)。流式 `errorMessage` 必须透传到工具错误文本，不得吞成笼统的「未能生成修复图像」。`get_inpaint_geometry` 支持 annotation_id 且按实际图片字节解码尺寸 (导入图 params 可能是假宽高)。`view_image_annotations` 每条批注输出批注 ID，并在存在矩形/图钉批注时提示可用 `annotation_id` 联动修复——否则模型拿不到 ID，联动链路是断的。
 
 **仓库共享管线**：`generateInpaintStream` 与 `generateInpaint` 共用 `_prepareInpaintRequest` (覆盖链/蒙版/几何/请求字节) + `_compositeInpaintResult` (回贴+元数据) + `_persistInpaintResult` (autoSave 缓存/导出处理分支)，禁止再复制双胞胎长函数。中间帧预览走 `_inpaintPreviewBytes` 独立通道 (不占生图预览)。inpaint 模型 ID 映射：V5 Curated 重绘权重尚未就绪，官方网页端映射到 `nai-diffusion-4-5-curated-inpainting` (对齐 Aaalice resolveInpaintingModel)。侧栏页签持久化含 'inpaint' 键名映射。
+
+### 3.12 AI 整图编辑 (AI Image Edit，2026-12 增)
+
+在修复页第三个模式 `InpaintMode.aiEdit`：把整张图片原样发给**外部绘图模型** (如 nano banana / gemini-2.5-flash-image / gpt-image / seedream)，按自然语言指令重绘整图。不消耗 Anlas，计费走绘图模型供应商。
+
+- **独立供应商配置**：`AppConfig.imageEditProviderId` + `imageEditModelId` (持久化键 `image_edit_provider_id` / `image_edit_model_id`)，独立于对话 LLM；getter `imageEditProvider` / `imageEditModel` (未配置返回 null)。设置 Models 页「AI 整图编辑」卡片单独选择供应商与模型 (模型下拉**仅列出 imageOutput 绘图模型**，选中模型被改掉能力时显示「未识别为绘图模型」防悬挂项)；模型拉取自动识别图像输出能力 (`LlmModelConfig.imageOutput`，OpenRouter `architecture.output_modalities` > models.dev `modalities.output` > 关键字启发式 `detectImageOutputCapability`；vision 多模态模型只看不产不误判)，能力可在模型档案弹窗手动修正，模型卡片显示「绘图」胶囊，模型网格工具条有「仅绘图模型」过滤开关。
+- **ImageEditService** (`lib/data/services/image_edit_service.dart`)：标准 `/chat/completions`，图片 data URL 放 image_url 内容块 + `modalities:['image','text']`，Content-Type 必须带 `charset=utf-8` (http 包字符串请求体默认 Latin-1，中文指令会炸)。返回解析兼容四种格式：`message.images` 数组 (OpenRouter) / content 内容块数组 / content 字符串内嵌 markdown 或 data URL / http 临时链接自动下载；字节过魔数校验 (PNG/JPEG/WebP/GIF)。429 等待重试一次 (2500ms，可注入)。
+- **生图比例/分辨率透传** (各家网关无统一约定)：`InpaintParams.aiEditAspectRatio` (空=跟随原图；1:1/2:3/3:2/3:4/4:3/4:5/5:4/9:16/16:9/21:9) + `aiEditResolution` (空=默认；1K/2K/4K)，服务端按**多写法冗余写入**请求体：`aspect_ratio` + `image_config:{aspect_ratio,image_size}` (google-genai snake_case，对应原生 generationConfig.imageConfig) + `size` (new-api 系网关字段，接受含冒号比例写法)；Go 系网关对未知顶层字段静默忽略，多传无害。修复页 AI 编辑模式有「生成设置」下拉；`ai_edit_image` 工具有 aspect_ratio/resolution 参数 (auto=跟随原图)。
+- **仓库管线**：`NovelAiRepository.editImageAi` 调服务后按真实字节解码尺寸，经泛化的 `_persistInpaintResult` (`filePrefix='nai_ai_edit'`, `isAiEdited=true`) 落盘入史；autoSave 关闭时写缓存目录同规则；不嵌入 NovelAI 元数据。角标优先级：未保存 > 放大 > 修复 > AI 编辑 > 导入。
+- **UI**：修复页第三模式卡 (选中时隐藏重绘强度/附加噪声/负向词等 NAI 专属控件，信息卡显示绘图模型与未配置引导)；生成坞按钮在 aiEdit 模式下为「开始 AI 编辑」(busy 检查 isExecutingInpaint || isExecutingAiEdit)；修复画板 aiEdit 模式下蒙版层/手势层/缩放手柄全部禁用，工具坞降级为提示胶囊。
+- **Agent 工具**：`ai_edit_image` (AiEditImageTool，注册在 harness，预设键 `PresetToolKeys.aiEditImage`)，参数 prompt (自然语言指令，留空复用工作台提示词) / image_index / image_path；未配置时返回引导文案。执行入口：`StudioViewModel.executeInpaint` 在 aiEdit 模式下路由到 `executeAiImageEdit`。
 
 ---
 

@@ -9,6 +9,7 @@ class _RawModelEntry {
   final String? displayName;
   final bool? reasoning;
   final bool? multimodal;
+  final bool? imageOutput;
   final int? contextWindow;
   final int? maxTokens;
 
@@ -17,6 +18,7 @@ class _RawModelEntry {
     this.displayName,
     this.reasoning,
     this.multimodal,
+    this.imageOutput,
     this.contextWindow,
     this.maxTokens,
   });
@@ -112,6 +114,29 @@ class LlmModelFetcher {
         lower.contains('llava') ||
         lower.contains('qvq') ||
         lower.contains('qwen-vl');
+  }
+
+  /// 智能检测模型是否具备图像生成 / 整图编辑输出能力 (启发式兜底)
+  ///
+  /// 只匹配明确的绘图 / 图像编辑模型关键字；vision 多模态模型 (如 qwen-vl、
+  /// gpt-4o vision) 只能看图不能产图，不在此列。
+  static bool detectImageOutputCapability(String modelId) {
+    final lower = modelId.toLowerCase();
+    return lower.contains(
+          'flash-image',
+        ) || // gemini-2.5-flash-image (nano banana)
+        lower.contains('nano-banana') ||
+        lower.contains('banana') ||
+        lower.contains('gpt-image') ||
+        lower.contains('dall-e') ||
+        lower.contains('seedream') ||
+        lower.contains('seededit') ||
+        lower.contains('qwen-image') ||
+        lower.contains('image-generation') ||
+        lower.contains('image-edit') ||
+        lower.contains('flux-kontext') ||
+        lower.contains('imagen') ||
+        lower.contains('image-preview');
   }
 
   /// 智能检测模型上下文窗口大小 (启发式兜底)
@@ -253,6 +278,7 @@ class LlmModelFetcher {
 
     // OpenRouter: architecture.input_modalities / modality
     bool? multimodal;
+    bool? imageOutput;
     final architecture = item['architecture'];
     if (architecture is Map<String, dynamic>) {
       final inputModalities = architecture['input_modalities'];
@@ -263,6 +289,11 @@ class LlmModelFetcher {
         if (modality is String && modality.contains('image')) {
           multimodal = true;
         }
+      }
+      // OpenRouter: architecture.output_modalities 含 image 即为绘图模型
+      final outputModalities = architecture['output_modalities'];
+      if (outputModalities is List) {
+        imageOutput = outputModalities.any((m) => m == 'image');
       }
     }
 
@@ -305,6 +336,7 @@ class LlmModelFetcher {
       displayName: displayName,
       reasoning: reasoning,
       multimodal: multimodal,
+      imageOutput: imageOutput,
       contextWindow: contextWindow,
       maxTokens: maxTokens,
     );
@@ -336,6 +368,11 @@ class LlmModelFetcher {
         raw.contextWindow ?? dev?.contextWindow ?? detectContextWindow(raw.id);
     final maxTokens = raw.maxTokens ?? dev?.maxTokens ?? 8192;
 
+    final imageOutput =
+        raw.imageOutput ??
+        dev?.imageOutput ??
+        (existing?.imageOutput ?? false) || detectImageOutputCapability(raw.id);
+
     // 用户改过名字 (name != id) 则保留，否则采用远端显示名
     final name = (existing != null && existing.name != existing.id)
         ? existing.name
@@ -351,6 +388,7 @@ class LlmModelFetcher {
       contextWindow: contextWindow,
       maxTokens: maxTokens,
       temperature: temperature,
+      imageOutput: imageOutput,
     );
   }
 }

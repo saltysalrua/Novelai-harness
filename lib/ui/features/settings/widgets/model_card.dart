@@ -145,6 +145,12 @@ class ModelCard extends StatelessWidget {
                       label: '多模态',
                       foreground: AppTheme.success,
                     ),
+                  if (model.imageOutput)
+                    _CapabilityChip(
+                      icon: Icons.auto_awesome,
+                      label: '绘图',
+                      foreground: AppTheme.marigold,
+                    ),
                   _CapabilityChip(
                     icon: Icons.straighten_outlined,
                     label: '${_formatTokens(model.contextWindow)} 上下文',

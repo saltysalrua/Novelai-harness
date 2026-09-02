@@ -265,8 +265,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
         final srcW = image.params.width > 0 ? image.params.width : 1024;
         final srcH = image.params.height > 0 ? image.params.height : 1024;
         final isFocus = inpaint.mode == InpaintMode.focus;
+        final isAiEdit = inpaint.mode == InpaintMode.aiEdit;
         final tool = vm.inpaintTool;
-        final isExecuting = vm.isExecutingInpaint;
+        final isExecuting = vm.isExecutingInpaint || vm.isExecutingAiEdit;
         final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
 
         return LayoutBuilder(
@@ -333,23 +334,24 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                 ),
 
                 // 2. 蒙版层：外延框外压暗 (even-odd 只填环带) + 已提交描边
-                //    Picture 缓存 + 实时描边 + 选区框
-                Positioned.fromRect(
-                  key: const ValueKey('inpaint-mask'),
-                  rect: imageRect,
-                  child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _InpaintMaskPainter(
-                        committedPicture: committedPicture,
-                        liveStroke: _liveStrokePoints,
-                        liveStrokeIsEraser: tool == InpaintTool.eraser,
-                        liveBrushRadius: inpaint.brushRadius,
-                        dimOutsideRect: isFocus ? cropNormRect : null,
-                        selectionRect: displaySelNorm,
+                //    Picture 缓存 + 实时描边 + 选区框 (AI 整图编辑不渲染蒙版)
+                if (!isAiEdit)
+                  Positioned.fromRect(
+                    key: const ValueKey('inpaint-mask'),
+                    rect: imageRect,
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _InpaintMaskPainter(
+                          committedPicture: committedPicture,
+                          liveStroke: _liveStrokePoints,
+                          liveStrokeIsEraser: tool == InpaintTool.eraser,
+                          liveBrushRadius: inpaint.brushRadius,
+                          dimOutsideRect: isFocus ? cropNormRect : null,
+                          selectionRect: displaySelNorm,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
                 // 3. 焦点模式外延上下文虚线框 (实时跟随)
                 if (isFocus && cropCanvasRect != null)
@@ -410,8 +412,8 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                     ),
                   ),
 
-                // 5. 手势交互层 (整个源图区域；执行中禁用)
-                if (!isExecuting)
+                // 5. 手势交互层 (整个源图区域；执行中与 AI 整图编辑模式禁用)
+                if (!isExecuting && !isAiEdit)
                   Positioned.fromRect(
                     key: const ValueKey('inpaint-gesture'),
                     rect: imageRect,
@@ -435,6 +437,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
 
                 // 6. 四角缩放手柄 (框选工具且无画笔蒙版且有选区时显示)
                 if (!isExecuting &&
+                    !isAiEdit &&
                     tool == InpaintTool.rect &&
                     !inpaint.hasBrushMask &&
                     displaySelCanvas != null)
@@ -707,6 +710,41 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
   // ---------------------------------------------------------------------------
 
   Widget _buildToolDock(StudioViewModel vm, InpaintParams inpaint) {
+    // AI 整图编辑：整图交给外部绘图模型重绘，蒙版与选区工具无意义，
+    // 工具坞降级为模式提示胶囊
+    if (inpaint.mode == InpaintMode.aiEdit) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppTheme.pureWhite,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.border),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 10,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.auto_awesome, size: 13, color: AppTheme.notionBlue),
+            SizedBox(width: 5),
+            Text(
+              'AI 整图编辑 · 整张图片重绘，无需框选区域',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final geometry = vm.inpaintGeometry;
     final steps = inpaint.customSteps ?? vm.params.steps;
     final isFree = geometry.isOpusFree && steps <= 28;
