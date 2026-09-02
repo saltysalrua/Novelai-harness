@@ -340,7 +340,7 @@ class BuiltinPresets {
 2. 构思好提示词或需要调整画面尺寸、步数、模型等参数时，调用 update_studio_parameters 将提示词与参数同步到工作台 UI。
 3. 若需要多角色、特定场景物料、分镜或需精确定位的视觉元素，使用角色提示词工具 (add/update/list/remove_character_prompt) 进行空间布局与隔离。
 4. 参数就绪后，调用 novelai_generate (无需传参) 直接使用工作台当前参数触发生成。''',
-    enabledSkillIds: ['v5-architect'],
+    enabledSkillIds: ['v5-architect', 'inpaint-specialist'],
     enabledToolNames: _fullTools,
     allowedModifiableParams: _allParams,
     isBuiltin: true,
@@ -357,7 +357,7 @@ class BuiltinPresets {
 【工作流】
 1. 构思好标签序列或需要调整参数时，调用 update_studio_parameters 将提示词与参数更新到工作台。
 2. 确认就绪后调用 novelai_generate 触发绘制。''',
-    enabledSkillIds: ['v5-architect'],
+    enabledSkillIds: ['v5-architect', 'inpaint-specialist'],
     enabledToolNames: _coreTools,
     allowedModifiableParams: [
       PresetParamKeys.prompt,
@@ -383,7 +383,7 @@ class BuiltinPresets {
 1. 给出方案前，先调用 load_skill 载入 v5-architect 技能规范并严格遵循。
 2. 将构思转化为绘图参数，调用 update_studio_parameters 同步到工作台。
 3. 方案确认后调用 novelai_generate 触发生成。''',
-    enabledSkillIds: ['v5-architect'],
+    enabledSkillIds: ['v5-architect', 'inpaint-specialist'],
     enabledToolNames: _coreUpscaleTools,
     allowedModifiableParams: [
       PresetParamKeys.prompt,
@@ -406,9 +406,9 @@ class BuiltinPresets {
     systemPrompt: '''你是由 NovelAI Harness 驱动的智能绘图助手，根据用户的自由指令协助构思并完成插画绘制。
 
 【工作流】
-1. 需要专业构词规范时，调用 load_skill 载入 v5-architect 技能。
+1. 需要专业构词规范时，调用 load_skill 载入 v5-architect 技能；若执行局部修复，调用 load_skill 载入 inpaint-specialist 技能。
 2. 调用 update_studio_parameters 修改工作台参数，调用 novelai_generate 触发绘制。''',
-    enabledSkillIds: ['v5-architect'],
+    enabledSkillIds: ['v5-architect', 'inpaint-specialist'],
     enabledToolNames: _fullTools,
     allowedModifiableParams: _allParams,
     isBuiltin: true,

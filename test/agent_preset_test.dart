@@ -207,6 +207,17 @@ void main() {
       expect(result.isError, isFalse);
       expect(result.content, contains('<skill name="v5-architect">'));
       expect(result.content, contains('V5 自然语言与空间视觉架构师'));
+
+      final inpaintResult = await tool.execute('call_inpaint', {
+        'skill_name': 'inpaint-specialist',
+      });
+      expect(inpaintResult.isError, isFalse);
+      expect(inpaintResult.content, contains('<skill name="inpaint-specialist">'));
+      expect(inpaintResult.content, contains('NovelAI 局部修复与图像重绘专家'));
+      expect(inpaintResult.content, contains('基底保持与最小必要改动'));
+      expect(inpaintResult.content, contains('nano banana'));
+      expect(inpaintResult.content, contains('前置保真指令模板'));
+      expect(inpaintResult.content, contains('焦点特写修复'));
     });
 
     test('LoadSkillTool returns error for unknown skill', () async {
@@ -424,7 +435,7 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
   group('SkillRegistry & ToolRegistry Dynamic Tests', () {
     test('SkillRegistry manages builtin and custom skills dynamically', () {
       final registry = SkillRegistry();
-      expect(registry.getAll().length, equals(1));
+      expect(registry.getAll().length, equals(2));
 
       const customSkill = Skill(
         id: 'custom-1',
@@ -446,6 +457,10 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
       final deletedBuiltin = registry.unregister('v5-architect');
       expect(deletedBuiltin, isFalse);
       expect(registry.get('v5-architect'), isNotNull);
+
+      final deletedInpaint = registry.unregister('inpaint-specialist');
+      expect(deletedInpaint, isFalse);
+      expect(registry.get('inpaint-specialist'), isNotNull);
     });
 
     test('ToolRegistry clear removes all registered tools', () {
