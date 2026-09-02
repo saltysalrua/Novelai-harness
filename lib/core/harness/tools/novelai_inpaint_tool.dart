@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -26,36 +27,204 @@ Rect normalizeRectPoints(double x1, double y1, double x2, double y2) {
   );
 }
 
-/// 解析工具 rect 参数为归一化矩形，支持两种写法：
-/// - [ymin, xmin, ymax, xmax] 归一化数组 (0.0~1.0)
-/// - {left, top, width, height} 对象 (兼容 x/y/w/h 键名)
-/// 返回 null 表示格式无法解析。
-Rect? parseToolRectArg(dynamic rawRect) {
+/// rect 解析结果：rect 为 null 且 error 非空表示不可用；detectedFormat
+/// 回显识别出的坐标系，供工具结果提示 Agent 下次直接使用正确格式
+typedef ParsedToolRect = ({Rect? rect, String? error, String? detectedFormat});
+
+/// 解析工具 rect 参数为归一化矩形，自动识别三种坐标系
+/// (Agent 常把批注的百分比/像素坐标直接抄过来，必须容错)。
+/// - 归一化：所有值 <= 1.0，直接使用
+/// - 百分比：值在 (1.0, 100]，除以 100 (add_image_annotation 等批注工具的体系)
+/// - 像素：存在 > 100 的值且提供了图片尺寸，按宽高换算
+///   (view_image_annotations 输出的像素坐标体系)
+///
+/// 数组写法 [ymin, xmin, ymax, xmax]；对象写法 {left, top, width, height}、
+/// {left, top, right, bottom}、{ymin, xmin, ymax, xmax} 或 {x1, y1, x2, y2}
+/// (兼容 x/y/w/h 键名)；字符串写法 (JSON 序列化或逗号/空格分隔的四数)；
+/// 嵌套两点写法 [[x1, y1], [x2, y2]]。
+ParsedToolRect parseToolRectArg(
+  dynamic rawRect, {
+  int? imageWidth,
+  int? imageHeight,
+}) {
   double? toDouble(dynamic v) {
     if (v is num) return v.toDouble();
-    if (v is String) return double.tryParse(v);
+    if (v is String) {
+      final s = v.trim();
+      // 容错带 %/px 后缀与逗号分隔的字符串
+      final cleaned = s
+          .replaceAll('%', '')
+          .replaceAll('px', '')
+          .replaceAll(',', '');
+      return double.tryParse(cleaned);
+    }
     return null;
   }
 
-  if (rawRect is List && rawRect.length >= 4) {
-    final ymin = toDouble(rawRect[0]);
-    final xmin = toDouble(rawRect[1]);
-    final ymax = toDouble(rawRect[2]);
-    final xmax = toDouble(rawRect[3]);
-    if (ymin == null || xmin == null || ymax == null || xmax == null) {
-      return null;
+  ParsedToolRect unparseable() {
+    final repr = rawRect.toString();
+    final truncated = repr.length > 80 ? '${repr.substring(0, 80)}...' : repr;
+    return (
+      rect: null,
+      error:
+          'rect 参数格式无法解析 (收到: $truncated)。'
+          '支持 [ymin, xmin, ymax, xmax] 数组 (归一化 0~1 / 百分比 0~100 / 像素)、'
+          '{left, top, width, height} / {left, top, right, bottom} / '
+          '{ymin, xmin, ymax, xmax} / {x1, y1, x2, y2} 对象、'
+          'JSON 字符串或逗号分隔的四数字符串。',
+      detectedFormat: null,
+    );
+  }
+
+  // 预处理：字符串 rect (JSON 序列化的数组/对象，或逗号/空格分隔四数)
+  dynamic raw = rawRect;
+  if (raw is String) {
+    final s = raw.trim();
+    if (s.isEmpty) return unparseable();
+    try {
+      raw = jsonDecode(s);
+    } catch (_) {
+      final parts = s
+          .split(RegExp(r'[,\s]+'))
+          .where((p) => p.isNotEmpty)
+          .toList();
+      if (parts.length != 4) return unparseable();
+      raw = parts;
     }
-    return normalizeRectPoints(xmin, ymin, xmax, ymax);
   }
-  if (rawRect is Map) {
-    final l = toDouble(rawRect['left'] ?? rawRect['x']);
-    final t = toDouble(rawRect['top'] ?? rawRect['y']);
-    final w = toDouble(rawRect['width'] ?? rawRect['w']);
-    final h = toDouble(rawRect['height'] ?? rawRect['h']);
-    if (l == null || t == null || w == null || h == null) return null;
-    return normalizeRectPoints(l, t, l + w, t + h);
+
+  double? v1;
+  double? v2;
+  double? v3;
+  double? v4;
+  var isCornerForm =
+      false; // true = (v1,v2,v3,v4) 是 (ymin,xmin,ymax,xmax) 角点；false = l/t/w/h
+
+  if (raw is List) {
+    if (raw.length == 2 && raw[0] is List && raw[1] is List) {
+      // 嵌套两点写法 [[x1, y1], [x2, y2]] → 角点
+      final p1 = raw[0] as List;
+      final p2 = raw[1] as List;
+      if (p1.length < 2 || p2.length < 2) return unparseable();
+      final x1 = toDouble(p1[0]);
+      final y1 = toDouble(p1[1]);
+      final x2 = toDouble(p2[0]);
+      final y2 = toDouble(p2[1]);
+      if (x1 == null || y1 == null || x2 == null || y2 == null) {
+        return unparseable();
+      }
+      v1 = y1;
+      v2 = x1;
+      v3 = y2;
+      v4 = x2;
+      isCornerForm = true;
+    } else if (raw.length >= 4) {
+      v1 = toDouble(raw[0]); // ymin
+      v2 = toDouble(raw[1]); // xmin
+      v3 = toDouble(raw[2]); // ymax
+      v4 = toDouble(raw[3]); // xmax
+      isCornerForm = true;
+    } else {
+      return unparseable();
+    }
+  } else if (raw is Map) {
+    final ymin = toDouble(raw['ymin']);
+    final xmin = toDouble(raw['xmin']);
+    final ymax = toDouble(raw['ymax']);
+    final xmax = toDouble(raw['xmax']);
+    if (ymin != null && xmin != null && ymax != null && xmax != null) {
+      // {ymin, xmin, ymax, xmax} 对象写法 (与数组同位序)
+      v1 = ymin;
+      v2 = xmin;
+      v3 = ymax;
+      v4 = xmax;
+      isCornerForm = true;
+    } else {
+      final l = toDouble(raw['left'] ?? raw['x'] ?? raw['x1']);
+      final t = toDouble(raw['top'] ?? raw['y'] ?? raw['y1']);
+      if (l == null || t == null) return unparseable();
+      final w = toDouble(raw['width'] ?? raw['w']);
+      final h = toDouble(raw['height'] ?? raw['h']);
+      final r = toDouble(raw['right'] ?? raw['x2']);
+      final b = toDouble(raw['bottom'] ?? raw['y2']);
+      if (w != null && h != null) {
+        v1 = l;
+        v2 = t;
+        v3 = w;
+        v4 = h;
+        isCornerForm = false;
+      } else if (r != null && b != null) {
+        // 角点写法统一为 (ymin, xmin, ymax, xmax)：top/left/bottom/right
+        v1 = t;
+        v2 = l;
+        v3 = b;
+        v4 = r;
+        isCornerForm = true;
+      } else {
+        return unparseable();
+      }
+    }
+  } else {
+    return unparseable();
   }
-  return null;
+
+  if (v1 == null || v2 == null || v3 == null || v4 == null) {
+    return unparseable();
+  }
+
+  // 坐标系识别：按四值中的最大值判断 (负值不影响 maxV，
+  // 边缘钳制交给 normalizeRectPoints，保留 l+w 原始求和语义)
+  final maxV = math.max(v1, math.max(v2, math.max(v3, v4)));
+  final overOneCount = [v1, v2, v3, v4].where((v) => v > 1.0).length;
+  final hasDims =
+      imageWidth != null &&
+      imageHeight != null &&
+      imageWidth > 0 &&
+      imageHeight > 0;
+
+  if (maxV <= 1.0 || (maxV <= 100.0 && overOneCount < 2)) {
+    // 归一化坐标 (单个值轻微超 1 视为归一化越界错误，宽容钳制；
+    // 百分比坐标几乎不可能只有一个值大于 1)
+    final rect = isCornerForm
+        ? normalizeRectPoints(v2, v1, v4, v3)
+        : normalizeRectPoints(v1, v2, v1 + v3, v2 + v4);
+    return (rect: rect, error: null, detectedFormat: '归一化 0~1');
+  }
+
+  if (maxV <= 100.0) {
+    // 百分比坐标 (批注工具体系)：全部除以 100
+    final rect = isCornerForm
+        ? normalizeRectPoints(v2 / 100, v1 / 100, v4 / 100, v3 / 100)
+        : normalizeRectPoints(
+            v1 / 100,
+            v2 / 100,
+            (v1 + v3) / 100,
+            (v2 + v4) / 100,
+          );
+    return (rect: rect, error: null, detectedFormat: '百分比 0~100');
+  }
+
+  // 像素坐标 (view_image_annotations 的像素体系)：需要图片尺寸换算
+  if (!hasDims) {
+    return (
+      rect: null,
+      error:
+          'rect 数值超过 100，看起来是像素坐标，但当前无法确定图片尺寸进行换算。'
+          '请改用 0~1 归一化坐标 ([ymin, xmin, ymax, xmax])、0~100 百分比坐标，或直接用 annotation_id 复用画板批注。',
+      detectedFormat: '像素 (缺图片尺寸)',
+    );
+  }
+
+  double sx(double px) => (px / imageWidth).clamp(0.0, 1.0);
+  double sy(double py) => (py / imageHeight).clamp(0.0, 1.0);
+  final rect = isCornerForm
+      ? normalizeRectPoints(sx(v2), sy(v1), sx(v4), sy(v3))
+      : normalizeRectPoints(sx(v1), sy(v2), sx(v1 + v3), sy(v2 + v4));
+  return (
+    rect: rect,
+    error: null,
+    detectedFormat: '像素 ($imageWidth x $imageHeight)',
+  );
 }
 
 /// 图钉锚点转修复选区时的半边长 (归一化，短边的 12% 边长)
@@ -141,9 +310,10 @@ class NovelAiInpaintTool extends AgentTool {
              '对画板图片或指定本地图片执行局部重绘 (Inpaint) 或高分辨率焦点特写修复 (Focus Inpaint)。\n'
              '在 focus 模式下，算法会自动将选区扩展外延上下文 (Context Padding) 并等比上采样至 1MP (1024x1024) 潜空间，'
              '经 NovelAI 官方 infill 渲染后再高精度无损贴回原图，极大提升眼睛、面部、手部与服饰细节且享受 Opus 免费。\n'
-             '修复区域二选一：rect 坐标 ([ymin, xmin, ymax, xmax] 或 {left, top, width, height})，'
-             '或 annotation_id 复用画板既有批注 (矩形批注直用其选区，图钉锚点自动转为以锚点为中心的小选区；'
-             '未显式传 prompt 时批注文字会自动作为修复提示词)。\n'
+             '修复区域二选一：rect 坐标，或 annotation_id 复用画板既有批注 (矩形批注直用其选区，图钉锚点自动转为以锚点为中心的小选区；'
+             '批注只提供修复区域，批注文字是用户修改意见、不会自动作为提示词——需按批注意见修复时应把意见翻译成绘制描述后显式传 prompt)。\n'
+             'rect 自动识别三种坐标系：归一化数组 [ymin, xmin, ymax, xmax] (0.0~1.0，推荐，可直接复制 view_image_annotations 输出的相对坐标)、'
+             '百分比坐标 (0~100，与批注工具同体系) 与像素坐标 (按图片尺寸自动换算)；对象写法支持 {left, top, width, height} 或 {left, top, right, bottom}。\n'
              'focus 模式必须提供 rect 或 annotation_id (整图重绘请用 standard 模式)。',
          parameters: {
            'type': 'object',
@@ -155,12 +325,12 @@ class NovelAiInpaintTool extends AgentTool {
              },
              'rect': {
                'description':
-                   '待修复选区坐标，支持 [ymin, xmin, ymax, xmax] 归一化数组 (0.0~1.0) 或包含 left/top/width/height 的对象',
+                   '待修复选区坐标，自动识别三种坐标系：归一化数组 [ymin, xmin, ymax, xmax] (0.0~1.0，推荐)、百分比数组 (0~100)、像素坐标；对象写法支持 left/top/width/height 或 left/top/right/bottom',
              },
              'annotation_id': {
                'type': 'string',
                'description':
-                   '画板上既有批注的 ID (矩形批注直用其选区；图钉锚点自动转为以锚点为中心的小选区；未传 prompt 时批注文字自动作为修复提示词)',
+                   '画板上既有批注的 ID (矩形批注直用其选区；图钉锚点自动转为以锚点为中心的小选区)。批注只提供修复区域，批注文字不会自动作为提示词；需按批注意见修复时请把意见翻译成绘制描述后显式传 prompt',
              },
              'prompt': {
                'type': 'string',
@@ -252,10 +422,21 @@ class NovelAiInpaintTool extends AgentTool {
         );
       }
 
-      // 2. 解析选区 Rect：annotation_id 联动画板批注，rect 参数显式坐标
+      // 2. 按实际图片字节解码尺寸 (导入图 params 可能是假宽高；
+      //    rect 像素坐标换算也依赖真实尺寸，必须先于选区解析)
+      final targetBytes = Uint8List.fromList(targetImage.bytes);
+      final resolvedDims = await AnlasCalculator.decodeImageDimensions(
+        targetBytes,
+      );
+      final srcW = resolvedDims?.width ?? targetImage.params.width;
+      final srcH = resolvedDims?.height ?? targetImage.params.height;
+
+      // 3. 解析选区 Rect：annotation_id 联动画板批注，rect 参数显式坐标
+      //    (自动识别归一化/百分比/像素三种坐标系，与批注工具体系互通)
       Rect? selectionRect;
       String? annotationIdUsed;
       String? annotationNote;
+      String? rectFormatUsed;
       final annotationId = args['annotation_id'] as String?;
       if (annotationId != null && annotationId.isNotEmpty) {
         final resolved = resolveAnnotationSelection(
@@ -279,15 +460,28 @@ class NovelAiInpaintTool extends AgentTool {
       }
 
       if (selectionRect == null && args['rect'] != null) {
-        selectionRect = parseToolRectArg(args['rect']);
-        if (selectionRect == null) {
+        final parsed = parseToolRectArg(
+          args['rect'],
+          imageWidth: srcW,
+          imageHeight: srcH,
+        );
+        if (parsed.error != null) {
           return ToolResult(
             toolCallId: toolCallId,
-            content:
-                '错误：rect 参数格式无法解析。支持 [ymin, xmin, ymax, xmax] 归一化数组或包含 left/top/width/height 的对象。',
+            content: '错误：${parsed.error}',
             isError: true,
           );
         }
+        if (parsed.rect == null) {
+          return ToolResult(
+            toolCallId: toolCallId,
+            content:
+                '错误：rect 参数格式无法解析。支持 [ymin, xmin, ymax, xmax] 归一化数组 (0~1)、百分比数组 (0~100)、像素坐标，或包含 left/top/width/height (或 left/top/right/bottom) 的对象。',
+            isError: true,
+          );
+        }
+        selectionRect = parsed.rect;
+        rectFormatUsed = parsed.detectedFormat;
       }
 
       final modeStr = args['mode'] as String? ?? 'focus';
@@ -310,12 +504,13 @@ class NovelAiInpaintTool extends AgentTool {
       final customPrompt = args['prompt'] as String?;
       final customNegative = args['negative_prompt'] as String?;
 
-      // 批注联动：未显式传 prompt 时，批注文字自动作为修复提示词
-      // (与 UI「批注发送到修复」同语义)
+      // 批注文字是用户修改意见 (如「手画歪了」)，不是生图提示词，
+      // 禁止自动拿来当修复提示词顶掉用户预期的工作台提示词——
+      // agent 想用批注意见时应自己翻译后显式传 prompt
       final effectivePrompt =
           (customPrompt != null && customPrompt.trim().isNotEmpty)
           ? customPrompt
-          : annotationNote;
+          : null;
 
       final inpaintParams = InpaintParams(
         mode: mode,
@@ -333,14 +528,7 @@ class NovelAiInpaintTool extends AgentTool {
 
       final currentParams = _getCurrentParams();
 
-      // 3. 计算几何与点数估算闸门
-      final targetBytes = Uint8List.fromList(targetImage.bytes);
-      final resolvedDims = await AnlasCalculator.decodeImageDimensions(
-        targetBytes,
-      );
-      final srcW = resolvedDims?.width ?? targetImage.params.width;
-      final srcH = resolvedDims?.height ?? targetImage.params.height;
-
+      // 4. 计算几何与点数估算闸门 (尺寸已在第 2 步按真实字节解码)
       final InpaintGeometry geometry;
       if (mode == InpaintMode.focus) {
         final sel = selectionRect!;
@@ -467,9 +655,14 @@ class NovelAiInpaintTool extends AgentTool {
         buffer.writeln('• 修复区域来源: 批注 $annotationIdUsed');
         if (annotationNote != null) {
           buffer.writeln(
-            '• 提示词来源: 批注文字 ("${annotationNote.length > 40 ? '${annotationNote.substring(0, 40)}...' : annotationNote}")',
+            '• 批注文字 (修改意见，仅供参考，未作为提示词): "${annotationNote.length > 40 ? '${annotationNote.substring(0, 40)}...' : annotationNote}"',
           );
         }
+        buffer.writeln(
+          '• 提示词来源: ${effectivePrompt != null ? '工具 prompt 参数' : '工作台当前提示词'}',
+        );
+      } else if (rectFormatUsed != null) {
+        buffer.writeln('• rect 坐标体系: $rectFormatUsed (已自动换算为归一化坐标)');
       }
       if (mode == InpaintMode.focus) {
         buffer.writeln(
@@ -517,7 +710,7 @@ class NovelAiInpaintGeometryTool extends AgentTool {
           'properties': {
             'rect': {
               'description':
-                  '待修复选区坐标，支持 [ymin, xmin, ymax, xmax] 归一化数组 (0.0~1.0) 或包含 left/top/width/height 的对象',
+                  '待修复选区坐标，自动识别三种坐标系：归一化数组 [ymin, xmin, ymax, xmax] (0.0~1.0，推荐)、百分比数组 (0~100)、像素坐标；对象写法支持 left/top/width/height 或 left/top/right/bottom',
             },
             'annotation_id': {
               'type': 'string',
@@ -561,8 +754,10 @@ class NovelAiInpaintGeometryTool extends AgentTool {
         srcH = dims?.height ?? srcH;
       }
 
-      // 选区解析：annotation_id 联动批注，rect 参数显式坐标，二选一
+      // 选区解析：annotation_id 联动批注，rect 参数显式坐标 (自动识别
+      // 归一化/百分比/像素坐标系)，二选一
       Rect? selectionRect;
+      String? geometryBufferFormatNote;
       final annotationId = args['annotation_id'] as String?;
       if (annotationId != null && annotationId.isNotEmpty) {
         if (targetImage == null) {
@@ -585,14 +780,29 @@ class NovelAiInpaintGeometryTool extends AgentTool {
         }
         selectionRect = resolved.rect;
       } else if (args['rect'] != null) {
-        selectionRect = parseToolRectArg(args['rect']);
-        if (selectionRect == null) {
+        final parsed = parseToolRectArg(
+          args['rect'],
+          imageWidth: srcW,
+          imageHeight: srcH,
+        );
+        if (parsed.error != null) {
+          return ToolResult(
+            toolCallId: toolCallId,
+            content: '错误：${parsed.error}',
+            isError: true,
+          );
+        }
+        if (parsed.rect == null) {
           return ToolResult(
             toolCallId: toolCallId,
             content:
-                '错误：rect 参数格式无法解析。支持 [ymin, xmin, ymax, xmax] 归一化数组或包含 left/top/width/height 的对象。',
+                '错误：rect 参数格式无法解析。支持 [ymin, xmin, ymax, xmax] 归一化数组 (0~1)、百分比数组 (0~100)、像素坐标，或包含 left/top/width/height (或 left/top/right/bottom) 的对象。',
             isError: true,
           );
+        }
+        selectionRect = parsed.rect;
+        if (parsed.detectedFormat != null) {
+          geometryBufferFormatNote = parsed.detectedFormat;
         }
       } else {
         return ToolResult(
@@ -622,6 +832,9 @@ class NovelAiInpaintGeometryTool extends AgentTool {
       final buffer = StringBuffer();
       buffer.writeln('焦点修复几何计算结果：');
       buffer.writeln('• 原图尺寸: ${srcW}x$srcH');
+      if (geometryBufferFormatNote != null) {
+        buffer.writeln('• rect 坐标体系: $geometryBufferFormatNote (已自动换算为归一化坐标)');
+      }
       buffer.writeln(
         '• 目标选区: (${geometry.focusBounds.left.round()}, ${geometry.focusBounds.top.round()}) ${geometry.focusBounds.width.round()}x${geometry.focusBounds.height.round()} px',
       );

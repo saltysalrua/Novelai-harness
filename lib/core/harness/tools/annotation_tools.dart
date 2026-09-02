@@ -476,7 +476,10 @@ class ViewImageAnnotationsTool extends AgentTool {
           final bbox = ann.toBBox();
           final pxR = ann.toPixelRect(width, height);
           lines.add(
-            '• 相对坐标: [ymin: ${bbox?[0]}, xmin: ${bbox?[1]}, ymax: ${bbox?[2]}, xmax: ${bbox?[3]}] (x: ${(r.left * 100).toStringAsFixed(1)}%, y: ${(r.top * 100).toStringAsFixed(1)}%, w: ${(r.width * 100).toStringAsFixed(1)}%, h: ${(r.height * 100).toStringAsFixed(1)}%)',
+            '• 相对坐标 (归一化，可直接作为 novelai_inpaint / get_inpaint_geometry 的 rect 参数): [${bbox?[0]}, ${bbox?[1]}, ${bbox?[2]}, ${bbox?[3]}] (ymin, xmin, ymax, xmax)',
+          );
+          lines.add(
+            '• 百分比坐标: x: ${(r.left * 100).toStringAsFixed(1)}%, y: ${(r.top * 100).toStringAsFixed(1)}%, w: ${(r.width * 100).toStringAsFixed(1)}%, h: ${(r.height * 100).toStringAsFixed(1)}%',
           );
           if (pxR != null) {
             lines.add(
@@ -487,7 +490,10 @@ class ViewImageAnnotationsTool extends AgentTool {
           final p = ann.point!;
           final pxP = ann.toPixelPoint(width, height);
           lines.add(
-            '• 相对坐标: [x: ${(p.dx * 100).toStringAsFixed(1)}%, y: ${(p.dy * 100).toStringAsFixed(1)}%]',
+            '• 相对坐标 (归一化): [x: ${p.dx.toStringAsFixed(4)}, y: ${p.dy.toStringAsFixed(4)}]',
+          );
+          lines.add(
+            '• 百分比坐标: x: ${(p.dx * 100).toStringAsFixed(1)}%, y: ${(p.dy * 100).toStringAsFixed(1)}%',
           );
           if (pxP != null) {
             lines.add('• 像素位置: (${pxP.dx.round()}px, ${pxP.dy.round()}px)');
@@ -519,7 +525,7 @@ class ViewImageAnnotationsTool extends AgentTool {
     if (hasPositionalAnnotation) {
       lines.add('');
       lines.add(
-        '提示：矩形/图钉批注可通过 novelai_inpaint 的 annotation_id 参数直接作为修复区域 (图钉会自动转为以其为中心的小选区)，未显式传 prompt 时批注文字会自动作为修复提示词；也可先用 get_inpaint_geometry 预演几何与点数消耗。',
+        '提示：矩形/图钉批注可通过 novelai_inpaint 的 annotation_id 参数直接作为修复区域 (图钉会自动转为以其为中心的小选区)；批注只提供修复区域，批注文字是用户修改意见、不会自动作为提示词——需按批注意见修复时请把意见翻译成绘制描述后显式传 prompt (prompt 留空则用工作台当前提示词)；也可直接复制上面的归一化相对坐标作为 rect 参数 (百分比与像素坐标同样会被自动识别换算)；可先用 get_inpaint_geometry 预演几何与点数消耗。',
       );
     }
 

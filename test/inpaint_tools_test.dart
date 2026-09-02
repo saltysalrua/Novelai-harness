@@ -90,7 +90,8 @@ void main() {
     test('parseToolRectArg 归一化并自动纠正乱序/越界坐标', () {
       // [ymin, xmin, ymax, xmax] 乱序 + 越界
       final r = parseToolRectArg([0.9, 0.9, 0.1, 0.1]);
-      expect(r, const Rect.fromLTWH(0.1, 0.1, 0.8, 0.8));
+      expect(r.rect, const Rect.fromLTWH(0.1, 0.1, 0.8, 0.8));
+      expect(r.detectedFormat, contains('归一化'));
       // 对象写法：负值/超界/字符串数字全部容错
       final r2 = parseToolRectArg({
         'left': -0.2,
@@ -98,9 +99,113 @@ void main() {
         'width': 0.5,
         'height': 1.2,
       });
-      expect(r2, const Rect.fromLTWH(0.0, 0.3, 0.3, 0.7));
-      expect(parseToolRectArg('bad'), isNull);
-      expect(parseToolRectArg([1, 2]), isNull);
+      expect(r2.rect, const Rect.fromLTWH(0.0, 0.3, 0.3, 0.7));
+      // 无法解析时报错必须携带收到的原值回显，便于定位 Agent 实际传了什么
+      expect(parseToolRectArg('bad').rect, isNull);
+      expect(parseToolRectArg('bad').error, contains('收到'));
+      expect(parseToolRectArg([1, 2]).rect, isNull);
+    });
+
+    test('parseToolRectArg 容错字符串与多样对象/嵌套写法', () {
+      // JSON 序列化数组字符串 (Agent 常把数组直接序列化成字符串传)
+      final jsonArr = parseToolRectArg('[0.25, 0.5, 0.5, 0.75]');
+      expect(jsonArr.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+      expect(jsonArr.error, isNull);
+
+      // 逗号分隔四数字符串
+      final csv = parseToolRectArg('0.25, 0.5, 0.5, 0.75');
+      expect(csv.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+
+      // JSON 序列化对象字符串
+      final jsonObj = parseToolRectArg(
+        '{"left": 0.5, "top": 0.25, "width": 0.25, "height": 0.25}',
+      );
+      expect(jsonObj.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+
+      // {ymin, xmin, ymax, xmax} 对象键名 (与数组同位序)
+      final bboxObj = parseToolRectArg({
+        'ymin': 0.25,
+        'xmin': 0.5,
+        'ymax': 0.5,
+        'xmax': 0.75,
+      });
+      expect(bboxObj.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+
+      // {x1, y1, x2, y2} 对象键名
+      final xyObj = parseToolRectArg({
+        'x1': 0.5,
+        'y1': 0.25,
+        'x2': 0.75,
+        'y2': 0.5,
+      });
+      expect(xyObj.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+
+      // 嵌套两点写法 [[x1, y1], [x2, y2]]
+      final nested = parseToolRectArg([
+        [0.5, 0.25],
+        [0.75, 0.5],
+      ]);
+      expect(nested.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+
+      // 百分比也能走字符串/对象键名写法
+      final pctStr = parseToolRectArg('25%, 50%, 50%, 75%');
+      expect(pctStr.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+      expect(pctStr.detectedFormat, contains('百分比'));
+    });
+
+    test('parseToolRectArg 自动识别百分比坐标 (批注工具体系)', () {
+      // Agent 常把 add_image_annotation 的百分比坐标直接抄给修复工具
+      final arr = parseToolRectArg([
+        25.0,
+        50.0,
+        50.0,
+        75.0,
+      ]); // ymin,xmin,ymax,xmax 百分比
+      expect(arr.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+      expect(arr.detectedFormat, contains('百分比'));
+
+      // 对象写法 {left, top, width, height} 百分比 + 带 %/px 后缀字符串容错
+      final obj = parseToolRectArg({
+        'left': '50%',
+        'top': '25%',
+        'width': 25,
+        'height': '25%',
+      });
+      expect(obj.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+      expect(obj.error, isNull);
+    });
+
+    test('parseToolRectArg 自动识别像素坐标 (view_image_annotations 体系)', () {
+      // 1024x1024 图：像素 [ymin=256, xmin=512, ymax=512, xmax=768]
+      final arr = parseToolRectArg(
+        [256, 512, 512, 768],
+        imageWidth: 1024,
+        imageHeight: 1024,
+      );
+      expect(arr.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+      expect(arr.detectedFormat, contains('像素'));
+
+      // {left, top, right, bottom} 对象写法像素坐标
+      final obj = parseToolRectArg(
+        {'left': 512, 'top': 256, 'right': 768, 'bottom': 512},
+        imageWidth: 1024,
+        imageHeight: 1024,
+      );
+      expect(obj.rect, const Rect.fromLTWH(0.5, 0.25, 0.25, 0.25));
+
+      // {x, y, w, h} 像素写法 + 宽度超出图片尺寸时钳制
+      final wh = parseToolRectArg(
+        {'x': 512, 'y': 256, 'w': 1500, 'h': 256},
+        imageWidth: 1024,
+        imageHeight: 1024,
+      );
+      expect(wh.rect, const Rect.fromLTWH(0.5, 0.25, 0.5, 0.25));
+
+      // 像素坐标但缺图片尺寸 → 明确报错而非钳成全图
+      final noDims = parseToolRectArg([256, 512, 512, 768]);
+      expect(noDims.rect, isNull);
+      expect(noDims.error, isNotNull);
+      expect(noDims.error, contains('像素坐标'));
     });
 
     test('resolveAnnotationSelection 批注转修复选区联动', () {
@@ -224,6 +329,29 @@ void main() {
       final result = await tool.execute('c_geo_missing', {'image_index': 0});
       expect(result.isError, isTrue);
       expect(result.content, contains('缺少 rect 或 annotation_id'));
+    });
+
+    test('NovelAiInpaintGeometryTool 百分比/像素 rect 自动换算 (批注坐标系互通)', () async {
+      final tool = NovelAiInpaintGeometryTool(repository: repository);
+
+      // 百分比坐标 (add_image_annotation 体系)：[ymin=25%, xmin=50%, ymax=50%, xmax=75%]
+      final pct = await tool.execute('c_geo_pct', {
+        'rect': [25.0, 50.0, 50.0, 75.0],
+        'image_index': 0,
+      });
+      expect(pct.isError, isFalse);
+      expect(pct.content, contains('百分比 0~100'));
+      // 1024px 实际图：选区 left=512, top=256, 256x256
+      expect(pct.content, contains('目标选区: (512, 256) 256x256 px'));
+
+      // 像素对象坐标 (view_image_annotations 体系)：{left, top, right, bottom}
+      final px = await tool.execute('c_geo_px', {
+        'rect': {'left': 512, 'top': 256, 'right': 768, 'bottom': 512},
+        'image_index': 0,
+      });
+      expect(px.isError, isFalse);
+      expect(px.content, contains('像素'));
+      expect(px.content, contains('目标选区: (512, 256) 256x256 px'));
     });
   });
 }
