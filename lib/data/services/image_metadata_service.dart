@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+import 'isolated_compute.dart';
 import 'package:pasteboard/pasteboard.dart';
 import '../models/novelai_models.dart';
 
@@ -68,7 +68,7 @@ class ImageMetadataService {
   static Future<ImageMetadataResult?> parseMetadataAsync(
     Uint8List bytes,
   ) async {
-    return compute(parseMetadata, bytes);
+    return runIsolated(_parseMetadataIsolate, IsolateBytes(bytes));
   }
 
   /// 同步从图像字节中解析元数据
@@ -744,7 +744,11 @@ class ImageMetadataService {
 
   /// 抹除 PNG 图片的所有元数据文本块和 Alpha LSB 隐写数据
   static Future<Uint8List> stripPngMetadataAsync(Uint8List bytes) async {
-    return compute(stripPngMetadata, bytes);
+    final out = await runIsolated(
+      _stripPngMetadataIsolate,
+      IsolateBytes(bytes),
+    );
+    return out.materialize();
   }
 
   /// 同步抹除 PNG 图片元数据
@@ -1177,4 +1181,16 @@ class _PngChunk {
   const _PngChunk(this.type, this.data);
   final String type;
   final Uint8List data;
+}
+
+// ==================== Isolate 入口 (统一走 isolated_compute) ====================
+
+ImageMetadataResult? _parseMetadataIsolate(IsolateBytes bytes) {
+  return ImageMetadataService.parseMetadata(bytes.materialize());
+}
+
+IsolateBytes _stripPngMetadataIsolate(IsolateBytes bytes) {
+  return IsolateBytes(
+    ImageMetadataService.stripPngMetadata(bytes.materialize()),
+  );
 }

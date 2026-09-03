@@ -677,17 +677,8 @@ class StudioViewModel extends ChangeNotifier
         }
       } else if (!newConfig.enableImagePersistence &&
           newConfig.saveDirectory.isNotEmpty) {
-        await _repository.savePersistedHistory(
-          saveDir: newConfig.saveDirectory,
-          maxImages: newConfig.maxPersistentImages,
-          enabled: false,
-        );
-        // 一并清理大画布布局与参考图缓存
-        await _repository.saveBoardLayout(
-          _boardData ?? const CanvasBoardData(imageNodes: [], noteNodes: []),
-          saveDir: newConfig.saveDirectory,
-          enabled: false,
-        );
+        // 仅停止持久化，不删除已有 image_history.json 与画布布局：
+        // 关闭开关就销毁历史索引等于破坏性删除用户数据，重新打开开关后应能继续恢复
         _boardData = null;
       }
     }

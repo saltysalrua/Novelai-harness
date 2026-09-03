@@ -3,8 +3,25 @@ import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../view_models/studio_view_model.dart';
 import 'editable_slider.dart';
-import 'pill_widgets.dart';
+import 'prompt_editor_card.dart';
+import 'rich_prompt_text_controller.dart';
 import 'studio_shared.dart';
+
+const _aiEditAspectRatios = [
+  '',
+  '1:1',
+  '2:3',
+  '3:2',
+  '3:4',
+  '4:3',
+  '4:5',
+  '5:4',
+  '9:16',
+  '16:9',
+  '21:9',
+];
+
+const _aiEditResolutions = ['', '1K', '2K', '4K'];
 
 /// 侧边栏页面三：局部修复与焦点特写配置页 (Notion 极简风格)
 class InpaintPage extends StatefulWidget {
@@ -17,16 +34,16 @@ class InpaintPage extends StatefulWidget {
 }
 
 class _InpaintPageState extends State<InpaintPage> {
-  late final TextEditingController _promptController;
-  late final TextEditingController _negativeController;
+  late final RichPromptTextController _promptController;
+  late final RichPromptTextController _negativeController;
 
   @override
   void initState() {
     super.initState();
-    _promptController = TextEditingController(
+    _promptController = RichPromptTextController(
       text: widget.viewModel.inpaintParams.customPrompt,
     );
-    _negativeController = TextEditingController(
+    _negativeController = RichPromptTextController(
       text: widget.viewModel.inpaintParams.customNegativePrompt,
     );
   }
@@ -53,17 +70,36 @@ class _InpaintPageState extends State<InpaintPage> {
 
   @override
   Widget build(BuildContext context) {
-    final vm = widget.viewModel;
-    final inpaint = vm.inpaintParams;
-    final geometry = vm.inpaintGeometry;
-    final isFocus = inpaint.mode == InpaintMode.focus;
-    final isAiEdit = inpaint.mode == InpaintMode.aiEdit;
+    return ListenableBuilder(
+      listenable: widget.viewModel,
+      builder: (context, _) {
+        final vm = widget.viewModel;
+        final inpaint = vm.inpaintParams;
+        final geometry = vm.inpaintGeometry;
+        final isFocus = inpaint.mode == InpaintMode.focus;
+        final isAiEdit = inpaint.mode == InpaintMode.aiEdit;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        if (_promptController.text != inpaint.customPrompt) {
+          _promptController.text = inpaint.customPrompt;
+        }
+        if (_negativeController.text != inpaint.customNegativePrompt) {
+          _negativeController.text = inpaint.customNegativePrompt;
+        }
+
+        final showCategoryColors = vm.config.showTagCategoryColors;
+        _promptController.setHighlightOptions(
+          categoryColors: showCategoryColors,
+          highlightEnabled: !isAiEdit,
+        );
+        _negativeController.setHighlightOptions(
+          categoryColors: showCategoryColors,
+        );
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           const PageHeader(title: '修复设置', subtitle: '局部重绘与高精度潜空间焦点特写'),
           const SizedBox(height: 16),
 
@@ -117,42 +153,56 @@ class _InpaintPageState extends State<InpaintPage> {
             const SizedBox(height: 16),
           ],
 
-          // 2c. AI 整图编辑生成设置 (生图比例与分辨率，随请求透传给绘图模型)
+          // 2c. AI 整图编辑生成设置 (生图比例与分辨率，采用与采样器/调度器同款的 DropdownField 选择器两栏并排)
           if (isAiEdit) ...[
-            const SectionHeader('生成设置'),
-            const SizedBox(height: 8),
-            _buildAiEditOptionRow(
-              label: '生图比例',
-              child: PillDropdown<String>(
-                value: inpaint.aiEditAspectRatio,
-                items: const [
-                  '',
-                  '1:1',
-                  '2:3',
-                  '3:2',
-                  '3:4',
-                  '4:3',
-                  '4:5',
-                  '5:4',
-                  '9:16',
-                  '16:9',
-                  '21:9',
-                ],
-                labelOf: (v) => v.isEmpty ? '跟随原图' : v,
-                onChanged: vm.setInpaintAiEditAspectRatio,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader('生图比例'),
+                      const SizedBox(height: 8),
+                      DropdownField<String>(
+                        value: _aiEditAspectRatios.contains(
+                              inpaint.aiEditAspectRatio,
+                            )
+                            ? inpaint.aiEditAspectRatio
+                            : '',
+                        items: _aiEditAspectRatios,
+                        labelOf: (v) => v.isEmpty ? '跟随原图' : v,
+                        icon: Icons.aspect_ratio_rounded,
+                        fontSize: 12.0,
+                        onChanged: vm.setInpaintAiEditAspectRatio,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader('生图分辨率'),
+                      const SizedBox(height: 8),
+                      DropdownField<String>(
+                        value: _aiEditResolutions.contains(
+                              inpaint.aiEditResolution,
+                            )
+                            ? inpaint.aiEditResolution
+                            : '',
+                        items: _aiEditResolutions,
+                        labelOf: (v) => v.isEmpty ? '默认' : v,
+                        icon: Icons.photo_size_select_actual_outlined,
+                        fontSize: 12.0,
+                        onChanged: vm.setInpaintAiEditResolution,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            _buildAiEditOptionRow(
-              label: '生图分辨率',
-              child: PillDropdown<String>(
-                value: inpaint.aiEditResolution,
-                items: const ['', '1K', '2K', '4K'],
-                labelOf: (v) => v.isEmpty ? '默认' : v,
-                onChanged: vm.setInpaintAiEditResolution,
-              ),
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
           ],
 
           // 3. 数值滑块调节 (NovelAI 重绘专属，AI 整图编辑不需要)
@@ -190,7 +240,7 @@ class _InpaintPageState extends State<InpaintPage> {
           ] else
             const SizedBox(height: 4),
 
-          // 4. 提示词选项 (复用 / 自定义)
+          // 4. 提示词与指令选项 (复用 / 自定义卡片设计)
           SectionHeader(isAiEdit ? '修改指令设置' : '提示词设置'),
           const SizedBox(height: 8),
 
@@ -199,17 +249,54 @@ class _InpaintPageState extends State<InpaintPage> {
             value: inpaint.useMainPrompt,
             onChanged: vm.setInpaintUseMainPrompt,
           ),
+          const SizedBox(height: 8),
           if (!inpaint.useMainPrompt) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  isAiEdit ? '自定义修改指令' : '修复专属正向词',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                if (_promptController.text.trim().isNotEmpty)
+                  ClearTextLink(
+                    onTap: () {
+                      _promptController.clear();
+                      vm.setInpaintCustomPrompt('');
+                    },
+                  ),
+              ],
+            ),
             const SizedBox(height: 6),
-            _buildPromptInput(
+            PromptEditorCard(
               controller: _promptController,
-              hint: isAiEdit
+              onChanged: vm.setInpaintCustomPrompt,
+              hintText: isAiEdit
                   ? '输入自然语言修改指令，如: 把背景换成夕阳下的海滩...'
                   : '输入修复专属正向提示词...',
-              onChanged: vm.setInpaintCustomPrompt,
+              minLines: 3,
+              maxLines: 8,
+              minHeight: 80.0,
+              showQuickActions: !isAiEdit,
+              enableAutocomplete: !isAiEdit && vm.config.enableTagAutocomplete,
+              showTranslation: vm.config.showTagTranslations,
+              tokenEstimate: estimatePromptTokens(
+                _promptController.text,
+                limit: vm.params.model.tokenLimit,
+              ),
+              tokenLimit: vm.params.model.tokenLimit,
+            ),
+          ] else ...[
+            _buildReusedPromptPreview(
+              label: '主工作台正向词',
+              text: vm.params.prompt,
             ),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
           if (!isAiEdit) ...[
             _buildToggleRow(
@@ -217,12 +304,49 @@ class _InpaintPageState extends State<InpaintPage> {
               value: inpaint.useMainNegative,
               onChanged: vm.setInpaintUseMainNegative,
             ),
+            const SizedBox(height: 8),
             if (!inpaint.useMainNegative) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '修复专属负向词',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  if (_negativeController.text.trim().isNotEmpty)
+                    ClearTextLink(
+                      onTap: () {
+                        _negativeController.clear();
+                        vm.setInpaintCustomNegativePrompt('');
+                      },
+                    ),
+                ],
+              ),
               const SizedBox(height: 6),
-              _buildPromptInput(
+              PromptEditorCard(
                 controller: _negativeController,
-                hint: '输入修复专属负向提示词...',
                 onChanged: vm.setInpaintCustomNegativePrompt,
+                hintText: '输入修复专属负向提示词...',
+                minLines: 3,
+                maxLines: 8,
+                minHeight: 80.0,
+                showQuickActions: true,
+                enableAutocomplete: vm.config.enableTagAutocomplete,
+                showTranslation: vm.config.showTagTranslations,
+                tokenEstimate: estimatePromptTokens(
+                  _negativeController.text,
+                  limit: vm.params.model.tokenLimit,
+                ),
+                tokenLimit: vm.params.model.tokenLimit,
+              ),
+            ] else ...[
+              _buildReusedPromptPreview(
+                label: '主工作台负向词',
+                text: vm.params.negativePrompt,
               ),
             ],
             const SizedBox(height: 20),
@@ -233,21 +357,10 @@ class _InpaintPageState extends State<InpaintPage> {
         ],
       ),
     );
-  }
-
-  /// AI 整图编辑选项行 (标签 + 右侧控件)
-  Widget _buildAiEditOptionRow({required String label, required Widget child}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
-        ),
-        child,
-      ],
+      },
     );
   }
+
 
   /// AI 整图编辑绘图模型信息卡 (未配置时给出引导提示)
   Widget _buildAiEditCard(
@@ -494,31 +607,51 @@ class _InpaintPageState extends State<InpaintPage> {
     );
   }
 
-  Widget _buildPromptInput({
-    required TextEditingController controller,
-    required String hint,
-    required ValueChanged<String> onChanged,
+  Widget _buildReusedPromptPreview({
+    required String label,
+    required String text,
   }) {
+    final isEmpty = text.trim().isEmpty;
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
+        color: AppTheme.surfaceMuted.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: AppTheme.borderSubtle),
       ),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        maxLines: 3,
-        style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.textSecondary,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.link_rounded, size: 14, color: AppTheme.notionBlue),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '已复用 $label',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.notionBlue,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isEmpty ? '（内容为空，可至提示词管理页配置）' : text.trim(),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: isEmpty ? AppTheme.textMuted : AppTheme.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(8),
-        ),
+        ],
       ),
     );
   }

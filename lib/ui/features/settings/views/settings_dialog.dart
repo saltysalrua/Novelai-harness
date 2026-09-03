@@ -10,7 +10,7 @@ import '../widgets/presets_settings_tab.dart';
 /// 全局设置弹窗：左侧导航 + 右侧配置详情 + 底部保存栏
 ///
 /// 各标签页持有独立的草稿状态 (Draft)，由本壳统一创建、装配与聚合保存；
-/// IndexedStack 保持全部页常驻，切换标签不丢输入状态。
+/// IndexedStack 首次激活时懒构建标签页，构建后缓存实例，切换标签不丢输入状态。
 class SettingsDialog extends StatefulWidget {
   final StudioViewModel viewModel;
 
@@ -36,10 +36,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late final PresetsSettingsDraft _presetsDraft;
   late final DefaultsSettingsDraft _defaultsDraft;
 
-  /// 标签页实例在 initState 构建一次并缓存：
-  /// 1) 切换标签时 setState 传回 identical 实例，Element 层直接短路，隐藏页零重建；
-  /// 2) 各页自持滚动状态，IndexedStack 仅保留激活页的滚动位置。
-  late final List<Widget> _tabs;
+  /// 标签页首次激活时懒构建并缓存：
+  /// 1) 未访问页以 SizedBox.shrink() 占位，弹窗首帧只构建当前激活页，避免重页同步挤入首帧；
+  /// 2) 访问过的页回投 identical 缓存实例，Element 层短路零重建，滚动位置与输入状态不丢。
+  late final List<Widget Function()> _tabBuilders;
+  final List<Widget?> _builtTabs = List<Widget?>.filled(5, null);
 
   @override
   void initState() {
@@ -51,12 +52,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _defaultsDraft = DefaultsSettingsDraft(cfg);
 
     // 每页自行包裹滚动容器 (含原外层 28/8/28/20 内边距)，弹窗壳不再统一包 SingleChildScrollView
-    _tabs = [
-      GeneralSettingsTab(draft: _generalDraft),
-      ModelsSettingsTab(viewModel: widget.viewModel, draft: _modelsDraft),
-      PresetsSettingsTab(viewModel: widget.viewModel, draft: _presetsDraft),
-      DefaultsSettingsTab(draft: _defaultsDraft),
-      BillSettingsTab(viewModel: widget.viewModel),
+    _tabBuilders = [
+      () => GeneralSettingsTab(draft: _generalDraft),
+      () => ModelsSettingsTab(viewModel: widget.viewModel, draft: _modelsDraft),
+      () =>
+          PresetsSettingsTab(viewModel: widget.viewModel, draft: _presetsDraft),
+      () => DefaultsSettingsTab(draft: _defaultsDraft),
+      () => BillSettingsTab(viewModel: widget.viewModel),
     ];
   }
 
@@ -135,11 +137,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     // 右侧顶部标题栏与关闭按键
                     _buildContentHeader(context),
 
-                    // 右侧设置项卡片列表 (缓存实例 + IndexedStack：切换零重建且不丢输入状态)
+                    // 右侧设置项卡片列表 (懒构建 + 缓存实例 + IndexedStack：首帧只建激活页，切页零重建且不丢输入状态)
                     Expanded(
                       child: IndexedStack(
                         index: _activeTabIndex,
-                        children: _tabs,
+                        children: List.generate(5, (i) {
+                          if (i == _activeTabIndex) {
+                            _builtTabs[i] ??= _tabBuilders[i]();
+                          }
+                          return _builtTabs[i] ?? const SizedBox.shrink();
+                        }),
                       ),
                     ),
 

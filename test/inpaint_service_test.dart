@@ -1,10 +1,29 @@
+import 'dart:typed_data';
 import 'dart:ui' show Rect;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image/image.dart' as img;
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/inpaint_service.dart';
+import 'package:novelai_harness/data/services/skia_image_codec.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  // 构造纯色 RGBA 缓冲
+  Uint8List solidRgba(int w, int h, int r, int g, int b) {
+    final buf = Uint8List(w * h * 4);
+    for (var i = 0; i < buf.length; i += 4) {
+      buf[i] = r;
+      buf[i + 1] = g;
+      buf[i + 2] = b;
+      buf[i + 3] = 255;
+    }
+    return buf;
+  }
+
+  Future<Uint8List> solidPng(int w, int h, int r, int g, int b) {
+    return encodeRawRgbaToPng(solidRgba(w, h, r, g, b), w, h);
+  }
+
   group('InpaintService 几何与图像处理算法测试', () {
     test('resolveGeometry 正常选区正确扩展外延上下文并等比放大至 1MP 潜空间', () {
       // 原图 1024x1024，选区在中心 (400, 400, 200, 200)
@@ -48,66 +67,74 @@ void main() {
       expect(geometry.requestHeight % 64, 0);
     });
 
-    test('prepareFocusedRequestData 与 compositeFocusedResult 完整回贴流水线测试', () {
-      // 构造一张 512x512 的红色测试图
-      final source = img.Image(width: 512, height: 512);
-      img.fill(source, color: img.ColorRgba8(255, 0, 0, 255));
-      final sourceBytes = img.encodePng(source);
+    test(
+      'prepareFocusedRequestData 与 compositeFocusedResult 完整回贴流水线测试',
+      () async {
+        // 构造一张 512x512 的红色测试图
+        final sourceBytes = await solidPng(512, 512, 255, 0, 0);
 
-      final geometry = InpaintService.resolveGeometry(
-        sourceWidth: 512,
-        sourceHeight: 512,
-        selectionRect: const Rect.fromLTWH(100, 100, 100, 100),
-        contextPadding: 32.0,
-      );
+        final geometry = InpaintService.resolveGeometry(
+          sourceWidth: 512,
+          sourceHeight: 512,
+          selectionRect: const Rect.fromLTWH(100, 100, 100, 100),
+          contextPadding: 32.0,
+        );
 
-      // 准备请求数据
-      final reqData = InpaintService.prepareFocusedRequestData(
-        sourceImageBytes: sourceBytes,
-        geometry: geometry,
-      );
+        // 准备请求数据
+        final reqData = await InpaintService.prepareFocusedRequestData(
+          sourceImageBytes: sourceBytes,
+          geometry: geometry,
+        );
 
-      final decodedReqSource = img.decodeImage(reqData.sourceBytes);
-      final decodedReqMask = img.decodeImage(reqData.maskBytes);
+        final decodedReqSource = await decodeToRawRgba(reqData.sourceBytes);
+        final decodedReqMask = await decodeToRawRgba(reqData.maskBytes);
 
-      expect(decodedReqSource, isNotNull);
-      expect(decodedReqSource!.width, geometry.requestWidth);
-      expect(decodedReqSource.height, geometry.requestHeight);
+        expect(decodedReqSource, isNotNull);
+        expect(decodedReqSource!.width, geometry.requestWidth);
+        expect(decodedReqSource.height, geometry.requestHeight);
 
-      expect(decodedReqMask, isNotNull);
-      expect(decodedReqMask!.width, geometry.requestWidth);
-      expect(decodedReqMask.height, geometry.requestHeight);
+        expect(decodedReqMask, isNotNull);
+        expect(decodedReqMask!.width, geometry.requestWidth);
+        expect(decodedReqMask.height, geometry.requestHeight);
 
-      // 模拟生成的潜空间图像 (全绿图像)
-      final patch = img.Image(
-        width: geometry.requestWidth,
-        height: geometry.requestHeight,
-      );
-      img.fill(patch, color: img.ColorRgba8(0, 255, 0, 255));
-      final patchBytes = img.encodePng(patch);
+        // 模拟生成的潜空间图像 (全绿图像)
+        final patchBytes = await solidPng(
+          geometry.requestWidth,
+          geometry.requestHeight,
+          0,
+          255,
+          0,
+        );
 
-      // 执行无损贴回原图
-      final compositedBytes = InpaintService.compositeFocusedResult(
-        originalSourceBytes: sourceBytes,
-        generatedPatchBytes: patchBytes,
-        geometry: geometry,
-      );
+        // 执行无损贴回原图
+        final compositedBytes = await InpaintService.compositeFocusedResult(
+          originalSourceBytes: sourceBytes,
+          generatedPatchBytes: patchBytes,
+          geometry: geometry,
+        );
 
-      final decodedComposited = img.decodeImage(compositedBytes);
-      expect(decodedComposited, isNotNull);
-      expect(decodedComposited!.width, 512);
-      expect(decodedComposited.height, 512);
+        final decodedComposited = await decodeToRawRgba(compositedBytes);
+        expect(decodedComposited, isNotNull);
+        expect(decodedComposited!.width, 512);
+        expect(decodedComposited.height, 512);
 
-      // 验证未裁剪区域仍为红色 (例如原图坐标 10, 10)
-      final uncroppedPixel = decodedComposited.getPixel(10, 10);
-      expect(uncroppedPixel.r, 255);
-      expect(uncroppedPixel.g, 0);
+        // 验证未裁剪区域仍为红色 (例如原图坐标 10, 10)
+        final uncropped =
+            decodedComposited.rgba[decodedComposited.offsetOf(10, 10)];
+        expect(uncropped, 255);
+        expect(
+          decodedComposited.rgba[decodedComposited.offsetOf(10, 10) + 1],
+          0,
+        );
 
-      // 验证裁剪回贴区域中心为绿色 (例如原图坐标 150, 150)
-      final patchedPixel = decodedComposited.getPixel(150, 150);
-      expect(patchedPixel.r, 0);
-      expect(patchedPixel.g, 255);
-    });
+        // 验证裁剪回贴区域中心为绿色 (例如原图坐标 150, 150)
+        expect(decodedComposited.rgba[decodedComposited.offsetOf(150, 150)], 0);
+        expect(
+          decodedComposited.rgba[decodedComposited.offsetOf(150, 150) + 1],
+          255,
+        );
+      },
+    );
 
     test('InpaintParams JSON 往返序列化正确', () {
       const params = InpaintParams(
@@ -183,15 +210,15 @@ void main() {
       );
       expect(rectMask.width, 200);
       expect(rectMask.height, 100);
-      expect(rectMask.getPixel(100, 50).r, 255);
-      expect(rectMask.getPixel(10, 10).r, 0);
+      expect(rectMask.rgba[rectMask.offsetOf(100, 50)], 255);
+      expect(rectMask.rgba[rectMask.offsetOf(10, 10)], 0);
 
       // 无选区无描边：整图全白
       final fullMask = InpaintService.buildSourceMask(
         sourceWidth: 200,
         sourceHeight: 100,
       );
-      expect(fullMask.getPixel(10, 10).r, 255);
+      expect(fullMask.rgba[fullMask.offsetOf(10, 10)], 255);
 
       // 画笔描边：轨迹中心为白，远端为黑
       final strokeMask = InpaintService.buildSourceMask(
@@ -201,15 +228,13 @@ void main() {
           InpaintBrushStroke(points: [Offset(0.5, 0.5)], radius: 0.05),
         ],
       );
-      expect(strokeMask.getPixel(100, 100).r, 255);
-      expect(strokeMask.getPixel(10, 10).r, 0);
+      expect(strokeMask.rgba[strokeMask.offsetOf(100, 100)], 255);
+      expect(strokeMask.rgba[strokeMask.offsetOf(10, 10)], 0);
     });
 
-    test('compositeFocusedResult 带蒙版回贴：外延环保留原图像素', () {
+    test('compositeFocusedResult 带蒙版回贴：外延环保留原图像素', () async {
       // 构造 512x512 红色原图，选区 (100,100,100,100)，蒙版为该选区矩形
-      final source = img.Image(width: 512, height: 512);
-      img.fill(source, color: img.ColorRgba8(255, 0, 0, 255));
-      final sourceBytes = img.encodePng(source);
+      final sourceBytes = await solidPng(512, 512, 255, 0, 0);
 
       final geometry = InpaintService.resolveGeometry(
         sourceWidth: 512,
@@ -230,38 +255,40 @@ void main() {
       );
 
       // 生成的补丁为全绿
-      final patch = img.Image(
-        width: geometry.requestWidth,
-        height: geometry.requestHeight,
+      final patchBytes = await solidPng(
+        geometry.requestWidth,
+        geometry.requestHeight,
+        0,
+        255,
+        0,
       );
-      img.fill(patch, color: img.ColorRgba8(0, 255, 0, 255));
 
-      final compositedBytes = InpaintService.compositeFocusedResult(
+      final compositedBytes = await InpaintService.compositeFocusedResult(
         originalSourceBytes: sourceBytes,
-        generatedPatchBytes: img.encodePng(patch),
+        generatedPatchBytes: patchBytes,
         geometry: geometry,
         sourceMask: sourceMask,
       );
-      final result = img.decodeImage(compositedBytes)!;
+      final result = (await decodeToRawRgba(compositedBytes))!;
 
       // 选区中心 (蒙版内) 为绿色
-      expect(result.getPixel(150, 150).g, 255);
-      expect(result.getPixel(150, 150).r, 0);
+      expect(result.rgba[result.offsetOf(150, 150) + 1], 255);
+      expect(result.rgba[result.offsetOf(150, 150)], 0);
 
       // 外延环境带内 (裁剪框内但蒙版外) 保留红色原图
       final crop = geometry.contextCrop;
       final ringX = (crop.left + 4).round();
       final ringY = (crop.top + 4).round();
-      expect(result.getPixel(ringX, ringY).r, 255);
-      expect(result.getPixel(ringX, ringY).g, 0);
+      expect(result.rgba[result.offsetOf(ringX, ringY)], 255);
+      expect(result.rgba[result.offsetOf(ringX, ringY) + 1], 0);
 
       // 裁剪框外不受影响
-      expect(result.getPixel(10, 10).r, 255);
+      expect(result.rgba[result.offsetOf(10, 10)], 255);
 
       // 潜空间量化边缘：蒙版外但在膨胀羽化范围内的像素同样被补丁覆盖
       // (服务端按 8px 格子重绘，硬按原蒙版回贴会残留原图色环)
-      final edgePixel = result.getPixel(97, 150);
-      expect(edgePixel.r, lessThan(200));
+      final edgePixel = result.rgba[result.offsetOf(97, 150)];
+      expect(edgePixel, lessThan(200));
     });
 
     test('buildSourceMask 反向画笔 (橡皮) 在蒙版上打黑抵消先前笔迹', () {
@@ -278,11 +305,11 @@ void main() {
         ],
       );
       // 中心被反向画笔擦回黑
-      expect(mask.getPixel(100, 100).r, 0);
+      expect(mask.rgba[mask.offsetOf(100, 100)], 0);
       // 外环 (正向半径内、橡皮半径外) 仍为白
-      expect(mask.getPixel(100, 85).r, 255);
+      expect(mask.rgba[mask.offsetOf(100, 85)], 255);
       // 远处为黑
-      expect(mask.getPixel(5, 5).r, 0);
+      expect(mask.rgba[mask.offsetOf(5, 5)], 0);
     });
 
     test('buildSourceMask 只有橡皮描边时回退矩形选区', () {
@@ -299,24 +326,31 @@ void main() {
         selectionRect: const Rect.fromLTWH(0.1, 0.1, 0.3, 0.3),
       );
       // 没有任何正向描边 → 蒙版回退矩形选区，而不是被橡皮栅格化成全黑空转
-      expect(mask.getPixel(30, 30).r, 255);
-      expect(mask.getPixel(100, 100).r, 0);
+      expect(mask.rgba[mask.offsetOf(30, 30)], 255);
+      expect(mask.rgba[mask.offsetOf(100, 100)], 0);
     });
 
     test('quantizeMaskToLatentGrid 按格中心采样量化到 8px 整格', () {
-      final mask = img.Image(width: 64, height: 64, numChannels: 4);
-      img.fill(mask, color: img.ColorRgba8(0, 0, 0, 255));
+      final buf = Uint8List(64 * 64 * 4);
+      for (var i = 0; i < buf.length; i += 4) {
+        buf[i + 3] = 255;
+      }
       // 1px 竖线 x=20，贯穿格 2 (16..23) 的中心 (20)
       for (var y = 0; y < 64; y++) {
-        mask.setPixelRgba(20, y, 255, 255, 255, 255);
+        final i = (y * 64 + 20) * 4;
+        buf[i] = 255;
+        buf[i + 1] = 255;
+        buf[i + 2] = 255;
       }
-      final q = InpaintService.quantizeMaskToLatentGrid(mask);
+      final q = InpaintService.quantizeMaskToLatentGrid(
+        RawRgbaImage(rgba: buf, width: 64, height: 64),
+      );
       // 被采样命中的格整格涂白
-      expect(q.getPixel(16, 32).r, 255);
-      expect(q.getPixel(23, 32).r, 255);
+      expect(q.rgba[q.offsetOf(16, 32)], 255);
+      expect(q.rgba[q.offsetOf(23, 32)], 255);
       // 未命中格保持黑
-      expect(q.getPixel(8, 32).r, 0);
-      expect(q.getPixel(24, 32).r, 0);
+      expect(q.rgba[q.offsetOf(8, 32)], 0);
+      expect(q.rgba[q.offsetOf(24, 32)], 0);
     });
 
     test('resolveStandardRequestSize 对齐源图尺寸到 64 网格并限制上限', () {

@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Rect;
 import 'package:flutter/foundation.dart';
-import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import '../models/novelai_models.dart';
 import '../services/anlas_calculator.dart';
 import '../services/image_metadata_service.dart';
 import '../services/inpaint_service.dart';
+import '../services/skia_image_codec.dart';
 import '../services/watermark_service.dart';
 import '../services/novelai_service.dart';
 import '../services/image_edit_service.dart';
@@ -444,8 +444,10 @@ class NovelAiRepository {
           ? inpaintParams.effectiveSelectionRect
           : inpaintParams.selectionRect,
     );
-    final sourceMaskBytes = Uint8List.fromList(
-      img.encodePng(sourceMask, level: 1),
+    final sourceMaskBytes = await encodeRawRgbaToPng(
+      sourceMask.rgba,
+      sourceMask.width,
+      sourceMask.height,
     );
 
     // 2. 几何与请求数据
@@ -468,7 +470,7 @@ class NovelAiRepository {
         selectionRect: pixelRect,
         contextPadding: inpaintParams.contextPadding,
       );
-      final reqData = InpaintService.prepareFocusedRequestData(
+      final reqData = await InpaintService.prepareFocusedRequestData(
         sourceImageBytes: sourceImageBytes,
         geometry: geometry,
         sourceMask: sourceMask,
@@ -486,7 +488,7 @@ class NovelAiRepository {
         requestHeight: reqSize.height,
         scale: 1.0,
       );
-      final reqData = InpaintService.prepareStandardRequestData(
+      final reqData = await InpaintService.prepareStandardRequestData(
         sourceImageBytes: sourceImageBytes,
         requestWidth: reqSize.width,
         requestHeight: reqSize.height,
@@ -523,7 +525,7 @@ class NovelAiRepository {
   }
 
   /// 将生成补丁按蒙版回贴合成并嵌入元数据
-  Uint8List _compositeInpaintResult({
+  Future<Uint8List> _compositeInpaintResult({
     required Uint8List sourceImageBytes,
     required ({
       NaiGenerationParams requestParams,
@@ -538,17 +540,17 @@ class NovelAiRepository {
     })
     prepared,
     required Uint8List generatedBytes,
-  }) {
+  }) async {
     final compositedBytes = prepared.isFocus
-        ? InpaintService.compositeFocusedResult(
+        ? await InpaintService.compositeFocusedResult(
             originalSourceBytes: sourceImageBytes,
             generatedPatchBytes: generatedBytes,
             geometry: prepared.geometry,
-            sourceMask: InpaintService.decodeMaskOrNull(
+            sourceMask: await InpaintService.decodeMaskOrNull(
               prepared.sourceMaskBytes,
             ),
           )
-        : InpaintService.compositeStandardResult(
+        : await InpaintService.compositeStandardResult(
             originalSourceBytes: sourceImageBytes,
             generatedImageBytes: generatedBytes,
             maskBytes: prepared.requestMaskBytes,
@@ -694,7 +696,7 @@ class NovelAiRepository {
 
     await for (final progress in stream) {
       if (progress.isFinal && progress.finalImage != null) {
-        final rawFinal = _compositeInpaintResult(
+        final rawFinal = await _compositeInpaintResult(
           sourceImageBytes: sourceImageBytes,
           prepared: prepared,
           generatedBytes: Uint8List.fromList(progress.finalImage!),
@@ -763,7 +765,7 @@ class NovelAiRepository {
       throw StateError('局部重绘未返回有效图像。');
     }
 
-    final rawFinal = _compositeInpaintResult(
+    final rawFinal = await _compositeInpaintResult(
       sourceImageBytes: sourceImageBytes,
       prepared: prepared,
       generatedBytes: imageBytesList.first,

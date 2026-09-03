@@ -171,7 +171,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      // 构造一张已嵌入盲水印的图 (同步嵌入)
+      // 构造一张已嵌入盲水印的图 (后台 isolate 嵌入)
       final image = img.Image(width: 256, height: 256);
       for (var y = 0; y < 256; y++) {
         for (var x = 0; x < 256; x++) {
@@ -179,10 +179,15 @@ void main() {
         }
       }
       final raw = Uint8List.fromList(img.encodePng(image));
-      final embedded = WatermarkService.embedBlindWatermark(
-        raw,
-        text: 'onii-chan-42',
-      );
+      // Skia 解码是真实引擎异步：FakeAsync 下不会推进，必须包进 runAsync
+      final embedded =
+          await tester.runAsync(
+            () => WatermarkService.embedBlindWatermarkAsync(
+              raw,
+              text: 'onii-chan-42',
+            ),
+          ) ??
+          raw;
 
       const metadata = ImageMetadataResult(
         prompt: '1girl',

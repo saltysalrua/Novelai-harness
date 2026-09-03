@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/tag_models.dart';
 import 'prompt_library_service.dart';
+import 'isolated_compute.dart';
 
 /// 内部词条结构 (内存极简化存储，节省内存开销；查询用的小写/空格形态在解析时一次性预计算)
 class _DictEntry {
@@ -143,7 +144,7 @@ class TagDictionaryService {
   Future<void> replaceWithContent(String rawTsv) async {
     // 若正在加载旧词库，先等它结束，避免状态交叉
     await _loadingFuture;
-    final parsed = await compute(_parseDanbooruTsv, rawTsv);
+    final parsed = await runIsolated(_parseDanbooruTsv, rawTsv);
     _entries = parsed;
     _queryCache.clear();
     _rebuildLookupMaps(parsed);
@@ -159,7 +160,7 @@ class TagDictionaryService {
       }
 
       // 后台 isolate 解析
-      final parsed = await compute(_parseDanbooruTsv, raw);
+      final parsed = await runIsolated(_parseDanbooruTsv, raw);
       _entries = parsed;
       _rebuildLookupMaps(parsed);
     } catch (e) {

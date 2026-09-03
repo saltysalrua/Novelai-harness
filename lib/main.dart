@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:window_manager/window_manager.dart';
 import 'data/services/config_service.dart';
 import 'data/services/tag_dictionary_service.dart';
 import 'data/services/window_state_service.dart';
+import 'l10n/app_localizations.dart';
 import 'ui/core/theme/app_theme.dart';
 import 'ui/features/studio/views/studio_view.dart';
 
@@ -68,6 +70,14 @@ class NovelAiHarnessApp extends StatelessWidget {
       title: 'NovelAI Harness',
       navigatorKey: navigatorKey,
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       debugShowCheckedModeBanner: false,
       // Windows 引擎的 accessibility bridge 在处理节点移除与重排时会原生崩溃
       // (flutter/flutter#175041, #182444)。在 Windows 上禁用 semantics 绕开崩溃。

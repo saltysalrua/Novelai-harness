@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show Rect;
-import 'package:image/image.dart' as img;
 import '../models/inpaint_models.dart';
+import 'isolated_compute.dart';
+import 'rgba_pixel_ops.dart';
+import 'skia_image_codec.dart';
 
 /// Inpaint 与 Focus Inpaint 图像处理服务引擎
 ///
@@ -11,6 +13,10 @@ import '../models/inpaint_models.dart';
 /// 2. 画笔描边 / 矩形选区 → 源图尺寸二值蒙版栅格化
 /// 3. 请求裁剪与等比超采样重编码
 /// 4. 生成补丁按蒙版无损回贴合成流水线 (外延上下文环保留原图像素)
+///
+/// 图像编解码统一走 [decodeToRawRgba] / [encodeRawRgbaToPng] (Skia，
+/// 仅根 isolate)；像素运算层保持纯 Dart，操作对象为 flat RGBA 字节
+/// (像素下标 `(y * width + x) * 4`，无隐式 alpha 语义)。
 abstract final class InpaintService {
   /// 官方对齐尺寸步长 (64 像素对齐)
   static const int dimensionStep = 64;
@@ -146,31 +152,26 @@ abstract final class InpaintService {
   ///
   /// 画笔描边非空时栅格化描边；否则按归一化矩形选区绘制；
   /// 两者皆无时返回全白蒙版 (整图重绘)。
-  static img.Image buildSourceMask({
+  static RawRgbaImage buildSourceMask({
     required int sourceWidth,
     required int sourceHeight,
     List<InpaintBrushStroke> brushStrokes = const [],
     Rect? selectionRect,
   }) {
-    final mask = img.Image(
-      width: sourceWidth,
-      height: sourceHeight,
-      numChannels: 4,
-    );
-    img.fill(mask, color: img.ColorRgba8(0, 0, 0, 255));
+    final buf = _newBlackMaskBuffer(sourceWidth, sourceHeight);
 
     // 仅当存在非橡皮描边 (正向蒙版) 时才走描边栅格化；全部描边都被
     // 橡皮抵消时回退到矩形选区，避免拿着全黑蒙版自欺欺人地请求一次
     // 什么都不重绘的生成
     if (brushStrokes.any((s) => !s.isEraser && s.points.isNotEmpty)) {
-      _paintStrokes(mask, brushStrokes);
-      return mask;
+      _paintStrokes(buf, sourceWidth, sourceHeight, brushStrokes);
+      return RawRgbaImage(rgba: buf, width: sourceWidth, height: sourceHeight);
     }
 
     if (selectionRect == null) {
       // 整图重绘 (常规模式默认行为)
-      img.fill(mask, color: img.ColorRgba8(255, 255, 255, 255));
-      return mask;
+      _fillRectWhite(buf, sourceWidth, 0, 0, sourceWidth, sourceHeight);
+      return RawRgbaImage(rgba: buf, width: sourceWidth, height: sourceHeight);
     }
 
     final l = (selectionRect.left * sourceWidth).round().clamp(
@@ -189,34 +190,32 @@ abstract final class InpaintService {
       1,
       sourceHeight - t,
     );
-    img.fillRect(
-      mask,
-      x1: l,
-      y1: t,
-      x2: l + w,
-      y2: t + h,
-      color: img.ColorRgba8(255, 255, 255, 255),
-    );
-    return mask;
+    _fillRectWhite(buf, sourceWidth, l, t, w, h);
+    return RawRgbaImage(rgba: buf, width: sourceWidth, height: sourceHeight);
   }
 
   /// 将画笔描边按提交顺序栅格化进蒙版：正向描边盖章白色 (待重绘)，
   /// 反向橡皮描边盖章黑色 (抵消先前笔迹，后画优先)
-  static void _paintStrokes(img.Image mask, List<InpaintBrushStroke> strokes) {
-    final shortSide = math.min(mask.width, mask.height).toDouble();
+  static void _paintStrokes(
+    Uint8List buf,
+    int width,
+    int height,
+    List<InpaintBrushStroke> strokes,
+  ) {
+    final shortSide = math.min(width, height).toDouble();
     for (final stroke in strokes) {
       if (stroke.points.isEmpty) continue;
-      final color = stroke.isEraser
-          ? img.ColorRgba8(0, 0, 0, 255)
-          : img.ColorRgba8(255, 255, 255, 255);
+      final white = !stroke.isEraser;
       final r = (stroke.radius * shortSide).round().clamp(1, 512);
       for (final p in stroke.points) {
         _stampCircle(
-          mask,
-          cx: (p.dx * mask.width).round(),
-          cy: (p.dy * mask.height).round(),
+          buf,
+          width,
+          height,
+          cx: (p.dx * width).round(),
+          cy: (p.dy * height).round(),
           radius: r,
-          color: color,
+          white: white,
         );
       }
     }
@@ -238,9 +237,8 @@ abstract final class InpaintService {
       return null;
     }
     const size = 256;
-    final mask = img.Image(width: size, height: size, numChannels: 4);
-    img.fill(mask, color: img.ColorRgba8(0, 0, 0, 255));
-    _paintStrokes(mask, strokes);
+    final buf = _newBlackMaskBuffer(size, size);
+    _paintStrokes(buf, size, size, strokes);
 
     var minX = size;
     var minY = size;
@@ -248,7 +246,7 @@ abstract final class InpaintService {
     var maxY = -1;
     for (var y = 0; y < size; y++) {
       for (var x = 0; x < size; x++) {
-        if (mask.getPixel(x, y).r > 127) {
+        if (buf[(y * size + x) * 4] > 127) {
           if (x < minX) minX = x;
           if (y < minY) minY = y;
           if (x > maxX) maxX = x;
@@ -266,23 +264,30 @@ abstract final class InpaintService {
   }
 
   static void _stampCircle(
-    img.Image mask, {
+    Uint8List buf,
+    int width,
+    int height, {
     required int cx,
     required int cy,
     required int radius,
-    required img.Color color,
+    required bool white,
   }) {
     final rSq = radius * radius;
-    final x0 = (cx - radius).clamp(0, mask.width - 1);
-    final x1 = (cx + radius).clamp(0, mask.width - 1);
-    final y0 = (cy - radius).clamp(0, mask.height - 1);
-    final y1 = (cy + radius).clamp(0, mask.height - 1);
+    final x0 = (cx - radius).clamp(0, width - 1);
+    final x1 = (cx + radius).clamp(0, width - 1);
+    final y0 = (cy - radius).clamp(0, height - 1);
+    final y1 = (cy + radius).clamp(0, height - 1);
+    final v = white ? 255 : 0;
     for (var y = y0; y <= y1; y++) {
       for (var x = x0; x <= x1; x++) {
         final dx = x - cx;
         final dy = y - cy;
         if (dx * dx + dy * dy <= rSq) {
-          mask.setPixel(x, y, color);
+          final i = (y * width + x) * 4;
+          buf[i] = v;
+          buf[i + 1] = v;
+          buf[i + 2] = v;
+          // alpha 恒为 255，不参与蒙版语义
         }
       }
     }
@@ -304,7 +309,7 @@ abstract final class InpaintService {
 
   /// 把请求尺寸蒙版降采样为潜空间二值网格 (格中心采样 + 亮度阈值，
   /// 与官方 canvas nearest 采样 + alpha>155 阈值同效)
-  static List<Uint8List> _latentGridOf(img.Image mask, int gridSize) {
+  static List<Uint8List> _latentGridOf(RawRgbaImage mask, int gridSize) {
     final lw = math.max(1, mask.width ~/ gridSize);
     final lh = math.max(1, mask.height ~/ gridSize);
     final grid = List.generate(lh, (_) => Uint8List(lw), growable: false);
@@ -313,8 +318,7 @@ abstract final class InpaintService {
       for (var lx = 0; lx < lw; lx++) {
         final px = (lx * gridSize + half).clamp(0, mask.width - 1);
         final py = (ly * gridSize + half).clamp(0, mask.height - 1);
-        final pixel = mask.getPixel(px, py);
-        grid[ly][lx] = pixel.r > 127 ? 1 : 0;
+        grid[ly][lx] = mask.rgba[mask.offsetOf(px, py)] > 127 ? 1 : 0;
       }
     }
     return grid;
@@ -351,40 +355,33 @@ abstract final class InpaintService {
   }
 
   /// 由潜空间网格构建请求尺寸二值蒙版 (整格涂白，量化后发给 API)
-  static img.Image _gridToRequestMask(
+  static RawRgbaImage _gridToRequestMask(
     List<Uint8List> grid,
     int gridSize,
     int width,
     int height,
   ) {
-    final mask = img.Image(width: width, height: height, numChannels: 4);
-    img.fill(mask, color: img.ColorRgba8(0, 0, 0, 255));
-    final white = img.ColorRgba8(255, 255, 255, 255);
+    final buf = _newBlackMaskBuffer(width, height);
     for (var y = 0; y < grid.length; y++) {
       final row = grid[y];
       for (var x = 0; x < row.length; x++) {
         if (row[x] == 0) continue;
-        for (
-          var py = y * gridSize;
-          py < math.min((y + 1) * gridSize, height);
-          py++
-        ) {
-          for (
-            var px = x * gridSize;
-            px < math.min((x + 1) * gridSize, width);
-            px++
-          ) {
-            mask.setPixel(px, py, white);
-          }
-        }
+        _fillRectWhite(
+          buf,
+          width,
+          x * gridSize,
+          y * gridSize,
+          math.min(gridSize, width - x * gridSize),
+          math.min(gridSize, height - y * gridSize),
+        );
       }
     }
-    return mask;
+    return RawRgbaImage(rgba: buf, width: width, height: height);
   }
 
   /// 由膨胀后的潜空间网格构建客户端回贴合成蒙版：整格涂白 → 盒式模糊
   /// 羽化 → alpha 匹配亮度 (Aaalice _officialWorkerBlur + _alphaMatchRed)
-  static img.Image _compositeMaskFromGrid(
+  static RawRgbaImage _compositeMaskFromGrid(
     List<Uint8List> grid,
     int gridSize,
     int width,
@@ -392,105 +389,101 @@ abstract final class InpaintService {
   ) {
     final mask = _gridToRequestMask(grid, gridSize, width, height);
     if (compositeBlurRadius > 0 && compositeBlurIterations > 0) {
-      _boxBlur(
-        mask,
+      _boxBlurRgba(
+        mask.rgba,
+        width,
+        height,
         radius: compositeBlurRadius,
         iterations: compositeBlurIterations,
       );
     }
     // alpha 匹配亮度：蒙版亮度即回贴混合强度
-    for (final pixel in mask) {
-      pixel.a = pixel.r;
+    for (var i = 0; i < mask.rgba.length; i += 4) {
+      mask.rgba[i + 3] = mask.rgba[i];
     }
     return mask;
   }
 
-  /// 盒式模糊 (可分离 + 前缀和，O(1)/像素)，作用于 RGB 通道
-  static void _boxBlur(
-    img.Image image, {
+  /// 盒式模糊 (可分离 + 滑窗，O(1)/像素)，作用于 RGB 通道，alpha 恒写 255
+  static void _boxBlurRgba(
+    Uint8List buf,
+    int width,
+    int height, {
     required int radius,
     required int iterations,
   }) {
-    final w = image.width;
-    final h = image.height;
-    if (w <= 1 || h <= 1 || radius < 1) return;
+    if (width <= 1 || height <= 1 || radius < 1) return;
 
-    final tmp = img.Image(width: w, height: h, numChannels: 4);
-    var src = image;
-    var dst = tmp;
+    final tmp = Uint8List(width * height * 4);
 
     for (var it = 0; it < iterations; it++) {
-      // 水平通
-      for (var y = 0; y < h; y++) {
-        final sums = List<int>.filled(4, 0);
+      // 水平通：读 buf 写 tmp
+      for (var y = 0; y < height; y++) {
+        var sumR = 0, sumG = 0, sumB = 0;
         // 初始窗口 [0, radius] (右缘钳制)
-        for (var k = 0; k <= math.min(radius, w - 1); k++) {
-          final p = src.getPixel(k, y);
-          sums[0] += p.r.toInt();
-          sums[1] += p.g.toInt();
-          sums[2] += p.b.toInt();
+        final initCount = math.min(radius + 1, width);
+        for (var k = 0; k < initCount; k++) {
+          final i = (y * width + k) * 4;
+          sumR += buf[i];
+          sumG += buf[i + 1];
+          sumB += buf[i + 2];
         }
-        var count = math.min(radius + 1, w);
-        for (var x = 0; x < w; x++) {
-          dst.setPixelRgba(
-            x,
-            y,
-            sums[0] ~/ count,
-            sums[1] ~/ count,
-            sums[2] ~/ count,
-            255,
-          );
+        var count = initCount;
+        for (var x = 0; x < width; x++) {
+          final d = (y * width + x) * 4;
+          tmp[d] = (sumR ~/ count).clamp(0, 255);
+          tmp[d + 1] = (sumG ~/ count).clamp(0, 255);
+          tmp[d + 2] = (sumB ~/ count).clamp(0, 255);
+          tmp[d + 3] = 255;
           final addX = x + radius + 1;
-          if (addX < w) {
-            final add = src.getPixel(addX, y);
-            sums[0] += add.r.toInt();
-            sums[1] += add.g.toInt();
-            sums[2] += add.b.toInt();
+          if (addX < width) {
+            final a = (y * width + addX) * 4;
+            sumR += buf[a];
+            sumG += buf[a + 1];
+            sumB += buf[a + 2];
             count++;
           }
           final removeX = x - radius;
           if (removeX >= 0) {
-            final remove = src.getPixel(removeX, y);
-            sums[0] -= remove.r.toInt();
-            sums[1] -= remove.g.toInt();
-            sums[2] -= remove.b.toInt();
+            final r = (y * width + removeX) * 4;
+            sumR -= buf[r];
+            sumG -= buf[r + 1];
+            sumB -= buf[r + 2];
             count--;
           }
         }
       }
-      // 垂直通
-      for (var x = 0; x < w; x++) {
-        final sums = List<int>.filled(4, 0);
-        for (var k = 0; k <= math.min(radius, h - 1); k++) {
-          final p = dst.getPixel(x, k);
-          sums[0] += p.r.toInt();
-          sums[1] += p.g.toInt();
-          sums[2] += p.b.toInt();
+      // 垂直通：读 tmp 写 buf
+      for (var x = 0; x < width; x++) {
+        var sumR = 0, sumG = 0, sumB = 0;
+        final initCount = math.min(radius + 1, height);
+        for (var k = 0; k < initCount; k++) {
+          final i = (k * width + x) * 4;
+          sumR += tmp[i];
+          sumG += tmp[i + 1];
+          sumB += tmp[i + 2];
         }
-        var count = math.min(radius + 1, h);
-        for (var y = 0; y < h; y++) {
-          src.setPixelRgba(
-            x,
-            y,
-            sums[0] ~/ count,
-            sums[1] ~/ count,
-            sums[2] ~/ count,
-            255,
-          );
+        var count = initCount;
+        for (var y = 0; y < height; y++) {
+          final d = (y * width + x) * 4;
+          buf[d] = (sumR ~/ count).clamp(0, 255);
+          buf[d + 1] = (sumG ~/ count).clamp(0, 255);
+          buf[d + 2] = (sumB ~/ count).clamp(0, 255);
+          buf[d + 3] = 255;
           final addY = y + radius + 1;
-          if (addY < h) {
-            final add = dst.getPixel(x, addY);
-            sums[0] += add.r.toInt();
-            sums[1] += add.g.toInt();
-            sums[2] += add.b.toInt();
+          if (addY < height) {
+            final a = (addY * width + x) * 4;
+            sumR += tmp[a];
+            sumG += tmp[a + 1];
+            sumB += tmp[a + 2];
             count++;
           }
           final removeY = y - radius;
           if (removeY >= 0) {
-            final remove = dst.getPixel(x, removeY);
-            sums[0] -= remove.r.toInt();
-            sums[1] -= remove.g.toInt();
-            sums[2] -= remove.b.toInt();
+            final r = (removeY * width + x) * 4;
+            sumR -= tmp[r];
+            sumG -= tmp[r + 1];
+            sumB -= tmp[r + 2];
             count--;
           }
         }
@@ -499,8 +492,8 @@ abstract final class InpaintService {
   }
 
   /// 把请求尺寸蒙版量化到潜空间网格后重建 (发给官方 API 的最终蒙版)
-  static img.Image quantizeMaskToLatentGrid(
-    img.Image requestMask, {
+  static RawRgbaImage quantizeMaskToLatentGrid(
+    RawRgbaImage requestMask, {
     int gridSize = latentGridSize,
   }) {
     if (gridSize <= 1) return requestMask;
@@ -520,77 +513,94 @@ abstract final class InpaintService {
   /// 准备焦点特写请求所需的裁剪原图与遮罩数据 (PNG 字节流)
   ///
   /// [sourceMask] 为源图尺寸二值蒙版 (白 = 重绘)；为空时按几何默认选区构建。
-  static ({Uint8List sourceBytes, Uint8List maskBytes})
+  static Future<({Uint8List sourceBytes, Uint8List maskBytes})>
   prepareFocusedRequestData({
     required Uint8List sourceImageBytes,
     required InpaintGeometry geometry,
-    img.Image? sourceMask,
-  }) {
-    final decodedSource = img.decodeImage(sourceImageBytes);
+    RawRgbaImage? sourceMask,
+  }) async {
+    final decodedSource = await decodeToRawRgba(sourceImageBytes);
     if (decodedSource == null) {
       throw StateError('无法解码原图进行焦点裁剪。');
     }
 
-    final crop = _cropRectFor(decodedSource, geometry.contextCrop);
+    final crop = _cropRectFor(
+      decodedSource.width,
+      decodedSource.height,
+      geometry.contextCrop,
+    );
 
     // 1. 裁剪原图上下文区域并放大至请求尺寸
-    final croppedSource = img.copyCrop(
-      decodedSource,
-      x: crop.x,
-      y: crop.y,
-      width: crop.width,
-      height: crop.height,
+    final croppedRgba = cropRgba(
+      decodedSource.rgba,
+      decodedSource.width,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
     );
-    final resizedSource = img.copyResize(
-      croppedSource,
-      width: geometry.requestWidth,
-      height: geometry.requestHeight,
-      interpolation: img.Interpolation.cubic,
+    final resizedRgba = resizeRgbaCubic(
+      croppedRgba,
+      crop.width,
+      crop.height,
+      geometry.requestWidth,
+      geometry.requestHeight,
     );
 
     // 2. 遮罩：源图蒙版裁剪缩放至请求尺寸；缺省时按几何选区绘制
-    final img.Image requestMask;
+    final Uint8List requestMaskRgba;
     if (sourceMask != null &&
         sourceMask.width == decodedSource.width &&
         sourceMask.height == decodedSource.height) {
-      final croppedMask = img.copyCrop(
-        sourceMask,
-        x: crop.x,
-        y: crop.y,
-        width: crop.width,
-        height: crop.height,
+      final croppedMask = cropRgba(
+        sourceMask.rgba,
+        sourceMask.width,
+        crop.x,
+        crop.y,
+        crop.width,
+        crop.height,
       );
-      requestMask = img.copyResize(
+      requestMaskRgba = resizeRgbaNearest(
         croppedMask,
-        width: geometry.requestWidth,
-        height: geometry.requestHeight,
-        interpolation: img.Interpolation.nearest,
+        crop.width,
+        crop.height,
+        geometry.requestWidth,
+        geometry.requestHeight,
       );
     } else {
-      requestMask = _buildDefaultFocusMask(geometry);
+      requestMaskRgba = _defaultFocusMaskRgba(geometry);
     }
 
+    // 发给官方 API 的蒙版必须量化到 8px 潜空间网格 (与网页端一致)
+    final quantizedMask = quantizeMaskToLatentGrid(
+      RawRgbaImage(
+        rgba: requestMaskRgba,
+        width: geometry.requestWidth,
+        height: geometry.requestHeight,
+      ),
+    );
+
     return (
-      sourceBytes: Uint8List.fromList(img.encodePng(resizedSource, level: 1)),
-      maskBytes: Uint8List.fromList(
-        img.encodePng(
-          // 发给官方 API 的蒙版必须量化到 8px 潜空间网格 (与网页端一致)
-          quantizeMaskToLatentGrid(requestMask),
-          level: 1,
-        ),
+      sourceBytes: await encodeRawRgbaToPng(
+        resizedRgba,
+        geometry.requestWidth,
+        geometry.requestHeight,
+      ),
+      maskBytes: await encodeRawRgbaToPng(
+        quantizedMask.rgba,
+        geometry.requestWidth,
+        geometry.requestHeight,
       ),
     );
   }
 
   /// 构建焦点选区对应的二值遮罩 (黑底白块)
-  static img.Image _buildDefaultFocusMask(InpaintGeometry geometry) {
-    final mask = img.Image(
-      width: geometry.requestWidth,
-      height: geometry.requestHeight,
-      numChannels: 4,
+  static Uint8List _defaultFocusMaskRgba(InpaintGeometry geometry) {
+    final buf = _newBlackMaskBuffer(
+      geometry.requestWidth,
+      geometry.requestHeight,
     );
     // 默认全黑 (非修复区域)
-    img.fill(mask, color: img.ColorRgba8(0, 0, 0, 255));
 
     final relLeft =
         (geometry.focusBounds.left - geometry.contextCrop.left) /
@@ -618,69 +628,69 @@ abstract final class InpaintService {
       geometry.requestHeight - maskY,
     );
 
-    img.fillRect(
-      mask,
-      x1: maskX,
-      y1: maskY,
-      x2: maskX + maskW,
-      y2: maskY + maskH,
-      color: img.ColorRgba8(255, 255, 255, 255),
-    );
-
-    return mask;
+    _fillRectWhite(buf, geometry.requestWidth, maskX, maskY, maskW, maskH);
+    return buf;
   }
 
   /// 准备常规全图 Inpaint 请求数据
   ///
   /// [sourceMask] 为源图尺寸蒙版；缺省时整图全白 (整图重绘)。
-  static ({Uint8List sourceBytes, Uint8List maskBytes})
+  static Future<({Uint8List sourceBytes, Uint8List maskBytes})>
   prepareStandardRequestData({
     required Uint8List sourceImageBytes,
     required int requestWidth,
     required int requestHeight,
-    img.Image? sourceMask,
-  }) {
-    final decodedSource = img.decodeImage(sourceImageBytes);
+    RawRgbaImage? sourceMask,
+  }) async {
+    final decodedSource = await decodeToRawRgba(sourceImageBytes);
     if (decodedSource == null) {
       throw StateError('无法解码原图进行常规重绘。');
     }
 
-    final resizedSource =
+    final resizedRgba =
         (decodedSource.width == requestWidth &&
             decodedSource.height == requestHeight)
-        ? decodedSource
-        : img.copyResize(
-            decodedSource,
-            width: requestWidth,
-            height: requestHeight,
-            interpolation: img.Interpolation.cubic,
+        ? decodedSource.rgba
+        : resizeRgbaCubic(
+            decodedSource.rgba,
+            decodedSource.width,
+            decodedSource.height,
+            requestWidth,
+            requestHeight,
           );
 
-    final img.Image requestMask;
+    final Uint8List requestMaskRgba;
     if (sourceMask != null && sourceMask.width == decodedSource.width) {
-      requestMask = img.copyResize(
-        sourceMask,
-        width: requestWidth,
-        height: requestHeight,
-        interpolation: img.Interpolation.nearest,
+      requestMaskRgba = resizeRgbaNearest(
+        sourceMask.rgba,
+        sourceMask.width,
+        sourceMask.height,
+        requestWidth,
+        requestHeight,
       );
     } else {
-      requestMask = img.Image(
-        width: requestWidth,
-        height: requestHeight,
-        numChannels: 4,
-      );
-      img.fill(requestMask, color: img.ColorRgba8(255, 255, 255, 255));
+      requestMaskRgba = _newWhiteMaskBuffer(requestWidth, requestHeight);
     }
 
+    // 发给官方 API 的蒙版必须量化到 8px 潜空间网格 (与网页端一致)
+    final quantizedMask = quantizeMaskToLatentGrid(
+      RawRgbaImage(
+        rgba: requestMaskRgba,
+        width: requestWidth,
+        height: requestHeight,
+      ),
+    );
+
     return (
-      sourceBytes: Uint8List.fromList(img.encodePng(resizedSource, level: 1)),
-      maskBytes: Uint8List.fromList(
-        img.encodePng(
-          // 发给官方 API 的蒙版必须量化到 8px 潜空间网格 (与网页端一致)
-          quantizeMaskToLatentGrid(requestMask),
-          level: 1,
-        ),
+      sourceBytes: await encodeRawRgbaToPng(
+        resizedRgba,
+        requestWidth,
+        requestHeight,
+      ),
+      maskBytes: await encodeRawRgbaToPng(
+        quantizedMask.rgba,
+        requestWidth,
+        requestHeight,
       ),
     );
   }
@@ -690,13 +700,8 @@ abstract final class InpaintService {
   // ---------------------------------------------------------------------------
 
   /// 解码蒙版 PNG 字节，失败时返回 null (调用方回退整块回贴)
-  static img.Image? decodeMaskOrNull(Uint8List bytes) {
-    try {
-      return img.decodeImage(bytes);
-    } catch (_) {
-      return null;
-    }
-  }
+  static Future<RawRgbaImage?> decodeMaskOrNull(Uint8List bytes) =>
+      decodeToRawRgba(bytes);
 
   /// 将 NovelAI infill 生成的焦点特写补丁等比缩放并按合成蒙版无损贴回原图
   /// (对齐 Aaalice FocusedInpaintRequest.composeGeneratedImageArtifact)。
@@ -705,175 +710,297 @@ abstract final class InpaintService {
   /// 量化网格。客户端回贴合成蒙版 = 量化网格再膨胀 4 格 + 盒式模糊，
   /// 保证服务端重绘过的每个像素都被生成补丁覆盖 (否则量化多出的格子
   /// 边缘会残留原图像素，表现为「贴不回去」)，羽化边缘避免硬接缝。
-  static Uint8List compositeFocusedResult({
+  static Future<Uint8List> compositeFocusedResult({
     required Uint8List originalSourceBytes,
     required Uint8List generatedPatchBytes,
     required InpaintGeometry geometry,
-    img.Image? sourceMask,
-  }) {
-    final originalSource = img.decodeImage(originalSourceBytes);
-    final generatedPatch = img.decodeImage(generatedPatchBytes);
+    RawRgbaImage? sourceMask,
+  }) async {
+    final originalSource = await decodeToRawRgba(originalSourceBytes);
+    final generatedPatch = await decodeToRawRgba(generatedPatchBytes);
     if (originalSource == null || generatedPatch == null) {
       return generatedPatchBytes;
     }
 
-    final crop = _cropRectFor(originalSource, geometry.contextCrop);
-    final targetW = crop.width;
-    final targetH = crop.height;
+    final crop = _cropRectFor(
+      originalSource.width,
+      originalSource.height,
+      geometry.contextCrop,
+    );
+    final outRgba = await runIsolated(
+      _compositeFocusedIsolate,
+      _FocusedCompositeTask(
+        orig: IsolateBytes(originalSource.rgba),
+        origWidth: originalSource.width,
+        origHeight: originalSource.height,
+        patch: IsolateBytes(generatedPatch.rgba),
+        patchWidth: generatedPatch.width,
+        patchHeight: generatedPatch.height,
+        requestWidth: geometry.requestWidth,
+        requestHeight: geometry.requestHeight,
+        cropX: crop.x,
+        cropY: crop.y,
+        mask:
+            (sourceMask != null &&
+                sourceMask.width == originalSource.width &&
+                sourceMask.height == originalSource.height)
+            ? IsolateBytes(sourceMask.rgba)
+            : null,
+        maskWidth: sourceMask?.width,
+        maskHeight: sourceMask?.height,
+      ),
+    );
+    return encodeRawRgbaToPng(
+      outRgba.materialize(),
+      originalSource.width,
+      originalSource.height,
+    );
+  }
+
+  /// 焦点回贴纯像素合成 (compute isolate 执行)：
+  /// 蒙版量化 → 膨胀 → 羽化 → alpha 混合盖回原图
+  static IsolateBytes _compositeFocusedIsolate(_FocusedCompositeTask task) {
+    return IsolateBytes(_compositeFocusedPixels(task));
+  }
+
+  static Uint8List _compositeFocusedPixels(_FocusedCompositeTask task) {
+    final origRgba = task.orig.materialize();
+    final patchRgba = task.patch.materialize();
+    final maskRgba = task.mask?.materialize();
+    final origW = task.origWidth;
+    final origH = task.origHeight;
+    final reqW = task.requestWidth;
+    final reqH = task.requestHeight;
+
+    final cropX = task.cropX.clamp(0, math.max(0, origW - 1)).toInt();
+    final cropY = task.cropY.clamp(0, math.max(0, origH - 1)).toInt();
+    final targetW = (origW - cropX).clamp(1, origW).toInt();
+    final targetH = (origH - cropY).clamp(1, origH).toInt();
 
     // 1. 生成补丁归一到请求尺寸 (服务端一般原尺寸返回，此处仅兜底)
-    final requestPatch =
-        (generatedPatch.width == geometry.requestWidth &&
-            generatedPatch.height == geometry.requestHeight)
-        ? generatedPatch
-        : img.copyResize(
-            generatedPatch,
-            width: geometry.requestWidth,
-            height: geometry.requestHeight,
-            interpolation: img.Interpolation.cubic,
+    final requestPatchRgba =
+        (task.patchWidth == reqW && task.patchHeight == reqH)
+        ? patchRgba
+        : resizeRgbaCubic(
+            patchRgba,
+            task.patchWidth,
+            task.patchHeight,
+            reqW,
+            reqH,
           );
 
-    final result = img.Image.from(originalSource, noAnimation: true);
+    final out = Uint8List.fromList(origRgba);
 
-    final bool maskValid =
-        sourceMask != null &&
-        sourceMask.width == originalSource.width &&
-        sourceMask.height == originalSource.height;
+    final maskValid =
+        maskRgba != null && task.maskWidth == origW && task.maskHeight == origH;
 
     if (maskValid) {
       // 2. 与请求准备同口径：源图蒙版裁剪缩放到请求尺寸
-      final croppedMask = img.copyCrop(
-        sourceMask,
-        x: crop.x,
-        y: crop.y,
-        width: targetW,
-        height: targetH,
+      final croppedMask = cropRgba(
+        maskRgba,
+        task.maskWidth!,
+        cropX,
+        cropY,
+        targetW,
+        targetH,
       );
-      final requestMask = img.copyResize(
+      final requestMaskRgba = resizeRgbaNearest(
         croppedMask,
-        width: geometry.requestWidth,
-        height: geometry.requestHeight,
-        interpolation: img.Interpolation.nearest,
+        targetW,
+        targetH,
+        reqW,
+        reqH,
       );
 
       // 3. 量化到潜空间网格 → 膨胀 4 格 → 模糊羽化 → alpha 即混合强度
-      final grid = _latentGridOf(requestMask, latentGridSize);
+      final grid = _latentGridOf(
+        RawRgbaImage(rgba: requestMaskRgba, width: reqW, height: reqH),
+        latentGridSize,
+      );
       final dilated = _dilateLatentGrid(grid, latentDilationIterations);
       final compositeMask = _compositeMaskFromGrid(
         dilated,
         latentGridSize,
-        geometry.requestWidth,
-        geometry.requestHeight,
+        reqW,
+        reqH,
       );
 
       // 4. 请求尺寸补丁：RGB 取生成图，alpha 取合成蒙版
-      final maskedPatch = img.Image(
-        width: geometry.requestWidth,
-        height: geometry.requestHeight,
-        numChannels: 4,
-      );
-      for (var y = 0; y < maskedPatch.height; y++) {
-        for (var x = 0; x < maskedPatch.width; x++) {
-          final gen = requestPatch.getPixel(x, y);
-          final alpha = compositeMask.getPixel(x, y).a;
-          maskedPatch.setPixelRgba(
-            x,
-            y,
-            gen.r.toInt(),
-            gen.g.toInt(),
-            gen.b.toInt(),
-            alpha,
-          );
-        }
+      final maskedPatch = Uint8List(reqW * reqH * 4);
+      for (var i = 0; i < maskedPatch.length; i += 4) {
+        maskedPatch[i] = requestPatchRgba[i];
+        maskedPatch[i + 1] = requestPatchRgba[i + 1];
+        maskedPatch[i + 2] = requestPatchRgba[i + 2];
+        maskedPatch[i + 3] = compositeMask.rgba[i + 3];
       }
 
       // 5. 缩回裁剪框尺寸后以 alpha 混合盖回原图
-      final cropPatch =
-          (maskedPatch.width == targetW && maskedPatch.height == targetH)
+      final cropPatchRgba = (reqW == targetW && reqH == targetH)
           ? maskedPatch
-          : img.copyResize(
-              maskedPatch,
-              width: targetW,
-              height: targetH,
-              interpolation: img.Interpolation.cubic,
-            );
-      img.compositeImage(
-        result,
-        cropPatch,
-        dstX: crop.x,
-        dstY: crop.y,
-        blend: img.BlendMode.alpha,
+          : resizeRgbaCubic(maskedPatch, reqW, reqH, targetW, targetH);
+      blendAlphaRect(
+        out,
+        origW,
+        origH,
+        cropPatchRgba,
+        targetW,
+        targetH,
+        dstX: cropX,
+        dstY: cropY,
       );
     } else {
-      // 无蒙版：整块裁剪区域回贴 (保持旧行为兜底)
-      final resizedPatch =
-          (requestPatch.width == targetW && requestPatch.height == targetH)
-          ? requestPatch
-          : img.copyResize(
-              requestPatch,
-              width: targetW,
-              height: targetH,
-              interpolation: img.Interpolation.cubic,
+      // 无蒙版：整块裁剪区域回贴 (保持旧行为兜底，direct 整像素替换)
+      final resizedPatchRgba =
+          (task.patchWidth == targetW && task.patchHeight == targetH)
+          ? patchRgba
+          : resizeRgbaCubic(
+              requestPatchRgba,
+              (task.patchWidth == reqW && task.patchHeight == reqH)
+                  ? reqW
+                  : task.patchWidth,
+              (task.patchWidth == reqW && task.patchHeight == reqH)
+                  ? reqH
+                  : task.patchHeight,
+              targetW,
+              targetH,
             );
-      img.compositeImage(
-        result,
-        resizedPatch,
-        dstX: crop.x,
-        dstY: crop.y,
-        blend: img.BlendMode.direct,
+      copyRect(
+        out,
+        origW,
+        origH,
+        resizedPatchRgba,
+        targetW,
+        targetH,
+        dstX: cropX,
+        dstY: cropY,
       );
     }
 
-    return Uint8List.fromList(img.encodePng(result));
+    return out;
   }
 
   /// 将常规 Inpaint 生成结果按蒙版与原图混合
-  static Uint8List compositeStandardResult({
+  static Future<Uint8List> compositeStandardResult({
     required Uint8List originalSourceBytes,
     required Uint8List generatedImageBytes,
     required Uint8List maskBytes,
-  }) {
-    final originalSource = img.decodeImage(originalSourceBytes);
-    final generated = img.decodeImage(generatedImageBytes);
-    final mask = img.decodeImage(maskBytes);
+  }) async {
+    final originalSource = await decodeToRawRgba(originalSourceBytes);
+    final generated = await decodeToRawRgba(generatedImageBytes);
+    final mask = await decodeToRawRgba(maskBytes);
 
     if (originalSource == null || generated == null || mask == null) {
       return generatedImageBytes;
     }
 
-    final resizedGen =
-        (generated.width == originalSource.width &&
-            generated.height == originalSource.height)
-        ? generated
-        : img.copyResize(
-            generated,
-            width: originalSource.width,
-            height: originalSource.height,
-            interpolation: img.Interpolation.cubic,
-          );
-
-    final resizedMask =
-        (mask.width == originalSource.width &&
-            mask.height == originalSource.height)
-        ? mask
-        : img.copyResize(
-            mask,
-            width: originalSource.width,
-            height: originalSource.height,
-            interpolation: img.Interpolation.nearest,
-          );
-
-    final result = img.Image.from(originalSource, noAnimation: true);
-    img.compositeImage(
-      result,
-      resizedGen,
-      dstX: 0,
-      dstY: 0,
-      mask: resizedMask,
-      blend: img.BlendMode.direct,
+    final outRgba = await runIsolated(
+      _compositeStandardIsolate,
+      _StandardCompositeTask(
+        orig: IsolateBytes(originalSource.rgba),
+        width: originalSource.width,
+        height: originalSource.height,
+        gen: IsolateBytes(generated.rgba),
+        genWidth: generated.width,
+        genHeight: generated.height,
+        mask: IsolateBytes(mask.rgba),
+        maskWidth: mask.width,
+        maskHeight: mask.height,
+      ),
     );
+    return encodeRawRgbaToPng(
+      outRgba.materialize(),
+      originalSource.width,
+      originalSource.height,
+    );
+  }
 
-    return Uint8List.fromList(img.encodePng(result));
+  /// 常规回贴纯像素合成 (compute isolate 执行)：
+  /// 按蒙版亮度做 alpha 混合 (m==1 整像素替换，0<m<1 线性 lerp)
+  static IsolateBytes _compositeStandardIsolate(_StandardCompositeTask task) {
+    return IsolateBytes(_compositeStandardPixels(task));
+  }
+
+  static Uint8List _compositeStandardPixels(_StandardCompositeTask task) {
+    final origRgba = task.orig.materialize();
+    final genRgba = task.gen.materialize();
+    final maskRgba = task.mask.materialize();
+    final w = task.width;
+    final h = task.height;
+
+    final resizedGen = (task.genWidth == w && task.genHeight == h)
+        ? genRgba
+        : resizeRgbaCubic(genRgba, task.genWidth, task.genHeight, w, h);
+
+    final resizedMask = (task.maskWidth == w && task.maskHeight == h)
+        ? maskRgba
+        : resizeRgbaNearest(maskRgba, task.maskWidth, task.maskHeight, w, h);
+
+    final out = Uint8List.fromList(origRgba);
+    for (var i = 0; i < w * h * 4; i += 4) {
+      final m =
+          (0.299 * resizedMask[i] +
+              0.587 * resizedMask[i + 1] +
+              0.114 * resizedMask[i + 2]) /
+          255.0;
+      if (m <= 0) continue;
+      if (m >= 1.0) {
+        out[i] = resizedGen[i];
+        out[i + 1] = resizedGen[i + 1];
+        out[i + 2] = resizedGen[i + 2];
+        out[i + 3] = resizedGen[i + 3];
+        continue;
+      }
+      for (var c = 0; c < 4; c++) {
+        out[i + c] = (out[i + c] * (1 - m) + resizedGen[i + c] * m)
+            .round()
+            .clamp(0, 255);
+      }
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Flat RGBA 像素运算
+  // ---------------------------------------------------------------------------
+
+  /// 黑底不透明蒙版缓冲 (RGB=0, A=255)
+  static Uint8List _newBlackMaskBuffer(int width, int height) {
+    final buf = Uint8List(width * height * 4);
+    for (var i = 3; i < buf.length; i += 4) {
+      buf[i] = 255;
+    }
+    return buf;
+  }
+
+  /// 全白不透明蒙版缓冲 (RGB=255, A=255)
+  static Uint8List _newWhiteMaskBuffer(int width, int height) {
+    final buf = _newBlackMaskBuffer(width, height);
+    for (var i = 0; i < buf.length; i += 4) {
+      buf[i] = 255;
+      buf[i + 1] = 255;
+      buf[i + 2] = 255;
+    }
+    return buf;
+  }
+
+  /// 在蒙版缓冲上涂白矩形 (x/y/w/h，边界由调用方钳制)
+  static void _fillRectWhite(
+    Uint8List buf,
+    int bufWidth,
+    int x,
+    int y,
+    int w,
+    int h,
+  ) {
+    for (var row = y; row < y + h; row++) {
+      final start = (row * bufWidth + x) * 4;
+      final end = start + w * 4;
+      for (var i = start; i < end; i += 4) {
+        buf[i] = 255;
+        buf[i + 1] = 255;
+        buf[i + 2] = 255;
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -882,13 +1009,14 @@ abstract final class InpaintService {
 
   /// 把 contextCrop 钳制到解码图实际尺寸并取整 (解码图可能小于几何假设)
   static ({int x, int y, int width, int height}) _cropRectFor(
-    img.Image decoded,
+    int decodedWidth,
+    int decodedHeight,
     Rect cropRect,
   ) {
-    final x = cropRect.left.round().clamp(0, decoded.width - 1);
-    final y = cropRect.top.round().clamp(0, decoded.height - 1);
-    final w = cropRect.width.round().clamp(1, decoded.width - x);
-    final h = cropRect.height.round().clamp(1, decoded.height - y);
+    final x = cropRect.left.round().clamp(0, decodedWidth - 1);
+    final y = cropRect.top.round().clamp(0, decodedHeight - 1);
+    final w = cropRect.width.round().clamp(1, decodedWidth - x);
+    final h = cropRect.height.round().clamp(1, decodedHeight - y);
     return (x: x, y: y, width: w, height: h);
   }
 
@@ -908,4 +1036,62 @@ abstract final class InpaintService {
     final gridUnits = areaLimit ~/ otherDimension ~/ dimensionStep;
     return math.max(dimensionStep, gridUnits * dimensionStep);
   }
+}
+
+/// 焦点回贴合成任务 (纯数据，大字节块经 IsolateBytes 零拷贝跨 isolate)
+class _FocusedCompositeTask {
+  final IsolateBytes orig;
+  final int origWidth;
+  final int origHeight;
+  final IsolateBytes patch;
+  final int patchWidth;
+  final int patchHeight;
+  final int requestWidth;
+  final int requestHeight;
+  final int cropX;
+  final int cropY;
+  final IsolateBytes? mask;
+  final int? maskWidth;
+  final int? maskHeight;
+
+  const _FocusedCompositeTask({
+    required this.orig,
+    required this.origWidth,
+    required this.origHeight,
+    required this.patch,
+    required this.patchWidth,
+    required this.patchHeight,
+    required this.requestWidth,
+    required this.requestHeight,
+    required this.cropX,
+    required this.cropY,
+    this.mask,
+    this.maskWidth,
+    this.maskHeight,
+  });
+}
+
+/// 常规回贴合成任务 (纯数据，大字节块经 IsolateBytes 零拷贝跨 isolate)
+class _StandardCompositeTask {
+  final IsolateBytes orig;
+  final int width;
+  final int height;
+  final IsolateBytes gen;
+  final int genWidth;
+  final int genHeight;
+  final IsolateBytes mask;
+  final int maskWidth;
+  final int maskHeight;
+
+  const _StandardCompositeTask({
+    required this.orig,
+    required this.width,
+    required this.height,
+    required this.gen,
+    required this.genWidth,
+    required this.genHeight,
+    required this.mask,
+    required this.maskWidth,
+    required this.maskHeight,
+  });
 }

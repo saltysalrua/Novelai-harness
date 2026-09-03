@@ -5,6 +5,8 @@ import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/inpaint_canvas_overlay.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/inpaint_page.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/prompt_editor_card.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/studio_shared.dart';
 
 // 1x1 红色 PNG
 final kTestPngBytes = Uint8List.fromList([
@@ -393,6 +395,66 @@ void main() {
       expect(viewModel.inpaintParams.selectionRect, annotation.rect);
       expect(viewModel.inpaintParams.customPrompt, '修复这里的眼睛');
       expect(viewModel.inpaintParams.useMainPrompt, isFalse);
+    });
+
+    testWidgets('AI 整图编辑模式渲染生图比例与生图分辨率 DropdownField，并支持交互切换', (
+      tester,
+    ) async {
+      viewModel.setInpaintMode(InpaintMode.aiEdit);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: InpaintPage(viewModel: viewModel)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('生图比例'), findsOneWidget);
+      expect(find.text('生图分辨率'), findsOneWidget);
+      expect(find.byType(DropdownField<String>), findsNWidgets(2));
+      expect(find.text('跟随原图'), findsOneWidget);
+      expect(find.text('默认'), findsOneWidget);
+
+      // 测试修改分辨率
+      viewModel.setInpaintAiEditResolution('2K');
+      await tester.pumpAndSettle();
+      expect(viewModel.inpaintParams.aiEditResolution, '2K');
+      expect(find.text('2K'), findsOneWidget);
+    });
+
+    testWidgets('修复提示词卡片：开启复用时展示已复用链接卡，关闭复用时展示 PromptEditorCard', (
+      tester,
+    ) async {
+      viewModel.updateParams(
+        viewModel.params.copyWith(prompt: 'masterpiece, 1girl'),
+      );
+      expect(viewModel.inpaintParams.useMainPrompt, isTrue);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: InpaintPage(viewModel: viewModel)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. 开启复用时，应展示复用链接预览卡，不展示 PromptEditorCard
+      expect(find.text('已复用 主工作台正向词'), findsOneWidget);
+      expect(find.text('masterpiece, 1girl'), findsOneWidget);
+      expect(find.byType(PromptEditorCard), findsNothing);
+
+      // 2. 关闭复用时，展示 PromptEditorCard
+      viewModel.setInpaintUseMainPrompt(false);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PromptEditorCard), findsOneWidget);
+      expect(find.text('修复专属正向词'), findsOneWidget);
+
+      // 3. 切换为 AI 整图编辑模式，标题与 PromptEditorCard 提示文案切换
+      viewModel.setInpaintMode(InpaintMode.aiEdit);
+      await tester.pumpAndSettle();
+
+      expect(find.text('自定义修改指令'), findsOneWidget);
+      expect(find.byType(PromptEditorCard), findsOneWidget);
     });
   });
 }

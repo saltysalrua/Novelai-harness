@@ -4,9 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/image_metadata_service.dart';
+import 'package:novelai_harness/data/services/skia_image_codec.dart';
 import 'package:novelai_harness/data/services/watermark_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('Watermark Processor Tests', () {
     late Uint8List baseImageBytes;
     late Uint8List watermarkImageBytes;
@@ -55,7 +58,7 @@ void main() {
       expect(copied.imagePath, isNull);
     });
 
-    test('applyWatermark places watermark onto base image correctly', () {
+    test('applyWatermark places watermark onto base image correctly', () async {
       const config = WatermarkConfig(
         enabled: true,
         posX: 1.0, // 右下
@@ -65,7 +68,7 @@ void main() {
         marginPercent: 0.0,
       );
 
-      final resultBytes = WatermarkService.applyWatermark(
+      final resultBytes = await WatermarkService.applyWatermarkAsync(
         imageBytes: baseImageBytes,
         watermarkBytes: watermarkImageBytes,
         config: config,
@@ -116,7 +119,7 @@ void main() {
 
     test(
       'applyWatermark auto contrast darkens watermark on bright background',
-      () {
+      () async {
         const config = WatermarkConfig(
           enabled: true,
           posX: 0.5,
@@ -127,7 +130,7 @@ void main() {
           autoContrast: true,
         );
 
-        final resultBytes = WatermarkService.applyWatermark(
+        final resultBytes = await WatermarkService.applyWatermarkAsync(
           imageBytes: baseImageBytes,
           watermarkBytes: watermarkImageBytes,
           config: config,
@@ -147,7 +150,7 @@ void main() {
           opacity: 1.0,
           marginPercent: 0.0,
         );
-        final noAutoBytes = WatermarkService.applyWatermark(
+        final noAutoBytes = await WatermarkService.applyWatermarkAsync(
           imageBytes: baseImageBytes,
           watermarkBytes: watermarkImageBytes,
           config: noAutoConfig,
@@ -164,7 +167,7 @@ void main() {
 
     test(
       'applyWatermark auto contrast lightens watermark on dark background',
-      () {
+      () async {
         final dark = img.Image(width: 200, height: 200);
         img.fill(dark, color: img.ColorRgb8(10, 10, 10));
         final darkBytes = Uint8List.fromList(img.encodePng(dark));
@@ -179,7 +182,7 @@ void main() {
           autoContrast: true,
         );
 
-        final resultBytes = WatermarkService.applyWatermark(
+        final resultBytes = await WatermarkService.applyWatermarkAsync(
           imageBytes: darkBytes,
           watermarkBytes: watermarkImageBytes,
           config: config,
@@ -195,19 +198,28 @@ void main() {
     );
 
     test('findLowInformationPosition picks flat region over busy region', () {
-      // 左半边高噪声细节，右半边纯色平坦
-      final image = img.Image(width: 400, height: 400);
-      img.fill(image, color: img.ColorRgb8(128, 128, 128));
+      // 左半边高噪声细节，右半边纯色平坦 (flat RGBA 缓冲)
+      const w = 400, h = 400;
+      final rgba = Uint8List(w * h * 4);
+      for (var i = 0; i < rgba.length; i += 4) {
+        rgba[i] = 128;
+        rgba[i + 1] = 128;
+        rgba[i + 2] = 128;
+        rgba[i + 3] = 255;
+      }
       final rng = math.Random(42);
-      for (var y = 0; y < 400; y++) {
+      for (var y = 0; y < h; y++) {
         for (var x = 0; x < 200; x++) {
           final v = rng.nextInt(256);
-          image.setPixel(x, y, img.ColorRgb8(v, v, v));
+          final i = (y * w + x) * 4;
+          rgba[i] = v;
+          rgba[i + 1] = v;
+          rgba[i + 2] = v;
         }
       }
 
       final pos = WatermarkService.findLowInformationPosition(
-        image,
+        RawRgbaImage(rgba: rgba, width: w, height: h),
         wmW: 40,
         wmH: 40,
         marginPx: 4,
@@ -219,7 +231,7 @@ void main() {
 
     test(
       'applyWatermark autoPosition composites into low information area',
-      () {
+      () async {
         // 左半边高噪声细节，右半边纯色平坦
         final image = img.Image(width: 400, height: 400);
         img.fill(image, color: img.ColorRgb8(255, 255, 255));
@@ -242,7 +254,7 @@ void main() {
           autoPosition: true,
         );
 
-        final resultBytes = WatermarkService.applyWatermark(
+        final resultBytes = await WatermarkService.applyWatermarkAsync(
           imageBytes: bytes,
           watermarkBytes: watermarkImageBytes,
           config: config,
@@ -252,6 +264,58 @@ void main() {
         // 选位算法会命中右侧平坦区首个零能量窗口 (约 x=202 起)，检查该区域被水印覆盖 (红色渗透)
         final coveredPixel = decoded.getPixel(220, 24);
         expect(coveredPixel.g.toInt(), lessThan(200));
+      },
+    );
+
+    test(
+      'applyWatermark with transparent background blends instead of stamping',
+      () async {
+        // 40x40 水印：仅中心 20x20 不透明红色，其余全透明 (典型 logo PNG)
+        // 注意：image 包默认 numChannels=3 会丢掉 alpha，必须显式建 4 通道图
+        final wm = img.Image(width: 40, height: 40, numChannels: 4);
+        for (var y = 0; y < 40; y++) {
+          for (var x = 0; x < 40; x++) {
+            final opaque = x >= 10 && x < 30 && y >= 10 && y < 30;
+            wm.setPixel(
+              x,
+              y,
+              opaque
+                  ? img.ColorRgba8(255, 0, 0, 255)
+                  : img.ColorRgba8(255, 0, 0, 0),
+            );
+          }
+        }
+        final wmBytes = Uint8List.fromList(img.encodePng(wm));
+
+        const config = WatermarkConfig(
+          enabled: true,
+          posX: 0.0, // 左上，marginPercent 0 → 贴合 (0,0)
+          posY: 0.0,
+          scalePercent: 20.0, // shortSide=200 → 目标 40px，不缩放，几何可直接推算
+          opacity: 1.0,
+          marginPercent: 0.0,
+        );
+
+        final resultBytes = await WatermarkService.applyWatermarkAsync(
+          imageBytes: baseImageBytes,
+          watermarkBytes: wmBytes,
+          config: config,
+        );
+
+        final decoded = img.decodePng(resultBytes)!;
+        // 水印矩形内的透明底像素：必须保持原白底不透明，不得被透明像素顶掉
+        final untouched = decoded.getPixel(0, 0);
+        expect(untouched.r.toInt(), equals(255));
+        expect(untouched.g.toInt(), equals(255));
+        expect(untouched.b.toInt(), equals(255));
+        expect(untouched.a.toInt(), equals(255));
+
+        // 中心不透明红色应正常盖住背景
+        final center = decoded.getPixel(20, 20);
+        expect(center.r.toInt(), equals(255));
+        expect(center.g.toInt(), equals(0));
+        expect(center.b.toInt(), equals(0));
+        expect(center.a.toInt(), equals(255));
       },
     );
 
@@ -267,7 +331,7 @@ void main() {
       final bytes = Uint8List.fromList(img.encodePng(image));
 
       const payload = '测试版权签名 NovelAI-Harness 2026';
-      final embedded = WatermarkService.embedBlindWatermark(
+      final embedded = await WatermarkService.embedBlindWatermarkAsync(
         bytes,
         text: payload,
         strength: 3,
@@ -292,26 +356,69 @@ void main() {
         }
       }
       final mse = sqDiff / sampleCount;
-      expect(mse, lessThan(64.0)); // 单像素 RMS < 8 级
+      expect(mse, lessThan(20.0)); // 单像素 RMS < 4.5 级 (QIM+平坦区降档后畸变约减半以上)
 
       // 提取应还原载荷
-      final extracted = WatermarkService.extractBlindWatermark(embedded);
+      final extracted = await WatermarkService.extractBlindWatermarkAsync(
+        embedded,
+      );
       expect(extracted, equals(payload));
     });
 
-    test('blind watermark returns null for clean image', () {
+    test('blind watermark flat solid image roundtrip with tiny MSE', () async {
+      // 512x512 纯色填充图：平坦块极端场景，是盲水印画质修复的核心回归测试
+      final image = img.Image(width: 512, height: 512);
+      img.fill(image, color: img.ColorRgb8(150, 170, 190));
+      final bytes = Uint8List.fromList(img.encodePng(image));
+
+      const payload = 'flat-test';
+      final embedded = await WatermarkService.embedBlindWatermarkAsync(
+        bytes,
+        text: payload,
+        strength: 3,
+      );
+
+      // 嵌入后仍是合法 PNG 且尺寸不变
+      expect(ImageMetadataService.isPngHeader(embedded), isTrue);
+      final decoded = img.decodePng(embedded)!;
+      expect(decoded.width, equals(512));
+      expect(decoded.height, equals(512));
+
+      // 纯色图全部为平坦块：扰动应被感知掩码压制到接近无损
+      var sqDiff = 0.0;
+      var sampleCount = 0;
+      final orig = img.decodePng(bytes)!;
+      for (var y = 0; y < 512; y += 2) {
+        for (var x = 0; x < 512; x += 2) {
+          final a = orig.getPixel(x, y);
+          final b = decoded.getPixel(x, y);
+          sqDiff += (a.r - b.r) * (a.r - b.r);
+          sampleCount++;
+        }
+      }
+      final mse = sqDiff / sampleCount;
+      expect(mse, lessThan(15.0));
+
+      // 提取应还原载荷
+      final extracted = await WatermarkService.extractBlindWatermarkAsync(
+        embedded,
+      );
+      expect(extracted, equals(payload));
+    });
+
+    test('blind watermark returns null for clean image', () async {
       final image = img.Image(width: 128, height: 128);
       img.fill(image, color: img.ColorRgb8(90, 90, 90));
       final bytes = Uint8List.fromList(img.encodePng(image));
-      expect(WatermarkService.extractBlindWatermark(bytes), isNull);
+      expect(await WatermarkService.extractBlindWatermarkAsync(bytes), isNull);
     });
 
-    test('blind watermark insufficient capacity returns original', () {
+    test('blind watermark insufficient capacity returns original', () async {
       // 8x8 图只有一个块，容量不足
       final image = img.Image(width: 8, height: 8);
       img.fill(image, color: img.ColorRgb8(90, 90, 90));
       final bytes = Uint8List.fromList(img.encodePng(image));
-      final result = WatermarkService.embedBlindWatermark(
+      final result = await WatermarkService.embedBlindWatermarkAsync(
         bytes,
         text: 'copyright',
       );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_colors_extension.dart';
 
 /// 应用视觉主题与调色板 (Notion 风格暖纸本极简工作台)
 class AppTheme {
@@ -62,6 +63,7 @@ class AppTheme {
       brightness: Brightness.light,
       fontFamily: fontFamily,
       scaffoldBackgroundColor: background,
+      extensions: const [AppColorsExtension.light],
       colorScheme: const ColorScheme.light(
         primary: primary,
         secondary: primaryLight,
@@ -147,6 +149,97 @@ class AppTheme {
     );
   }
 
-  // 兼容老引用
-  static ThemeData get darkTheme => lightTheme;
+  /// 真实暗黑主题 (Notion Minimal Dark)
+  static ThemeData get darkTheme {
+    const darkColors = AppColorsExtension.dark;
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      fontFamily: fontFamily,
+      scaffoldBackgroundColor: darkColors.canvasBackground,
+      extensions: const [darkColors],
+      colorScheme: ColorScheme.dark(
+        primary: darkColors.primary,
+        secondary: darkColors.primaryLight,
+        surface: darkColors.cardBackground,
+        error: darkColors.error,
+        onPrimary: Colors.white,
+        onSurface: darkColors.textPrimary,
+      ),
+      hoverColor: Colors.transparent,
+      cardTheme: CardThemeData(
+        color: darkColors.cardBackground,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: darkColors.borderDefault, width: 1),
+          borderRadius: BorderRadius.circular(radiusCard),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: darkColors.borderDefault,
+        thickness: 1,
+        space: 1,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkColors.cardBackground,
+        hoverColor: darkColors.cardBackground,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusButton),
+          borderSide: BorderSide(color: darkColors.borderDefault),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusButton),
+          borderSide: BorderSide(color: darkColors.borderDefault),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusButton),
+          borderSide: BorderSide(color: darkColors.primary, width: 1.5),
+        ),
+        hintStyle: TextStyle(fontFamily: fontFamily, color: darkColors.textMuted, fontSize: 13),
+        labelStyle: const TextStyle(fontFamily: fontFamily, fontSize: 12),
+      ),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: darkColors.primary,
+        inactiveTrackColor: darkColors.mutedBackground,
+        thumbColor: darkColors.primary,
+        overlayColor: darkColors.primary.withValues(alpha: 0.12),
+        trackHeight: 3,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+      ),
+      textTheme: TextTheme(
+        headlineMedium: TextStyle(
+          fontFamily: fontFamily,
+          color: darkColors.textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
+        ),
+        titleMedium: TextStyle(
+          fontFamily: fontFamily,
+          color: darkColors.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+        bodyMedium: TextStyle(
+          fontFamily: fontFamily,
+          color: darkColors.textPrimary,
+          fontSize: 13,
+          height: 1.45,
+        ),
+        bodySmall: TextStyle(
+          fontFamily: fontFamily,
+          color: darkColors.textSecondary,
+          fontSize: 12,
+        ),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStateProperty.all(darkColors.borderHover),
+        radius: const Radius.circular(radiusSmall),
+        thickness: WidgetStateProperty.all(6),
+      ),
+    );
+  }
 }
