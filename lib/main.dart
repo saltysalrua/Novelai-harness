@@ -27,7 +27,8 @@ void main() async {
     final configService = ConfigService();
     final windowState = await configService.loadWindowState();
 
-    final bool hasValidPosition = windowState.posX != null &&
+    final bool hasValidPosition =
+        windowState.posX != null &&
         windowState.posY != null &&
         windowState.posX! >= -200 &&
         windowState.posY! >= -200;
@@ -71,6 +72,9 @@ class NovelAiHarnessApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
+      // 阶段 3 完成硬编码颜色清洗前锁定亮色：darkTheme 已装载但业务组件
+      // 仍是亮色硬编码，跟随系统的深色模式会造成半黑半白视觉破损。
+      themeMode: ThemeMode.light,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

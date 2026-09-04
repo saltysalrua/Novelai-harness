@@ -42,7 +42,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tabInpaint => '局部修复';
 
   @override
-  String get tabLibrary => '词组合库';
+  String get tabLibrary => '词库';
 
   @override
   String get history => '历史记录';

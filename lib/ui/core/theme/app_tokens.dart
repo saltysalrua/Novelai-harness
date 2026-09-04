@@ -40,32 +40,81 @@ abstract final class AppRadius {
   static const double pill = 9999.0;
 }
 
-/// 统一阴影层级
+/// 统一阴影层级 (亮暗自适应)
+///
+/// 亮色模式维持 Notion 轻投影；暗色模式下纯黑低透明度阴影在深色表面上
+/// 不可见，因此自动加深阴影不透明度并扩大扩散半径，配合组件自身的
+/// 亮色描边形成「外发光」层级感。
 abstract final class AppShadows {
   /// 卡片微弱浮起 (微质感，适合工作台悬浮操作坞)
-  static List<BoxShadow> subtle(Color shadowColor) => [
+  static List<BoxShadow> subtle(
+    Color shadowColor, {
+    Brightness brightness = Brightness.light,
+  }) {
+    return switch (brightness) {
+      Brightness.light => [
         BoxShadow(
           color: shadowColor.withValues(alpha: 0.06),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),
-      ];
+      ],
+      Brightness.dark => [
+        BoxShadow(
+          color: shadowColor.withValues(alpha: 0.30),
+          blurRadius: 12,
+          spreadRadius: 1,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    };
+  }
 
   /// 下拉菜单与浮动弹出层
-  static List<BoxShadow> elevated(Color shadowColor) => [
+  static List<BoxShadow> elevated(
+    Color shadowColor, {
+    Brightness brightness = Brightness.light,
+  }) {
+    return switch (brightness) {
+      Brightness.light => [
         BoxShadow(
           color: shadowColor.withValues(alpha: 0.12),
           blurRadius: 16,
           offset: const Offset(0, 4),
         ),
-      ];
+      ],
+      Brightness.dark => [
+        BoxShadow(
+          color: shadowColor.withValues(alpha: 0.45),
+          blurRadius: 22,
+          spreadRadius: 2,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    };
+  }
 
   /// 模态居中弹窗
-  static List<BoxShadow> dialog(Color shadowColor) => [
+  static List<BoxShadow> dialog(
+    Color shadowColor, {
+    Brightness brightness = Brightness.light,
+  }) {
+    return switch (brightness) {
+      Brightness.light => [
         BoxShadow(
           color: shadowColor.withValues(alpha: 0.20),
           blurRadius: 28,
           offset: const Offset(0, 8),
         ),
-      ];
+      ],
+      Brightness.dark => [
+        BoxShadow(
+          color: shadowColor.withValues(alpha: 0.55),
+          blurRadius: 38,
+          spreadRadius: 3,
+          offset: const Offset(0, 10),
+        ),
+      ],
+    };
+  }
 }

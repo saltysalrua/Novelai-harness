@@ -35,6 +35,11 @@ class AppDropdownItem<T> {
 ///
 /// 完全基于 [AppColorsExtension] 与 [AppTokens]，支持深浅主题平滑自适应，
 /// 统一收拢标准表单下拉、胶囊药丸下拉与紧凑小下拉三种场景。
+///
+/// 内置两项防御性保障：
+/// 1. **防悬挂兜底**：当 [value] 不在 [items] 中时（动态列表被外部刷新/删除），
+///    自动在菜单头部追加一个「未识别」占位项，避免 DropdownButton 断言崩溃；
+/// 2. **菜单宽度保护**：胶囊变体默认展开宽度 220，不再被窄按钮宽度截断。
 class AppDropdown<T> extends StatelessWidget {
   final T value;
   final List<AppDropdownItem<T>> items;
@@ -43,6 +48,12 @@ class AppDropdown<T> extends StatelessWidget {
   final String? hintText;
   final double? width;
   final bool isExpanded;
+
+  /// 展开菜单的宽度上限；胶囊变体默认 220 防截断，其余变体默认跟随按钮宽
+  final double? menuWidth;
+
+  /// [value] 不在 [items] 中时，占位项展示的文案
+  final String danglingLabel;
 
   const AppDropdown({
     super.key,
@@ -53,6 +64,8 @@ class AppDropdown<T> extends StatelessWidget {
     this.hintText,
     this.width,
     this.isExpanded = true,
+    this.menuWidth,
+    this.danglingLabel = '未识别',
   });
 
   /// 便捷工厂：从普通对象列表与标签映射构造
@@ -67,6 +80,7 @@ class AppDropdown<T> extends StatelessWidget {
     AppDropdownVariant variant = AppDropdownVariant.standard,
     double? width,
     bool isExpanded = true,
+    double? menuWidth,
   }) {
     return AppDropdown<T>(
       key: key,
@@ -84,6 +98,7 @@ class AppDropdown<T> extends StatelessWidget {
       variant: variant,
       width: width,
       isExpanded: isExpanded,
+      menuWidth: menuWidth,
     );
   }
 
@@ -91,27 +106,51 @@ class AppDropdown<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    final (double height, double radius, double fontSize, EdgeInsets padding) =
-        switch (variant) {
+    // 防悬挂兜底：value 不在 items 时追加占位项，保留选中可见性，
+    // 避免 DropdownButton "value == null || items contains" 断言崩溃
+    // (吸收 models_settings_tab.dart 的既有防护经验)
+    final bool valueExists = items.any((item) => item.value == value);
+    final List<AppDropdownItem<T>> effectiveItems = valueExists
+        ? items
+        : [
+            AppDropdownItem<T>(
+              value: value,
+              label: danglingLabel,
+              icon: Icons.help_outline_rounded,
+            ),
+            ...items,
+          ];
+
+    final (
+      double height,
+      double radius,
+      double fontSize,
+      EdgeInsets padding,
+    ) = switch (variant) {
       AppDropdownVariant.standard => (
-          38.0,
-          AppRadius.md,
-          12.5,
-          const EdgeInsets.symmetric(horizontal: 10),
-        ),
+        38.0,
+        AppRadius.md,
+        12.5,
+        const EdgeInsets.symmetric(horizontal: 10),
+      ),
       AppDropdownVariant.pill => (
-          28.0,
-          AppRadius.pill,
-          11.5,
-          const EdgeInsets.symmetric(horizontal: 9),
-        ),
+        28.0,
+        AppRadius.pill,
+        11.5,
+        const EdgeInsets.symmetric(horizontal: 9),
+      ),
       AppDropdownVariant.compact => (
-          32.0,
-          AppRadius.md,
-          12.0,
-          const EdgeInsets.symmetric(horizontal: 8),
-        ),
+        32.0,
+        AppRadius.md,
+        12.0,
+        const EdgeInsets.symmetric(horizontal: 8),
+      ),
     };
+
+    // 胶囊变体按钮较窄，菜单宽度默认 220 防止选项文本被截断
+    // (继承旧 PillDropdown 的 minWidth 195 / maxWidth 300 保护语义)
+    final double? effectiveMenuWidth =
+        menuWidth ?? (variant == AppDropdownVariant.pill ? 220.0 : null);
 
     return Container(
       width: width,
@@ -130,13 +169,14 @@ class AppDropdown<T> extends StatelessWidget {
           dropdownColor: colors.cardBackground,
           borderRadius: BorderRadius.circular(AppRadius.md),
           menuMaxHeight: 400.0,
+          menuWidth: effectiveMenuWidth,
           icon: Icon(
             Icons.arrow_drop_down_rounded,
             size: 20,
             color: colors.textSecondary,
           ),
           selectedItemBuilder: (context) {
-            return items.map((item) {
+            return effectiveItems.map((item) {
               return Row(
                 children: [
                   if (item.icon != null) ...[
@@ -163,7 +203,7 @@ class AppDropdown<T> extends StatelessWidget {
               );
             }).toList();
           },
-          items: items.map((item) {
+          items: effectiveItems.map((item) {
             final isSelected = item.value == value;
 
             return DropdownMenuItem<T>(
@@ -188,10 +228,12 @@ class AppDropdown<T> extends StatelessWidget {
                         maxLines: 1,
                         style: TextStyle(
                           fontSize: fontSize,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w500,
-                          color:
-                              isSelected ? colors.primary : colors.textPrimary,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? colors.primary
+                              : colors.textPrimary,
                         ),
                       ),
                     ),

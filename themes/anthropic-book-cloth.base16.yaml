@@ -1,0 +1,30 @@
+# Anthropic Book Cloth — Dark
+# 官方视觉体系 (geist.co/work/anthropic)
+# Styrene A / Tiempos Text / Slate / Book Cloth
+# 标准 tinted-base16 格式，可通过 tinted-shell / tinted-terminal 等工具生成任意终端主题
+system: base16
+name: Anthropic Book Cloth
+author: Qi-chan
+description: Slate 深空背景 + Book Cloth 陶土强调色，复刻 Anthropic 官网暗色氛围
+variant: dark
+
+palette:
+  # Slate 灰阶
+  base00: "#191919" # 默认背景 (slate-dark)
+  base01: "#262625" # 状态栏 / UI 背景 (slate-medium)
+  base02: "#40403e" # 选区 / 注释背景 (slate-light)
+  base03: "#666663" # 注释 (cloud-dark)
+  base04: "#91918d" # 暗前景 (cloud-medium)
+  base05: "#bfbfba" # 默认前景 (cloud-light)
+  base06: "#e5e4df" # 高亮前景 (ivory-dark)
+  base07: "#fafaf7" # 最亮前景 (ivory-light)
+
+  # 功能色
+  base08: "#ef4d43" # 变量 / 错误 (error 红)
+  base09: "#cc785c" # 数字 / 关键字 (book-cloth 陶土)
+  base0A: "#d4a27f" # 类名 / 标题 (kraft 牛皮纸)
+  base0B: "#7d9b6e" # 字符串 / 成功 (鼠尾草绿，自配以补暖调)
+  base0C: "#70a3a1" # 正则 / 转义 (灰青，自配)
+  base0D: "#75a9f2" # 函数 / 链接 (link 蓝)
+  base0E: "#7d69d4" # 关键字 / 标签 (紫罗兰，取自官方样式表)
+  base0F: "#996e57" # 废弃标记 / 次要棕 (深陶土)

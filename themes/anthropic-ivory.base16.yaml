@@ -1,0 +1,29 @@
+# Anthropic Ivory — Light
+# 参考 geist.co/work/anthropic 官方视觉体系 (Ivory / Book Cloth)
+# 标准 tinted-base16 格式
+system: base16
+name: Anthropic Ivory
+author: Qi-chan
+description: Ivory 象牙纸面背景 + Book Cloth 陶土强调色，复刻 Anthropic 官网亮色氛围
+variant: light
+
+palette:
+  # Ivory 灰阶
+  base00: "#fafaf7" # 默认背景 (ivory-light)
+  base01: "#f0f0eb" # 状态栏 / UI 背景 (ivory-medium)
+  base02: "#e5e4df" # 选区 / 注释背景 (ivory-dark)
+  base03: "#bfbfba" # 注释 (cloud-light)
+  base04: "#91918d" # 暗前景 (cloud-medium)
+  base05: "#40403e" # 默认前景 (slate-light)
+  base06: "#262625" # 高亮前景 (slate-medium)
+  base07: "#191919" # 最亮前景 (slate-dark)
+
+  # 功能色 (为纸面背景压暗一档以保证对比度)
+  base08: "#cc3f35" # 变量 / 错误
+  base09: "#b0563a" # 数字 / 关键字 (book-cloth 压暗)
+  base0A: "#a87c4a" # 类名 / 标题 (kraft 压暗)
+  base0B: "#4e8252" # 字符串 / 成功 (鼠尾草绿压暗)
+  base0C: "#3d8585" # 正则 / 转义 (灰青压暗)
+  base0D: "#3d7ed2" # 函数 / 链接 (link 压暗)
+  base0E: "#6757c6" # 关键字 / 标签 (紫罗兰压暗)
+  base0F: "#8a5a44" # 废弃标记 / 次要棕

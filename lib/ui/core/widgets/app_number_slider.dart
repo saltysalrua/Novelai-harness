@@ -6,6 +6,10 @@ import '../theme/theme_context_extensions.dart';
 ///
 /// 左侧数字输入框 + 右侧连续/分段滑块，支持整型与浮点型，
 /// 具备自动范围钳制、步长吸附、可选刻度线与单位后缀支持。
+///
+/// 输入框同时支持回车提交与**失焦自动提交**（点击别处不丢输入）；
+/// 滑块手柄对齐旧 EditableSlider 规格 (radius 8 + 白色浮起)；
+/// 当步长不能整除范围时自动退化为连续滑块（无刻度），避免刻度不均。
 class AppNumberSlider extends StatefulWidget {
   final String title;
   final double value;
@@ -58,6 +62,7 @@ class AppNumberSlider extends StatefulWidget {
 
 class _AppNumberSliderState extends State<AppNumberSlider> {
   late final TextEditingController _controller;
+  late final FocusNode _focusNode;
 
   String _format(double v) => v.toStringAsFixed(widget.fractionDigits);
 
@@ -65,6 +70,15 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: _format(widget.value));
+    _focusNode = FocusNode();
+    // 失焦自动提交：鼠标点击别处不再丢失输入框内容
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus && mounted) {
+      _submit(_controller.text);
+    }
   }
 
   @override
@@ -80,15 +94,27 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  /// 将原始值吸附到步长网格 (步长未整除范围时仍保证吸附正确)
+  double _snapToStep(double v) {
+    final step = widget.step;
+    if (step == null || step <= 0) return v;
+    final span = widget.max - widget.min;
+    final maxIndex = (span / step).floor();
+    final index = ((v - widget.min) / step).round().clamp(0, maxIndex);
+    return (widget.min + index * step).clamp(widget.min, widget.max);
   }
 
   void _submit(String val) {
     final parsed = double.tryParse(val);
     if (parsed != null) {
+      final snapped = _snapToStep(parsed);
       final clamped = double.parse(
-        parsed
+        snapped
             .clamp(widget.min, widget.max)
             .toStringAsFixed(widget.fractionDigits),
       );
@@ -102,11 +128,19 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final divisions = widget.step != null && widget.step! > 0
-        ? ((widget.max - widget.min) / widget.step!).round()
-        : (widget.fractionDigits == 0
-            ? (widget.max - widget.min).round()
-            : null);
+    final step = widget.step;
+    // 仅当步长能整除范围时才显示均匀刻度；否则退化为连续滑块，
+    // 由 onChanged 手动吸附步长，杜绝「刻度不均/尾格缺失」。
+    int? divisions;
+    if (step != null && step > 0) {
+      final count = (widget.max - widget.min) / step;
+      divisions = (count - count.round()).abs() < 1e-6 ? count.round() : null;
+    } else if (widget.fractionDigits == 0) {
+      final span = widget.max - widget.min;
+      divisions = (span - span.round()).abs() < 1e-6 && span.round() > 0
+          ? span.round()
+          : null;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,6 +184,7 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: TextField(
                 controller: _controller,
+                focusNode: _focusNode,
                 keyboardType: TextInputType.numberWithOptions(
                   decimal: widget.fractionDigits > 0,
                   signed: widget.min < 0,
@@ -168,32 +203,42 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
                   isDense: true,
                   filled: false,
                 ),
-                onSubmitted: _submit,
+                onSubmitted: (v) {
+                  _submit(v);
+                  // 提交后释放焦点，让全局快捷键恢复生效
+                  _focusNode.unfocus();
+                },
               ),
             ),
             const SizedBox(width: AppSpacing.md),
 
-            // 右侧连续滑块
+            // 右侧连续滑块 (手柄对齐旧 EditableSlider: radius 8 + 白色浮起)
             Expanded(
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(
                   activeTrackColor: colors.primary,
                   inactiveTrackColor: colors.mutedBackground,
-                  thumbColor: colors.primary,
+                  thumbColor: Colors.white,
                   overlayColor: colors.primary.withValues(alpha: 0.12),
-                  trackHeight: 3,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  trackHeight: 4,
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 8,
+                    elevation: 2,
+                  ),
                 ),
                 child: Slider(
-                  value: widget.value.clamp(widget.min, widget.max),
+                  value: _snapToStep(
+                    widget.value,
+                  ).clamp(widget.min, widget.max),
                   min: widget.min,
                   max: widget.max,
                   divisions: (divisions != null && divisions > 0)
                       ? divisions
                       : null,
                   onChanged: (v) {
+                    final snapped = _snapToStep(v);
                     final rounded = double.parse(
-                      v.toStringAsFixed(widget.fractionDigits),
+                      snapped.toStringAsFixed(widget.fractionDigits),
                     );
                     _controller.text = _format(rounded);
                     widget.onChanged(rounded);

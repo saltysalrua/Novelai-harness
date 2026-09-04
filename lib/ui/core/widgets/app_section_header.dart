@@ -14,7 +14,10 @@ class AppSectionHeader extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.trailing,
-    this.padding = const EdgeInsets.only(bottom: AppSpacing.sm, top: AppSpacing.xs),
+    this.padding = const EdgeInsets.only(
+      bottom: AppSpacing.sm,
+      top: AppSpacing.xs,
+    ),
   });
 
   @override
@@ -43,16 +46,17 @@ class AppSectionHeader extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle!,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 11, color: colors.textSecondary),
                   ),
                 ],
               ],
             ),
           ),
-          ?trailing,
+          // 标题与尾部操作之间的安全间隔，防止长标题贴尾
+          if (trailing != null) ...[
+            const SizedBox(width: AppSpacing.md),
+            trailing!,
+          ],
         ],
       ),
     );

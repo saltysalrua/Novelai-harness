@@ -13,6 +13,12 @@ class AppSettingTile extends StatelessWidget {
   final Widget? bottomChild;
   final EdgeInsets? padding;
 
+  /// 外边距 (默认仅底部留 AppSpacing.sm 间距)
+  final EdgeInsets? margin;
+
+  /// 整行点击回调 (设置后整行可点击，光标变手型；开关行用于整行切换)
+  final VoidCallback? onTap;
+
   const AppSettingTile({
     super.key,
     required this.title,
@@ -20,9 +26,11 @@ class AppSettingTile extends StatelessWidget {
     required this.control,
     this.bottomChild,
     this.padding,
+    this.margin,
+    this.onTap,
   });
 
-  /// Switch 开关便捷工厂
+  /// Switch 开关便捷工厂 (整行可点击切换)
   factory AppSettingTile.switchTile({
     Key? key,
     required String title,
@@ -36,6 +44,7 @@ class AppSettingTile extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       bottomChild: bottomChild,
+      onTap: () => onChanged(!value),
       control: Builder(
         builder: (context) {
           final colors = context.colors;
@@ -71,21 +80,27 @@ class AppSettingTile extends StatelessWidget {
       control: Builder(
         builder: (context) {
           final colors = context.colors;
-          return OutlinedButton.icon(
-            icon: buttonIcon != null
-                ? Icon(buttonIcon, size: 14)
-                : const SizedBox.shrink(),
-            label: Text(buttonLabel),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.textPrimary,
-              side: BorderSide(color: colors.borderDefault),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
+          final buttonStyle = OutlinedButton.styleFrom(
+            foregroundColor: colors.textPrimary,
+            side: BorderSide(color: colors.borderDefault),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
-            onPressed: onPressed,
           );
+          // 无图标时不拼 SizedBox.shrink() 占位，避免按钮内多出一段空隙
+          return buttonIcon != null
+              ? OutlinedButton.icon(
+                  icon: Icon(buttonIcon, size: 14),
+                  label: Text(buttonLabel),
+                  style: buttonStyle,
+                  onPressed: onPressed,
+                )
+              : OutlinedButton(
+                  style: buttonStyle,
+                  onPressed: onPressed,
+                  child: Text(buttonLabel),
+                );
         },
       ),
     );
@@ -95,9 +110,10 @@ class AppSettingTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: padding ??
+    final Widget card = Container(
+      margin: margin ?? const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding:
+          padding ??
           const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,
             vertical: AppSpacing.md,
@@ -148,6 +164,18 @@ class AppSettingTile extends StatelessWidget {
             bottomChild!,
           ],
         ],
+      ),
+    );
+
+    // 整行可点击 (如开关行整行切换)；控件自身命中时由内部手势优先接管，
+    // 不会与外层点击形成双触发
+    if (onTap == null) return card;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: card,
       ),
     );
   }

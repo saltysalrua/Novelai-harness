@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_colors_extension.dart';
+import 'app_tokens.dart';
 
 /// BuildContext 主题与色彩扩展语法糖
 extension ThemeContextX on BuildContext {
@@ -16,4 +17,19 @@ extension ThemeContextX on BuildContext {
 
   /// 当前是否为深色模式
   bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
+
+  /// 当前主题亮度 (供 [AppShadows] 亮暗自适应阴影使用)
+  Brightness get themeBrightness => Theme.of(this).brightness;
+
+  /// 卡片微弱浮起阴影 (亮暗自适应)
+  List<BoxShadow> get shadowSubtle =>
+      AppShadows.subtle(Colors.black, brightness: themeBrightness);
+
+  /// 浮动弹出层阴影 (亮暗自适应)
+  List<BoxShadow> get shadowElevated =>
+      AppShadows.elevated(Colors.black, brightness: themeBrightness);
+
+  /// 模态弹窗阴影 (亮暗自适应)
+  List<BoxShadow> get shadowDialog =>
+      AppShadows.dialog(Colors.black, brightness: themeBrightness);
 }

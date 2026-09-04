@@ -1,0 +1,26 @@
+# Anthropic Ivory — Light (Warp)
+# 参考 geist.co/work/anthropic 视觉体系：Ivory / Book Cloth
+name: Anthropic Ivory
+accent: "#cc785c" # book-cloth 陶土
+background: "#fafaf7" # ivory-light
+foreground: "#191919" # slate-dark
+details: lighter
+terminal_colors:
+  normal:
+    black: "#f0f0eb" # ivory-medium
+    red: "#cc3f35"
+    green: "#4e8252"
+    yellow: "#a87c4a"
+    blue: "#3d7ed2"
+    magenta: "#6757c6"
+    cyan: "#3d8585"
+    white: "#666663" # cloud-dark
+  bright:
+    black: "#e5e4df" # ivory-dark
+    red: "#ef4d43"
+    green: "#6ba16f"
+    yellow: "#cc9a5f"
+    blue: "#6b9fe8"
+    magenta: "#8a7ae0"
+    cyan: "#5aa8a8"
+    white: "#40403e" # slate-light

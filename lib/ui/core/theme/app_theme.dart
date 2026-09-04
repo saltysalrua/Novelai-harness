@@ -35,7 +35,9 @@ class AppTheme {
   static const Color surfaceElevated = Color(0xFFFAFAF9);
   static const Color surfaceMuted = Color(0xFFF0EFEB);
   static const Color surfaceVariant = paperWarmth;
-  static const Color border = Color(0x14000000); // 1px hairline border (rgba(0,0,0,0.08))
+  static const Color border = Color(
+    0x14000000,
+  ); // 1px hairline border (rgba(0,0,0,0.08))
   static const Color borderSubtle = Color(0x0A000000);
   static const Color borderHover = Color(0x26000000);
 
@@ -64,13 +66,19 @@ class AppTheme {
       fontFamily: fontFamily,
       scaffoldBackgroundColor: background,
       extensions: const [AppColorsExtension.light],
-      colorScheme: const ColorScheme.light(
+      colorScheme: ColorScheme.light(
         primary: primary,
         secondary: primaryLight,
         surface: surface,
+        surfaceContainerLowest: AppColorsExtension.light.canvasBackground,
+        surfaceContainerLow: AppColorsExtension.light.mutedBackground,
+        surfaceContainer: AppColorsExtension.light.mutedBackground,
+        surfaceContainerHigh: AppColorsExtension.light.elevatedBackground,
+        surfaceContainerHighest: AppColorsExtension.light.mutedBackground,
         error: error,
         onPrimary: Colors.white,
         onSurface: textPrimary,
+        onSurfaceVariant: AppColorsExtension.light.textSecondary,
       ),
       hoverColor: Colors.transparent,
       cardTheme: CardThemeData(
@@ -91,7 +99,10 @@ class AppTheme {
         filled: true,
         fillColor: pureWhite,
         hoverColor: pureWhite,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusButton),
           borderSide: const BorderSide(color: border),
@@ -104,12 +115,16 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusButton),
           borderSide: const BorderSide(color: primary, width: 1.5),
         ),
-        hintStyle: const TextStyle(fontFamily: fontFamily, color: textMuted, fontSize: 13),
+        hintStyle: const TextStyle(
+          fontFamily: fontFamily,
+          color: textMuted,
+          fontSize: 13,
+        ),
         labelStyle: const TextStyle(fontFamily: fontFamily, fontSize: 12),
       ),
       sliderTheme: SliderThemeData(
         activeTrackColor: primary,
-        inactiveTrackColor: const Color(0xFFE6E5E3),
+        inactiveTrackColor: AppColorsExtension.light.mutedBackground,
         thumbColor: primary,
         overlayColor: primary.withValues(alpha: 0.12),
         trackHeight: 3,
@@ -162,9 +177,19 @@ class AppTheme {
         primary: darkColors.primary,
         secondary: darkColors.primaryLight,
         surface: darkColors.cardBackground,
+        // M3 原生组件 (Menu/DatePicker/Dialog) 依赖 surfaceContainer 层级取色，
+        // 缺省会回退紫色基底，与 Notion 冷灰风格撕裂
+        surfaceContainerLowest: darkColors.canvasBackground,
+        surfaceContainerLow: darkColors.cardBackground,
+        surfaceContainer: Color(0xFF242424),
+        surfaceContainerHigh: darkColors.elevatedBackground,
+        surfaceContainerHighest: darkColors.mutedBackground,
+        surfaceDim: darkColors.canvasBackground,
+        surfaceBright: Color(0xFF2E2E2E),
         error: darkColors.error,
         onPrimary: Colors.white,
         onSurface: darkColors.textPrimary,
+        onSurfaceVariant: darkColors.textSecondary,
       ),
       hoverColor: Colors.transparent,
       cardTheme: CardThemeData(
@@ -185,7 +210,10 @@ class AppTheme {
         filled: true,
         fillColor: darkColors.cardBackground,
         hoverColor: darkColors.cardBackground,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusButton),
           borderSide: BorderSide(color: darkColors.borderDefault),
@@ -198,7 +226,11 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusButton),
           borderSide: BorderSide(color: darkColors.primary, width: 1.5),
         ),
-        hintStyle: TextStyle(fontFamily: fontFamily, color: darkColors.textMuted, fontSize: 13),
+        hintStyle: TextStyle(
+          fontFamily: fontFamily,
+          color: darkColors.textMuted,
+          fontSize: 13,
+        ),
         labelStyle: const TextStyle(fontFamily: fontFamily, fontSize: 12),
       ),
       sliderTheme: SliderThemeData(

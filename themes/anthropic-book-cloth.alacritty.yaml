@@ -1,0 +1,32 @@
+# Anthropic Book Cloth — Dark (Alacritty colors)
+# 用法: 在 alacritmy.toml / alacritty.yml 里
+#   import = ["themes/anthropic-book-cloth.alacritty.yaml"]
+# (旧版 YAML 配置直接合并此 colors 段即可)
+colors:
+  primary:
+    background: "#191919" # slate-dark
+    foreground: "#fafaf7" # ivory-light
+  cursor:
+    cursor: "#cc785c" # book-cloth 陶土光标
+    text: "#191919"
+  selection:
+    background: "#ebdbbc" # manilla 选区 (对齐官网 ::selection)
+    text: "#191919" # slate-dark
+  normal:
+    black: "#262625" # slate-medium
+    red: "#ef4d43" # error
+    green: "#7d9b6e" # sage
+    yellow: "#d4a27f" # kraft
+    blue: "#75a9f2" # link
+    magenta: "#7d69d4" # violet
+    cyan: "#70a3a1" # gray-teal
+    white: "#bfbfba" # cloud-light
+  bright:
+    black: "#40403e" # slate-light
+    red: "#f2857a"
+    green: "#a0bd8f"
+    yellow: "#ebdbbc" # manilla
+    blue: "#a3c4f7"
+    magenta: "#a396ea"
+    cyan: "#9cc7c5"
+    white: "#fafaf7" # ivory-light

@@ -167,7 +167,7 @@ abstract class AppLocalizations {
   /// No description provided for @tabLibrary.
   ///
   /// In zh, this message translates to:
-  /// **'词组合库'**
+  /// **'词库'**
   String get tabLibrary;
 
   /// No description provided for @history.
