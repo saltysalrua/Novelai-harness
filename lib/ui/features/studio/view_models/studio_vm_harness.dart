@@ -21,22 +21,25 @@ mixin _StudioHarnessMixin on _StudioCore {
         onBeforeGenerate: () => agentWasViewingLatest = isViewingLatest,
         onProgress: (progress) {
           if (progress.isFinal) {
-            _livePreviewBytes = null;
-            _liveProgress = 1.0;
+            _liveProgressController.complete();
           } else {
-            _isGenerating = true;
-            _livePreviewBytes = progress.previewImage;
-            _liveCurrentStep = progress.currentStep;
-            _liveTotalSteps = progress.totalSteps;
-            _liveProgress = progress.progress;
-            _statusMessage =
-                '生成中 · 步数: $_liveCurrentStep / $_liveTotalSteps (${(_liveProgress * 100).toInt()}%)';
+            // 首帧把生成中状态点亮 (结构变化全局通知一次)，
+            // 后续中间帧只驱动画板占位卡/缩略图/按钮局部刷新
+            if (!_isGenerating) {
+              _isGenerating = true;
+              notifyListeners();
+            }
+            _liveProgressController.updateFrame(
+              previewBytes: progress.previewImage,
+              currentStep: progress.currentStep,
+              totalSteps: progress.totalSteps,
+              progress: progress.progress,
+            );
           }
-          notifyListeners();
         },
         onGenerated: (image) {
           _isGenerating = false;
-          _livePreviewBytes = null;
+          _liveProgressController.clear();
           _applyGeneratedImage(
             image,
             // 发起前在看最新，或生成期间滚回顶部看预览，都视为正在看最新
@@ -69,22 +72,25 @@ mixin _StudioHarnessMixin on _StudioCore {
         onBeforeGenerate: () => agentWasViewingLatest = isViewingLatest,
         onProgress: (progress) {
           if (progress.isFinal) {
-            _livePreviewBytes = null;
-            _liveProgress = 1.0;
+            _liveProgressController.complete();
           } else {
-            _isGenerating = true;
-            _livePreviewBytes = progress.previewImage;
-            _liveCurrentStep = progress.currentStep;
-            _liveTotalSteps = progress.totalSteps;
-            _liveProgress = progress.progress;
-            _statusMessage =
-                '修复中 · 步数: $_liveCurrentStep / $_liveTotalSteps (${(_liveProgress * 100).toInt()}%)';
+            // 首帧把生成中状态点亮 (结构变化全局通知一次)，
+            // 后续中间帧只驱动画板占位卡/缩略图/按钮局部刷新
+            if (!_isGenerating) {
+              _isGenerating = true;
+              notifyListeners();
+            }
+            _liveProgressController.updateFrame(
+              previewBytes: progress.previewImage,
+              currentStep: progress.currentStep,
+              totalSteps: progress.totalSteps,
+              progress: progress.progress,
+            );
           }
-          notifyListeners();
         },
         onGenerated: (image) {
           _isGenerating = false;
-          _livePreviewBytes = null;
+          _liveProgressController.clear();
           _applyGeneratedImage(
             image,
             wasViewingLatest: agentWasViewingLatest || isViewingLatest,
@@ -104,7 +110,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         onBeforeGenerate: () => agentWasViewingLatest = isViewingLatest,
         onGenerated: (image) {
           _isGenerating = false;
-          _livePreviewBytes = null;
+          _liveProgressController.clear();
           _applyGeneratedImage(
             image,
             wasViewingLatest: agentWasViewingLatest || isViewingLatest,

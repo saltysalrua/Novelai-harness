@@ -373,10 +373,7 @@ class ViewCanvasImageTool extends AgentTool {
     }
 
     final targetImage = history[index];
-    final rawBytes = targetImage.bytes;
-    final imageBytes = rawBytes is Uint8List
-        ? rawBytes
-        : Uint8List.fromList(rawBytes);
+    final imageBytes = targetImage.bytes;
 
     final params = targetImage.params;
     final withOverlay = args['with_overlay'] is bool

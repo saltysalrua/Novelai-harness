@@ -210,6 +210,49 @@ void main() {
       expect(moved.height, closeTo(created.height, 1e-6));
     });
 
+    testWidgets('框选工具：四角手柄拖拽缩放选区期间不更新 ViewModel，手势结束才提交', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              height: 600,
+              child: InpaintRepairCanvas(viewModel: viewModel),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 先通过框选创建一个选区 (屏幕坐标 196,124 到 296,224)
+      final marquee = await tester.startGesture(const Offset(196, 124));
+      await marquee.moveBy(const Offset(100, 100));
+      await tester.pump();
+      await marquee.up();
+      await tester.pumpAndSettle();
+
+      final initialRect = viewModel.inpaintParams.selectionRect!;
+      final handleFinder = find.byKey(const ValueKey('inpaint-handle-2')); // BR handle
+      expect(handleFinder, findsOneWidget);
+
+      // 拖拽右下角手柄缩放
+      final handleCenter = tester.getCenter(handleFinder);
+      final handleDrag = await tester.startGesture(handleCenter);
+      await handleDrag.moveBy(const Offset(50, 50));
+      await tester.pump();
+
+      // 拖拽中：ViewModel 保持原选区，不触发频繁更新 (图层隔离)
+      expect(viewModel.inpaintParams.selectionRect, equals(initialRect));
+
+      // 拖拽结束：提交新选区至 ViewModel
+      await handleDrag.up();
+      await tester.pumpAndSettle();
+
+      final resizedRect = viewModel.inpaintParams.selectionRect!;
+      expect(resizedRect.right, greaterThan(initialRect.right));
+      expect(resizedRect.bottom, greaterThan(initialRect.bottom));
+    });
+
     testWidgets('画笔工具：自由绘制提交描边，橡皮可擦除', (tester) async {
       await tester.pumpWidget(
         MaterialApp(

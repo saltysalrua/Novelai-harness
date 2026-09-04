@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/llm_model_fetcher.dart';
@@ -634,7 +635,7 @@ void main() {
       const params = NaiGenerationParams(prompt: '1girl');
       final upscaled = NaiGeneratedImage(
         id: 'img_up',
-        bytes: [1, 2, 3],
+        bytes: Uint8List.fromList([1, 2, 3]),
         params: params,
         createdAt: DateTime(2026, 12, 1),
         seed: 42,
@@ -653,7 +654,7 @@ void main() {
       expect(repaired.historyBadgeLabel, equals('修复'));
       final normal = NaiGeneratedImage(
         id: 'img_n',
-        bytes: const [],
+        bytes: Uint8List(0),
         params: params,
         createdAt: DateTime(2026, 12, 2),
         seed: -1,

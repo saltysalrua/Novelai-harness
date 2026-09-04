@@ -872,9 +872,11 @@ mixin _StudioAnnotationsMixin on _StudioCore {
         bData.imageNodes.where((n) => n.isMain).firstOrNull ??
         bData.imageNodes.firstOrNull;
     if (mainNode != null) {
+      final mainBytes =
+          await ensureImageLoaded(mainNode.image) ?? mainNode.image.uint8Bytes;
       try {
         final renderRes = await renderImageWithAnnotationOverlay(
-          mainNode.image.uint8Bytes,
+          mainBytes,
           mainNode.annotations,
         );
         // 压缩到最长边 1024px 控制视觉 Token (文字批注同时以文本形式附在消息里)
@@ -886,7 +888,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
           ),
         );
       } catch (_) {
-        final payload = await compressVisionImage(mainNode.image.uint8Bytes);
+        final payload = await compressVisionImage(mainBytes);
         messageImages.add(
           AgentMessageImage(
             base64: base64Encode(payload.bytes),
@@ -905,7 +907,9 @@ mixin _StudioAnnotationsMixin on _StudioCore {
           .firstOrNull;
       if (refNode == null) continue;
       linkedRefIds.add(link.sourceImageId);
-      final payload = await compressVisionImage(refNode.image.uint8Bytes);
+      final refBytes =
+          await ensureImageLoaded(refNode.image) ?? refNode.image.uint8Bytes;
+      final payload = await compressVisionImage(refBytes);
       messageImages.add(
         AgentMessageImage(
           base64: base64Encode(payload.bytes),

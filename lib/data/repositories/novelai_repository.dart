@@ -1,22 +1,84 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Rect;
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import '../models/novelai_models.dart';
 import '../services/anlas_calculator.dart';
 import '../services/image_metadata_service.dart';
 import '../services/inpaint_service.dart';
+import '../services/isolated_compute.dart';
 import '../services/skia_image_codec.dart';
 import '../services/watermark_service.dart';
 import '../services/novelai_service.dart';
 import '../services/image_edit_service.dart';
 
+/// 在独立 isolate 中为持久化历史图片后台生成 ≤240px 缩略图
+Map<String, Uint8List> _generateThumbnailsIsolate(
+  List<Map<String, String>> tasks,
+) {
+  final result = <String, Uint8List>{};
+  for (final task in tasks) {
+    final id = task['id'];
+    final path = task['path'];
+    if (id == null || path == null) continue;
+    try {
+      final file = File(path);
+      if (!file.existsSync()) continue;
+      final bytes = file.readAsBytesSync();
+      if (bytes.isEmpty) continue;
+
+      // 小于 50KB 的小型图直接复用为缩略图
+      if (bytes.lengthInBytes <= 50 * 1024) {
+        result[id] = bytes;
+        continue;
+      }
+
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        result[id] = bytes;
+        continue;
+      }
+
+      if (decoded.width <= 240 && decoded.height <= 240) {
+        result[id] = bytes;
+        continue;
+      }
+
+      final int targetWidth;
+      final int targetHeight;
+      if (decoded.width >= decoded.height) {
+        targetWidth = 240;
+        targetHeight =
+            (240 * decoded.height / decoded.width).round().clamp(1, 240);
+      } else {
+        targetHeight = 240;
+        targetWidth =
+            (240 * decoded.width / decoded.height).round().clamp(1, 240);
+      }
+
+      final resized = img.copyResize(
+        decoded,
+        width: targetWidth,
+        height: targetHeight,
+        interpolation: img.Interpolation.linear,
+      );
+      result[id] = Uint8List.fromList(img.encodePng(resized));
+    } catch (_) {}
+  }
+  return result;
+}
+
 class NovelAiRepository {
   final NovelAiService _service;
   final ImageEditService _imageEditService;
   final List<NaiGeneratedImage> _history = [];
+  static const int maxLruCacheSize = 5;
+  final LinkedHashMap<String, Uint8List> _lruImageCache =
+      LinkedHashMap<String, Uint8List>();
 
   NovelAiRepository({
     NovelAiService? service,
@@ -25,6 +87,44 @@ class NovelAiRepository {
        _imageEditService = imageEditService ?? ImageEditService();
 
   List<NaiGeneratedImage> get history => List.unmodifiable(_history);
+
+  /// 当前 LRU 大图缓存快照 (供测试与诊断观察)
+  Map<String, Uint8List> get lruImageCache =>
+      UnmodifiableMapView(_lruImageCache);
+
+  /// 将大图字节存入 LRU 缓存头部 (MRU)
+  void _cacheImageBytes(String id, Uint8List bytes) {
+    if (bytes.isEmpty) return;
+    _lruImageCache.remove(id);
+    _lruImageCache[id] = bytes;
+    if (_lruImageCache.length > maxLruCacheSize) {
+      _lruImageCache.remove(_lruImageCache.keys.first);
+    }
+  }
+
+  /// 按需异步加载历史大图完整字节 (优先内存 LRU 缓存，未命中时按磁盘路径加载)
+  Future<Uint8List?> loadHistoryImageBytes(NaiGeneratedImage image) async {
+    if (image.bytes.isNotEmpty) {
+      _cacheImageBytes(image.id, image.bytes);
+      return image.bytes;
+    }
+    final cached = _lruImageCache.remove(image.id);
+    if (cached != null) {
+      _lruImageCache[image.id] = cached;
+      return cached;
+    }
+    final filePath = image.localFilePath;
+    if (filePath == null || filePath.isEmpty) return null;
+    final file = File(filePath);
+    if (!file.existsSync()) return null;
+    try {
+      final bytes = await file.readAsBytes();
+      _cacheImageBytes(image.id, bytes);
+      return bytes;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// 大画布布局持久化文件名 (与图片历史同目录)
   static const String kBoardLayoutFileName = 'canvas_board.json';
@@ -46,7 +146,7 @@ class NovelAiRepository {
         p.equals(p.dirname(filePath), p.normalize(cacheDir));
   }
 
-  /// 从本地存储目录加载持久化的图像历史记录
+  /// 从本地存储目录加载持久化的图像历史记录 (仅读 JSON 元信息 + 后台生成缩略图，大图按需懒加载)
   Future<List<NaiGeneratedImage>> loadPersistedHistory({
     required String saveDir,
     int maxImages = 50,
@@ -61,20 +161,38 @@ class NovelAiRepository {
       final content = await historyFile.readAsString();
       final decoded = jsonDecode(content);
       if (decoded is List) {
+        final validEntries = <Map<String, dynamic>>[];
+        final tasks = <Map<String, String>>[];
+
         for (final item in decoded) {
-          if (_history.length >= maxImages) break;
+          if (validEntries.length >= maxImages) break;
           if (item is Map<String, dynamic>) {
             final filePath = item['localFilePath'] as String?;
             if (filePath != null && filePath.isNotEmpty) {
               final imgFile = File(filePath);
               if (imgFile.existsSync()) {
-                try {
-                  final bytes = await imgFile.readAsBytes();
-                  _history.add(NaiGeneratedImage.fromJson(item, bytes: bytes));
-                } catch (_) {}
+                validEntries.add(item);
+                final id = item['id'] as String? ?? '';
+                tasks.add({'id': id, 'path': filePath});
               }
             }
           }
+        }
+
+        final thumbnails = tasks.isNotEmpty
+            ? await runIsolated(_generateThumbnailsIsolate, tasks)
+            : <String, Uint8List>{};
+
+        for (final item in validEntries) {
+          final id = item['id'] as String? ?? '';
+          final thumb = thumbnails[id];
+          _history.add(
+            NaiGeneratedImage.fromJson(
+              item,
+              bytes: Uint8List(0),
+              thumbnailBytes: thumb,
+            ),
+          );
         }
       }
     } catch (_) {}
@@ -154,9 +272,11 @@ class NovelAiRepository {
     bool isInpainted = false,
     bool isAiEdited = false,
   }) {
+    final uBytes = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+    _cacheImageBytes(id, uBytes);
     final image = NaiGeneratedImage(
       id: id,
-      bytes: bytes,
+      bytes: uBytes,
       localFilePath: filePath,
       params: params,
       createdAt: DateTime.now(),
@@ -870,9 +990,12 @@ class NovelAiRepository {
     Uint8List? watermarkBytes,
     bool autoSave = true,
   }) async {
+    final srcBytes = sourceImage.bytes.isNotEmpty
+        ? sourceImage.bytes
+        : (await loadHistoryImageBytes(sourceImage) ?? sourceImage.bytes);
     final upscaledBytes = await _service.upscaleImage(
       apiKey: apiKey,
-      imageBytes: Uint8List.fromList(sourceImage.bytes),
+      imageBytes: srcBytes,
     );
 
     // 新超分不再接受 scale 参数：以解码出的真实输出尺寸为准
@@ -910,7 +1033,7 @@ class NovelAiRepository {
       List<int> fileBytes = upscaledBytes;
       if (needsProcessing) {
         fileBytes = await WatermarkService.processExportImage(
-          rawBytes: Uint8List.fromList(upscaledBytes),
+          rawBytes: upscaledBytes,
           stripMetadata: stripMetadata,
           enableWatermark: enableWatermark,
           watermarkConfig: watermarkConfig,
@@ -936,6 +1059,7 @@ class NovelAiRepository {
     );
 
     _history.insert(0, upscaledImage);
+    _cacheImageBytes(upscaledImage.id, upscaledBytes);
 
     if (enablePersistence && saveDir.isNotEmpty) {
       await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
@@ -969,7 +1093,9 @@ class NovelAiRepository {
     final now = DateTime.now();
     final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
     final baseName = 'nai_${timeStr}_${image.seed}';
-    final rawBytes = Uint8List.fromList(image.bytes);
+    final rawBytes = image.bytes.isNotEmpty
+        ? image.bytes
+        : (await loadHistoryImageBytes(image) ?? image.bytes);
 
     final needsProcessing =
         stripMetadata ||
@@ -1007,8 +1133,13 @@ class NovelAiRepository {
       }
     }
 
-    final updated = image.copyWith(localFilePath: filePath, isUnsaved: false);
+    final updated = image.copyWith(
+      bytes: rawBytes,
+      localFilePath: filePath,
+      isUnsaved: false,
+    );
     _history[index] = updated;
+    _cacheImageBytes(updated.id, rawBytes);
 
     if (enablePersistence) {
       await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
@@ -1073,10 +1204,11 @@ class NovelAiRepository {
         'nai_ref_${timeStr}_${now.millisecondsSinceEpoch % 10000}$ext';
 
     final filePath = _writeImageFile(saveDir, fileName, bytes);
+    final uBytes = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
 
     final image = NaiGeneratedImage(
       id: 'ref_${now.millisecondsSinceEpoch}',
-      bytes: bytes,
+      bytes: uBytes,
       localFilePath: filePath,
       params: NaiGenerationParams(
         prompt: '导入参考图',
@@ -1090,6 +1222,7 @@ class NovelAiRepository {
     );
 
     _history.insert(0, image);
+    _cacheImageBytes(image.id, uBytes);
 
     if (enablePersistence && saveDir.isNotEmpty) {
       await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
@@ -1109,6 +1242,7 @@ class NovelAiRepository {
     final index = _history.indexWhere((img) => img.id == imageId);
     if (index < 0) return false;
 
+    _lruImageCache.remove(imageId);
     final removedImage = _history.removeAt(index);
 
     if (deleteLocalFile &&
@@ -1131,6 +1265,7 @@ class NovelAiRepository {
   /// 清理历史 (传 saveDir 时一并删除持久化索引文件)
   void clearHistory({String? saveDir}) {
     _history.clear();
+    _lruImageCache.clear();
     if (saveDir != null && saveDir.isNotEmpty) {
       final historyFile = File(p.join(saveDir, 'image_history.json'));
       if (historyFile.existsSync()) {
@@ -1344,5 +1479,8 @@ class NovelAiRepository {
   @visibleForTesting
   void addImageForTesting(NaiGeneratedImage image) {
     _history.insert(0, image);
+    if (image.bytes.isNotEmpty) {
+      _cacheImageBytes(image.id, image.bytes);
+    }
   }
 }

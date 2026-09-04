@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Uint8List;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../../../core/harness/types.dart';
 import '../../../core/theme/app_theme.dart';
@@ -90,11 +89,11 @@ class UserMessageRow extends StatelessWidget {
                 children: [
                   for (final img in images)
                     ChatImageThumbnail(
-                      bytes: Uint8List.fromList(base64Decode(img.base64)),
+                      bytes: img.bytes,
                       size: 72,
                       onTap: () => showImageLightboxBytes(
                         context,
-                        Uint8List.fromList(base64Decode(img.base64)),
+                        img.bytes,
                       ),
                     ),
                 ],
@@ -304,9 +303,7 @@ class ToolResultBlock extends StatelessWidget {
               padding: const EdgeInsets.only(top: 6, bottom: 2),
               child: Builder(
                 builder: (context) {
-                  final bytes = Uint8List.fromList(
-                    base64Decode(message.imageBase64!),
-                  );
+                  final bytes = message.imageBytes!;
                   final panelWidth = MediaQuery.sizeOf(context).width;
                   final dpr = MediaQuery.devicePixelRatioOf(context);
                   // 对话卡面板宽度为窗口的一小部分，钳到安全上限保留清晰度

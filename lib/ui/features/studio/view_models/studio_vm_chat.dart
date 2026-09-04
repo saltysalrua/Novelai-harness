@@ -2,37 +2,10 @@ part of 'studio_view_model.dart';
 
 /// 对话流 / ask_user 提问 / 付费确认 / Token 用量记录
 mixin _StudioChatMixin on _StudioCore {
-  /// 流式增量通知节流计时器：Thought/Content 增量按 ~40ms 批量刷新，
-  /// 避免每个 token 触发一次全工作台重建导致的掉帧。
-  Timer? _streamNotifyTimer;
-  bool _streamNotifyPending = false;
-
-  /// 流式增量专用：合并 40ms 窗口内的连续增量后统一 notifyListeners
-  void _notifyStreamDelta() {
-    _streamNotifyPending = true;
-    final timer = _streamNotifyTimer;
-    if (timer == null || !timer.isActive) {
-      _streamNotifyTimer = Timer(
-        const Duration(milliseconds: 40),
-        _flushStreamDeltaNotify,
-      );
-    }
-  }
-
-  void _flushStreamDeltaNotify() {
-    _streamNotifyTimer = null;
-    if (!_streamNotifyPending) return;
-    _streamNotifyPending = false;
-    notifyListeners();
-  }
-
-  /// 立即刷新：取消挂起的节流批次，保证状态即时可见
-  void _notifyNow() {
-    _streamNotifyTimer?.cancel();
-    _streamNotifyTimer = null;
-    _streamNotifyPending = false;
-    notifyListeners();
-  }
+  /// 立即全局刷新：仅用于低频结构变化 (消息列表变更 / 流开始结束 / 错误等)。
+  /// 思考链与正文的高频增量由 [streamingText] 控制器局部刷新，
+  /// 不再触发全工作台 notifyListeners()。
+  void _notifyNow() => notifyListeners();
 
   /// 当前 Agent 对话草稿输入文本
   String get chatDraft => _chatDraft;
@@ -86,9 +59,7 @@ mixin _StudioChatMixin on _StudioCore {
 
     // 2. 正常 Agent 对话循环 (发出前记录参数快照，供回溯时回滚)
     _isChatStreaming = true;
-    _currentStreamingThoughts = '';
-    _currentStreamingContent = '';
-    _streamingRetryNotice = null;
+    _streamingText.reset();
     _errorMessage = null;
     _paramJournal.record(_params);
     notifyListeners();
@@ -105,25 +76,24 @@ mixin _StudioChatMixin on _StudioCore {
       _chatSubscription = stream.listen(
         (event) {
           if (event is ThoughtDeltaEvent) {
-            _currentStreamingThoughts += event.delta;
-            _notifyStreamDelta();
+            // 高频增量：只驱动对话气泡局部刷新 (40ms 批量)
+            _streamingText.appendThoughts(event.delta);
           } else if (event is ContentDeltaEvent) {
-            _currentStreamingContent += event.delta;
-            _notifyStreamDelta();
+            _streamingText.appendContent(event.delta);
           } else if (event is TurnStartEvent) {
             // 工具循环每轮开始：清空流式气泡，上一轮正文已作为独立消息
             // 落入列表，若不清会把上一轮文本残留拼进本轮造成“重复语句”
-            _currentStreamingThoughts = '';
-            _currentStreamingContent = '';
-            _streamingRetryNotice = null;
+            _streamingText.reset();
+            // 上一轮消息已定稿入列，消息列表结构变化需全局通知
             notifyListeners();
           } else if (event is RetryEvent) {
             // 瞬态错误自动重试：在流式气泡顶部提示用户，等待退避后重发
-            _streamingRetryNotice =
-                '请求失败自动重试 (${event.attempt}/${event.maxAttempts}): '
-                '${event.reason} · '
-                '${event.delay.inSeconds > 0 ? '${event.delay.inSeconds} 秒后' : '即将'}重试';
-            _notifyNow();
+            // (低频但即时可见，局部立即刷新)
+            _streamingText.setNotice(
+              '请求失败自动重试 (${event.attempt}/${event.maxAttempts}): '
+              '${event.reason} · '
+              '${event.delay.inSeconds > 0 ? '${event.delay.inSeconds} 秒后' : '即将'}重试',
+            );
           } else if (event is UsageEvent) {
             _recordModelUsage(event.usage);
           } else if (event is CompactionEvent) {
@@ -154,9 +124,7 @@ mixin _StudioChatMixin on _StudioCore {
     } finally {
       _chatSubscription = null;
       _isChatStreaming = false;
-      _currentStreamingThoughts = '';
-      _currentStreamingContent = '';
-      _streamingRetryNotice = null;
+      _streamingText.reset();
       await refreshSessions();
       _notifyNow();
     }
@@ -169,9 +137,7 @@ mixin _StudioChatMixin on _StudioCore {
     await _chatSubscription?.cancel();
     _chatSubscription = null;
     _isChatStreaming = false;
-    _currentStreamingThoughts = '';
-    _currentStreamingContent = '';
-    _streamingRetryNotice = null;
+    _streamingText.reset();
     _statusMessage = '已强制终止当前生成';
     _notifyNow();
   }

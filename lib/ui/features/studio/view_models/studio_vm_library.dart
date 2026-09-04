@@ -65,11 +65,12 @@ mixin _StudioLibraryMixin on _StudioCore {
 
   /// 获取当前画板图片字节用于预览图 (若存在)
   Uint8List? getCurrentCanvasImageBytes() {
-    final imgBytes = _selectedImage?.bytes;
-    if (imgBytes != null) {
-      return imgBytes is Uint8List ? imgBytes : Uint8List.fromList(imgBytes);
+    final img = _selectedImage;
+    if (img != null) {
+      final b = getImageBytes(img);
+      if (b != null && b.isNotEmpty) return b;
     }
-    return _livePreviewBytes;
+    return _liveProgressController.previewBytes;
   }
 
   /// 将词组合应用到工作台

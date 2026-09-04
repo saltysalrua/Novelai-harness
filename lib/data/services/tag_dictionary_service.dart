@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -114,14 +116,172 @@ DanbooruTagCategory _inferCategory(String tag) {
   return DanbooruTagCategory.general;
 }
 
+// ==================== 后台检索 Isolate (阶段2 性能治理) ====================
+//
+// 32 万词条的线性扫描逐次检索不再占用 UI 主线程：常驻 worker isolate
+// 持有词条全量引用 (同 isolate 组内按引用共享，近零拷贝)，主线程把
+// 查询词发过去，扫描完成后回传 top-N 结果。worker 不可用时 (启动失败/
+// 测试 FakeAsync 环境) 自动退回主线程同步扫描，行为完全兼容。
+
+/// worker 初始化消息：携带词条全量与回投端口
+class _SearchInit {
+  final List<_DictEntry> entries;
+  final SendPort replyPort;
+  const _SearchInit(this.entries, this.replyPort);
+}
+
+/// 词库热替换消息 (在线更新完成后同步新词条给 worker)
+class _SearchReplace {
+  final List<_DictEntry> entries;
+  const _SearchReplace(this.entries);
+}
+
+/// 一次检索请求
+class _SearchQuery {
+  final int id;
+  final String rawQuery;
+  final DanbooruTagCategory? category;
+  final int limit;
+  const _SearchQuery(this.id, this.rawQuery, this.category, this.limit);
+}
+
+/// 检索回投结果
+class _SearchReply {
+  final int id;
+  final List<TagSuggestion> results;
+  const _SearchReply(this.id, this.results);
+}
+
+/// 常驻检索 isolate 主入口：持有词条引用，逐请求线性扫描
+void _searchIsolateMain(_SearchInit init) {
+  var entries = init.entries;
+  final command = ReceivePort();
+  init.replyPort.send(command.sendPort);
+  command.listen((message) {
+    if (message is _SearchQuery) {
+      List<TagSuggestion> results = const [];
+      try {
+        results = _scanEntries(
+          entries,
+          message.rawQuery,
+          category: message.category,
+          limit: message.limit,
+        );
+      } catch (_) {}
+      init.replyPort.send(_SearchReply(message.id, results));
+    } else if (message is _SearchReplace) {
+      entries = message.entries;
+    }
+  });
+}
+
+/// 词条线性扫描与打分 (后台 isolate 与主线程兑底共用同一实现)
+List<TagSuggestion> _scanEntries(
+  List<_DictEntry> entries,
+  String rawQ, {
+  DanbooruTagCategory? category,
+  int limit = 10,
+}) {
+  final qUnderscore = rawQ.replaceAll(' ', '_');
+  final qSpace = rawQ.replaceAll('_', ' ');
+  final isCjk = rawQ.runes.any((r) => r >= 0x4E00 && r <= 0x9FFF);
+
+  final matches = <TagSuggestion>[];
+
+  for (final e in entries) {
+    if (category != null && e.category != category) continue;
+
+    final tagUnder = e.tagLower;
+    final tagSpace = e.tagSpaced;
+    final zh = e.zhLower;
+
+    double score = 0.0;
+    String? matchedAlias;
+
+    if (isCjk) {
+      // 中文查询模式
+      if (zh.startsWith(rawQ)) {
+        score = 1000.0;
+      } else if (zh.contains(rawQ)) {
+        score = 600.0;
+      }
+    } else {
+      // 英文 / 拼音 / 别名查询模式
+      if (tagUnder == qUnderscore || tagSpace == qSpace) {
+        score = 1500.0; // 完全精确匹配
+      } else if (tagUnder.startsWith(qUnderscore) ||
+          tagSpace.startsWith(qSpace)) {
+        score = 1000.0; // 前缀命中
+      } else if (tagUnder.contains(qUnderscore) ||
+          tagSpace.contains(qSpace)) {
+        score = 400.0; // 包含命中
+      } else if (zh.contains(rawQ)) {
+        score = 300.0; // 包含匹配中文
+      } else {
+        // 别名匹配
+        for (final a in e.aliases) {
+          final aLower = a.toLowerCase();
+          if (aLower.startsWith(rawQ) || aLower.startsWith(qUnderscore)) {
+            score = 800.0;
+            matchedAlias = a;
+            break;
+          } else if (aLower.contains(rawQ)) {
+            score = 250.0;
+            matchedAlias = a;
+            break;
+          }
+        }
+      }
+    }
+
+    if (score > 0) {
+      // 叠加基于热度的对数提升分数
+      final popularityBoost = e.count > 0
+          ? (math.log(e.count + 1) * 8.0)
+          : 0.0;
+      final totalScore = score + popularityBoost;
+
+      matches.add(
+        TagSuggestion(
+          tag: tagSpace,
+          category: e.category,
+          postCount: e.count,
+          translation: e.zh,
+          aliases: e.aliases,
+          matchedAlias: matchedAlias,
+          score: totalScore,
+        ),
+      );
+    }
+  }
+
+  matches.sort((a, b) => b.score.compareTo(a.score));
+  return matches.take(limit).toList();
+}
+
 /// Danbooru 本地离线标签词典服务 (单例模式)
 class TagDictionaryService {
   static final TagDictionaryService instance = TagDictionaryService._();
   TagDictionaryService._();
 
+  /// 后台检索 Isolate 开关：
+  /// 生产环境默认开启 (32 万条扫描不占 UI 主线程)；
+  /// widget 测试的 FakeAsync 环境无法处理真实 Isolate 回投，
+  /// 相关测试在 setUp 中置 false 退回主线程同步扫描。
+  static bool backgroundSearchEnabled = true;
+
   List<_DictEntry>? _entries;
   final Map<String, String> _tagToZh = {};
   final Map<String, DanbooruTagCategory> _tagToCat = {};
+
+  // ---- 后台检索 worker isolate 状态 ----
+  ReceivePort? _workerPort;
+  SendPort? _workerCommandPort;
+  Isolate? _workerIsolate;
+  Future<void>? _workerBoot;
+  bool _workerBroken = false;
+  final Map<int, Completer<List<TagSuggestion>>> _pendingSearches = {};
+  int _searchSeq = 0;
 
   Future<void>? _loadingFuture;
   bool get isLoaded => _entries != null;
@@ -131,7 +291,7 @@ class TagDictionaryService {
   static const int _cacheCapacity = 500;
   final Map<String, List<TagSuggestion>> _queryCache = {};
 
-  /// 预热并异步加载词库
+  /// 预热并异步加载词库 (加载完成后顺手预热后台检索 worker)
   Future<void> ensureLoaded({String? rawTsvContent}) async {
     if (_entries != null) return;
     return _loadingFuture ??= _load(rawTsvContent);
@@ -148,6 +308,8 @@ class TagDictionaryService {
     _entries = parsed;
     _queryCache.clear();
     _rebuildLookupMaps(parsed);
+    // 后台 worker 同步持有新词条引用
+    _workerCommandPort?.send(_SearchReplace(parsed));
   }
 
   Future<void> _load(String? rawContent) async {
@@ -163,6 +325,8 @@ class TagDictionaryService {
       final parsed = await runIsolated(_parseDanbooruTsv, raw);
       _entries = parsed;
       _rebuildLookupMaps(parsed);
+      // 预热常驻检索 worker (失败静默，后续检索自动主线程兑底)
+      unawaited(_ensureSearchWorker());
     } catch (e) {
       debugPrint('[TagDictionaryService] 词库加载失败或资产未找到: $e');
       _entries = [];
@@ -194,6 +358,107 @@ class TagDictionaryService {
     return _tagToCat[key];
   }
 
+  // ==================== 后台检索 worker 管理 ====================
+
+  /// 确保后台检索 worker 已就绪 (幂等；不可用时不做任何事)
+  Future<void> _ensureSearchWorker() async {
+    if (!backgroundSearchEnabled || _workerBroken) return;
+    if (_workerCommandPort != null) return;
+    final entries = _entries;
+    if (entries == null || entries.isEmpty) return;
+    final boot = _workerBoot ??= _bootSearchWorker(entries);
+    await boot;
+    _workerBoot = null;
+  }
+
+  /// 启动常驻检索 isolate 并等待指令端口就绪
+  Future<void> _bootSearchWorker(List<_DictEntry> entries) async {
+    final port = ReceivePort();
+    final errorPort = ReceivePort();
+    final ready = Completer<void>();
+
+    Isolate? spawned;
+    try {
+      spawned = await Isolate.spawn(
+        _searchIsolateMain,
+        _SearchInit(entries, port.sendPort),
+        onError: errorPort.sendPort,
+      );
+    } catch (e) {
+      debugPrint('[TagDictionaryService] 检索 isolate 启动失败，回退主线程: $e');
+      _workerBroken = true;
+      port.close();
+      errorPort.close();
+      return;
+    }
+
+    _workerIsolate = spawned;
+    _workerPort = port;
+    port.listen((message) {
+      if (message is SendPort) {
+        _workerCommandPort = message;
+        if (!ready.isCompleted) ready.complete();
+      } else if (message is _SearchReply) {
+        final completer = _pendingSearches.remove(message.id);
+        if (completer != null && !completer.isCompleted) {
+          completer.complete(message.results);
+        }
+      }
+    });
+    errorPort.listen((_) => _failSearchWorker());
+
+    // 就绪等待保险丝：超时则永久回退主线程 (正常情况下毫秒级就绪)
+    try {
+      await ready.future.timeout(const Duration(seconds: 2));
+    } on TimeoutException {
+      debugPrint('[TagDictionaryService] 检索 isolate 就绪超时，回退主线程');
+      _failSearchWorker();
+    }
+  }
+
+  /// worker 损坏：终后续检索全部主线程兑底，唤醒挂起请求
+  void _failSearchWorker() {
+    if (_workerBroken) return;
+    _workerBroken = true;
+    _workerCommandPort = null;
+    _workerPort?.close();
+    _workerPort = null;
+    _workerIsolate?.kill(priority: Isolate.immediate);
+    _workerIsolate = null;
+    final pending = List.of(_pendingSearches.values);
+    _pendingSearches.clear();
+    for (final c in pending) {
+      if (!c.isCompleted) c.completeError(StateError('检索 isolate 不可用'));
+    }
+  }
+
+  /// 经后台 worker 检索：返回 null 表示不可用/超时，调用方主线程兑底
+  Future<List<TagSuggestion>?> _searchViaWorker(
+    String rawQ,
+    DanbooruTagCategory? category,
+    int limit,
+  ) async {
+    if (!backgroundSearchEnabled || _workerBroken) return null;
+    try {
+      await _ensureSearchWorker();
+      final command = _workerCommandPort;
+      if (command == null) return null;
+
+      final id = ++_searchSeq;
+      final completer = Completer<List<TagSuggestion>>();
+      _pendingSearches[id] = completer;
+      command.send(_SearchQuery(id, rawQ, category, limit));
+      try {
+        return await completer.future.timeout(const Duration(seconds: 3));
+      } finally {
+        // 超时/异常路径的挂起请求清理 (正常回投路径已在端口监听里移除)
+        _pendingSearches.remove(id);
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// 智能多模态标签搜索
   Future<List<TagSuggestion>> search(
     String query, {
@@ -220,80 +485,14 @@ class TagDictionaryService {
     final hit = _queryCache[cacheKey];
     if (hit != null) return hit;
 
-    final qUnderscore = rawQ.replaceAll(' ', '_');
-    final qSpace = rawQ.replaceAll('_', ' ');
-    final isCjk = rawQ.runes.any((r) => r >= 0x4E00 && r <= 0x9FFF);
-
-    final matches = <TagSuggestion>[...comboMatches];
-
-    for (final e in entries) {
-      if (category != null && e.category != category) continue;
-
-      final tagUnder = e.tagLower;
-      final tagSpace = e.tagSpaced;
-      final zh = e.zhLower;
-
-      double score = 0.0;
-      String? matchedAlias;
-
-      if (isCjk) {
-        // 中文查询模式
-        if (zh.startsWith(rawQ)) {
-          score = 1000.0;
-        } else if (zh.contains(rawQ)) {
-          score = 600.0;
-        }
-      } else {
-        // 英文 / 拼音 / 别名查询模式
-        if (tagUnder == qUnderscore || tagSpace == qSpace) {
-          score = 1500.0; // 完全精确匹配
-        } else if (tagUnder.startsWith(qUnderscore) ||
-            tagSpace.startsWith(qSpace)) {
-          score = 1000.0; // 前缀命中
-        } else if (tagUnder.contains(qUnderscore) ||
-            tagSpace.contains(qSpace)) {
-          score = 400.0; // 包含命中
-        } else if (zh.contains(rawQ)) {
-          score = 300.0; // 包含匹配中文
-        } else {
-          // 别名匹配
-          for (final a in e.aliases) {
-            final aLower = a.toLowerCase();
-            if (aLower.startsWith(rawQ) || aLower.startsWith(qUnderscore)) {
-              score = 800.0;
-              matchedAlias = a;
-              break;
-            } else if (aLower.contains(rawQ)) {
-              score = 250.0;
-              matchedAlias = a;
-              break;
-            }
-          }
-        }
-      }
-
-      if (score > 0) {
-        // 叠加基于热度的对数提升分数
-        final popularityBoost = e.count > 0
-            ? (math.log(e.count + 1) * 8.0)
-            : 0.0;
-        final totalScore = score + popularityBoost;
-
-        matches.add(
-          TagSuggestion(
-            tag: tagSpace,
-            category: e.category,
-            postCount: e.count,
-            translation: e.zh,
-            aliases: e.aliases,
-            matchedAlias: matchedAlias,
-            score: totalScore,
-          ),
-        );
-      }
-    }
+    // 2. 32 万词条线性扫描优先在后台 isolate 执行 (不占 UI 主线程)；
+    //    worker 不可用时主线程同步兑底 (行为与旧实现完全一致)
+    final dictMatches =
+        await _searchViaWorker(rawQ, category, limit) ??
+        _scanEntries(entries, rawQ, category: category, limit: limit);
 
     // 所有条目 (词库 + Danbooru 词典) 参与公平打分排序
+    final matches = <TagSuggestion>[...comboMatches, ...dictMatches];
     matches.sort((a, b) => b.score.compareTo(a.score));
     final results = matches.take(limit).toList();
 

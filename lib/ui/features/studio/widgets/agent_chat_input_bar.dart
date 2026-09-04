@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -218,7 +217,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     }
     setState(() {
       _pendingAttachments.add(
-        _PendingAttachment(bytes: base64Decode(image.base64), image: image),
+        _PendingAttachment(bytes: image.bytes, image: image),
       );
     });
     if (!_isActiveModelMultimodal()) {

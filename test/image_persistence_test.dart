@@ -76,7 +76,7 @@ void main() {
       final now = DateTime(2026, 8, 30, 12, 0, 0);
       final original = NaiGeneratedImage(
         id: 'img_123',
-        bytes: [1, 2, 3, 4],
+        bytes: Uint8List.fromList([1, 2, 3, 4]),
         localFilePath: '/path/to/img.png',
         params: params,
         createdAt: now,
@@ -158,7 +158,7 @@ void main() {
 
         final img1 = NaiGeneratedImage(
           id: 'img1',
-          bytes: [10, 20, 30],
+          bytes: Uint8List.fromList([10, 20, 30]),
           localFilePath: imgPath1,
           params: params,
           createdAt: DateTime.now(),
@@ -167,7 +167,7 @@ void main() {
         );
         final img2 = NaiGeneratedImage(
           id: 'img2',
-          bytes: [40, 50, 60],
+          bytes: Uint8List.fromList([40, 50, 60]),
           localFilePath: imgPath2,
           params: params,
           createdAt: DateTime.now(),
@@ -191,9 +191,14 @@ void main() {
 
         expect(loaded.length, equals(2));
         expect(loaded[0].id, equals('img2'));
-        expect(loaded[0].bytes, equals([40, 50, 60]));
+        expect(loaded[0].bytes.isEmpty, isTrue);
+        final bytes2 = await repo.loadHistoryImageBytes(loaded[0]);
+        expect(bytes2, equals([40, 50, 60]));
+
         expect(loaded[1].id, equals('img1'));
-        expect(loaded[1].bytes, equals([10, 20, 30]));
+        expect(loaded[1].bytes.isEmpty, isTrue);
+        final bytes1 = await repo.loadHistoryImageBytes(loaded[1]);
+        expect(bytes1, equals([10, 20, 30]));
       },
     );
 
@@ -209,7 +214,7 @@ void main() {
 
         final imgExist = NaiGeneratedImage(
           id: 'img_exist',
-          bytes: [10, 20, 30],
+          bytes: Uint8List.fromList([10, 20, 30]),
           localFilePath: imgPathExist,
           params: params,
           createdAt: DateTime.now(),
@@ -218,7 +223,7 @@ void main() {
         );
         final imgMissing = NaiGeneratedImage(
           id: 'img_missing',
-          bytes: [0],
+          bytes: Uint8List.fromList([0]),
           localFilePath: imgPathMissing,
           params: params,
           createdAt: DateTime.now(),
@@ -252,7 +257,7 @@ void main() {
       final images = List.generate(5, (i) {
         return NaiGeneratedImage(
           id: 'img_$i',
-          bytes: [i],
+          bytes: Uint8List.fromList([i]),
           localFilePath: imgPaths[i],
           params: params,
           createdAt: DateTime.now(),
@@ -290,7 +295,7 @@ void main() {
 
         final img1 = NaiGeneratedImage(
           id: 'img1',
-          bytes: [10, 20, 30],
+          bytes: Uint8List.fromList([10, 20, 30]),
           localFilePath: imgPath1,
           params: params,
           createdAt: DateTime.now(),
@@ -299,7 +304,7 @@ void main() {
         );
         final img2 = NaiGeneratedImage(
           id: 'img2',
-          bytes: [40, 50, 60],
+          bytes: Uint8List.fromList([40, 50, 60]),
           localFilePath: imgPath2,
           params: params,
           createdAt: DateTime.now(),

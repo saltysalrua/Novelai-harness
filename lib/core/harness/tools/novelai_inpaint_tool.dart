@@ -746,9 +746,7 @@ class NovelAiInpaintGeometryTool extends AgentTool {
       var srcW = targetImage?.params.width ?? 1024;
       var srcH = targetImage?.params.height ?? 1024;
       if (targetImage != null) {
-        final bytes = targetImage.bytes is Uint8List
-            ? targetImage.bytes as Uint8List
-            : Uint8List.fromList(targetImage.bytes);
+        final bytes = targetImage.bytes;
         final dims = await AnlasCalculator.decodeImageDimensions(bytes);
         srcW = dims?.width ?? srcW;
         srcH = dims?.height ?? srcH;

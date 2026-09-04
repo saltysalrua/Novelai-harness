@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
@@ -321,14 +322,53 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                   rect: imageRect,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: Image.memory(
-                      image.uint8Bytes,
-                      fit: BoxFit.fill,
-                      gaplessPlayback: true,
-                      cacheWidth: (imageRect.width * dpr).round().clamp(
-                        64,
-                        4096,
-                      ),
+                    child: ValueListenableBuilder<Map<String, Uint8List>>(
+                      valueListenable: vm.imageBytesNotifier,
+                      builder: (context, bytesMap, _) {
+                        final fullBytes = image.bytes.isNotEmpty
+                            ? image.bytes
+                            : bytesMap[image.id];
+                        final cacheW = (imageRect.width * dpr).round().clamp(
+                          64,
+                          4096,
+                        );
+                        if (fullBytes != null && fullBytes.isNotEmpty) {
+                          return Image.memory(
+                            fullBytes,
+                            fit: BoxFit.fill,
+                            gaplessPlayback: true,
+                            cacheWidth: cacheW,
+                          );
+                        }
+
+                        vm.ensureImageLoaded(image);
+
+                        final thumb = image.thumbnailBytes;
+                        if (thumb != null && thumb.isNotEmpty) {
+                          return Image.memory(
+                            thumb,
+                            fit: BoxFit.fill,
+                            gaplessPlayback: true,
+                            cacheWidth: cacheW,
+                          );
+                        }
+
+                        return Container(
+                          color: AppTheme.surfaceMuted,
+                          child: const Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppTheme.notionBlue,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -654,7 +694,10 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
             // 起点存 State 字段：拖拽中 rebuild 不会丢失基准
             _handleDragStartGlobal = d.globalPosition;
             _dragBaseRect = selNorm;
-            setState(() => _activeHandleIndex = corner);
+            setState(() {
+              _activeHandleIndex = corner;
+              _liveSelection = selNorm;
+            });
           },
           onPanUpdate: (d) {
             final start = _handleDragStartGlobal;
@@ -664,11 +707,19 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
               (d.globalPosition.dx - start.dx) / imageRect.width,
               (d.globalPosition.dy - start.dy) / imageRect.height,
             );
-            widget.viewModel.setInpaintSelectionRect(
-              _normRectInside(applyDelta(base, corner, deltaNorm)),
-            );
+            setState(() {
+              _liveSelection = _normRectInside(
+                applyDelta(base, corner, deltaNorm),
+              );
+            });
           },
-          onPanEnd: (_) => _resetRectDrag(),
+          onPanEnd: (_) {
+            final r = _liveSelection;
+            if (r != null && r.width > 0.015 && r.height > 0.015) {
+              widget.viewModel.setInpaintSelectionRect(_normRectInside(r));
+            }
+            _resetRectDrag();
+          },
           onPanCancel: _resetRectDrag,
           child: Center(
             child: Container(

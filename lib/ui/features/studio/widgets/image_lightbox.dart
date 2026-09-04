@@ -5,8 +5,25 @@ import 'package:flutter/services.dart' show Uint8List;
 import '../../../../data/models/novelai_models.dart';
 
 /// 全屏大图查看器：自由平移缩放画板 (滚轮纯缩放、不随鼠标偏移) + 顶部关闭按钮
-void showImageLightbox(BuildContext context, NaiGeneratedImage image) {
-  showImageLightboxBytes(context, image.uint8Bytes);
+void showImageLightbox(
+  BuildContext context,
+  NaiGeneratedImage image, {
+  Future<Uint8List?> Function()? loader,
+}) {
+  if (image.bytes.isNotEmpty) {
+    showImageLightboxBytes(context, image.bytes);
+  } else {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      barrierDismissible: true,
+      builder: (ctx) => ImageLightboxDialog(
+        bytes: null,
+        placeholderBytes: image.thumbnailBytes,
+        loader: loader,
+      ),
+    );
+  }
 }
 
 /// 裸字节版全屏大图查看器 (对话卡图片附件/工具结果图等无参数模型场景共用)
@@ -20,9 +37,16 @@ void showImageLightboxBytes(BuildContext context, Uint8List bytes) {
 }
 
 class ImageLightboxDialog extends StatefulWidget {
-  final Uint8List bytes;
+  final Uint8List? bytes;
+  final Uint8List? placeholderBytes;
+  final Future<Uint8List?> Function()? loader;
 
-  const ImageLightboxDialog({super.key, required this.bytes});
+  const ImageLightboxDialog({
+    super.key,
+    this.bytes,
+    this.placeholderBytes,
+    this.loader,
+  });
 
   @override
   State<ImageLightboxDialog> createState() => _ImageLightboxDialogState();
@@ -33,11 +57,28 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
   static const double _maxScale = 10.0;
 
   late final TransformationController _transformationController;
+  Uint8List? _activeBytes;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _transformationController = TransformationController();
+    _activeBytes = widget.bytes;
+    if ((_activeBytes == null || _activeBytes!.isEmpty) &&
+        widget.loader != null) {
+      _isLoading = true;
+      widget.loader!().then((loaded) {
+        if (mounted && loaded != null && loaded.isNotEmpty) {
+          setState(() {
+            _activeBytes = loaded;
+            _isLoading = false;
+          });
+        } else if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      });
+    }
   }
 
   @override
@@ -123,10 +164,38 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
                       panEnabled: true,
                       boundaryMargin: const EdgeInsets.all(double.infinity),
                       child: Center(
-                        child: Image.memory(
-                          widget.bytes,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (_activeBytes != null && _activeBytes!.isNotEmpty)
+                              Image.memory(
+                                _activeBytes!,
+                                fit: BoxFit.contain,
+                                gaplessPlayback: true,
+                              )
+                            else if (widget.placeholderBytes != null &&
+                                widget.placeholderBytes!.isNotEmpty)
+                              Image.memory(
+                                widget.placeholderBytes!,
+                                fit: BoxFit.contain,
+                                gaplessPlayback: true,
+                              )
+                            else
+                              const SizedBox(width: 100, height: 100),
+                            if (_isLoading)
+                              const Center(
+                                child: SizedBox(
+                                  width: 32,
+                                  height: 32,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white70,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),

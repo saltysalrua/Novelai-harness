@@ -54,6 +54,8 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
   }
 
   setUp(() async {
+    // FakeAsync 环境无法处理真实 Isolate 回投，检索退回主线程同步扫描
+    TagDictionaryService.backgroundSearchEnabled = false;
     await TagDictionaryService.instance.ensureLoaded(rawTsvContent: sampleTsv);
   });
 

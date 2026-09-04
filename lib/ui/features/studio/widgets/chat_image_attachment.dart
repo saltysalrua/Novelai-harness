@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -48,7 +47,7 @@ Future<AgentMessageImage?> processImageAttachment(Uint8List rawBytes) async {
     final imageBytes = data?.buffer.asUint8List();
     target.dispose();
     if (imageBytes == null || imageBytes.isEmpty) return null;
-    return AgentMessageImage(base64: base64Encode(imageBytes));
+    return AgentMessageImage.fromBytes(bytes: imageBytes);
   } catch (_) {
     return null;
   }

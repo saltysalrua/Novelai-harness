@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HardwareKeyboard;
 import '../../../../data/models/novelai_models.dart';
@@ -197,10 +198,47 @@ class _BoardImageCardState extends State<BoardImageCard> {
                     fit: StackFit.expand,
                     clipBehavior: Clip.none,
                     children: [
-                      Image.memory(
-                        imgNode.image.uint8Bytes,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
+                      ValueListenableBuilder<Map<String, Uint8List>>(
+                        valueListenable: viewModel.imageBytesNotifier,
+                        builder: (context, bytesMap, _) {
+                          final fullBytes = imgNode.image.bytes.isNotEmpty
+                              ? imgNode.image.bytes
+                              : bytesMap[imgNode.image.id];
+                          if (fullBytes != null && fullBytes.isNotEmpty) {
+                            return Image.memory(
+                              fullBytes,
+                              fit: BoxFit.contain,
+                              gaplessPlayback: true,
+                            );
+                          }
+
+                          viewModel.ensureImageLoaded(imgNode.image);
+
+                          final thumb = imgNode.image.thumbnailBytes;
+                          if (thumb != null && thumb.isNotEmpty) {
+                            return Image.memory(
+                              thumb,
+                              fit: BoxFit.contain,
+                              gaplessPlayback: true,
+                            );
+                          }
+
+                          return Container(
+                            color: AppTheme.surfaceMuted,
+                            child: const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppTheme.notionBlue,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
 
                       // 绘制选区/锚点手势 (漫游模式与连线拖拽时让位)

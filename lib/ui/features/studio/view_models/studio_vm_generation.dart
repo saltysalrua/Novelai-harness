@@ -33,6 +33,8 @@ mixin _StudioGenerationMixin on _StudioCore {
     final image = _selectedImage;
     if (image == null || !image.isUnsaved) return false;
 
+    await ensureImageLoaded(image);
+
     if (_config.saveDirectory.isEmpty) {
       _errorMessage = '未设置本地存储目录，请先在设置中配置保存路径。';
       notifyListeners();
@@ -75,8 +77,7 @@ mixin _StudioGenerationMixin on _StudioCore {
     await _generationSubscription?.cancel();
     _generationSubscription = null;
     _isGenerating = false;
-    _livePreviewBytes = null;
-    _liveProgress = 0.0;
+    _liveProgressController.clear();
     _statusMessage = '已终止生成';
     notifyListeners();
   }
@@ -111,11 +112,7 @@ mixin _StudioGenerationMixin on _StudioCore {
     }
 
     _isGenerating = true;
-    _livePreviewBytes = null;
-    _liveCurrentStep = 0;
-    _liveTotalSteps = _params.steps;
-    _liveProgress = 0.0;
-    _generationStartTime = DateTime.now();
+    _liveProgressController.begin(_params.steps, DateTime.now());
     _errorMessage = null;
     _statusMessage =
         '正在请求 NovelAI 生图 (${_params.width}x${_params.height}, ${_params.steps}步)...';
@@ -160,17 +157,17 @@ mixin _StudioGenerationMixin on _StudioCore {
                   _applySeedMutationAfter(newImage.seed);
                 }
               }
-              _livePreviewBytes = null;
-              _liveProgress = 1.0;
+              _liveProgressController.complete();
               notifyListeners();
             } else {
-              _livePreviewBytes = progress.previewImage;
-              _liveCurrentStep = progress.currentStep;
-              _liveTotalSteps = progress.totalSteps;
-              _liveProgress = progress.progress;
-              _statusMessage =
-                  '生成中 · 步数: $_liveCurrentStep / $_liveTotalSteps (${(_liveProgress * 100).toInt()}%)';
-              notifyListeners();
+              // 中间去噪帧：只驱动画板占位卡/历史缩略图/生成熔按钮局部刷新，
+              // 不触发全局 notifyListeners()，主工作台零重绘
+              _liveProgressController.updateFrame(
+                previewBytes: progress.previewImage,
+                currentStep: progress.currentStep,
+                totalSteps: progress.totalSteps,
+                progress: progress.progress,
+              );
             }
           },
           onError: (e) {
@@ -191,7 +188,7 @@ mixin _StudioGenerationMixin on _StudioCore {
       } finally {
         _generationSubscription = null;
         _isGenerating = false;
-        _livePreviewBytes = null;
+        _liveProgressController.clear();
         notifyListeners();
         refreshAccountInfo();
       }
@@ -226,7 +223,7 @@ mixin _StudioGenerationMixin on _StudioCore {
         _statusMessage = null;
       } finally {
         _isGenerating = false;
-        _livePreviewBytes = null;
+        _liveProgressController.clear();
         notifyListeners();
         refreshAccountInfo();
       }
@@ -295,6 +292,10 @@ mixin _StudioGenerationMixin on _StudioCore {
     notifyListeners();
 
     try {
+      final loaded = await ensureImageLoaded(_selectedImage!);
+      if (loaded != null && _selectedImage!.bytes.isEmpty) {
+        _selectedImage = _selectedImage!.copyWith(bytes: loaded);
+      }
       final upscaled = await _repository.upscale(
         apiKey: _config.novelAiKey,
         sourceImage: _selectedImage!,
@@ -328,8 +329,9 @@ mixin _StudioGenerationMixin on _StudioCore {
     NaiGeneratedImage image, {
     bool raw = false,
   }) async {
+    final bytes = await ensureImageLoaded(image) ?? image.bytes;
     final rawBytes = ImageMetadataService.embedNovelAiMetadata(
-      pngBytes: Uint8List.fromList(image.bytes),
+      pngBytes: bytes,
       params: image.params,
       seed: image.seed,
     );

@@ -400,11 +400,19 @@ class AgentChatCardState extends State<AgentChatCard> {
           (activePrompt != null ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == messages.length && isStreaming) {
-          return StreamingMessageBubble(
-            thoughts: widget.viewModel.currentStreamingThoughts,
-            content: widget.viewModel.currentStreamingContent,
-            thinkingExpanded: widget.viewModel.isThinkingExpanded,
-            notice: widget.viewModel.streamingRetryNotice,
+          // 流式增量局部刷新：只重建气泡子树，主工作台与参数面板零重绘；
+          // 气泡内容增长时顺带驱动底部跟随滚动判定
+          return ListenableBuilder(
+            listenable: widget.viewModel.streamingText,
+            builder: (context, _) {
+              _autoScrollOnStream();
+              return StreamingMessageBubble(
+                thoughts: widget.viewModel.streamingText.thoughts,
+                content: widget.viewModel.streamingText.content,
+                thinkingExpanded: widget.viewModel.isThinkingExpanded,
+                notice: widget.viewModel.streamingText.notice,
+              );
+            },
           );
         }
         if (activePrompt != null &&

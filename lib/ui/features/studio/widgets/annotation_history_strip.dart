@@ -126,10 +126,23 @@ class AnnotationHistoryStrip extends StatelessWidget {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                Image.memory(
-                                  item.uint8Bytes,
-                                  fit: BoxFit.cover,
-                                  gaplessPlayback: true,
+                                Builder(
+                                  builder: (context) {
+                                    final thumb = item.thumbnailBytes ??
+                                        (item.bytes.isNotEmpty
+                                            ? item.bytes
+                                            : null);
+                                    if (thumb != null && thumb.isNotEmpty) {
+                                      return Image.memory(
+                                        thumb,
+                                        fit: BoxFit.cover,
+                                        gaplessPlayback: true,
+                                      );
+                                    }
+                                    return Container(
+                                      color: AppTheme.surfaceMuted,
+                                    );
+                                  },
                                 ),
                                 // 批注条数徽章
                                 if (annCount > 0)
@@ -193,9 +206,22 @@ class AnnotationHistoryStrip extends StatelessWidget {
                             child: SizedBox(
                               width: 100,
                               height: 120,
-                              child: Image.memory(
-                                item.uint8Bytes,
-                                fit: BoxFit.cover,
+                              child: Builder(
+                                builder: (context) {
+                                  final thumb = item.thumbnailBytes ??
+                                      (item.bytes.isNotEmpty
+                                          ? item.bytes
+                                          : null);
+                                  if (thumb != null && thumb.isNotEmpty) {
+                                    return Image.memory(
+                                      thumb,
+                                      fit: BoxFit.cover,
+                                    );
+                                  }
+                                  return Container(
+                                    color: AppTheme.surfaceMuted,
+                                  );
+                                },
                               ),
                             ),
                           ),

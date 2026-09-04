@@ -90,4 +90,54 @@ highres\t5256195\t高分辨率\thires
       expect(formatTagCount(0), '');
     });
   });
+
+  group('后台检索 isolate 与主线程兑底', () {
+    // 本组使用真实 isolate 回投 (普通 test 环境真实事件循环可交付)
+    const workerTsv =
+        'long_hair\t4350743\t长发\t/lh,longhair\n'
+        'blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes\n';
+
+    setUp(() async {
+      TagDictionaryService.backgroundSearchEnabled = true;
+      await TagDictionaryService.instance.ensureLoaded(
+        rawTsvContent: workerTsv,
+      );
+    });
+
+    test('后台 worker 检索与主线程同步扫描结果一致', () async {
+      // 默认开启：查询经后台 worker isolate 扫描后回投
+      final viaWorker = await TagDictionaryService.instance.search(
+        'lo',
+        limit: 5,
+      );
+      expect(viaWorker, isNotEmpty);
+      expect(viaWorker.first.tag, 'long hair');
+
+      // 关闭后台检索：主线程同步兑底，结果一致
+      TagDictionaryService.instance.clearQueryCache();
+      TagDictionaryService.backgroundSearchEnabled = false;
+      final viaMain = await TagDictionaryService.instance.search(
+        'lo',
+        limit: 5,
+      );
+      expect(viaMain.first.tag, 'long hair');
+      TagDictionaryService.backgroundSearchEnabled = true;
+    });
+
+    test('词库热替换后 worker 同步新词条并可检索', () async {
+      await TagDictionaryService.instance.replaceWithContent(
+        'murasaki_shion\t12000\t紫\tshion\n',
+      );
+      TagDictionaryService.instance.clearQueryCache();
+
+      // 检索走已热替换的 worker 词条 (中文释义前缀命中)
+      final results = await TagDictionaryService.instance.search(
+        '紫',
+        limit: 5,
+      );
+      expect(results, isNotEmpty);
+      expect(results.first.tag, 'murasaki shion');
+      expect(results.first.translation, '紫');
+    });
+  });
 }

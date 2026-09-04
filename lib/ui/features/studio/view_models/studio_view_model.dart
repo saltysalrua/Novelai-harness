@@ -36,6 +36,7 @@ import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import 'param_snapshot_journal.dart';
 import 'slash_command_catalog.dart';
+import 'streaming_controllers.dart';
 
 part 'studio_vm_annotations.dart';
 part 'studio_vm_characters.dart';
@@ -95,11 +96,13 @@ mixin _StudioCore on ChangeNotifier {
   bool _isLoadingAccount = false;
   bool _isGenerating = false;
   bool _isChatStreaming = false;
-  String _currentStreamingThoughts = '';
-  String _currentStreamingContent = '';
 
-  /// 流式请求自动重试提示 (RetryEvent 时设置，新一轮 TurnStart 或结束时清空)
-  String? _streamingRetryNotice;
+  /// 流式对话瞬态文本控制器：思考链/正文/重试提示增量只驱动对话气泡局部刷新
+  final StreamingTextController _streamingText = StreamingTextController();
+
+  /// 生图/修复实时进度控制器：去噪预览帧与步数只驱动占位卡/缩略图/按钮局部刷新
+  final LiveProgressController _liveProgressController =
+      LiveProgressController();
 
   /// 思考块全局展开开关 (Ctrl+O 切换，默认折叠只显示单行预览)
   bool _isThinkingExpanded = false;
@@ -147,12 +150,7 @@ mixin _StudioCore on ChangeNotifier {
   /// 分割线宽度防抖落盘计时器 (拖动过程每帧回调，写盘必须节流)
   Timer? _splitWidthSaveTimer;
 
-  /// 实时生图预览状态
-  Uint8List? _livePreviewBytes;
-  int _liveCurrentStep = 0;
-  int _liveTotalSteps = 28;
-  double _liveProgress = 0.0;
-  DateTime? _generationStartTime;
+  /// 实时生图预览状态 (全部委托 LiveProgressController 局部刷新)
   StreamSubscription<NaiStreamProgress>? _generationSubscription;
 
   ThinkingEffort _currentThinkingEffort = ThinkingEffort.high;
@@ -217,11 +215,18 @@ mixin _StudioCore on ChangeNotifier {
   bool get isLoadingAccount => _isLoadingAccount;
   bool get isGenerating => _isGenerating;
   bool get isChatStreaming => _isChatStreaming;
-  String get currentStreamingThoughts => _currentStreamingThoughts;
-  String get currentStreamingContent => _currentStreamingContent;
+
+  /// 流式对话瞬态文本控制器 (视图局部监听用)
+  StreamingTextController get streamingText => _streamingText;
+
+  /// 生图/修复实时进度控制器 (视图局部监听用)
+  LiveProgressController get liveProgressController => _liveProgressController;
+
+  String get currentStreamingThoughts => _streamingText.thoughts;
+  String get currentStreamingContent => _streamingText.content;
 
   /// 流式请求重试提示 (流式气泡顶部展示)
-  String? get streamingRetryNotice => _streamingRetryNotice;
+  String? get streamingRetryNotice => _streamingText.notice;
 
   /// 对话卡思考块全局展开开关 (Ctrl+O 切换)
   bool get isThinkingExpanded => _isThinkingExpanded;
@@ -239,12 +244,12 @@ mixin _StudioCore on ChangeNotifier {
   String? get statusMessage => _statusMessage;
   String? get errorMessage => _errorMessage;
 
-  /// 实时生图预览 Getters
-  Uint8List? get livePreviewBytes => _livePreviewBytes;
-  int get liveCurrentStep => _liveCurrentStep;
-  int get liveTotalSteps => _liveTotalSteps;
-  double get liveProgress => _liveProgress;
-  DateTime? get generationStartTime => _generationStartTime;
+  /// 实时生图预览 Getters (委托 LiveProgressController)
+  Uint8List? get livePreviewBytes => _liveProgressController.previewBytes;
+  int get liveCurrentStep => _liveProgressController.currentStep;
+  int get liveTotalSteps => _liveProgressController.totalSteps;
+  double get liveProgress => _liveProgressController.progress;
+  DateTime? get generationStartTime => _liveProgressController.startTime;
 
   /// 已保存的全部会话列表
   List<SessionInfo> get sessions => List.unmodifiable(_sessions);
@@ -469,6 +474,47 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 进入/退出自由大画布批注模式
   void setAnnotatingImage(bool annotating, {String? targetImageId});
+
+  /// 历史大图完整字节缓存通知器：避免大图加载逐帧触发 notifyListeners() 全局重建
+  final ValueNotifier<Map<String, Uint8List>> imageBytesNotifier =
+      ValueNotifier<Map<String, Uint8List>>({});
+
+  /// 获取指定图片已加载的大图字节 (若内存中存在)
+  Uint8List? getImageBytes(NaiGeneratedImage image) {
+    if (image.bytes.isNotEmpty) return image.bytes;
+    return imageBytesNotifier.value[image.id];
+  }
+
+  /// 确保指定图片的大图字节已载入内存，按需异步加载并通过 imageBytesNotifier 局部通知
+  Future<Uint8List?> ensureImageLoaded(NaiGeneratedImage image) async {
+    if (image.bytes.isNotEmpty) {
+      if (!imageBytesNotifier.value.containsKey(image.id)) {
+        final map = Map<String, Uint8List>.from(imageBytesNotifier.value);
+        map[image.id] = image.bytes;
+        imageBytesNotifier.value = map;
+      }
+      return image.bytes;
+    }
+
+    final inMemory = imageBytesNotifier.value[image.id];
+    if (inMemory != null) return inMemory;
+
+    final loaded = await _repository.loadHistoryImageBytes(image);
+    if (loaded != null) {
+      final map = Map<String, Uint8List>.from(imageBytesNotifier.value);
+      map[image.id] = loaded;
+      imageBytesNotifier.value = map;
+      if (_selectedImage?.id == image.id && _selectedImage!.bytes.isEmpty) {
+        _selectedImage = _selectedImage!.copyWith(bytes: loaded);
+      }
+      if (_inpaintSourceImage?.id == image.id &&
+          _inpaintSourceImage!.bytes.isEmpty) {
+        _inpaintSourceImage = _inpaintSourceImage!.copyWith(bytes: loaded);
+      }
+      return loaded;
+    }
+    return null;
+  }
 }
 
 /// Studio 状态管理中枢 (MVVM)。
@@ -605,6 +651,7 @@ class StudioViewModel extends ChangeNotifier
       );
       if (_repository.history.isNotEmpty && _selectedImage == null) {
         _selectedImage = _repository.history.first;
+        ensureImageLoaded(_selectedImage!);
       }
 
       // 恢复大画布布局 (节点位置尺寸/便利贴/连线/视口)
@@ -667,6 +714,7 @@ class StudioViewModel extends ChangeNotifier
           );
           if (_repository.history.isNotEmpty && _selectedImage == null) {
             _selectedImage = _repository.history.first;
+            ensureImageLoaded(_selectedImage!);
           }
         } else {
           await _repository.savePersistedHistory(
@@ -736,6 +784,7 @@ class StudioViewModel extends ChangeNotifier
   /// 选择画板当前查看的图片
   void selectImage(NaiGeneratedImage image) {
     _selectedImage = image;
+    ensureImageLoaded(image);
     if (gallery.isNotEmpty && image.id == gallery.first.id) {
       _hasUnseenLatest = false;
     }
@@ -748,6 +797,7 @@ class StudioViewModel extends ChangeNotifier
   void selectLatestImage() {
     if (gallery.isNotEmpty) {
       _selectedImage = gallery.first;
+      ensureImageLoaded(gallery.first);
       _hasUnseenLatest = false;
       notifyListeners();
     }
@@ -772,12 +822,17 @@ class StudioViewModel extends ChangeNotifier
       maxImages: _config.maxPersistentImages,
     );
 
+    final map = Map<String, Uint8List>.from(imageBytesNotifier.value)
+      ..remove(imageId);
+    imageBytesNotifier.value = map;
+
     if (wasSelected) {
       if (gallery.isNotEmpty) {
         final nextIndex = deletedIndex < gallery.length
             ? deletedIndex
             : gallery.length - 1;
         _selectedImage = gallery[nextIndex];
+        ensureImageLoaded(_selectedImage!);
       } else {
         _selectedImage = null;
       }
@@ -858,6 +913,7 @@ class StudioViewModel extends ChangeNotifier
 
     _selectedImage = null;
     _hasUnseenLatest = false;
+    imageBytesNotifier.value = const {};
 
     final bData = _boardData;
     if (bData != null) {
@@ -952,13 +1008,15 @@ class StudioViewModel extends ChangeNotifier
     final source =
         _selectedImage ?? (gallery.isNotEmpty ? gallery.first : null);
     if (source == null) return false;
+    final bytes = await ensureImageLoaded(source) ?? source.bytes;
+    if (bytes.isEmpty) return false;
     final config = _config.watermarkConfig;
     try {
       final (
         posX,
         posY,
       ) = await WatermarkService.findLowInformationPositionAsync(
-        Uint8List.fromList(source.bytes),
+        bytes,
         scalePercent: config.scalePercent,
         marginPercent: config.marginPercent,
         watermarkBytes: config.imageBytes,
@@ -1102,7 +1160,9 @@ class StudioViewModel extends ChangeNotifier
     _promptHeightsSaveTimer?.cancel();
     _chatDraftSaveTimer?.cancel();
     _chatSubscription?.cancel();
-    _streamNotifyTimer?.cancel();
+    // 瞬态控制器随宿主一起释放
+    _streamingText.dispose();
+    _liveProgressController.dispose();
     // 大画布布局：取消防抖并立即落盘一次
     _boardSaveDebounceTimer?.cancel();
     unawaited(_flushBoardSave());

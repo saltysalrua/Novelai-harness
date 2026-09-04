@@ -207,12 +207,21 @@ class _ImageHistoryThumb extends StatelessWidget {
       content: Stack(
         fit: StackFit.expand,
         children: [
-          Image.memory(
-            item.uint8Bytes,
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            // 侧栏缩略图宽约 104px，按 2x 解码已够清晰，避免全分辨率纹理
-            cacheWidth: 240,
+          Builder(
+            builder: (context) {
+              final thumb = item.thumbnailBytes ??
+                  (item.bytes.isNotEmpty ? item.bytes : null);
+              if (thumb != null && thumb.isNotEmpty) {
+                return Image.memory(
+                  thumb,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  // 侧栏缩略图宽约 104px，按 2x 解码已够清晰，避免全分辨率纹理
+                  cacheWidth: 240,
+                );
+              }
+              return Container(color: AppTheme.surfaceMuted);
+            },
           ),
           // 特殊来源角标：超分放大图 / 外部导入参考图
           if (item.historyBadgeLabel != null)
@@ -266,7 +275,6 @@ class _GeneratingHistoryThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final previewBytes = viewModel.livePreviewBytes;
     return _HistoryThumbShell(
       isSelected: viewModel.isViewingLatest,
       aspectRatio: imageAspectRatioOf(viewModel.params),
@@ -274,44 +282,51 @@ class _GeneratingHistoryThumb extends StatelessWidget {
         viewModel.selectLatestImage();
         stream.scrollToTop();
       },
-      content: previewBytes != null
-          ? Image.memory(
-              previewBytes,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-              // 预览帧每步全量重解码，按缩略图尺寸解码降低 UI 线程压力
-              cacheWidth: 240,
-            )
-          : Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.0,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppTheme.notionBlue,
+      // 去噪中间帧仅在缩略图内部局部重绘，生成期间侧栏零重建
+      content: ListenableBuilder(
+        listenable: viewModel.liveProgressController,
+        builder: (context, _) {
+          final previewBytes = viewModel.livePreviewBytes;
+          return previewBytes != null
+              ? Image.memory(
+                  previewBytes,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  // 预览帧每步全量重解码，按缩略图尺寸解码降低 UI 线程压力
+                  cacheWidth: 240,
+                )
+              : Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.0,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppTheme.notionBlue,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (viewModel.liveTotalSteps > 0 &&
+                          viewModel.liveCurrentStep > 0) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '${viewModel.liveCurrentStep}/${viewModel.liveTotalSteps}',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: AppTheme.textSecondary,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  if (viewModel.liveTotalSteps > 0 &&
-                      viewModel.liveCurrentStep > 0) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      '${viewModel.liveCurrentStep}/${viewModel.liveTotalSteps}',
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: AppTheme.textSecondary,
-                        fontFamily: 'monospace',
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+                );
+        },
+      ),
     );
   }
 }

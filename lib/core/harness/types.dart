@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 /// Token 用量 (对齐 Pi 的 Usage 结构，cost 由账单服务另行估算)
 class TokenUsage {
@@ -93,7 +94,39 @@ class AgentMessageImage {
   /// 图片 MIME 类型 (默认 image/png)
   final String mimeType;
 
+  static final Expando<Uint8List> _bytesCache =
+      Expando<Uint8List>('agent_message_image_bytes');
+
   const AgentMessageImage({required this.base64, this.mimeType = 'image/png'});
+
+  /// 解码后的二进制字节（惰性只读缓存）
+  Uint8List get bytes {
+    final cached = _bytesCache[this];
+    if (cached != null) return cached;
+    final decoded = base64.isEmpty
+        ? Uint8List(0)
+        : Uint8List.fromList(base64Decode(base64));
+    _bytesCache[this] = decoded;
+    return decoded;
+  }
+
+  /// 预注入解码缓存（如由原始 Uint8List 编码构建时）
+  void attachBytes(Uint8List bytes) {
+    _bytesCache[this] = bytes;
+  }
+
+  /// 从原始字节构建并预热解码缓存
+  factory AgentMessageImage.fromBytes({
+    required Uint8List bytes,
+    String mimeType = 'image/png',
+  }) {
+    final image = AgentMessageImage(
+      base64: base64Encode(bytes),
+      mimeType: mimeType,
+    );
+    _bytesCache[image] = bytes;
+    return image;
+  }
 
   /// OpenAI 多模态 image_url 填充用 data URL
   String get dataUrl => 'data:$mimeType;base64,$base64';
@@ -170,6 +203,15 @@ class AgentMessage {
   final bool isStreaming;
   final DateTime createdAt;
 
+  /// 工具结果附带图片的解码二进制字节缓存
+  Uint8List? _imageBytes;
+
+  /// 工具结果附带图片的解码二进制字节（惰性只读缓存）
+  Uint8List? get imageBytes {
+    if (imageBase64 == null || imageBase64!.isEmpty) return null;
+    return _imageBytes ??= Uint8List.fromList(base64Decode(imageBase64!));
+  }
+
   /// "provider/model" 聚合键 (用量统计用)
   String? get providerModelKey =>
       (provider == null || provider!.isEmpty || model == null || model!.isEmpty)
@@ -215,7 +257,8 @@ class AgentMessage {
     List<AgentMessageImage>? images,
     int? imageEpoch,
   }) {
-    return AgentMessage(
+    final nextImageBase64 = imageBase64 ?? this.imageBase64;
+    final copy = AgentMessage(
       id: id ?? this.id,
       role: role ?? this.role,
       content: content ?? this.content,
@@ -227,13 +270,17 @@ class AgentMessage {
       usage: usage ?? this.usage,
       provider: provider ?? this.provider,
       model: model ?? this.model,
-      imageBase64: imageBase64 ?? this.imageBase64,
+      imageBase64: nextImageBase64,
       imageMimeType: imageMimeType ?? this.imageMimeType,
       images: images ?? this.images,
       imageEpoch: imageEpoch ?? this.imageEpoch,
       isStreaming: isStreaming ?? this.isStreaming,
       createdAt: createdAt ?? this.createdAt,
     );
+    if (nextImageBase64 == this.imageBase64) {
+      copy._imageBytes = _imageBytes;
+    }
+    return copy;
   }
 
   /// 是否携带供视觉模型查看的图片数据 (用户附件或工具结果附带)

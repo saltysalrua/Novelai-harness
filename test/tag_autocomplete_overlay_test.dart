@@ -19,6 +19,8 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
 ''';
 
   setUp(() async {
+    // FakeAsync 环境无法处理真实 Isolate 回投，检索退回主线程同步扫描
+    TagDictionaryService.backgroundSearchEnabled = false;
     // 词组合补全建议来自单例词库服务：播种到临时目录，不污染仓库
     final tempDir = Directory.systemTemp.createTempSync('tag_ac_lib_');
     PromptLibraryService.instance.setCustomStorageDirectory(tempDir.path);

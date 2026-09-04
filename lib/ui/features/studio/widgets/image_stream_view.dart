@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import '../../../../data/models/novelai_models.dart';
@@ -424,7 +425,6 @@ class CanvasGeneratingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final params = viewModel.params;
-    final previewBytes = viewModel.livePreviewBytes;
     final isSelected = viewModel.isViewingLatest;
     final aspectRatio = imageAspectRatioOf(params);
     // 按实际显示尺寸解码 (预览帧每步全量重解码，全分辨率纹理会拖慢 UI 线程)
@@ -449,44 +449,52 @@ class CanvasGeneratingCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (previewBytes != null)
-                  Image.memory(
-                    previewBytes,
-                    fit: BoxFit.contain,
-                    gaplessPlayback: true,
-                    cacheWidth: previewCacheWidth,
-                  )
-                else
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppTheme.notionBlue,
+                // 去噪中间帧仅在本占位卡内部局部重绘，
+                // 生图期间主工作台零重建
+                ListenableBuilder(
+                  listenable: viewModel.liveProgressController,
+                  builder: (context, _) {
+                    final previewBytes = viewModel.livePreviewBytes;
+                    if (previewBytes != null) {
+                      return Image.memory(
+                        previewBytes,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                        cacheWidth: previewCacheWidth,
+                      );
+                    }
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppTheme.notionBlue,
+                              ),
                             ),
                           ),
-                        ),
-                        if (viewModel.liveTotalSteps > 0 &&
-                            viewModel.liveCurrentStep > 0) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            '${viewModel.liveCurrentStep} / ${viewModel.liveTotalSteps}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textSecondary,
-                              fontFamily: 'monospace',
-                              fontWeight: FontWeight.w600,
+                          if (viewModel.liveTotalSteps > 0 &&
+                              viewModel.liveCurrentStep > 0) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              '${viewModel.liveCurrentStep} / ${viewModel.liveTotalSteps}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textSecondary,
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -541,7 +549,11 @@ class CanvasImageCard extends StatelessWidget {
         onTap: () => viewModel.selectImage(item),
         onDoubleTap: isPositionOverlayActive
             ? null
-            : () => showImageLightbox(context, item),
+            : () => showImageLightbox(
+                context,
+                item,
+                loader: () => viewModel.ensureImageLoaded(item),
+              ),
         onSecondaryTapUp: isPositionOverlayActive
             ? null
             : (details) => showImageContextMenu(
@@ -562,11 +574,51 @@ class CanvasImageCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.memory(
-                  item.uint8Bytes,
-                  fit: BoxFit.contain,
-                  gaplessPlayback: true,
-                  cacheWidth: cacheWidth,
+                ValueListenableBuilder<Map<String, Uint8List>>(
+                  valueListenable: viewModel.imageBytesNotifier,
+                  builder: (context, bytesMap, _) {
+                    final fullBytes = item.bytes.isNotEmpty
+                        ? item.bytes
+                        : bytesMap[item.id];
+                    if (fullBytes != null && fullBytes.isNotEmpty) {
+                      return Image.memory(
+                        fullBytes,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                        cacheWidth: cacheWidth,
+                      );
+                    }
+
+                    if (isSelected) {
+                      viewModel.ensureImageLoaded(item);
+                    }
+
+                    final thumb = item.thumbnailBytes;
+                    if (thumb != null && thumb.isNotEmpty) {
+                      return Image.memory(
+                        thumb,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                        cacheWidth: cacheWidth,
+                      );
+                    }
+
+                    return Container(
+                      color: AppTheme.surfaceMuted,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppTheme.notionBlue,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 if (isPositionOverlayActive)
                   if (viewModel.isEditingWatermarkPosition)

@@ -193,17 +193,27 @@ class GenerateDock extends StatelessWidget {
                 : (viewModel.isGenerating
                       ? const Icon(Icons.stop_circle_outlined, size: 17)
                       : const Icon(Icons.auto_awesome, size: 17)),
-            label: Text(
-              isInpaintTab
-                  ? (isAiEditMode
+            label: isInpaintTab
+                ? Text(
+                    isAiEditMode
                         ? (isRepairing ? 'AI 编辑中...' : '开始 AI 编辑')
-                        : (isRepairing ? '修复中...' : '开始修复'))
-                  : _buildButtonLabel(estimatedCost),
-              style: const TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+                        : (isRepairing ? '修复中...' : '开始修复'),
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  )
+                : ListenableBuilder(
+                    // 生成中的步数文案仅随实时进度控制器局部刷新
+                    listenable: viewModel.liveProgressController,
+                    builder: (context, _) => Text(
+                      _buildButtonLabel(estimatedCost),
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),

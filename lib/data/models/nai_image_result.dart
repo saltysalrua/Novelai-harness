@@ -9,7 +9,8 @@ import 'nai_generation_params.dart';
 /// 生成结果单张图片数据与元信息 (含批注与参考图标记)
 class NaiGeneratedImage {
   final String id;
-  final List<int> bytes;
+  final Uint8List bytes;
+  final Uint8List? thumbnailBytes;
   final String? localFilePath;
   final NaiGenerationParams params;
   final DateTime createdAt;
@@ -37,6 +38,7 @@ class NaiGeneratedImage {
   const NaiGeneratedImage({
     required this.id,
     required this.bytes,
+    this.thumbnailBytes,
     this.localFilePath,
     required this.params,
     required this.createdAt,
@@ -60,13 +62,13 @@ class NaiGeneratedImage {
     return null;
   }
 
-  /// 缓存并获取 Uint8List 引用 (避免每次重绘创建新对象导致图片重复解码闪烁)
-  Uint8List get uint8Bytes =>
-      bytes is Uint8List ? (bytes as Uint8List) : Uint8List.fromList(bytes);
+  /// 直接返回 Uint8List 引用 (杜绝复制与重复分配)
+  Uint8List get uint8Bytes => bytes;
 
   NaiGeneratedImage copyWith({
     String? id,
-    List<int>? bytes,
+    Uint8List? bytes,
+    Uint8List? thumbnailBytes,
     String? localFilePath,
     NaiGenerationParams? params,
     DateTime? createdAt,
@@ -82,6 +84,7 @@ class NaiGeneratedImage {
     return NaiGeneratedImage(
       id: id ?? this.id,
       bytes: bytes ?? this.bytes,
+      thumbnailBytes: thumbnailBytes ?? this.thumbnailBytes,
       localFilePath: localFilePath ?? this.localFilePath,
       params: params ?? this.params,
       createdAt: createdAt ?? this.createdAt,
@@ -113,7 +116,8 @@ class NaiGeneratedImage {
 
   factory NaiGeneratedImage.fromJson(
     Map<String, dynamic> json, {
-    List<int>? bytes,
+    Uint8List? bytes,
+    Uint8List? thumbnailBytes,
   }) {
     final paramsJson = (json['params'] as Map<String, dynamic>?) ?? {};
     final createdAtStr = json['createdAt'] as String?;
@@ -135,7 +139,8 @@ class NaiGeneratedImage {
 
     return NaiGeneratedImage(
       id: json['id'] as String? ?? '${DateTime.now().millisecondsSinceEpoch}',
-      bytes: bytes ?? const [],
+      bytes: bytes ?? Uint8List(0),
+      thumbnailBytes: thumbnailBytes,
       localFilePath: json['localFilePath'] as String?,
       params: NaiGenerationParams.fromJson(paramsJson),
       createdAt: createdAt,

@@ -271,7 +271,7 @@ void main() {
       final bytes = repository.history.first.bytes;
       final annotated = NaiGeneratedImage(
         id: 'test_img_global',
-        bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+        bytes: bytes,
         params: const NaiGenerationParams(
           prompt: 'p',
           width: 1024,
@@ -299,7 +299,7 @@ void main() {
       final bytes = repository.history.first.bytes;
       final annotated = NaiGeneratedImage(
         id: 'test_img_ann',
-        bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+        bytes: bytes,
         params: const NaiGenerationParams(prompt: 'p', width: 512, height: 512),
         createdAt: DateTime.now(),
         seed: 1,

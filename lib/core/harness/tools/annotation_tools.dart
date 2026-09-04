@@ -388,10 +388,7 @@ class ViewImageAnnotationsTool extends AgentTool {
     final targetImage = history[index];
     final annotations = targetImage.annotations;
     final params = targetImage.params;
-    final rawBytes = targetImage.bytes;
-    final imageBytes = rawBytes is Uint8List
-        ? rawBytes
-        : Uint8List.fromList(rawBytes);
+    final imageBytes = targetImage.bytes;
 
     final withImage = args['with_image'] is bool
         ? args['with_image'] as bool
@@ -740,9 +737,7 @@ class AddImageAnnotationTool extends AgentTool {
     }
 
     final dims = await AnlasCalculator.decodeImageDimensions(
-      target.bytes is Uint8List
-          ? target.bytes as Uint8List
-          : Uint8List.fromList(target.bytes),
+      target.bytes,
     );
     final summary = _describeAnnotation(
       newAnn,
