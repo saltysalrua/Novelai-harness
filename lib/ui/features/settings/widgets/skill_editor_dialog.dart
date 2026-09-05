@@ -5,6 +5,8 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/context_l10n.dart';
 
 /// Skill 查看 / 编辑 / 导入对话框 (支持 Pi 标准 SKILL.md 导入导出)
 class SkillEditorDialog extends StatefulWidget {
@@ -87,14 +89,15 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final isBuiltin = widget.skill?.isBuiltin ?? false;
 
     return AppDialogScaffold(
       title: widget.isImportMode
-          ? '导入标准 SKILL.md'
+          ? l10n.skillDialogImportTitle
           : (widget.skill == null
-                ? '新建 Skill'
-                : '编辑 Skill (${widget.skill!.name})'),
+                ? l10n.skillDialogNewTitle
+                : l10n.skillDialogEditTitle(widget.skill!.name)),
       width: 680,
       height: 640,
       body: Padding(
@@ -106,14 +109,14 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
             Row(
               children: [
                 AppSegmentedPillBar<_SkillEditorViewMode>(
-                  items: const [
+                  items: [
                     AppSegmentedItem(
                       value: _SkillEditorViewMode.structured,
-                      label: '结构化编辑',
+                      label: l10n.skillEditorTabStructured,
                     ),
                     AppSegmentedItem(
                       value: _SkillEditorViewMode.raw,
-                      label: 'SKILL.md 源码',
+                      label: l10n.skillEditorTabRaw,
                     ),
                   ],
                   selectedValue: _viewMode,
@@ -143,8 +146,8 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
             // 正文区
             Expanded(
               child: _viewMode == _SkillEditorViewMode.raw
-                  ? _buildRawEditor()
-                  : _buildStructuredEditor(isBuiltin),
+                  ? _buildRawEditor(l10n)
+                  : _buildStructuredEditor(isBuiltin, l10n),
             ),
           ],
         ),
@@ -153,15 +156,15 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
         Row(
           children: [
             AppActionButton(
-              label: '复制 SKILL.md',
+              label: l10n.skillCopySkillMd,
               icon: Icons.copy_rounded,
               onPressed: () {
                 _syncToRaw();
                 Clipboard.setData(ClipboardData(text: _rawMdController.text));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('已复制标准 SKILL.md 内容至剪贴板'),
-                    duration: Duration(seconds: 2),
+                  SnackBar(
+                    content: Text(l10n.skillCopySuccess),
+                    duration: const Duration(seconds: 2),
                   ),
                 );
               },
@@ -169,7 +172,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
             const Spacer(),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text('取消', style: TextStyle(color: colors.textSecondary)),
+              child: Text(l10n.cancel, style: TextStyle(color: colors.textSecondary)),
             ),
             const SizedBox(width: 8),
             ElevatedButton(
@@ -182,7 +185,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                 ),
               ),
               onPressed: _save,
-              child: const Text('保存 Skill'),
+              child: Text(l10n.skillSave),
             ),
           ],
         ),
@@ -190,7 +193,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     );
   }
 
-  Widget _buildStructuredEditor(bool isBuiltin) {
+  Widget _buildStructuredEditor(bool isBuiltin, AppLocalizations l10n) {
     final colors = context.colors;
 
     return SingleChildScrollView(
@@ -204,7 +207,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '标识',
+                      l10n.skillFieldId,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -220,7 +223,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                         fontFamily: 'monospace',
                       ),
                       decoration: _fieldDecoration(
-                        hint: '如 v5-architect',
+                        hint: l10n.skillFieldIdHint,
                         filled: isBuiltin,
                       ),
                     ),
@@ -233,7 +236,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '名称',
+                      l10n.skillFieldName,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -244,7 +247,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                     TextField(
                       controller: _nameController,
                       style: const TextStyle(fontSize: 12),
-                      decoration: _fieldDecoration(hint: '如 V5 自然语言架构师'),
+                      decoration: _fieldDecoration(hint: l10n.skillFieldNameHint),
                     ),
                   ],
                 ),
@@ -253,7 +256,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
           ),
           const SizedBox(height: 12),
           Text(
-            '技能描述',
+            l10n.skillFieldDescription,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -266,14 +269,14 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
             minLines: 2,
             maxLines: 4,
             style: const TextStyle(fontSize: 12, height: 1.4),
-            decoration: _fieldDecoration(hint: '简要说明该技能擅长处理的任务场景...'),
+            decoration: _fieldDecoration(hint: l10n.skillFieldDescriptionHint),
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '技能指令',
+                l10n.skillFieldPrompt,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -299,7 +302,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '禁止自动调用',
+                      l10n.skillFieldDisableInvocation,
                       style: TextStyle(
                         fontSize: 12,
                         color: colors.textSecondary,
@@ -320,7 +323,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
               height: 1.4,
             ),
             decoration: _fieldDecoration(
-              hint: '输入该技能加载后生效的完整提示词与规范...',
+              hint: l10n.skillFieldPromptHint,
               subtleFill: true,
             ),
           ),
@@ -329,14 +332,14 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     );
   }
 
-  Widget _buildRawEditor() {
+  Widget _buildRawEditor(AppLocalizations l10n) {
     final colors = context.colors;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '粘贴或编辑标准 SKILL.md (含 YAML Frontmatter 与 Markdown Body)：',
+          l10n.skillRawEditorHelp,
           style: TextStyle(fontSize: 12, color: colors.textSecondary),
         ),
         const SizedBox(height: 8),
@@ -397,7 +400,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     if (id.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Skill 标识 (ID) 不能为空')));
+      ).showSnackBar(SnackBar(content: Text(context.l10n.skillIdEmptyError)));
       return;
     }
 

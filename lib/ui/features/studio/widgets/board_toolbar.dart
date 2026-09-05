@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_floating_dock.dart';
 import '../../../core/widgets/app_tool_chip.dart';
@@ -10,6 +11,13 @@ enum AnnotationToolMode {
 
   final String label;
   const AnnotationToolMode(this.label);
+
+  String localizedLabel(BuildContext context) {
+    return switch (this) {
+      AnnotationToolMode.rect => context.l10n.boardToolRect,
+      AnnotationToolMode.point => context.l10n.boardToolPoint,
+    };
+  }
 }
 
 /// 自由大画布顶部浮动工具坞 (漫游/圈选/图钉/便利贴/参考图/粘贴/适应视口)
@@ -38,6 +46,7 @@ class BoardAnnotationToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
 
     return AppFloatingDock(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -46,21 +55,21 @@ class BoardAnnotationToolbar extends StatelessWidget {
         children: [
           BoardToolbarItem(
             icon: Icons.pan_tool_outlined,
-            label: '漫游',
+            label: l10n.boardToolPan,
             isSelected: isPanMode,
             onTap: onPanModeToggled,
           ),
           const SizedBox(width: 4),
           BoardToolbarItem(
             icon: Icons.crop_square_rounded,
-            label: '圈选选区',
+            label: l10n.boardToolRect,
             isSelected: !isPanMode && toolMode == AnnotationToolMode.rect,
             onTap: () => onToolModeChanged(AnnotationToolMode.rect),
           ),
           const SizedBox(width: 4),
           BoardToolbarItem(
             icon: Icons.push_pin_outlined,
-            label: '图钉锚点',
+            label: l10n.boardToolPoint,
             isSelected: !isPanMode && toolMode == AnnotationToolMode.point,
             onTap: () => onToolModeChanged(AnnotationToolMode.point),
           ),
@@ -69,21 +78,21 @@ class BoardAnnotationToolbar extends StatelessWidget {
           const SizedBox(width: 6),
           BoardToolbarItem(
             icon: Icons.note_add_outlined,
-            label: '+ 便利贴',
+            label: l10n.boardToolAddNote,
             isSelected: false,
             onTap: onAddNote,
           ),
           const SizedBox(width: 4),
           BoardToolbarItem(
             icon: Icons.add_photo_alternate_outlined,
-            label: '+ 参考图',
+            label: l10n.boardToolAddImage,
             isSelected: false,
             onTap: onImportImage,
           ),
           const SizedBox(width: 4),
           BoardToolbarItem(
             icon: Icons.content_paste_rounded,
-            label: '粘贴图 (Ctrl+V)',
+            label: l10n.boardToolPasteImage,
             isSelected: false,
             onTap: onPasteImage,
           ),
@@ -92,7 +101,7 @@ class BoardAnnotationToolbar extends StatelessWidget {
           const SizedBox(width: 6),
           BoardToolbarItem(
             icon: Icons.center_focus_strong_outlined,
-            label: '适应视口',
+            label: l10n.boardToolResetView,
             isSelected: false,
             onTap: onResetView,
           ),

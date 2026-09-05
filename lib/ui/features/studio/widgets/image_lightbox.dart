@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Uint8List;
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_icon_button.dart';
 
 /// 全屏大图查看器：自由平移缩放画板 (滚轮纯缩放、不随鼠标偏移) + 顶部关闭按钮
@@ -218,7 +219,7 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
                 right: 16,
                 child: AppIconButton(
                   icon: Icons.close_rounded,
-                  tooltip: '关闭大图展示',
+                  tooltip: context.maybeL10n?.lightboxCloseTooltip ?? '关闭大图展示',
                   size: 42,
                   iconSize: 26,
                   variant: AppIconButtonVariant.elevated,

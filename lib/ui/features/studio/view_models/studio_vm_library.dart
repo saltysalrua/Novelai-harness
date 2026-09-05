@@ -89,7 +89,9 @@ mixin _StudioLibraryMixin on _StudioCore {
       );
       currentList.add(
         NaiCharacterPrompt.create(
-          name: combo.title.trim().isNotEmpty ? combo.title.trim() : '新角色',
+          name: combo.title.trim().isNotEmpty
+              ? combo.title.trim()
+              : vmL10n.vmNewCharacterName,
           prompt: combo.prompt.trim(),
           negativePrompt: combo.negativePrompt.trim(),
         ),

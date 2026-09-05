@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/llm_model_fetcher.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/context_l10n.dart';
+import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dropdown.dart';
@@ -65,12 +68,12 @@ class ModelsSettingsDraft {
   );
 
   /// 将表单内容写回当前供应商条目 (切换 / 保存 / 拉取前调用)
-  void syncFromForm() {
+  void syncFromForm([String? fallbackName]) {
     final idx = providers.indexWhere((p) => p.id == selectedProviderId);
     if (idx >= 0) {
       providers[idx] = providers[idx].copyWith(
         name: nameController.text.trim().isEmpty
-            ? '自定义供应商'
+            ? (fallbackName ?? '自定义供应商')
             : nameController.text.trim(),
         baseUrl: baseUrlController.text.trim(),
         protocol: protocol,
@@ -92,18 +95,18 @@ class ModelsSettingsDraft {
   }
 
   /// 切换当前编辑的供应商，切换前自动同步表单
-  void switchProvider(String newProviderId) {
+  void switchProvider(String newProviderId, [String? fallbackName]) {
     if (newProviderId == selectedProviderId) return;
-    syncFromForm();
+    syncFromForm(fallbackName);
     loadProviderToForm(providers.firstWhere((p) => p.id == newProviderId));
   }
 
   /// 新建供应商并载入表单
-  void addNewProvider() {
-    syncFromForm();
+  void addNewProvider({String? defaultName, String? fallbackName}) {
+    syncFromForm(fallbackName);
     final newProvider = LlmProviderConfig(
       id: 'provider_${DateTime.now().millisecondsSinceEpoch}',
-      name: '新供应商 ${providers.length + 1}',
+      name: defaultName ?? '新供应商 ${providers.length + 1}',
       baseUrl: 'https://api.openai.com/v1',
       protocol: LlmProtocol.openAiChat,
       apiKey: '',
@@ -239,12 +242,9 @@ class ModelsSettingsDraft {
 
 /// 模型网格排序方式
 enum _ModelSortMode {
-  defaultOrder('默认顺序'),
-  nameAsc('名称 A-Z'),
-  nameDesc('名称 Z-A');
-
-  const _ModelSortMode(this.label);
-  final String label;
+  defaultOrder,
+  nameAsc,
+  nameDesc;
 }
 
 /// Models 页：多供应商管理、端点配置与模型卡片网格
@@ -295,7 +295,8 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
 
   /// 添加新模型
   Future<void> _addModel() async {
-    _draft.syncFromForm();
+    final l10n = context.l10n;
+    _draft.syncFromForm(l10n.settingsCustomProviderDefaultName);
     final result = await ModelProfileDialog.show(
       context,
       model: const LlmModelConfig(id: '', name: ''),
@@ -316,13 +317,14 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
 
   /// 在线拉取远程供应商模型列表
   Future<void> _fetchRemoteModelsOnline() async {
+    final l10n = context.l10n;
     final baseUrl = _draft.baseUrlController.text.trim();
     final apiKey = _draft.apiKeyController.text.trim();
 
     if (baseUrl.isEmpty) {
       setState(() {
         _draft.isFetchSuccess = false;
-        _draft.fetchStatusMessage = '请先填写有效的 API 基础 URL';
+        _draft.fetchStatusMessage = l10n.settingsFetchModelsEnterBaseUrl;
       });
       return;
     }
@@ -333,7 +335,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
     });
 
     try {
-      _draft.syncFromForm();
+      _draft.syncFromForm(l10n.settingsCustomProviderDefaultName);
       final existingModels = _draft.currentProvider.models;
 
       final result = await _modelFetcher.fetchRemoteModels(
@@ -355,9 +357,12 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
       setState(() {
         _draft.isFetchingModels = false;
         _draft.isFetchSuccess = true;
-        _draft.fetchStatusMessage =
-            '成功拉取 ${result.models.length} 个模型'
-            '${result.enrichedCount > 0 ? '，${result.enrichedCount} 个已匹配 models.dev 元数据' : ''}';
+        _draft.fetchStatusMessage = result.enrichedCount > 0
+            ? l10n.settingsFetchModelsSuccessWithEnriched(
+                result.models.length,
+                result.enrichedCount,
+              )
+            : l10n.settingsFetchModelsSuccess(result.models.length);
       });
     } catch (e) {
       if (!mounted) return;
@@ -370,9 +375,13 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
   }
 
   /// 计算完整接口地址预览
-  String _calculateFullEndpoint(String baseUrl, LlmProtocol protocol) {
+  String _calculateFullEndpoint(
+    String baseUrl,
+    LlmProtocol protocol,
+    String emptyLabel,
+  ) {
     var base = baseUrl.trim();
-    if (base.isEmpty) return '未配置 URL';
+    if (base.isEmpty) return emptyLabel;
     if (base.endsWith('/')) {
       base = base.substring(0, base.length - 1);
     }
@@ -382,17 +391,17 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
   }
 
   /// 头部：供应商选择 / 端点表单 / 拉取操作区 (不含模型网格)
-  Widget _buildHeaderSections() {
+  Widget _buildHeaderSections(AppLocalizations l10n) {
     final colors = context.colors;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 1. 供应商切换与管理
-        const AppSectionHeader(title: 'Provider Selection'),
+        AppSectionHeader(title: l10n.settingsSectionProviderSelection),
         AppSettingTile(
-          title: '当前供应商',
-          subtitle: '选择要配置的 AI 服务商，或添加自定义供应商',
+          title: l10n.settingsCurrentProvider,
+          subtitle: l10n.settingsCurrentProviderSubtitle,
           control: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -402,13 +411,25 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 items: _draft.providers
                     .map((p) => AppDropdownItem(value: p.id, label: p.name))
                     .toList(),
-                onChanged: (val) => setState(() => _draft.switchProvider(val)),
+                onChanged: (val) => setState(
+                  () => _draft.switchProvider(
+                    val,
+                    l10n.settingsCustomProviderDefaultName,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               AppActionButton(
                 icon: Icons.add_rounded,
-                label: '新建',
-                onPressed: () => setState(() => _draft.addNewProvider()),
+                label: l10n.settingsNewProviderButton,
+                onPressed: () => setState(
+                  () => _draft.addNewProvider(
+                    defaultName: l10n.settingsNewProviderDefaultName(
+                      _draft.providers.length + 1,
+                    ),
+                    fallbackName: l10n.settingsCustomProviderDefaultName,
+                  ),
+                ),
               ),
               if (_draft.providers.length > 1) ...[
                 const SizedBox(width: 4),
@@ -416,7 +437,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                   icon: Icons.delete_outline_rounded,
                   iconSize: 18,
                   variant: AppIconButtonVariant.ghost,
-                  tooltip: '删除当前供应商',
+                  tooltip: l10n.settingsDeleteCurrentProviderTooltip,
                   onPressed: () =>
                       setState(() => _draft.deleteCurrentProvider()),
                 ),
@@ -427,19 +448,19 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
 
         const SizedBox(height: 12),
         // 2. 供应商基本信息与端点
-        const AppSectionHeader(title: 'Provider Profile & Endpoint'),
+        AppSectionHeader(title: l10n.settingsSectionProviderProfile),
         AppSettingTile(
-          title: '供应商名称',
-          subtitle: '在界面与下拉菜单中显示的自定义标识',
+          title: l10n.settingsProviderName,
+          subtitle: l10n.settingsProviderNameSubtitle,
           control: SizedBox(
             width: 240,
             height: 36,
             child: TextField(
               controller: _draft.nameController,
               style: const TextStyle(fontSize: 12),
-              decoration: const InputDecoration(
-                hintText: '如 DeepSeek / OpenAI / 本地 Ollama',
-                contentPadding: EdgeInsets.symmetric(
+              decoration: InputDecoration(
+                hintText: l10n.settingsProviderNameHint,
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 8,
                 ),
@@ -448,8 +469,8 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
           ),
         ),
         AppSettingTile(
-          title: 'API 接口与协议',
-          subtitle: '服务基础 URL 与对应的通讯协议格式',
+          title: l10n.settingsApiEndpointAndProtocol,
+          subtitle: l10n.settingsApiEndpointAndProtocolSubtitle,
           control: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -477,7 +498,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                     .map(
                       (protocol) => AppDropdownItem(
                         value: protocol,
-                        label: protocol.label,
+                        label: llmProtocolLabelOf(l10n, protocol),
                       ),
                     )
                     .toList(),
@@ -492,6 +513,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
               final fullEndpoint = _calculateFullEndpoint(
                 _draft.baseUrlController.text,
                 _draft.protocol,
+                l10n.settingsEndpointUrlNotConfigured,
               );
               return Container(
                 padding: const EdgeInsets.symmetric(
@@ -509,7 +531,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '完整接口地址: $fullEndpoint',
+                        l10n.settingsFullEndpoint(fullEndpoint),
                         style: TextStyle(
                           fontSize: 12,
                           fontFamily: 'monospace',
@@ -525,8 +547,8 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
           ),
         ),
         AppSettingTile(
-          title: 'LLM API Key',
-          subtitle: '访问该供应商所需的身份密钥',
+          title: l10n.settingsLlmApiKeyTitle,
+          subtitle: l10n.settingsLlmApiKeySubtitle,
           control: SettingsKeyField(
             controller: _draft.apiKeyController,
             hintText: 'sk-...',
@@ -534,13 +556,18 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
           ),
         ),
         AppSettingTile(
-          title: '思考参数格式',
-          subtitle: '不同供应商用不同字段开关思维链，格式不匹配时思考会被静默丢弃；中转站请按其上游格式指定',
+          title: l10n.settingsThinkingParamFormat,
+          subtitle: l10n.settingsThinkingParamFormatSubtitle,
           control: AppDropdown<ThinkingParamFormat>(
             value: _draft.thinkingParamFormat,
             width: 220,
             items: ThinkingParamFormat.values
-                .map((f) => AppDropdownItem(value: f, label: f.label))
+                .map(
+                  (f) => AppDropdownItem(
+                    value: f,
+                    label: thinkingParamFormatLabelOf(l10n, f),
+                  ),
+                )
                 .toList(),
             onChanged: (val) =>
                 setState(() => _draft.thinkingParamFormat = val),
@@ -549,10 +576,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
 
         const SizedBox(height: 12),
         // 3. 模型列表与在线拉取
-        const AppSectionHeader(title: 'Models'),
+        AppSectionHeader(title: l10n.settingsSectionModels),
         AppSettingTile(
-          title: '模型列表',
-          subtitle: '点击卡片切换当前模型，设置按钮调整模型参数与能力档案',
+          title: l10n.settingsModelsListTitle,
+          subtitle: l10n.settingsModelsListSubtitle,
           control: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -589,7 +616,9 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                         color: colors.primary,
                       ),
                 label: Text(
-                  _draft.isFetchingModels ? '拉取中...' : '在线拉取模型',
+                  _draft.isFetchingModels
+                      ? l10n.settingsFetchingModels
+                      : l10n.settingsFetchModelsOnline,
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -599,7 +628,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
               const SizedBox(width: 6),
               AppActionButton(
                 icon: Icons.add_rounded,
-                label: '添加模型',
+                label: l10n.settingsAddModel,
                 iconSize: 14,
                 onPressed: _addModel,
               ),
@@ -648,11 +677,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         ),
         const SizedBox(height: 12),
         // 4. AI 整图编辑绘图模型 (独立于对话 LLM 的供应商与模型选择)
-        const AppSectionHeader(title: 'AI 整图编辑'),
+        AppSectionHeader(title: l10n.settingsSectionImageEdit),
         AppSettingTile(
-          title: '绘图模型',
-          subtitle:
-              '修复页「AI 整图编辑」使用的供应商与模型 (仅列出绘图模型)，独立于对话 LLM；需选择具备图像输出能力的模型 (如 nano banana / gpt-image)',
+          title: l10n.settingsImageEditModelTitle,
+          subtitle: l10n.settingsImageEditModelSubtitle,
           control: Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -663,7 +691,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 value: _draft.imageEditProviderId,
                 width: 200,
                 items: [
-                  const AppDropdownItem(value: '', label: '未配置'),
+                  AppDropdownItem(
+                    value: '',
+                    label: l10n.settingsDropdownNotConfigured,
+                  ),
                   ..._draft.providers.map(
                     (p) => AppDropdownItem(value: p.id, label: p.name),
                   ),
@@ -676,7 +707,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 value: _draft.imageEditModelId,
                 width: 240,
                 items: [
-                  const AppDropdownItem(value: '', label: '未选择模型'),
+                  AppDropdownItem(
+                    value: '',
+                    label: l10n.settingsDropdownNoModelSelected,
+                  ),
                   ..._draft.imageEditProviderModels.map(
                     (m) => AppDropdownItem(value: m.id, label: m.name),
                   ),
@@ -688,7 +722,9 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                       ))
                     AppDropdownItem(
                       value: _draft.imageEditModelId,
-                      label: '${_draft.imageEditModelId} (未识别为绘图模型)',
+                      label: l10n.settingsImageEditUnrecognizedModel(
+                        _draft.imageEditModelId,
+                      ),
                     ),
                 ],
                 onChanged: (val) =>
@@ -713,7 +749,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    '整图编辑不消耗 Anlas 点数，计费走绘图模型供应商；未识别到能力的模型可在模型设置中手动开启「图像输出」',
+                    l10n.settingsImageEditTip,
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                 ),
@@ -730,11 +766,12 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return CustomScrollView(
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
-          sliver: SliverToBoxAdapter(child: _buildHeaderSections()),
+          sliver: SliverToBoxAdapter(child: _buildHeaderSections(l10n)),
         ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
@@ -825,6 +862,7 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
   /// 搜索 / 排序 / 计数工具条
   Widget _buildToolbar(int visibleCount) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final total = widget.provider.models.length;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -834,7 +872,7 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
             width: 280,
             child: AppSearchField(
               controller: _searchController,
-              hintText: '搜索模型名称或 ID',
+              hintText: l10n.settingsSearchModelHint,
               debounceDuration: Duration.zero,
               onChanged: (_) {},
             ),
@@ -845,7 +883,18 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
             variant: AppDropdownVariant.compact,
             width: 150,
             items: _ModelSortMode.values
-                .map((m) => AppDropdownItem(value: m, label: m.label))
+                .map(
+                  (m) => AppDropdownItem(
+                    value: m,
+                    label: switch (m) {
+                      _ModelSortMode.defaultOrder =>
+                        l10n.settingsModelSortDefault,
+                      _ModelSortMode.nameAsc => l10n.settingsModelSortNameAsc,
+                      _ModelSortMode.nameDesc =>
+                        l10n.settingsModelSortNameDesc,
+                    },
+                  ),
+                )
                 .toList(),
             onChanged: (val) => setState(() => _sortMode = val),
           ),
@@ -855,15 +904,15 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
             icon: Icons.auto_awesome,
             iconSize: 13,
             fontSize: 11,
-            label: '仅绘图模型',
+            label: l10n.settingsFilterImageOnly,
             isSelected: _imageOnly,
             variant: AppToolChipVariant.tinted,
-            tooltip: '仅显示具备图像输出能力的模型 (如 nano banana / gpt-image)',
+            tooltip: l10n.settingsFilterImageOnlyTooltip,
             onTap: () => setState(() => _imageOnly = !_imageOnly),
           ),
           const Spacer(),
           Text(
-            '$visibleCount / $total 个模型',
+            l10n.settingsModelCount(visibleCount, total),
             style: TextStyle(fontSize: 12, color: colors.textMuted),
           ),
         ],
@@ -873,6 +922,7 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final models = widget.provider.models;
 
     // 供应商没有任何模型
@@ -880,8 +930,8 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
       return SliverToBoxAdapter(
         child: AppEmptyState(
           icon: Icons.view_in_ar_outlined,
-          title: '当前供应商暂无模型',
-          description: '点击上方"在线拉取模型"或"添加模型"',
+          title: l10n.settingsNoModelsInProvider,
+          description: l10n.settingsNoModelsInProviderDesc,
           isCompact: true,
         ),
       );
@@ -897,7 +947,9 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
           SliverToBoxAdapter(
             child: AppEmptyState(
               icon: Icons.search_off_rounded,
-              title: '没有匹配 "${_searchController.text.trim()}" 的模型',
+              title: l10n.settingsNoMatchingModels(
+                _searchController.text.trim(),
+              ),
               isCompact: true,
             ),
           )

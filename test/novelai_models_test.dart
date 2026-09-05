@@ -644,14 +644,14 @@ void main() {
       );
 
       // 角标文案：放大 > 修复 > 导入 优先
-      expect(upscaled.historyBadgeLabel, equals('放大'));
+      expect(upscaled.provenance, equals(NaiImageProvenance.upscaled));
       final imported = upscaled.copyWith(
         isUpscaled: false,
         isImportedReference: true,
       );
-      expect(imported.historyBadgeLabel, equals('导入'));
+      expect(imported.provenance, equals(NaiImageProvenance.imported));
       final repaired = upscaled.copyWith(isUpscaled: false, isInpainted: true);
-      expect(repaired.historyBadgeLabel, equals('修复'));
+      expect(repaired.provenance, equals(NaiImageProvenance.inpainted));
       final normal = NaiGeneratedImage(
         id: 'img_n',
         bytes: Uint8List(0),
@@ -660,21 +660,21 @@ void main() {
         seed: -1,
         isOpusFree: true,
       );
-      expect(normal.historyBadgeLabel, isNull);
+      expect(normal.provenance, isNull);
 
       // JSON 往返：标记保留，普通图不携带字段
       final upJson = upscaled.toJson();
       expect(upJson['isUpscaled'], isTrue);
       final restored = NaiGeneratedImage.fromJson(upJson);
       expect(restored.isUpscaled, isTrue);
-      expect(restored.historyBadgeLabel, equals('放大'));
+      expect(restored.provenance, equals(NaiImageProvenance.upscaled));
 
       // 修复标记 JSON 往返同样保留
       final repairedJson = repaired.toJson();
       expect(repairedJson['isInpainted'], isTrue);
       final restoredRepaired = NaiGeneratedImage.fromJson(repairedJson);
       expect(restoredRepaired.isInpainted, isTrue);
-      expect(restoredRepaired.historyBadgeLabel, equals('修复'));
+      expect(restoredRepaired.provenance, equals(NaiImageProvenance.inpainted));
 
       final normalJson = normal.toJson();
       expect(normalJson.containsKey('isUpscaled'), isFalse);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../studio/view_models/studio_view_model.dart';
@@ -80,6 +81,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       saveDirectory: _generalDraft.saveDirController.text.trim(),
       opusFreeMode: _generalDraft.opusFreeMode,
       themeMode: _generalDraft.themeMode,
+      localePreference: _generalDraft.localePreference,
       uiZoom: _generalDraft.uiZoom,
       enableStreamPreview: _generalDraft.enableStreamPreview,
       enableTagAutocomplete: _generalDraft.enableTagAutocomplete,
@@ -242,12 +244,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
   /// 右侧顶部标头
   Widget _buildContentHeader(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final (title, subtitle) = switch (_activeTabIndex) {
-      0 => ('General', '配置 NovelAI 绘图服务凭证、本地存储目录与 Opus 免点保护。'),
-      1 => ('Models', '按供应商管理大语言模型服务，在线拉取模型列表并自动匹配 models.dev 能力元数据。'),
-      2 => ('Presets', '管理 Agent 预设，配置系统提示词、按需加载的 Skill 库与生图参数控制权限。'),
-      3 => ('Defaults', '配置启动时的出厂默认生图模型、采样算法与步数引导。'),
-      4 => ('Bill', '按周期统计各模型的 Token 用量账单，数据来自本地增量账本。'),
+      0 => ('General', l10n.settingsSubtitleGeneral),
+      1 => ('Models', l10n.settingsSubtitleModels),
+      2 => ('Presets', l10n.settingsSubtitlePresets),
+      3 => ('Defaults', l10n.settingsSubtitleDefaults),
+      4 => ('Bill', l10n.settingsSubtitleBill),
       _ => ('Settings', ''),
     };
 
@@ -279,7 +282,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ),
           IconButton(
             icon: Icon(Icons.close_rounded, size: 20, color: colors.textMuted),
-            tooltip: '关闭',
+            tooltip: l10n.close,
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],
@@ -290,6 +293,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   /// 底部操作栏
   Widget _buildFooter(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
       decoration: BoxDecoration(
@@ -301,7 +305,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
-              '取消',
+              l10n.cancel,
               style: TextStyle(color: colors.textSecondary, fontSize: 13),
             ),
           ),
@@ -317,9 +321,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
             ),
             onPressed: _handleSave,
-            child: const Text(
-              '保存设置',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            child: Text(
+              l10n.settingsSaveButton,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
         ],

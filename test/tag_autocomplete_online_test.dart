@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:novelai_harness/data/services/danbooru_search_service.dart';
 import 'package:novelai_harness/data/services/tag_dictionary_service.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/tag_autocomplete_overlay.dart';
 
 void main() {
@@ -36,6 +37,9 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
   }) async {
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Padding(
             padding: const EdgeInsets.all(20),

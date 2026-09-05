@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-
 import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -15,6 +16,17 @@ import '../view_models/studio_view_model.dart';
 import 'resolution_pad_picker.dart';
 import 'studio_shared.dart';
 import 'watermark_pad_picker.dart';
+
+String _seedModeShortLabel(AppLocalizations l10n, NaiSeedMode mode) => switch (mode) {
+  NaiSeedMode.random => l10n.paramsSeedModeRandomShort,
+  NaiSeedMode.increase => l10n.paramsSeedModeIncreaseShort,
+  NaiSeedMode.fixed => l10n.paramsSeedModeFixedShort,
+};
+
+String _seedTimingLabel(AppLocalizations l10n, NaiSeedTiming timing) => switch (timing) {
+  NaiSeedTiming.before => l10n.paramsSeedTimingBefore,
+  NaiSeedTiming.after => l10n.paramsSeedTimingAfter,
+};
 
 /// 侧边栏页面一：参数设置 (模型 / 分辨率 / 采样属性 / 高级选项)
 class ParametersPage extends StatefulWidget {
@@ -67,6 +79,7 @@ class _ParametersPageState extends State<ParametersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return ListenableBuilder(
       listenable: widget.viewModel,
       builder: (context, _) {
@@ -76,11 +89,11 @@ class _ParametersPageState extends State<ParametersPage> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const PageHeader(title: '参数设置', subtitle: '模型、分辨率与采样属性调节'),
+            PageHeader(title: l10n.paramsPageTitle, subtitle: l10n.paramsPageSubtitle),
             const SizedBox(height: 16),
 
             // 1. 模型选择
-            const SectionHeader('模型'),
+            SectionHeader(l10n.paramsSectionModel),
             const SizedBox(height: 8),
             AppDropdown<NaiModel>.simple(
               value: params.model,
@@ -106,7 +119,7 @@ class _ParametersPageState extends State<ParametersPage> {
 
             // 3. Steps
             AppNumberSlider.integer(
-              title: 'Steps',
+              title: l10n.paramsSteps,
               value: params.steps,
               min: 1,
               max: 50,
@@ -117,7 +130,7 @@ class _ParametersPageState extends State<ParametersPage> {
 
             // 4. Prompt Guidance
             AppNumberSlider(
-              title: 'Prompt Guidance',
+              title: l10n.paramsPromptGuidance,
               value: params.scale,
               min: 1.0,
               max: 15.0,
@@ -171,6 +184,7 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final params = widget.viewModel.params;
 
     return Row(
@@ -181,7 +195,7 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionHeader('Seed'),
+              SectionHeader(l10n.paramsSectionSeed),
               const SizedBox(height: 8),
               Container(
                 height: 40,
@@ -204,7 +218,7 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                           color: colors.textPrimary,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Enter a seed',
+                          hintText: l10n.paramsSeedHint,
                           hintStyle: TextStyle(
                             fontSize: 12,
                             color: colors.textMuted,
@@ -247,8 +261,10 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                     ),
                     // 种子模式与生成控制按钮 (弹出小选择框)
                     Tooltip(
-                      message:
-                          '种子设置 (${params.seedMode.chineseLabel} · ${params.seedTiming.label})',
+                      message: l10n.paramsSeedTooltip(
+                        _seedModeShortLabel(l10n, params.seedMode),
+                        _seedTimingLabel(l10n, params.seedTiming),
+                      ),
                       child: InkWell(
                         key: _buttonKey,
                         onTap: () => _showSeedSettingsMenu(
@@ -289,7 +305,7 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionHeader('Sampler'),
+              SectionHeader(l10n.paramsSectionSampler),
               const SizedBox(height: 8),
               AppDropdown<NaiSampler>.simple(
                 value: params.sampler,
@@ -442,18 +458,19 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
                         listenable: widget.viewModel,
                         builder: (context, _) {
                           final params = widget.viewModel.params;
+                          final l10n = context.l10n;
 
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // 1. 种子模式
-                              _overlayGroupLabel('种子模式'),
+                              _overlayGroupLabel(l10n.paramsSeedModeGroup),
                               _buildModeOption(
                                 mode: NaiSeedMode.random,
                                 icon: Icons.eco_rounded,
-                                title: '1. Random (随机)',
-                                subtitle: '生图时自动生成全新随机种子',
+                                title: l10n.paramsSeedModeRandomTitle,
+                                subtitle: l10n.paramsSeedModeRandomSubtitle,
                                 isSelected:
                                     params.seedMode == NaiSeedMode.random,
                               ),
@@ -461,8 +478,8 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
                               _buildModeOption(
                                 mode: NaiSeedMode.increase,
                                 icon: Icons.trending_up_rounded,
-                                title: '2. Increase (递增)',
-                                subtitle: '生图时种子数值自动 +1',
+                                title: l10n.paramsSeedModeIncreaseTitle,
+                                subtitle: l10n.paramsSeedModeIncreaseSubtitle,
                                 isSelected:
                                     params.seedMode == NaiSeedMode.increase,
                               ),
@@ -470,8 +487,8 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
                               _buildModeOption(
                                 mode: NaiSeedMode.fixed,
                                 icon: Icons.lock_outline_rounded,
-                                title: '3. Fixed (固定)',
-                                subtitle: '保持当前设置的种子数值不变',
+                                title: l10n.paramsSeedModeFixedTitle,
+                                subtitle: l10n.paramsSeedModeFixedSubtitle,
                                 isSelected:
                                     params.seedMode == NaiSeedMode.fixed,
                               ),
@@ -479,16 +496,16 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
                               _overlayDivider(),
 
                               // 2. 生成控制
-                              _overlayGroupLabel('生成控制'),
+                              _overlayGroupLabel(l10n.paramsSeedTimingGroup),
                               AppSegmentedPillBar<NaiSeedTiming>(
-                                items: const [
+                                items: [
                                   AppSegmentedItem(
                                     value: NaiSeedTiming.before,
-                                    label: '生成前',
+                                    label: l10n.paramsSeedTimingBefore,
                                   ),
                                   AppSegmentedItem(
                                     value: NaiSeedTiming.after,
-                                    label: '生成后',
+                                    label: l10n.paramsSeedTimingAfter,
                                   ),
                                 ],
                                 selectedValue: params.seedTiming,
@@ -502,7 +519,7 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
                               // 3. 原功能与快捷操作
                               _buildActionRow(
                                 icon: Icons.casino_outlined,
-                                title: '立即随机种子',
+                                title: l10n.paramsSeedRandomizeNow,
                                 onTap: () {
                                   final newSeed = generateRandomSeed();
                                   widget.viewModel.updateParams(
@@ -515,7 +532,7 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
                                 const SizedBox(height: 2),
                                 _buildActionRow(
                                   icon: Icons.restart_alt_rounded,
-                                  title: '清空重置为随机 (-1)',
+                                  title: l10n.paramsSeedResetRandom,
                                   onTap: () {
                                     widget.viewModel.updateParams(
                                       params.copyWith(seed: -1),
@@ -621,12 +638,13 @@ class _AdvancedSettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final params = viewModel.params;
     final showKeepOriginal =
         viewModel.stripMetadata || viewModel.enableWatermark;
 
     return AppCollapsibleSection(
-      title: 'Advanced Settings',
+      title: l10n.paramsSectionAdvanced,
       isCard: false,
       headerPadding: EdgeInsets.zero,
       contentPadding: const EdgeInsets.only(top: 6, bottom: 8),
@@ -634,7 +652,7 @@ class _AdvancedSettingsSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppNumberSlider(
-            title: 'Prompt Guidance Rescale',
+            title: l10n.paramsPromptGuidanceRescale,
             value: params.cfgRescale,
             min: 0.0,
             max: 1.0,
@@ -643,7 +661,7 @@ class _AdvancedSettingsSection extends StatelessWidget {
                 viewModel.updateParams(params.copyWith(cfgRescale: v)),
           ),
           const SizedBox(height: 12),
-          const SectionHeader('Noise Schedule'),
+          SectionHeader(l10n.paramsSectionNoiseSchedule),
           const SizedBox(height: 8),
           AppDropdown<NoiseSchedule>.simple(
             value: params.noiseSchedule,
@@ -659,8 +677,8 @@ class _AdvancedSettingsSection extends StatelessWidget {
 
           // 1. 删除元数据开关
           AppSettingTile.switchTile(
-            title: '删除元数据',
-            subtitle: '导出与复制时抹除所有生成参数与隐写',
+            title: l10n.paramsStripMetadata,
+            subtitle: l10n.paramsStripMetadataSubtitle,
             value: viewModel.stripMetadata,
             onChanged: (val) => viewModel.setStripMetadata(val),
           ),
@@ -668,8 +686,8 @@ class _AdvancedSettingsSection extends StatelessWidget {
 
           // 2. 添加水印开关
           AppSettingTile.switchTile(
-            title: '添加水印',
-            subtitle: '仅在复制/下载时生效，UI 画板不显示',
+            title: l10n.paramsAddWatermark,
+            subtitle: l10n.paramsAddWatermarkSubtitle,
             value: viewModel.enableWatermark,
             onChanged: (val) => viewModel.setEnableWatermark(val),
           ),
@@ -688,8 +706,8 @@ class _AdvancedSettingsSection extends StatelessWidget {
           if (showKeepOriginal) ...[
             const SizedBox(height: 10),
             AppSettingTile.switchTile(
-              title: '保持原图像',
-              subtitle: '生图落盘时额外保存一份纯净原图 (_raw.png)',
+              title: l10n.paramsKeepOriginalImage,
+              subtitle: l10n.paramsKeepOriginalImageSubtitle,
               value: viewModel.keepOriginalImage,
               onChanged: (val) => viewModel.setKeepOriginalImage(val),
             ),

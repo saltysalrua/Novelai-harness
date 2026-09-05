@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_progress_bar.dart';
 
 /// 侧边栏页面标题与副标题 (参数设置 / 提示词管理页首复用)
@@ -69,7 +70,7 @@ class ClearTextLink extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Text(
-          '清空',
+          context.l10n.clear,
           style: TextStyle(fontSize: 11, color: context.colors.textMuted),
         ),
       ),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/main.dart';
+import 'package:novelai_harness/ui/core/locale/app_locale_controller.dart';
+import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/character_position_canvas_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/character_card_item.dart';
 
@@ -9,6 +12,9 @@ void main() {
   testWidgets(
     'Character position overlay flow: open, switch character, and ESC exit',
     (WidgetTester tester) async {
+      AppLocaleController.instance.locale.value = const Locale('zh');
+      addTearDown(AppLocaleController.instance.resetForTest);
+
       tester.view.physicalSize = const Size(1400, 1000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -38,7 +44,7 @@ void main() {
       expect(find.byType(CharacterCardItem), findsNWidgets(2));
 
       // 向上滑动以确保模式行完全在视口内
-      await tester.drag(find.text('Character Prompts'), const Offset(0, -100));
+      await tester.drag(find.text('多角色提示词'), const Offset(0, -100));
       await tester.pumpAndSettle();
 
       // 4. 点击模式行中的“画板编辑”胶囊按钮进入位置编辑
@@ -92,6 +98,71 @@ void main() {
 
       expect(find.byType(CharacterPositionOverlay), findsNothing);
       expect(find.byType(CanvasPositionFloatingControls), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'CanvasPositionPlaceholderCard and FloatingControls render localized bilingual strings',
+    (tester) async {
+      final vm = StudioViewModel();
+
+      // Chinese verification
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Stack(
+              children: [
+                CanvasPositionPlaceholderCard(
+                  viewModel: vm,
+                  maxCardWidth: 800,
+                  maxCardHeight: 600,
+                ),
+                CanvasPositionFloatingControls(viewModel: vm),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('临时画板 · ${vm.params.width} × ${vm.params.height}'),
+        findsOneWidget,
+      );
+      expect(find.text('完成编辑'), findsOneWidget);
+
+      // English verification
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Stack(
+              children: [
+                CanvasPositionPlaceholderCard(
+                  viewModel: vm,
+                  maxCardWidth: 800,
+                  maxCardHeight: 600,
+                ),
+                CanvasPositionFloatingControls(viewModel: vm),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Temporary Canvas · ${vm.params.width} × ${vm.params.height}',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Done Editing'), findsOneWidget);
     },
   );
 }

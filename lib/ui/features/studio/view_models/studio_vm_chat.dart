@@ -33,7 +33,7 @@ mixin _StudioChatMixin on _StudioCore {
 
     // 斜杠指令不支持附带图片
     if (trimmed.startsWith('/') && hasImages) {
-      _errorMessage = '斜杠指令不支持附带图片，请直接发送对话消息';
+      _errorMessage = vmL10n.vmChatSlashNoImage;
       notifyListeners();
       return;
     }
@@ -51,7 +51,7 @@ mixin _StudioChatMixin on _StudioCore {
       try {
         await _handleSlashCommand(trimmed);
       } catch (e) {
-        _errorMessage = '指令执行失败: $e';
+        _errorMessage = vmL10n.vmChatSlashFailed('$e');
         notifyListeners();
       }
       return;
@@ -90,16 +90,23 @@ mixin _StudioChatMixin on _StudioCore {
             // 瞬态错误自动重试：在流式气泡顶部提示用户，等待退避后重发
             // (低频但即时可见，局部立即刷新)
             _streamingText.setNotice(
-              '请求失败自动重试 (${event.attempt}/${event.maxAttempts}): '
-              '${event.reason} · '
-              '${event.delay.inSeconds > 0 ? '${event.delay.inSeconds} 秒后' : '即将'}重试',
+              vmL10n.vmChatRetryNotice(
+                event.attempt,
+                event.maxAttempts,
+                event.reason,
+                event.delay.inSeconds > 0
+                    ? vmL10n.vmChatRetryDelayed(event.delay.inSeconds)
+                    : vmL10n.vmChatRetrySoon,
+              ),
             );
           } else if (event is UsageEvent) {
             _recordModelUsage(event.usage);
           } else if (event is CompactionEvent) {
             // 上下文自动压缩完成：状态栏提示 (原始消息仍完整保留在对话流中)
-            _statusMessage =
-                '上下文已自动压缩 (${event.tokensBefore} → ${event.tokensAfter} tokens)，更早消息已摘要替换';
+            _statusMessage = vmL10n.vmChatCompacted(
+              event.tokensBefore,
+              event.tokensAfter,
+            );
             _notifyNow();
           } else if (event is ToolResultEvent) {
             _notifyNow();
@@ -109,7 +116,7 @@ mixin _StudioChatMixin on _StudioCore {
           }
         },
         onError: (e) {
-          _errorMessage = '对话异常: $e';
+          _errorMessage = vmL10n.vmChatError('$e');
           if (!completer.isCompleted) completer.complete();
         },
         onDone: () {
@@ -120,7 +127,7 @@ mixin _StudioChatMixin on _StudioCore {
 
       await completer.future;
     } catch (e) {
-      _errorMessage = '对话异常: $e';
+      _errorMessage = vmL10n.vmChatError('$e');
     } finally {
       _chatSubscription = null;
       _isChatStreaming = false;
@@ -138,7 +145,7 @@ mixin _StudioChatMixin on _StudioCore {
     _chatSubscription = null;
     _isChatStreaming = false;
     _streamingText.reset();
-    _statusMessage = '已强制终止当前生成';
+    _statusMessage = vmL10n.vmChatForceAborted;
     _notifyNow();
   }
 
@@ -172,24 +179,32 @@ mixin _StudioChatMixin on _StudioCore {
     required int estimatedCost,
   }) async {
     final reasons = buildPaidGenerationReasons(params);
-    final reasonText = reasons.isEmpty ? '当前账号无 Opus 免费额度' : reasons.join('、');
+    final reasonText = reasons.isEmpty
+        ? vmL10n.vmCostNoOpusQuota
+        : reasons.join('、');
     final costText = estimatedCost > 0
-        ? '预计消耗 $estimatedCost Anlas 点数'
-        : '将消耗 Anlas 点数';
+        ? vmL10n.vmCostEstimate(estimatedCost)
+        : vmL10n.vmCostWillCost;
     final answer = await _presentQuestionsToUser([
       AgentQuestion(
-        header: '点数消耗申请',
-        question: '本次生图参数（$reasonText）$costText。是否确认生成？',
+        header: vmL10n.vmCostTitle,
+        question: vmL10n.vmCostGenQuestion(reasonText, costText),
         allowCustomInput: false,
-        options: const [
-          AgentQuestionOption(label: '确认生成', description: '使用当前参数直接生图并扣除点数'),
-          AgentQuestionOption(label: '取消生图', description: '取消本次生成，调整参数至免费区间'),
+        options: [
+          AgentQuestionOption(
+            label: vmL10n.vmCostGenConfirm,
+            description: vmL10n.vmCostGenConfirmDesc,
+          ),
+          AgentQuestionOption(
+            label: vmL10n.vmCostGenCancel,
+            description: vmL10n.vmCostGenCancelDesc,
+          ),
         ],
       ),
     ]);
 
     if (answer == null || answer.isEmpty) return false;
-    return answer.first.contains('确认生成');
+    return answer.first.contains(vmL10n.vmCostGenConfirm);
   }
 
   /// 付费超分确认 (内嵌于对话流，纯选择按钮)
@@ -201,20 +216,28 @@ mixin _StudioChatMixin on _StudioCore {
   }) async {
     final answer = await _presentQuestionsToUser([
       AgentQuestion(
-        header: '点数消耗申请',
-        question:
-            '将输入尺寸 ${inputWidth}x$inputHeight 的图片执行官方超分放大，'
-            '预计消耗 $estimatedCost Anlas 点数。是否确认放大？',
+        header: vmL10n.vmCostTitle,
+        question: vmL10n.vmCostUpscaleQuestion(
+          inputWidth,
+          inputHeight,
+          estimatedCost,
+        ),
         allowCustomInput: false,
-        options: const [
-          AgentQuestionOption(label: '确认放大', description: '执行官方超分并扣除点数'),
-          AgentQuestionOption(label: '取消放大', description: '取消本次超分操作'),
+        options: [
+          AgentQuestionOption(
+            label: vmL10n.vmCostUpscaleConfirm,
+            description: vmL10n.vmCostUpscaleConfirmDesc,
+          ),
+          AgentQuestionOption(
+            label: vmL10n.vmCostUpscaleCancel,
+            description: vmL10n.vmCostUpscaleCancelDesc,
+          ),
         ],
       ),
     ]);
 
     if (answer == null || answer.isEmpty) return false;
-    return answer.first.contains('确认放大');
+    return answer.first.contains(vmL10n.vmCostUpscaleConfirm);
   }
 
   // ------------------------- Token 用量 -------------------------

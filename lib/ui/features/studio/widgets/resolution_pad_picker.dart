@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_colors_extension.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
@@ -98,6 +99,7 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final category = ResolutionCategory.fromDimensions(
       widget.width,
       widget.height,
@@ -115,7 +117,7 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '分辨率',
+              l10n.resolutionTitle,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -123,8 +125,8 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
               ),
             ),
             if (widget.isOpusFree)
-              const AppBadge(
-                label: 'Opus 免费',
+              AppBadge(
+                label: l10n.opusFree,
                 variant: AppBadgeVariant.success,
                 fontSize: 10,
               ),
@@ -163,7 +165,7 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
             // 方向按键组：横屏 / 竖屏 / 正方形 (38x38 舒适可点击尺寸)
             _buildOrientationButton(
               icon: Icons.crop_landscape_rounded,
-              tooltip: 'Landscape',
+              tooltip: l10n.resolutionOrientationLandscape,
               isSelected: orientation == ResolutionOrientation.landscape,
               onTap: () {
                 final cat = category == ResolutionCategory.custom
@@ -179,7 +181,7 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
             const SizedBox(width: 4),
             _buildOrientationButton(
               icon: Icons.crop_portrait_rounded,
-              tooltip: 'Portrait',
+              tooltip: l10n.resolutionOrientationPortrait,
               isSelected: orientation == ResolutionOrientation.portrait,
               onTap: () {
                 final cat = category == ResolutionCategory.custom
@@ -196,8 +198,8 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
             _buildOrientationButton(
               icon: Icons.crop_square_rounded,
               tooltip: ResolutionPresetHelper.supportsSquare(category)
-                  ? 'Square'
-                  : 'Square (Wallpaper 暂无 1:1 比例)',
+                  ? l10n.resolutionOrientationSquare
+                  : l10n.resolutionOrientationSquareDisabled,
               isSelected: orientation == ResolutionOrientation.square,
               onTap: ResolutionPresetHelper.supportsSquare(category)
                   ? () {
@@ -217,7 +219,7 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
             // 宽高快速交换按钮
             AppIconButton(
               icon: Icons.swap_horiz_rounded,
-              tooltip: 'Swap',
+              tooltip: l10n.resolutionSwapTooltip,
               size: 38,
               iconSize: 18,
               onPressed: _swapDimensions,

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/main.dart';
+import 'package:novelai_harness/ui/core/locale/app_locale_controller.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_rewind_view.dart';
 
 Future<void> doubleEsc(WidgetTester tester) async {
@@ -12,6 +14,15 @@ Future<void> doubleEsc(WidgetTester tester) async {
 }
 
 void main() {
+  setUp(() {
+    AppLocaleController.instance.syncFromConfig(
+      const AppConfig(localePreference: AppLocalePreference.zh),
+    );
+  });
+  tearDown(() {
+    AppLocaleController.instance.resetForTest();
+  });
+
   // 双击 ESC 计时用真实时钟，测试执行速度快于 400ms 窗口，
   // 必须拆分为独立用例避免跨场景的窗口残留误判
   testWidgets('double ESC opens rewind from root focus (fresh start)', (

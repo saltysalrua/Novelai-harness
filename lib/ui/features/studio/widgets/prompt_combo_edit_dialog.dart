@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../core/context_l10n.dart';
+import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -156,7 +158,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('选择图片失败: $e'),
+          content: Text(context.l10n.libraryEditPickImageFailed(e.toString())),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -171,17 +173,17 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         _previewImagePath = null; // 标记由内存字节保存
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已采用当前画板图像作为预览图'),
-          duration: Duration(milliseconds: 900),
+        SnackBar(
+          content: Text(context.l10n.libraryEditAdoptedCanvasImage),
+          duration: const Duration(milliseconds: 900),
           behavior: SnackBarBehavior.floating,
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('画板当前暂无生成的图像'),
-          duration: Duration(milliseconds: 1200),
+        SnackBar(
+          content: Text(context.l10n.libraryEditCanvasNoImage),
+          duration: const Duration(milliseconds: 1200),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -199,9 +201,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     final current = widget.viewModel.params.prompt.trim();
     if (current.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('工作台主提示词为空'),
-          duration: Duration(milliseconds: 900),
+        SnackBar(
+          content: Text(context.l10n.libraryEditWorkspacePromptEmpty),
+          duration: const Duration(milliseconds: 900),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -216,9 +218,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     final current = widget.viewModel.params.negativePrompt.trim();
     if (current.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('工作台负面提示词为空'),
-          duration: Duration(milliseconds: 900),
+        SnackBar(
+          content: Text(context.l10n.libraryEditWorkspaceNegativeEmpty),
+          duration: const Duration(milliseconds: 900),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -235,9 +237,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
 
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('请输入词组合名称'),
-          duration: Duration(milliseconds: 1200),
+        SnackBar(
+          content: Text(context.l10n.libraryEditTitleEmpty),
+          duration: const Duration(milliseconds: 1200),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -246,9 +248,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
 
     if (prompt.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('请输入主提示词内容'),
-          duration: Duration(milliseconds: 1200),
+        SnackBar(
+          content: Text(context.l10n.libraryEditPromptEmpty),
+          duration: const Duration(milliseconds: 1200),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -322,7 +324,11 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_isEdit ? '已更新词组合: $title' : '已添加词组合: $title'),
+          content: Text(
+            _isEdit
+                ? context.l10n.libraryEditUpdatedSuccess(title)
+                : context.l10n.libraryEditCreatedSuccess(title),
+          ),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
@@ -332,7 +338,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('保存失败: $e'),
+          content: Text(context.l10n.libraryEditSaveFailed(e.toString())),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -342,12 +348,15 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final screenSize = MediaQuery.of(context).size;
     final dialogWidth = (screenSize.width * 0.72).clamp(700.0, 1060.0);
     final dialogHeight = (screenSize.height * 0.78).clamp(520.0, 800.0);
 
     return AppDialogScaffold(
-      title: _isEdit ? '编辑词组合' : '新建词组合',
+      title: _isEdit
+          ? l10n.libraryEditDialogTitleEdit
+          : l10n.libraryEditDialogTitleNew,
       width: dialogWidth,
       height: dialogHeight,
       sidebarWidth: 270.0,
@@ -358,14 +367,18 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 组合名称
-            _buildFieldLabel(context, '组合名称', isRequired: true),
+            _buildFieldLabel(
+              context,
+              l10n.libraryEditFieldTitle,
+              isRequired: true,
+            ),
             const SizedBox(height: 6),
             TextField(
               controller: _titleController,
               style: TextStyle(fontSize: 13, color: colors.textPrimary),
               decoration: _comboFieldDecoration(
                 context,
-                '例如：赛博朋克猫耳少女 / 日系水彩插画',
+                l10n.libraryEditFieldTitleHint,
                 hintFontSize: 13,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -376,7 +389,11 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
             const SizedBox(height: 16),
 
             // 分类选择器
-            _buildFieldLabel(context, '分类', isRequired: true),
+            _buildFieldLabel(
+              context,
+              l10n.libraryEditFieldCategory,
+              isRequired: true,
+            ),
             const SizedBox(height: 6),
             _buildCategoryDropdown(context),
             if (_isCustomCategory) ...[
@@ -386,7 +403,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                 style: TextStyle(fontSize: 12, color: colors.textPrimary),
                 decoration: _comboFieldDecoration(
                   context,
-                  '输入自定义分类名称 (如：光影、视角)',
+                  l10n.libraryEditFieldCustomCategoryHint,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 8,
@@ -397,15 +414,22 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
             const SizedBox(height: 16),
 
             // 主提示词 (Positive)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
               children: [
-                _buildFieldLabel(context, '主提示词', isRequired: true),
+                _buildFieldLabel(
+                  context,
+                  l10n.libraryEditFieldPrompt,
+                  isRequired: true,
+                ),
                 TextButton.icon(
                   onPressed: _fillFromCurrentWorkspacePrompt,
                   icon: Icon(Icons.input, size: 13, color: colors.primary),
                   label: Text(
-                    '填入工作台主词',
+                    l10n.libraryEditFillFromPrompt,
                     style: TextStyle(fontSize: 11, color: colors.primary),
                   ),
                   style: TextButton.styleFrom(
@@ -430,7 +454,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
               ),
               decoration: _comboFieldDecoration(
                 context,
-                '输入正向提示词 (如: 1girl, hatsune miku, cybernetic...)',
+                l10n.libraryEditFieldPromptHint,
                 hintFontSize: 13,
                 contentPadding: const EdgeInsets.all(12),
               ),
@@ -439,15 +463,19 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
 
             // 负面提示词 (Negative) — 【只在选择了角色时才出现】
             if (_isCharacterCategory) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
                 children: [
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildFieldLabel(context, '负面提示词'),
+                      _buildFieldLabel(context, l10n.libraryEditFieldNegative),
                       const SizedBox(width: 6),
-                      const AppBadge(
-                        label: '仅角色分类可用',
+                      AppBadge(
+                        label: l10n.libraryEditCharacterOnlyBadge,
                         variant: AppBadgeVariant.error,
                         fontSize: 10,
                       ),
@@ -457,7 +485,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                     onPressed: _fillFromCurrentWorkspaceNegative,
                     icon: Icon(Icons.input, size: 13, color: colors.error),
                     label: Text(
-                      '填入工作台负向词',
+                      l10n.libraryEditFillFromNegative,
                       style: TextStyle(fontSize: 11, color: colors.error),
                     ),
                     style: TextButton.styleFrom(
@@ -482,7 +510,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                 ),
                 decoration: _comboFieldDecoration(
                   context,
-                  '角色专有负面词 (如: worst quality, bad hands, mutated...)',
+                  l10n.libraryEditFieldNegativeHint,
                   contentPadding: const EdgeInsets.all(10),
                   fillColor: colors.errorSurface,
                   accentColor: colors.error,
@@ -493,14 +521,14 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
             ],
 
             // 检索标签 (Tags)
-            _buildFieldLabel(context, '检索标签 (Tags)'),
+            _buildFieldLabel(context, l10n.libraryEditFieldTags),
             const SizedBox(height: 6),
             TextField(
               controller: _tagsController,
               style: TextStyle(fontSize: 12, color: colors.textPrimary),
               decoration: _comboFieldDecoration(
                 context,
-                '用于快速筛选，用逗号分隔 (例如：miku, 水彩, 二次元, 赛博)',
+                l10n.libraryEditFieldTagsHint,
               ),
             ),
           ],
@@ -510,7 +538,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
-            '取消',
+            l10n.cancel,
             style: TextStyle(fontSize: 12, color: colors.textSecondary),
           ),
         ),
@@ -536,7 +564,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                   ),
                 )
               : Text(
-                  _isEdit ? '保存修改' : '创建词组合',
+                  _isEdit
+                      ? l10n.libraryEditSaveButton
+                      : l10n.libraryEditCreateButton,
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -550,6 +580,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   /// 左侧贯通面板的图片占位符与预览区
   Widget _buildLeftPosterPanel(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final hasImage =
         _previewBytes != null ||
         (_previewImagePath != null && File(_previewImagePath!).existsSync());
@@ -606,7 +637,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '设置预览图',
+                      l10n.libraryEditPosterTitle,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
@@ -621,9 +652,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                   ElevatedButton.icon(
                     onPressed: _pickLocalImage,
                     icon: const Icon(Icons.file_upload_outlined, size: 15),
-                    label: const Text(
-                      '选择本地图片',
-                      style: TextStyle(
+                    label: Text(
+                      l10n.libraryEditPickLocalImage,
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -653,9 +684,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                   ElevatedButton.icon(
                     onPressed: _useCurrentCanvasImage,
                     icon: const Icon(Icons.image_outlined, size: 15),
-                    label: const Text(
-                      '使用画板当前图',
-                      style: TextStyle(
+                    label: Text(
+                      l10n.libraryEditUseCanvasImage,
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -689,7 +720,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                         color: colors.error,
                       ),
                       label: Text(
-                        '移除预览图',
+                        l10n.libraryEditRemovePreviewImage,
                         style: TextStyle(fontSize: 12, color: colors.error),
                       ),
                       style: TextButton.styleFrom(
@@ -737,6 +768,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   /// 下拉分类选择器 (取代平铺 Chips)
   Widget _buildCategoryDropdown(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final categories = [...PromptComboCategories.defaults, '自定义...'];
 
     return Container(
@@ -771,7 +803,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    cat,
+                    cat == '自定义...'
+                        ? l10n.libraryEditCustomCategoryOption
+                        : comboCategoryLabelOf(l10n, cat),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: isChar ? FontWeight.w600 : FontWeight.normal,

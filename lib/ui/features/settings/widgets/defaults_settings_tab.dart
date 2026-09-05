@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/config_service.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_number_slider.dart';
@@ -45,15 +46,16 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionHeader(title: 'Model & Sampler'),
+          AppSectionHeader(title: l10n.settingsSectionModelAndSampler),
           AppSettingTile(
-            title: '默认生图模型',
-            subtitle: '应用启动或参数重置时的默认出厂模型',
+            title: l10n.settingsDefaultModelTitle,
+            subtitle: l10n.settingsDefaultModelSubtitle,
             control: AppDropdown.simple(
               value: _draft.model,
               items: NaiModel.values,
@@ -63,8 +65,8 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
             ),
           ),
           AppSettingTile(
-            title: '默认采样算法',
-            subtitle: '生图时默认使用的降噪采样器',
+            title: l10n.settingsDefaultSamplerTitle,
+            subtitle: l10n.settingsDefaultSamplerSubtitle,
             control: AppDropdown.simple(
               value: _draft.sampler,
               items: NaiSampler.values,
@@ -74,8 +76,8 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
             ),
           ),
           AppSettingTile(
-            title: '默认噪声调度',
-            subtitle: '采样降噪过程中的时间步长调度算法',
+            title: l10n.settingsDefaultNoiseScheduleTitle,
+            subtitle: l10n.settingsDefaultNoiseScheduleSubtitle,
             control: AppDropdown.simple(
               value: _draft.noiseSchedule,
               items: NoiseSchedule.values,
@@ -86,10 +88,10 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           ),
 
           const SizedBox(height: AppSpacing.lg),
-          const AppSectionHeader(title: 'Default Steps & Scale'),
+          AppSectionHeader(title: l10n.settingsSectionDefaultStepsAndScale),
           AppSettingTile(
-            title: '默认步数 (Steps)',
-            subtitle: '初始采样迭代步数',
+            title: l10n.settingsDefaultStepsTitle,
+            subtitle: l10n.settingsDefaultStepsSubtitle,
             control: const SizedBox.shrink(),
             bottomChild: AppNumberSlider.integer(
               value: _draft.steps,
@@ -99,8 +101,10 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
             ),
           ),
           AppSettingTile(
-            title: '默认 CFG Scale',
-            subtitle: '提示词引导强度 (当前: ${_draft.scale.toStringAsFixed(1)})',
+            title: l10n.settingsDefaultScaleTitle,
+            subtitle: l10n.settingsDefaultScaleSubtitle(
+              _draft.scale.toStringAsFixed(1),
+            ),
             control: const SizedBox.shrink(),
             bottomChild: AppNumberSlider(
               value: _draft.scale,
@@ -113,10 +117,10 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           ),
 
           const SizedBox(height: AppSpacing.lg),
-          const AppSectionHeader(title: 'Agent Loop'),
+          AppSectionHeader(title: l10n.settingsSectionAgentLoop),
           AppSettingTile(
-            title: 'Agent 最大工具轮数',
-            subtitle: '单次对话允许的工具链式调用轮数，达到后自动收尾总结',
+            title: l10n.settingsAgentMaxTurnsTitle,
+            subtitle: l10n.settingsAgentMaxTurnsSubtitle,
             control: const SizedBox.shrink(),
             bottomChild: AppNumberSlider.integer(
               value: _draft.agentMaxTurns,

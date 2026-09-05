@@ -6,12 +6,12 @@
   "startAiEdit": "Start AI Edit",
   "abortGeneration": "Abort Generation",
   "opusFree": "Opus Free",
-  "needAnlas": "Anlas Required",
+  "needAnlas": "Costs Anlas",
   "v5Stamina": "V5 Stamina",
   "tabParameters": "Parameters",
   "tabPrompts": "Prompts",
   "tabInpaint": "Inpaint",
-  "tabLibrary": "Prompt Library",
+  "tabLibrary": "Library",
   "history": "History",
   "settings": "Settings",
   "save": "Save",
@@ -22,5 +22,1247 @@
   "copy": "Copy",
   "close": "Close",
   "import": "Import",
-  "export": "Export"
+  "export": "Export",
+  "settingsSectionAppearance": "Appearance",
+  "settingsThemeMode": "Theme Mode",
+  "settingsThemeModeSubtitle": "Switch between light/dark workspace; dark uses a Notion-minimal palette",
+  "themeModeSystem": "Follow System",
+  "themeModeLight": "Light",
+  "themeModeDark": "Dark",
+  "settingsLanguage": "Language",
+  "settingsLanguageSubtitle": "Switch the display language; the settings page comes first, other screens migrate module by module",
+  "localeSystem": "Follow System",
+  "localeChinese": "中文",
+  "localeEnglish": "English",
+  "settingsUiZoom": "UI Zoom",
+  "settingsUiZoomSubtitle": "Scale the whole workspace; Ctrl+= / Ctrl+- to step, Ctrl+0 to reset",
+  "settingsSectionNovelaiService": "NovelAI Service",
+  "settingsApiKeyTitle": "NovelAI API Key",
+  "settingsApiKeySubtitle": "Official API token (pst-...) for image generation and stamina sync",
+  "settingsSaveDirTitle": "Local Storage Directory",
+  "settingsSaveDirSubtitle": "Generated images and metadata are saved to this path",
+  "settingsSaveDirHint": "Storage path...",
+  "settingsChooseButton": "Choose",
+  "settingsAutoSaveTitle": "Auto-save Generated Images",
+  "settingsAutoSaveSubtitleOn": "Images are written to the storage directory automatically (metadata & watermark follow export settings)",
+  "settingsAutoSaveSubtitleOff": "Images go to the cache directory (no watermark) first; save manually from the canvas, and cache beyond the history limit is pruned automatically",
+  "settingsStreamPreviewTitle": "Live Generation Preview",
+  "settingsStreamPreviewSubtitle": "Receive and render intermediate denoising previews during generation (Stream Preview)",
+  "settingsImagePersistenceTitle": "Image History Persistence",
+  "settingsImagePersistenceSubtitle": "Restore canvas history images after app restart",
+  "settingsMaxImagesTitle": "Max Persisted Images",
+  "settingsMaxImagesSubtitle": "Cap the number of images kept in local canvas history",
+  "settingsImageCount": "{count} images",
+  "@settingsImageCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "settingsSectionTagAutocomplete": "Danbooru Tag Autocomplete",
+  "settingsTagAutocompleteTitle": "Smart Tag Autocomplete",
+  "settingsTagAutocompleteSubtitle": "Pop up suggestions from the 320k+ Danbooru dictionary while typing prompts",
+  "settingsDictUpdateTitle": "Online Dictionary Update",
+  "settingsDictUpdateNowButton": "Update Now",
+  "settingsDictAutoCheckTitle": "Check for Updates at Startup",
+  "settingsDictAutoCheckSubtitle": "Fetch the latest dictionary once daily in the background (ffdkj daily builds with new tags and Chinese translations)",
+  "settingsTagTranslationsTitle": "Show Chinese Tag Meanings",
+  "settingsTagTranslationsSubtitle": "Show Chinese translations in the suggestion list and the tag browser",
+  "settingsTagColorsTitle": "Tag Category Highlight",
+  "settingsTagColorsSubtitle": "Colorize artist, character, copyright and general tags in the prompt editor",
+  "dictOnlineInfo": "Online dictionary, {count} entries · updated {date}",
+  "@dictOnlineInfo": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "date": { "type": "String" }
+    }
+  },
+  "dictBuiltinInfo": "Built-in dictionary, {count} entries",
+  "@dictBuiltinInfo": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "dictBuiltinLoading": "Built-in dictionary (loading)",
+  "settingsSectionProtection": "Protection",
+  "settingsOpusTitle": "Opus Free-Tier Protection",
+  "settingsOpusSubtitle": "Clamp default parameters into the free tier (pixels <= 1048576 and steps <= 28)",
+  "dictUpdateFailed": "Update failed: {error}",
+  "@dictUpdateFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "settingsModelSettings": "Model Settings",
+  "settingsDeleteModel": "Delete Model",
+  "settingsModelBadgeThinking": "Thinking",
+  "settingsModelBadgeMultimodal": "Multimodal",
+  "settingsModelBadgeImageOutput": "Image",
+  "settingsModelBadgeContext": "{tokens} Context",
+  "@settingsModelBadgeContext": {
+    "placeholders": {
+      "tokens": { "type": "String" }
+    }
+  },
+  "settingsAddModel": "Add Model",
+  "settingsModelIdEmptyError": "Model ID cannot be empty",
+  "settingsModelDisplayName": "Display Name",
+  "settingsModelDisplayNameHint": "e.g. DeepSeek R1",
+  "settingsModelId": "Model ID",
+  "settingsModelIdHint": "Model identifier sent to API",
+  "settingsModelTemperature": "Temperature",
+  "settingsModelReasoning": "Reasoning",
+  "settingsModelThinkingEffort": "Thinking Effort",
+  "settingsModelMultimodal": "Multimodal (Image Input)",
+  "settingsModelImageOutput": "Image Output (Drawing Model)",
+  "settingsModelContextWindow": "Context Window (tokens)",
+  "settingsModelMaxTokens": "Max Output (tokens)",
+  "settingsAdd": "Add",
+  "settingsCustomProviderDefaultName": "Custom Provider",
+  "settingsNewProviderDefaultName": "New Provider {index}",
+  "@settingsNewProviderDefaultName": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "settingsFetchModelsEnterBaseUrl": "Please enter a valid API Base URL first",
+  "settingsFetchModelsSuccess": "Successfully fetched {count} models",
+  "@settingsFetchModelsSuccess": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "settingsFetchModelsSuccessWithEnriched": "Successfully fetched {count} models, {enrichedCount} matched with models.dev metadata",
+  "@settingsFetchModelsSuccessWithEnriched": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "enrichedCount": { "type": "int" }
+    }
+  },
+  "settingsEndpointUrlNotConfigured": "URL not configured",
+  "settingsFullEndpoint": "Full Endpoint: {endpoint}",
+  "@settingsFullEndpoint": {
+    "placeholders": {
+      "endpoint": { "type": "String" }
+    }
+  },
+  "settingsSectionProviderSelection": "Provider Selection",
+  "settingsSectionProviderProfile": "Provider Profile & Endpoint",
+  "settingsSectionModels": "Models",
+  "settingsSectionImageEdit": "AI Image Edit",
+  "settingsCurrentProvider": "Current Provider",
+  "settingsCurrentProviderSubtitle": "Select an AI provider to configure, or add a custom provider",
+  "settingsNewProviderButton": "New",
+  "settingsDeleteCurrentProviderTooltip": "Delete current provider",
+  "settingsProviderName": "Provider Name",
+  "settingsProviderNameSubtitle": "Custom label displayed in UI and dropdown menus",
+  "settingsProviderNameHint": "e.g. DeepSeek / OpenAI / Local Ollama",
+  "settingsApiEndpointAndProtocol": "API Endpoint & Protocol",
+  "settingsApiEndpointAndProtocolSubtitle": "Service base URL and communication protocol format",
+  "settingsLlmApiKeyTitle": "LLM API Key",
+  "settingsLlmApiKeySubtitle": "Credentials required to access this provider",
+  "settingsThinkingParamFormat": "Thinking Param Format",
+  "settingsThinkingParamFormatSubtitle": "Different providers use different fields to toggle reasoning. Reasoning will be silently discarded if the format does not match; configure according to the upstream format for relays.",
+  "settingsModelsListTitle": "Models",
+  "settingsModelsListSubtitle": "Click a card to switch current model; use settings to adjust parameters and capability profiles",
+  "settingsFetchingModels": "Fetching...",
+  "settingsFetchModelsOnline": "Fetch Models Online",
+  "settingsImageEditModelTitle": "Drawing Model",
+  "settingsImageEditModelSubtitle": "Provider and model used by Inpaint 'AI Image Edit' (drawing models only), independent of chat LLM; select a model with image output capabilities (e.g. nano banana / gpt-image)",
+  "settingsDropdownNotConfigured": "Not Configured",
+  "settingsDropdownNoModelSelected": "No Model Selected",
+  "settingsImageEditUnrecognizedModel": "{modelId} (not recognized as drawing model)",
+  "@settingsImageEditUnrecognizedModel": {
+    "placeholders": {
+      "modelId": { "type": "String" }
+    }
+  },
+  "settingsImageEditTip": "Image edit does not consume Anlas points, billing follows the drawing model provider; models without auto-detected capabilities can enable 'Image Output' manually in model settings",
+  "settingsSearchModelHint": "Search model name or ID",
+  "settingsModelSortDefault": "Default Order",
+  "settingsModelSortNameAsc": "Name A-Z",
+  "settingsModelSortNameDesc": "Name Z-A",
+  "settingsFilterImageOnly": "Drawing Models Only",
+  "settingsFilterImageOnlyTooltip": "Only show models with image output capabilities (e.g. nano banana / gpt-image)",
+  "settingsModelCount": "{current} / {total} models",
+  "@settingsModelCount": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "settingsNoModelsInProvider": "No models in current provider",
+  "settingsNoModelsInProviderDesc": "Click \"Fetch Models Online\" or \"Add Model\" above",
+  "settingsNoMatchingModels": "No models matching \"{query}\"",
+  "@settingsNoMatchingModels": {
+    "placeholders": {
+      "query": { "type": "String" }
+    }
+  },
+  "settingsBadgeBuiltin": "Built-in",
+  "settingsBadgeCustom": "Custom",
+  "settingsSectionPresetSelection": "Preset Selection",
+  "settingsSectionPresetProfile": "Preset Profile & System Prompt",
+  "settingsSectionAvailableSkills": "Available Skills",
+  "settingsSectionEnabledTools": "Enabled Tools",
+  "settingsSectionModifiableParams": "Modifiable Parameters",
+  "presetCurrentPreset": "Current Preset",
+  "presetCurrentPresetSubtitle": "Select an Agent preset to configure (system prompt, available skills, tool and parameter permissions)",
+  "presetBadgeActiveDefault": "Default",
+  "presetSetAsActiveDefault": "Set as Default",
+  "presetNewButton": "New",
+  "presetDeleteTooltip": "Delete this preset",
+  "presetDefaultCustomName": "Custom Preset",
+  "presetNewName": "New Preset {index}",
+  "@presetNewName": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "presetNewDescription": "Custom Agent preset description",
+  "presetNewSystemPrompt": "You are a painting creation assistant powered by NovelAI Harness.",
+  "presetDuplicateName": "{name} (Copy)",
+  "@presetDuplicateName": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "presetExportSkillSuccess": "Copied Skill [{name}] as standard SKILL.md to clipboard",
+  "@presetExportSkillSuccess": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "presetBuiltinNotice": "Built-in presets are factory defaults refreshed automatically from code on launch and cannot be edited directly. To customize, click \"Copy\" first to make a copy.",
+  "presetDisplayName": "Preset Display Name",
+  "presetDisplayNameHint": "e.g. V5 Natural Language Architect",
+  "presetDescription": "Preset Description",
+  "presetDescriptionHint": "e.g. Specialized in V5 natural language prose prompts...",
+  "presetSystemPrompt": "System Prompt (serves as the primary root instruction for conversations)",
+  "presetSystemPromptHint": "Enter the core persona and workflow guidelines for the AI assistant...",
+  "presetImportSkill": "Import SKILL.md",
+  "presetNewSkill": "New Skill",
+  "presetNewCustomTool": "New Custom Tool",
+  "presetParamPrompt": "Prompt",
+  "presetParamNegativePrompt": "Negative Prompt",
+  "presetParamModel": "Model",
+  "presetParamResolution": "Resolution",
+  "presetParamWidth": "Width",
+  "presetParamHeight": "Height",
+  "presetParamSteps": "Steps",
+  "presetParamScale": "CFG",
+  "presetParamCfgRescale": "CFG Rescale",
+  "presetParamSampler": "Sampler",
+  "presetParamNoiseSchedule": "Noise Schedule",
+  "presetParamQualityPreset": "Quality Tags",
+  "presetParamCharacterAiPosition": "Character Position",
+  "skillTooltipExport": "Export as SKILL.md",
+  "skillTooltipEdit": "View & Edit Skill",
+  "skillTooltipDelete": "Delete Skill",
+  "skillNoDescription": "No description",
+  "skillDialogImportTitle": "Import Standard SKILL.md",
+  "skillDialogNewTitle": "New Skill",
+  "skillDialogEditTitle": "Edit Skill ({name})",
+  "@skillDialogEditTitle": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "skillEditorTabStructured": "Structured Edit",
+  "skillEditorTabRaw": "SKILL.md Source",
+  "skillCopySkillMd": "Copy SKILL.md",
+  "skillCopySuccess": "Copied standard SKILL.md content to clipboard",
+  "skillSave": "Save Skill",
+  "skillFieldId": "ID",
+  "skillFieldIdHint": "e.g. v5-architect",
+  "skillFieldName": "Name",
+  "skillFieldNameHint": "e.g. V5 Natural Language Architect",
+  "skillFieldDescription": "Skill Description",
+  "skillFieldDescriptionHint": "Briefly describe task scenarios this skill excels at...",
+  "skillFieldPrompt": "Skill Instructions",
+  "skillFieldDisableInvocation": "Disable model auto-invocation",
+  "skillFieldPromptHint": "Enter complete prompt and specifications applied when this skill is loaded...",
+  "skillRawEditorHelp": "Paste or edit standard SKILL.md (including YAML Frontmatter and Markdown Body):",
+  "skillIdEmptyError": "Skill ID cannot be empty",
+  "toolTooltipEdit": "Edit Tool",
+  "toolTooltipInspectSchema": "View Schema",
+  "toolTooltipDelete": "Delete Custom Tool",
+  "toolNoDescription": "No tool description",
+  "toolDialogSchemaTitle": "Tool Schema ({label})",
+  "@toolDialogSchemaTitle": {
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "toolDialogNewTitle": "New Custom Tool",
+  "toolDialogEditTitle": "Edit Custom Tool ({label})",
+  "@toolDialogEditTitle": {
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "toolFieldId": "ID",
+  "toolFieldIdHint": "e.g. custom_tool",
+  "toolFieldName": "Name",
+  "toolFieldNameHint": "e.g. Custom Tool",
+  "toolFieldDescription": "Tool Description",
+  "toolFieldDescriptionHint": "Clearly describe what this tool does and when to use it...",
+  "toolFieldSchema": "Parameter Schema",
+  "toolCopySchema": "Copy Schema",
+  "toolCopySchemaSuccess": "Copied Schema JSON to clipboard",
+  "toolFieldOutputTemplate": "Output Template",
+  "toolFieldOutputTemplateHint": "e.g. Successfully executed and built result: {placeholder}",
+  "@toolFieldOutputTemplateHint": {
+    "placeholders": {
+      "placeholder": { "type": "String" }
+    }
+  },
+  "toolSave": "Save Tool",
+  "toolNameEmptyError": "Tool Name cannot be empty",
+  "toolSchemaParseError": "Schema JSON parse failed: {error}",
+  "@toolSchemaParseError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "settingsSaveButton": "Save Settings",
+  "settingsSubtitleGeneral": "Configure NovelAI image generation credentials, local storage directory, and Opus free-tier protection.",
+  "settingsSubtitleModels": "Manage LLM services by provider, fetch model lists online, and automatically match models.dev capability metadata.",
+  "settingsSubtitlePresets": "Manage Agent presets, configure system prompts, on-demand Skill libraries, and image generation parameter permissions.",
+  "settingsSubtitleDefaults": "Configure startup default image generation model, sampling algorithm, and step guidance.",
+  "settingsSubtitleBill": "Track Token usage bills for each model by period, powered by the local incremental ledger.",
+  "settingsSectionModelAndSampler": "Model & Sampler",
+  "settingsDefaultModelTitle": "Default Model",
+  "settingsDefaultModelSubtitle": "Default factory model used at application startup or after parameter reset",
+  "settingsDefaultSamplerTitle": "Default Sampler",
+  "settingsDefaultSamplerSubtitle": "Default denoising sampler used during image generation",
+  "settingsDefaultNoiseScheduleTitle": "Default Noise Schedule",
+  "settingsDefaultNoiseScheduleSubtitle": "Time step schedule algorithm used during denoising",
+  "settingsSectionDefaultStepsAndScale": "Default Steps & Scale",
+  "settingsDefaultStepsTitle": "Default Steps (Steps)",
+  "settingsDefaultStepsSubtitle": "Initial sampling iteration steps",
+  "settingsDefaultScaleTitle": "Default CFG Scale",
+  "settingsDefaultScaleSubtitle": "Prompt guidance scale (current: {scale})",
+  "@settingsDefaultScaleSubtitle": {
+    "placeholders": {
+      "scale": { "type": "String" }
+    }
+  },
+  "settingsSectionAgentLoop": "Agent Loop",
+  "settingsAgentMaxTurnsTitle": "Agent Max Turns",
+  "settingsAgentMaxTurnsSubtitle": "Maximum tool chain call turns allowed per single conversation before automatically wrapping up",
+  "settingsSectionUsageBill": "Usage Bill",
+  "billPeriodToday": "Today",
+  "billPeriodLast7Days": "Last 7 Days",
+  "billPeriodLast30Days": "Last 30 Days",
+  "billPeriodAll": "All",
+  "billSummaryRequestsAndTokens": "{requests} requests · Total {tokens} tokens",
+  "@billSummaryRequestsAndTokens": {
+    "placeholders": {
+      "requests": { "type": "int" },
+      "tokens": { "type": "String" }
+    }
+  },
+  "billEmptyRecords": "No usage records in this period",
+  "billTableHeaderModel": "Model",
+  "billTableHeaderRequests": "Requests",
+  "billTableHeaderInput": "Input",
+  "billTableHeaderOutput": "Output",
+  "billTableHeaderCacheRead": "Cache Read",
+  "billTableHeaderHitRate": "Hit Rate",
+  "billTableHeaderTotal": "Total",
+  "billTableTotalRow": "Total",
+  "paramsPageTitle": "Parameters",
+  "paramsPageSubtitle": "Adjust model, resolution, and sampling attributes",
+  "paramsSectionModel": "Model",
+  "paramsSteps": "Steps",
+  "paramsPromptGuidance": "Prompt Guidance",
+  "paramsSectionSeed": "Seed",
+  "paramsSeedHint": "Enter a seed",
+  "paramsSeedTooltip": "Seed Settings ({mode} · {timing})",
+  "@paramsSeedTooltip": {
+    "placeholders": {
+      "mode": { "type": "String" },
+      "timing": { "type": "String" }
+    }
+  },
+  "paramsSeedModeRandomShort": "Random",
+  "paramsSeedModeIncreaseShort": "Increase",
+  "paramsSeedModeFixedShort": "Fixed",
+  "paramsSeedTimingBefore": "Before",
+  "paramsSeedTimingAfter": "After",
+  "paramsSectionSampler": "Sampler",
+  "paramsSeedModeGroup": "Seed Mode",
+  "paramsSeedModeRandomTitle": "1. Random",
+  "paramsSeedModeRandomSubtitle": "Generate a new random seed on each image generation",
+  "paramsSeedModeIncreaseTitle": "2. Increase",
+  "paramsSeedModeIncreaseSubtitle": "Increment seed value by 1 on each image generation",
+  "paramsSeedModeFixedTitle": "3. Fixed",
+  "paramsSeedModeFixedSubtitle": "Keep current seed value unchanged",
+  "paramsSeedTimingGroup": "Generation Timing",
+  "paramsSeedRandomizeNow": "Randomize Seed Now",
+  "paramsSeedResetRandom": "Reset to Random (-1)",
+  "paramsSectionAdvanced": "Advanced Settings",
+  "paramsPromptGuidanceRescale": "Prompt Guidance Rescale",
+  "paramsSectionNoiseSchedule": "Noise Schedule",
+  "paramsStripMetadata": "Strip Metadata",
+  "paramsStripMetadataSubtitle": "Remove all generation parameters and steganography when exporting and copying",
+  "paramsAddWatermark": "Add Watermark",
+  "paramsAddWatermarkSubtitle": "Applies only on copy/download, not displayed on canvas",
+  "paramsKeepOriginalImage": "Keep Original Image",
+  "paramsKeepOriginalImageSubtitle": "Save an additional clean raw image (_raw.png) when saving generated images",
+  "resolutionTitle": "Resolution",
+  "resolutionOrientationLandscape": "Landscape",
+  "resolutionOrientationPortrait": "Portrait",
+  "resolutionOrientationSquare": "Square",
+  "resolutionOrientationSquareDisabled": "Square (1:1 aspect ratio unavailable for Wallpaper)",
+  "resolutionSwapTooltip": "Swap",
+  "watermarkPickImageFailed": "Failed to select image: {error}",
+  "@watermarkPickImageFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "watermarkPositionTopLeft": "Top Left",
+  "watermarkPositionTopRight": "Top Right",
+  "watermarkPositionCenter": "Center",
+  "watermarkPositionBottomLeft": "Bottom Left",
+  "watermarkPositionBottomRight": "Bottom Right",
+  "watermarkSmartPositionApplied": "Positioned smartly on low-detail area",
+  "watermarkSmartPositionNoImage": "No image on canvas for smart positioning",
+  "watermarkPositionTitle": "Watermark Position",
+  "watermarkSmartPositionTooltip": "Smart Positioning: Analyze canvas image and place watermark in the lowest-detail area",
+  "watermarkPositionPillTooltip": "Drag to position watermark on canvas (or press ESC to exit)",
+  "watermarkPositionPillLabel": "Position: {position}",
+  "@watermarkPositionPillLabel": {
+    "placeholders": {
+      "position": { "type": "String" }
+    }
+  },
+  "watermarkAutoPosition": "Auto Position",
+  "watermarkAutoPositionSubtitle": "Analyze image on each composition and automatically place in lowest-detail area",
+  "watermarkAutoContrast": "Auto Contrast",
+  "watermarkAutoContrastSubtitle": "Automatically darken or brighten based on background luminance to ensure visibility",
+  "watermarkScalePercent": "Watermark Scale (%)",
+  "watermarkOpacityPercent": "Opacity (%)",
+  "watermarkMarginPercent": "Margin (%)",
+  "watermarkBlindTitle": "Blind Watermark",
+  "watermarkBlindSubtitle": "Frequency-domain invisible watermark, invisible to the eye; extractable by pasting image in metadata dialog",
+  "watermarkBlindEnable": "Enable",
+  "watermarkBlindTextHint": "Signature / copyright text",
+  "watermarkBlindStrength": "Blind Watermark Strength",
+  "watermarkLoadedImage": "Watermark image loaded",
+  "watermarkEffectiveOnExport": "Effective only upon copy/download",
+  "watermarkChangeImageTooltip": "Change image",
+  "watermarkClearImageTooltip": "Clear watermark image",
+  "watermarkSelectLocalImage": "Click to select local watermark image (PNG/JPG)",
+  "watermarkOverlayScale": "Scale: {scale}%",
+  "@watermarkOverlayScale": {
+    "placeholders": {
+      "scale": { "type": "String" }
+    }
+  },
+  "watermarkOverlayPosition": "Position: {x}%, {y}%",
+  "@watermarkOverlayPosition": {
+    "placeholders": {
+      "x": { "type": "int" },
+      "y": { "type": "int" }
+    }
+  },
+  "promptsPageTitle": "Prompt Management",
+  "promptsPageSubtitle": "Positive prompts, negative undesired content, and global fixed affixes",
+  "promptsCorePromptHint": "Enter core tags or natural language prose, e.g.: 1girl, solo, silver hair, masterpiece...",
+  "promptsSwitchToTabbedMode": "Switch to tabbed mode",
+  "promptsCustomUndesiredHint": "Enter custom negative tags, e.g.: bad hands, blurry, extra limbs...",
+  "promptsSwitchToStackedMode": "Switch to stacked mode",
+  "promptsTabbedPromptHint": "Enter core tags or natural language prose, e.g.: 1girl, solo, silver hair...",
+  "promptsTabbedUndesiredHint": "Exclude unwanted artifacts or defects, e.g.: lowres, bad anatomy, bad hands...",
+  "promptsResizePromptTooltip": "Drag to resize prompt input height (double-click to reset)",
+  "promptsIncreaseWeightTooltip": "Increase tag numeric weight (Ctrl+Up, format x.x::tag::)",
+  "promptsDecreaseWeightTooltip": "Decrease tag numeric weight (Ctrl+Down, format x.x::tag::)",
+  "promptsToggleDisabledTooltip": "Toggle disabled state (Ctrl+/)",
+  "promptsFormatTooltip": "Format and convert SD syntax (Ctrl+Shift+F)",
+  "promptsTagBrowserTooltip": "Open Danbooru tag browser",
+  "promptsAffixesHint": "Global fixed prefix & suffix affixes",
+  "charPromptDeckTabCharacter": "Character Prompts",
+  "charPromptDeckTabAffixes": "Fixed Affixes",
+  "charPromptEnabled": "Enabled",
+  "charPromptDisabled": "Disabled",
+  "charPromptPositionAi": "AI Auto",
+  "charPromptPositionCustom": "Custom",
+  "charPromptIsolationHint": "Isolated character prompts",
+  "charPromptUnsupportedModel": "Current model does not support character prompts (V4+ only). Settings below are kept but will not be used in generation.",
+  "charPromptEmptyTitle": "No character prompts yet",
+  "charPromptEmptyDescription": "Click Female / Male / Other preset buttons above to start multi-character generation",
+  "charPromptExitCanvasEditTooltip": "Exit canvas position editing",
+  "charPromptEnterCanvasEditTooltip": "Edit character position on canvas",
+  "charPromptCanvasEditing": "Editing",
+  "charPromptCanvasEdit": "Canvas Edit",
+  "charPromptAddFemaleTooltip": "Add female character (initial prompt: girl)",
+  "charPromptAddMaleTooltip": "Add male character (initial prompt: boy)",
+  "charPromptAddOtherTooltip": "Add other character (empty initial prompt)",
+  "charPromptLimitReached": "Limit Reached",
+  "charPromptGenderFemale": "Female",
+  "charPromptGenderMale": "Male",
+  "charPromptGenderOther": "Other",
+  "charPromptDefaultName": "Character {index}",
+  "@charPromptDefaultName": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "charPromptNameHint": "Character name (optional)",
+  "charPromptSaveToLibraryTooltip": "Save character to prompt library",
+  "charPromptDeleteTooltip": "Delete character",
+  "charPromptEnable": "Enable",
+  "charPromptDisable": "Disable",
+  "charPromptPromptHint": "Character prompt, e.g.: 1girl, silver hair, twintails, smile...",
+  "charPromptResizePromptTooltip": "Drag to resize prompt height (double-click to reset)",
+  "charPromptNegativePromptHint": "Character negative prompt (optional), e.g.: bad hands, blurry...",
+  "charPromptResizeNegativeTooltip": "Drag to resize negative prompt height (double-click to reset)",
+  "affixPrefixTitle": "Prefix (placed before main prompt)",
+  "affixResizePrefixTooltip": "Drag to resize prefix height (double-click to reset)",
+  "affixSuffixTitle": "Suffix (placed after main prompt)",
+  "affixResizeSuffixTooltip": "Drag to resize suffix height (double-click to reset)",
+  "annotHistoryTitle": "History ",
+  "annotHistoryEmpty": "No images",
+  "annotHistoryAddedAsReference": "Added history image to canvas as reference",
+  "annotHistoryImportTooltip": "Import local image as reference",
+  "annotHistoryImportImage": "Import Image",
+  "inpaintPageTitle": "Inpaint Settings",
+  "inpaintPageSubtitle": "Inpainting & high-precision latent focus closeup",
+  "inpaintSectionMode": "Inpaint Mode",
+  "inpaintModeFocus": "Focus Closeup",
+  "inpaintModeFocusSubtitle": "Supersampled lossless blend",
+  "inpaintModeStandard": "Standard Inpaint",
+  "inpaintModeStandardSubtitle": "Full canvas inpainting",
+  "inpaintModeAiEdit": "AI Edit",
+  "inpaintModeAiEditSubtitle": "External image model repaint",
+  "inpaintAiEditAspectRatio": "Aspect Ratio",
+  "inpaintAiEditFollowSource": "Match Source",
+  "inpaintAiEditResolution": "Resolution",
+  "inpaintAiEditDefaultResolution": "Default",
+  "inpaintContextPadding": "Context Padding (px)",
+  "inpaintStrength": "Inpaint Strength",
+  "inpaintNoise": "Noise",
+  "inpaintSectionInstruction": "Edit Instructions",
+  "inpaintSectionPrompt": "Prompt Settings",
+  "inpaintReuseMainPromptAsInstruction": "Reuse main prompt as instruction",
+  "inpaintReuseMainPrompt": "Reuse main prompt",
+  "inpaintCustomInstruction": "Custom Instruction",
+  "inpaintCustomPrompt": "Custom Inpaint Prompt",
+  "inpaintInstructionHint": "Enter natural language instruction, e.g.: change background to sunset beach...",
+  "inpaintPromptHint": "Enter inpaint positive prompt...",
+  "inpaintMainPrompt": "Main Positive Prompt",
+  "inpaintMainNegativePrompt": "Main Negative Prompt",
+  "inpaintReuseMainNegative": "Reuse main negative prompt",
+  "inpaintCustomNegative": "Custom Negative Prompt",
+  "inpaintNegativePromptHint": "Enter inpaint negative prompt...",
+  "inpaintImageModel": "Image Model",
+  "inpaintConsumeQuota": "Consumes model quota",
+  "inpaintProvider": "Provider",
+  "inpaintModel": "Model",
+  "inpaintNoModelConfigured": "No image model configured. Go to Settings -> Models -> AI Edit to select a model provider and model with image output capabilities (e.g. nano banana / gpt-image).",
+  "inpaintLatentFocusGeometry": "Latent Focus Geometry",
+  "inpaintRequiresPoints": "Requires Points",
+  "inpaintTargetSelection": "Target Selection",
+  "inpaintContextCrop": "Context Extension",
+  "inpaintRequestResolution": "Request Resolution",
+  "inpaintSupersample": "{scale}x supersampling",
+  "@inpaintSupersample": {
+    "placeholders": {
+      "scale": { "type": "String" }
+    }
+  },
+  "inpaintReusedLabel": "Reused {label}",
+  "@inpaintReusedLabel": {
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "inpaintReusedPromptEmpty": "(Empty, configure in Prompt tab)",
+  "inpaintOverlayEmptyHint": "Generate or select an image to start inpainting",
+  "inpaintOverlayContextCrop": "Context extension +{padding}px",
+  "@inpaintOverlayContextCrop": {
+    "placeholders": {
+      "padding": { "type": "int" }
+    }
+  },
+  "inpaintOverlayInProgress": "Inpainting...",
+  "inpaintOverlayAiEditHint": "AI Edit · Full image repaint, no region selection needed",
+  "inpaintToolRect": "Marquee",
+  "inpaintToolBrush": "Brush",
+  "inpaintToolEraser": "Eraser",
+  "inpaintClearMask": "Clear Mask",
+  "canvasImportedReference": "Imported reference image: {fileName}",
+  "@canvasImportedReference": {
+    "placeholders": {
+      "fileName": { "type": "String" }
+    }
+  },
+  "canvasDropTargetTitle": "Drop image to import (Metadata will be auto-detected)",
+  "canvasCopiedRawImage": "Original image copied to clipboard",
+  "canvasCopiedImage": "Image copied to clipboard",
+  "canvasCopyImageFailed": "Failed to copy image",
+  "canvasActionAddAnnotation": "Add Annotation",
+  "canvasActionViewAnnotation": "View Annotations ({count})",
+  "@canvasActionViewAnnotation": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "canvasActionSendToInpaint": "Send to Inpaint",
+  "canvasActionUpscale": "Upscale",
+  "canvasActionCopyImage": "Copy Image",
+  "canvasActionCopyRawImage": "Copy Original Image",
+  "canvasActionCopyPrompt": "Copy Prompt",
+  "canvasCopiedPrompt": "Prompt copied to clipboard",
+  "canvasActionReuseParams": "Reuse Parameters",
+  "canvasAppliedParams": "Applied image parameters to the left panel",
+  "canvasActionViewLightbox": "View Full Size",
+  "canvasActionDeleteFromHistory": "Delete from History",
+  "canvasDeletedFromHistory": "Image deleted from history",
+  "canvasActionClearHistory": "Clear History",
+  "canvasClearedHistory": "History cleared",
+  "canvasClearHistoryAutoSaveMessage": "Are you sure you want to clear {count} images from canvas history? Only UI records will be cleared, locally saved files are kept. This action cannot be undone.",
+  "@canvasClearHistoryAutoSaveMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "canvasClearHistoryManualSaveMessage": "Are you sure you want to clear {count} images from history? Unsaved cached images will be deleted, manually saved files are kept. This action cannot be undone.",
+  "@canvasClearHistoryManualSaveMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "canvasHistoryEmpty": "No history",
+  "canvasCopySeedTooltip": "Click to copy seed",
+  "canvasCopiedSeed": "Seed copied to clipboard",
+  "canvasEnterAnnotationTooltip": "Enter annotation mode (Select / Pin / Full Image)",
+  "canvasAnnotate": "Annotate",
+  "canvasAnnotateWithCount": "Annotate ({count})",
+  "@canvasAnnotateWithCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "canvasSaveButtonTooltip": "Save current image to local directory (apply metadata and watermark per export settings)",
+  "canvasSavedImage": "Saved: {path}",
+  "@canvasSavedImage": {
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "canvasSaveFailed": "Save failed, please check storage directory settings",
+  "canvasSaveImage": "Save Image",
+  "canvasUnseenLatestBanner": "New image generated · Click to view latest",
+  "canvasOpenHistoryTooltip": "Expand history",
+  "canvasEmptyTitle": "No image on canvas",
+  "canvasEmptyDescription": "Configure parameters on the left to generate images. History will be displayed as a vertical stream.",
+  "metadataBlindWatermarkContent": "Blind Watermark Content",
+  "metadataBlindWatermarkNotFound": "No blind watermark detected",
+  "metadataDialogTitle": "Image Metadata Reader",
+  "metadataPromptTitle": "Prompt",
+  "metadataCopiedPrompt": "Prompt copied to clipboard",
+  "metadataNegativePromptTitle": "Negative Prompt",
+  "metadataCopiedNegativePrompt": "Negative prompt copied to clipboard",
+  "metadataDimensionAuto": "Auto",
+  "metadataDimensions": "Dimensions: {width} x {height}",
+  "@metadataDimensions": {
+    "placeholders": {
+      "width": { "type": "String" },
+      "height": { "type": "String" }
+    }
+  },
+  "metadataModelUnknown": "Unknown Model",
+  "metadataSamplerDefault": "Default",
+  "metadataModelAndSampler": "Model: {model}  ·  Sampler: {sampler}",
+  "@metadataModelAndSampler": {
+    "placeholders": {
+      "model": { "type": "String" },
+      "sampler": { "type": "String" }
+    }
+  },
+  "metadataSeedLabel": "Seed: {seed}",
+  "@metadataSeedLabel": {
+    "placeholders": {
+      "seed": { "type": "String" }
+    }
+  },
+  "metadataCharacterPromptsTitle": "Character Prompts",
+  "metadataCharacterIndex": "Character {index}",
+  "@metadataCharacterIndex": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "metadataNegativePrefix": "Negative: {negative}",
+  "@metadataNegativePrefix": {
+    "placeholders": {
+      "negative": { "type": "String" }
+    }
+  },
+  "metadataParametersTitle": "Generation Parameters",
+  "metadataParamModel": "Model",
+  "metadataParamUnknown": "Unknown",
+  "metadataParamSampler": "Sampler",
+  "metadataParamDefault": "Default",
+  "metadataParamSteps": "Steps",
+  "metadataParamSeed": "Seed",
+  "metadataParamSeedRandom": "Random",
+  "metadataParamNoiseSchedule": "Noise Schedule",
+  "metadataParamQualityPreset": "Quality Preset",
+  "metadataParamUcPreset": "UC Preset",
+  "metadataParamTransparentBg": "Transparent Background",
+  "metadataParamEnabled": "Enabled",
+  "metadataRawJsonTitle": "Raw Metadata (JSON / Text)",
+  "metadataCopyRawTooltip": "Copy raw text",
+  "metadataCopiedRaw": "Raw metadata copied to clipboard",
+  "metadataExtractBlindWatermark": "Extract Blind Watermark",
+  "metadataImportAsReference": "Import as Reference",
+  "metadataImportedReference": "Imported reference image",
+  "metadataApplyToWorkbench": "Apply All Parameters to Studio",
+  "dockAbortWithSteps": "Abort Generation ({current}/{total})",
+  "@dockAbortWithSteps": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "dockGenerateWithCost": "Generate Image ({cost} Anlas)",
+  "@dockGenerateWithCost": {
+    "placeholders": {
+      "cost": { "type": "int" }
+    }
+  },
+  "dockGenerateNeedPoints": "Generate Image (Costs Anlas)",
+  "dockNoAccountInfo": "Account info unavailable (Check API Key)",
+  "dockAiEditing": "AI Editing...",
+  "dockInpainting": "Inpainting...",
+  "dockRefreshTooltip": "Refresh stamina and points",
+  "sidebarTabParameters": "Parameters",
+  "sidebarTabInpaint": "Inpaint",
+  "sidebarSettingsTooltip": "Global settings (API Key / Storage / LLM)",
+  "promptResizeTooltip": "Drag to resize height (double-click to reset)",
+  "studioClipboardImageDefaultName": "clipboard_image.png",
+  "studioImportedReference": "Imported reference image",
+  "boardPastedImage": "Image pasted to board",
+  "boardImportedReferenceNamed": "Imported reference image: {name}",
+  "@boardImportedReferenceNamed": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "boardAddedHistoryImage": "History image added as board reference",
+  "boardDropInternalHint": "Release mouse to place reference image",
+  "boardDropExternalHint": "Release mouse to import external reference image",
+  "boardExitAnnotation": "Exit Annotation",
+  "boardSendAllToAi": "Send All Annotations to AI",
+  "boardWireMissedTarget": "No selection or pin hit, connection cancelled",
+  "boardToolPan": "Pan",
+  "boardToolRect": "Selection Box",
+  "boardToolPoint": "Pin Anchor",
+  "boardToolAddNote": "+ Note",
+  "boardToolAddImage": "+ Reference",
+  "boardToolPasteImage": "Paste Image (Ctrl+V)",
+  "boardToolResetView": "Reset View",
+  "boardImageCardMainTitle": "Main Image (Current Generation)",
+  "boardImageCardRefTitle": "Reference Image ({width}x{height})",
+  "@boardImageCardRefTitle": {
+    "placeholders": {
+      "width": { "type": "int" },
+      "height": { "type": "int" }
+    }
+  },
+  "boardImageCardRemoveTooltip": "Remove reference image card",
+  "boardImageResizeTooltip": "Drag to resize image card (Hold Shift to lock aspect ratio)",
+  "boardImageSendToInpaint": "Send to Inpaint",
+  "boardAnnotationDeleteRect": "Delete selection",
+  "boardAnnotationDeletePoint": "Delete pin",
+  "boardAnnotationResizeRect": "Drag to resize selection",
+  "boardAnnotationSelectTooltip": "Click to select annotation",
+  "boardWireDragSourceTooltip": "Drag to connect to selection or pin",
+  "boardNoteConnected": "Connected",
+  "boardNoteTitle": "Note",
+  "boardNoteDisconnectTooltip": "Disconnect wire",
+  "boardNoteDeleteTooltip": "Delete note",
+  "boardNoteHint": "Enter feedback or notes...",
+  "boardNoteResizeTooltip": "Drag to resize note",
+  "charPosCanvasTempBoard": "Temporary Canvas · {width} × {height}",
+  "@charPosCanvasTempBoard": {
+    "placeholders": {
+      "width": { "type": "int" },
+      "height": { "type": "int" }
+    }
+  },
+  "posControlsDoneEditing": "Done Editing",
+  "lightboxCloseTooltip": "Close full size view",
+  "librarySearchHint": "Search combo name, prompt, tags...",
+  "libraryDataManagement": "Data Management",
+  "libraryExportJson": "Export Library (JSON)",
+  "libraryImportJson": "Import Library (JSON)",
+  "libraryManageButton": "Manage",
+  "libraryNewCombo": "New Prompt Combo",
+  "libraryCategorySidebarTitle": "Categories",
+  "libraryEntriesCount": "{count} items",
+  "@libraryEntriesCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "libraryCategoryAll": "All",
+  "libraryExportCopied": "Copied prompt library JSON to clipboard for backup or sharing",
+  "libraryExportFailed": "Export failed: {error}",
+  "@libraryExportFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "libraryImportDialogTitle": "Import Library JSON",
+  "libraryImportPrompt": "Paste exported library JSON text:",
+  "libraryImportSuccess": "Successfully imported {count} prompt combo entries",
+  "@libraryImportSuccess": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "libraryImportFailed": "Import failed, please check JSON format: {error}",
+  "@libraryImportFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "libraryApplyAsCharacter": "Added character card: {title}",
+  "@libraryApplyAsCharacter": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryApplyReplace": "Replaced workbench prompt: {title}",
+  "@libraryApplyReplace": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryApplyAppendBoth": "Appended positive and negative prompts: {title}",
+  "@libraryApplyAppendBoth": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryApplyAppendPrompt": "Appended main prompt: {title}",
+  "@libraryApplyAppendPrompt": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryReturnToWorkbench": "Return to Workbench",
+  "libraryDeleteDialogTitle": "Delete Prompt Combo",
+  "libraryDeleteDialogMessage": "Are you sure you want to delete prompt combo \"{title}\"? This action cannot be undone.",
+  "@libraryDeleteDialogMessage": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryDeletedCombo": "Deleted prompt combo: {title}",
+  "@libraryDeletedCombo": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryEmptyTitle": "No entries in prompt library",
+  "libraryNoMatchingTitle": "No matching prompt combos",
+  "libraryEmptyDescription": "Click \"New Prompt Combo\" in top right to create your first combo",
+  "libraryNoMatchingDescription": "Try changing search terms or category filters",
+  "libraryResetFilter": "Reset filters",
+  "libraryCardCopiedPrompt": "Copied prompt of \"{title}\" to clipboard",
+  "@libraryCardCopiedPrompt": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryMenuAppendToPrompt": "Append to Workbench Prompt",
+  "libraryMenuReplacePrompt": "Replace Workbench Prompt",
+  "libraryMenuAddAsCharacter": "Add as Character Card",
+  "libraryMenuCopyPrompt": "Copy Prompt",
+  "libraryMenuEdit": "Edit",
+  "libraryCardApply": "Apply to Workbench",
+  "libraryCardAddAsCharacterTooltip": "Add as workbench character card",
+  "libraryCardAddCharacter": "+ Character",
+  "libraryCardNoPreview": "No Preview",
+  "libraryEditCustomCategoryOption": "Custom...",
+  "libraryEditPickImageFailed": "Failed to select image: {error}",
+  "@libraryEditPickImageFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "libraryEditAdoptedCanvasImage": "Current canvas image set as preview",
+  "libraryEditCanvasNoImage": "No generated image on canvas",
+  "libraryEditWorkspacePromptEmpty": "Workbench main prompt is empty",
+  "libraryEditWorkspaceNegativeEmpty": "Workbench negative prompt is empty",
+  "libraryEditTitleEmpty": "Please enter a combo title",
+  "libraryEditPromptEmpty": "Please enter main prompt content",
+  "libraryEditUpdatedSuccess": "Updated prompt combo: {title}",
+  "@libraryEditUpdatedSuccess": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryEditCreatedSuccess": "Added prompt combo: {title}",
+  "@libraryEditCreatedSuccess": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryEditSaveFailed": "Save failed: {error}",
+  "@libraryEditSaveFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "libraryEditDialogTitleEdit": "Edit Prompt Combo",
+  "libraryEditDialogTitleNew": "New Prompt Combo",
+  "libraryEditFieldTitle": "Title",
+  "libraryEditFieldTitleHint": "e.g. Cyberpunk Catgirl / Anime Watercolor",
+  "libraryEditFieldCategory": "Category",
+  "libraryEditFieldCustomCategoryHint": "Enter custom category name (e.g. Lighting, Angle)",
+  "libraryEditFieldPrompt": "Main Prompt",
+  "libraryEditFillFromPrompt": "Fill from Workbench",
+  "libraryEditFieldPromptHint": "Enter positive prompt (e.g. 1girl, hatsune miku, cybernetic...)",
+  "libraryEditFieldNegative": "Negative Prompt",
+  "libraryEditCharacterOnlyBadge": "Character category only",
+  "libraryEditFillFromNegative": "Fill from Negative",
+  "libraryEditFieldNegativeHint": "Character-specific negative tags (e.g. worst quality, bad hands...)",
+  "libraryEditFieldTags": "Search Tags",
+  "libraryEditFieldTagsHint": "For quick filtering, separated by commas (e.g. miku, watercolor, cyber)",
+  "libraryEditSaveButton": "Save Changes",
+  "libraryEditCreateButton": "Create Prompt Combo",
+  "libraryEditPosterTitle": "Set Preview Image",
+  "libraryEditPickLocalImage": "Choose Local Image",
+  "libraryEditUseCanvasImage": "Use Current Canvas Image",
+  "libraryEditRemovePreviewImage": "Remove Preview Image",
+  "tagAcAlias": "Alias: {alias}",
+  "@tagAcAlias": {
+    "placeholders": {
+      "alias": { "type": "String" }
+    }
+  },
+  "tagBrowserTitle": "Danbooru Tag Inspiration Library",
+  "tagBrowserSearchHint": "Search 140k+ Danbooru tags in English or Chinese...",
+  "tagBrowserAddedTag": "Added tag: {tag}",
+  "@tagBrowserAddedTag": {
+    "placeholders": {
+      "tag": { "type": "String" }
+    }
+  },
+  "tagBrowserAddedTagWithZh": "Added tag: {tag} ({zh})",
+  "@tagBrowserAddedTagWithZh": {
+    "placeholders": {
+      "tag": { "type": "String" },
+      "zh": { "type": "String" }
+    }
+  },
+  "tagBrowserNoMatchingTitle": "No matching tags found",
+  "tagBrowserNoMatchingDesc": "Try searching with different English or Chinese keywords",
+  "chatSessionManagementTooltip": "Session Management",
+  "chatModelNoVisionNotice": "Current model does not support image input, please switch to a multimodal model first",
+  "chatMaxAttachmentsNotice": "{count, plural, =1{At most 1 image can be attached at a time} other{At most {count} images can be attached at a time}}",
+  "@chatMaxAttachmentsNotice": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "chatImageParseFailedNotice": "Image parsing failed, please try another image",
+  "chatModelNoVisionBeforeSendNotice": "Current model does not support image input, please switch to a multimodal model before sending",
+  "chatInputHint": "Enter drawing ideas, or type /nai <prompt> for quick generation...",
+  "chatThinkingLabel": "Thinking:",
+  "chatThinkingEffortOff": "Off",
+  "chatThinkingEffortLow": "Low",
+  "chatThinkingEffortMedium": "Medium",
+  "chatThinkingEffortHigh": "High",
+  "chatSessionUsageEmpty": "No Token usage recorded for current session",
+  "chatSessionUsageTitle": "Current session Token usage",
+  "chatSessionUsageDetail": "Input {input} · Output {output} · Total {total}",
+  "@chatSessionUsageDetail": {
+    "placeholders": {
+      "input": { "type": "String" },
+      "output": { "type": "String" },
+      "total": { "type": "String" }
+    }
+  },
+  "chatSessionUsageCacheRead": " · Cache read {cacheRead}",
+  "@chatSessionUsageCacheRead": {
+    "placeholders": {
+      "cacheRead": { "type": "String" }
+    }
+  },
+  "chatSessionUsageCacheReadWithRate": " · Cache read {cacheRead} ({rate}%)",
+  "@chatSessionUsageCacheReadWithRate": {
+    "placeholders": {
+      "cacheRead": { "type": "String" },
+      "rate": { "type": "String" }
+    }
+  },
+  "chatToolNoOutput": "(No output)",
+  "chatToolResultSummary": "{count, plural, =1{1 line · {firstLine}} other{{count} lines · {firstLine}}}",
+  "@chatToolResultSummary": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "firstLine": { "type": "String" }
+    }
+  },
+  "chatThinkingProgress": "Thinking...",
+  "chatConceiving": "Conceiving...",
+  "chatRemoveAttachmentTooltip": "Remove attachment",
+  "chatAddAttachmentTooltip": "Add attachment",
+  "rewindBackTooltip": "Back to Chat (ESC)",
+  "rewindTitle": "Rewind Checkpoints",
+  "rewindEscExit": "ESC to Exit",
+  "rewindDescription": "Select a chat checkpoint to restore. Restoring will discard all changes and chat messages after this checkpoint.",
+  "rewindEmptyTitle": "No chat checkpoints available to rewind in current session",
+  "rewindBackAction": "Back to Chat",
+  "rewindLatestBadge": "(Latest)",
+  "rewindSelectedTurn": "Selected turn #{index}",
+  "@rewindSelectedTurn": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "rewindSelectPrompt": "Please select a turn to rewind above",
+  "rewindCancelButton": "Cancel",
+  "rewindConfirmButton": "Rewind to This Checkpoint",
+  "sessionRenameTitle": "Rename Session",
+  "sessionRenameHint": "Enter a new session name...",
+  "sessionSave": "Save",
+  "sessionCancel": "Cancel",
+  "sessionDeleteTitle": "Delete Session",
+  "sessionDeleteConfirm": "Are you sure you want to permanently delete session \"{title}\"? This action cannot be undone.",
+  "@sessionDeleteConfirm": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "sessionDeleteConfirmButton": "Delete",
+  "sessionDateFormat": "{month}/{day} {time}",
+  "@sessionDateFormat": {
+    "placeholders": {
+      "month": { "type": "int" },
+      "day": { "type": "int" },
+      "time": { "type": "String" }
+    }
+  },
+  "sessionBackTooltip": "Back to Chat",
+  "sessionTitle": "Session Management",
+  "sessionNew": "New Session",
+  "sessionSearchHint": "Search history sessions...",
+  "sessionNoMatchingTitle": "No matching sessions found",
+  "sessionEmptyTitle": "No session history recorded",
+  "sessionCurrentBadge": "Current",
+  "sessionRenameAction": "Rename",
+  "sessionDeleteAction": "Delete",
+  "sessionMessageCount": "{count, plural, =1{1 message} other{{count} messages}}",
+  "@sessionMessageCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "askCardDefaultHeader": "Question for User",
+  "askCardPendingConfirm": "Pending Confirmation",
+  "askCardCancel": "Cancel",
+  "askCardSubmit": "Submit Answer",
+  "askCardCustomInputHint": "Enter custom answer...",
+  "chatThinkingProcess": "Thinking Process",
+
+  "canvasBadgeUnsaved": "Unsaved",
+  "canvasBadgeUpscale": "Upscaled",
+  "canvasBadgeInpaint": "Inpainted",
+  "canvasBadgeAiEdit": "AI Edited",
+  "canvasBadgeImported": "Imported",
+  "tagCatGeneral": "General",
+  "tagCatArtist": "Artist",
+  "tagCatCopyright": "Copyright",
+  "tagCatCharacter": "Character",
+  "tagCatMeta": "Meta",
+  "llmProtocolOpenAiChat": "OpenAI-compatible (/chat/completions)",
+  "llmProtocolOpenAiResponses": "Response (/responses)",
+  "llmProtocolAnthropicMessages": "Message (/messages)",
+  "thinkingFormatAuto": "Auto (detect by endpoint)",
+  "thinkingFormatOpenai": "OpenAI (reasoning_effort)",
+  "thinkingFormatDeepseek": "DeepSeek (thinking)",
+  "thinkingFormatQwen": "Qwen (enable_thinking)",
+  "thinkingFormatQwenChatTemplate": "Qwen Chat Template",
+  "thinkingFormatZai": "Z.ai (thinking + clear_thinking)",
+  "thinkingFormatOpenrouter": "OpenRouter (reasoning.effort)",
+  "thinkingFormatTogether": "Together (reasoning.enabled)",
+  "libraryCatCharacter": "Character",
+  "libraryCatStyle": "Style",
+  "libraryCatAttire": "Attire",
+  "libraryCatComposition": "Composition",
+  "libraryCatEnvironment": "Environment",
+  "libraryCatEffect": "Effects",
+  "libraryCatOther": "Other",
+  "libraryCatCustom": "Custom...",
+  "vmGenDoneUnsaved": "Generation complete (unsaved, click save at the canvas bottom-right)",
+  "vmGenDoneSavedTo": "Generation complete, saved to {path}",
+  "@vmGenDoneSavedTo": {"placeholders": {"path": {"type": "String"}}},
+  "vmGenLocalPath": "local storage",
+  "vmGenNoSaveDir": "No local storage directory set. Configure the save path in Settings first.",
+  "vmGenSaveFailedNoTarget": "Failed to save image: image not found or storage directory not writable.",
+  "vmGenSavedTo": "Saved to {path}",
+  "@vmGenSavedTo": {"placeholders": {"path": {"type": "String"}}},
+  "vmGenSaveFailed": "Failed to save image: {error}",
+  "@vmGenSaveFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmGenAborted": "Generation aborted",
+  "vmGenEmptyPrompt": "Prompt cannot be empty. Enter a description on the left panel or in the chat first.",
+  "vmGenNoApiKey": "NovelAI API Key not configured. Open Settings at the top-right.",
+  "vmGenRequesting": "Requesting NovelAI generation ({width}x{height}, {steps} steps)...",
+  "@vmGenRequesting": {"placeholders": {"width": {"type": "int"}, "height": {"type": "int"}, "steps": {"type": "int"}}},
+  "vmGenFailed": "Generation failed: {error}",
+  "@vmGenFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmUpscaleNoImage": "No image on the canvas to upscale.",
+  "vmUpscaleNoApiKey": "NovelAI API Key not configured.",
+  "vmUpscaleRunning": "Upscaling image...",
+  "vmUpscaleDoneUnsaved": "Upscale complete ({width}x{height}, unsaved)",
+  "@vmUpscaleDoneUnsaved": {"placeholders": {"width": {"type": "int"}, "height": {"type": "int"}}},
+  "vmUpscaleDone": "Upscale complete ({width}x{height})",
+  "@vmUpscaleDone": {"placeholders": {"width": {"type": "int"}, "height": {"type": "int"}}},
+  "vmUpscaleFailed": "Upscale failed: {error}",
+  "@vmUpscaleFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmChatSlashNoImage": "Slash commands do not support attached images. Send a normal chat message instead.",
+  "vmChatSlashFailed": "Command failed: {error}",
+  "@vmChatSlashFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmChatRetryNotice": "Transient failure, auto-retrying ({attempt}/{max}): {reason} · {retry}",
+  "@vmChatRetryNotice": {"placeholders": {"attempt": {"type": "int"}, "max": {"type": "int"}, "reason": {"type": "String"}, "retry": {"type": "String"}}},
+  "vmChatRetryDelayed": "retrying in {seconds}s",
+  "@vmChatRetryDelayed": {"placeholders": {"seconds": {"type": "int"}}},
+  "vmChatRetrySoon": "retrying now",
+  "vmChatCompacted": "Context auto-compacted ({before} → {after} tokens). Earlier messages were replaced with a summary.",
+  "@vmChatCompacted": {"placeholders": {"before": {"type": "int"}, "after": {"type": "int"}}},
+  "vmChatError": "Chat error: {error}",
+  "@vmChatError": {"placeholders": {"error": {"type": "String"}}},
+  "vmChatForceAborted": "Current generation force-terminated",
+  "vmCostNoOpusQuota": "Current account has no Opus free quota",
+  "vmCostEstimate": "Estimated cost: {cost} Anlas",
+  "@vmCostEstimate": {"placeholders": {"cost": {"type": "int"}}},
+  "vmCostWillCost": "Will consume Anlas",
+  "vmCostTitle": "Anlas Cost Request",
+  "vmCostGenQuestion": "Generation parameters ({reasons}) {cost}. Confirm generation?",
+  "@vmCostGenQuestion": {"placeholders": {"reasons": {"type": "String"}, "cost": {"type": "String"}}},
+  "vmCostGenConfirm": "Confirm Generation",
+  "vmCostGenConfirmDesc": "Generate with current parameters and deduct Anlas",
+  "vmCostGenCancel": "Cancel Generation",
+  "vmCostGenCancelDesc": "Cancel this generation and adjust parameters into the free range",
+  "vmCostUpscaleQuestion": "Upscale the {width}x{height} input image via official upscaling. Estimated cost: {cost} Anlas. Confirm?",
+  "@vmCostUpscaleQuestion": {"placeholders": {"width": {"type": "int"}, "height": {"type": "int"}, "cost": {"type": "int"}}},
+  "vmCostUpscaleConfirm": "Confirm Upscale",
+  "vmCostUpscaleConfirmDesc": "Run official upscaling and deduct Anlas",
+  "vmCostUpscaleCancel": "Cancel Upscale",
+  "vmCostUpscaleCancelDesc": "Cancel this upscale operation",
+  "vmInpaintConverted": "Annotation converted to inpaint selection",
+  "vmInpaintSentToBoard": "Sent to inpaint canvas: {path}",
+  "@vmInpaintSentToBoard": {"placeholders": {"path": {"type": "String"}}},
+  "vmInpaintNoImage": "No base image to repair. Select or generate an image first.",
+  "vmInpaintNoMask": "Select or paint the region to repair on the inpaint canvas first.",
+  "vmInpaintNoApiKey": "NovelAI API Key not configured. Enter the token in Settings.",
+  "vmInpaintRunning": "Running local inpaint...",
+  "vmInpaintDone": "Local inpaint complete",
+  "vmInpaintFailed": "Inpaint failed: {error}",
+  "@vmInpaintFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmAiEditNoImage": "No base image to edit. Select or generate an image first.",
+  "vmAiEditNoModel": "No image-editing model configured. Pick an image-model provider and model in Settings → Models.",
+  "vmAiEditNoKey": "Image-model provider \"{provider}\" has no API Key configured. Fill it in Settings first.",
+  "@vmAiEditNoKey": {"placeholders": {"provider": {"type": "String"}}},
+  "vmAiEditEmptyPrompt": "Enter the AI full-image edit instruction first (inpaint page prompt, or turn off \"Reuse workbench prompt\" and fill it in).",
+  "vmAiEditRunning": "Running AI full-image edit (image model processing, usually takes tens of seconds)...",
+  "vmAiEditDone": "AI full-image edit complete",
+  "vmAiEditFailed": "AI full-image edit failed: {error}",
+  "@vmAiEditFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmSessionSwitched": "Switched session: {title}",
+  "@vmSessionSwitched": {"placeholders": {"title": {"type": "String"}}},
+  "vmSessionCreated": "New session created",
+  "vmSessionDeleted": "Session deleted",
+  "vmRewindChatAndParams": "Rewound to a past moment. Later chat and parameter changes were reverted.",
+  "vmRewindChatOnly": "Rewound to a past moment. Later chat and edits were reverted.",
+  "vmHistoryDeleted": "Image deleted from history",
+  "vmHistoryCleared": "History cleared",
+  "vmMetadataApplied": "Image metadata applied to workbench",
+  "vmPresetSwitched": "Switched preset: [{name}]\n{description}",
+  "@vmPresetSwitched": {"placeholders": {"name": {"type": "String"}, "description": {"type": "String"}}},
+  "vmCharacterDefaultName": "Character {index}",
+  "@vmCharacterDefaultName": {"placeholders": {"index": {"type": "int"}}},
+  "vmNewCharacterName": "New Character",
+  "slashHelpHeader": "Slash command reference:",
+  "slashDescHelp": "Show the command help list",
+  "slashDescParams": "Show the workbench's current effective generation parameters",
+  "slashDescPreset": "Switch the current Agent preset",
+  "slashDescSkill": "Load and run a professional skill on demand",
+  "slashDescNai": "Quick-generate an illustration, supports --landscape/--portrait/--square/--wallpaper orientation flags",
+  "slashDescUpscale": "Upscale the current image",
+  "slashDescTag": "Query official Danbooru tag suggestions",
+  "slashDescAccount": "Query account tier and the V5 stamina pool",
+  "slashDescCompact": "Manually compact the conversation context (earlier messages replaced by a summary, originals kept)",
+  "slashDescNew": "Create a new blank session (optional title)",
+  "slashDescUndo": "Undo the last chat turn (replies and parameter changes rolled back together)",
+  "slashDescRename": "Rename the current session",
+  "slashDescSessions": "List saved sessions",
+  "slashDescClear": "Clear the chat history",
+  "slashArgsName": "<name>",
+  "slashArgsPrompt": "<prompt>",
+  "slashArgsKeyword": "<keyword>",
+  "slashArgsTitle": "<title>",
+  "slashPresetListIntro": "Available presets:",
+  "slashPresetUsage": "Usage: /preset <preset name or ID>",
+  "slashPresetNotFound": "Preset \"{query}\" not found. Type /preset to list available presets.",
+  "@slashPresetNotFound": {"placeholders": {"query": {"type": "String"}}},
+  "slashSkillListIntro": "Available skills:",
+  "slashSkillUsage": "Usage: /skill <skill name or ID>",
+  "slashSkillLoaded": "[Skill loaded] {name}\n{description}\n\n{systemPrompt}",
+  "@slashSkillLoaded": {"placeholders": {"name": {"type": "String"}, "description": {"type": "String"}, "systemPrompt": {"type": "String"}}},
+  "slashSkillNotFound": "Skill \"{query}\" not found. Type /skill to list available skills.",
+  "@slashSkillNotFound": {"placeholders": {"query": {"type": "String"}}},
+  "slashCompactNoProvider": "No LLM provider configured; cannot compact the context.",
+  "slashCompactEmpty": "The conversation is empty; nothing to compact.",
+  "slashCompactRunning": "Compacting conversation context...",
+  "slashCompactNothing": "Nothing to compact (needs at least two chat turns), or summary generation failed.",
+  "slashCompactDone": "Context compacted ({before} → {after} tokens). Earlier messages were replaced by the summary below; originals are kept in the chat stream and session log:\n\n{summary}",
+  "@slashCompactDone": {"placeholders": {"before": {"type": "int"}, "after": {"type": "int"}, "summary": {"type": "String"}}},
+  "slashNewNoTitle": "New session created. Start a fresh conversation!",
+  "slashNewWithTitle": "New session created: {title}",
+  "@slashNewWithTitle": {"placeholders": {"title": {"type": "String"}}},
+  "slashUndoNothing": "No previous chat turn to undo (nothing before the first turn).",
+  "slashRenameUsage": "Usage: /rename <new title>",
+  "slashRenameNoSession": "No active session to rename.",
+  "slashRenamed": "Session renamed to \"{title}\"",
+  "@slashRenamed": {"placeholders": {"title": {"type": "String"}}},
+  "slashSessionsEmpty": "No saved sessions yet.",
+  "slashSessionsHeader": "Saved sessions ({count} total, sorted by recent use):",
+  "@slashSessionsHeader": {"placeholders": {"count": {"type": "int"}}},
+  "slashSessionMsgCount": "{count} messages",
+  "@slashSessionMsgCount": {"placeholders": {"count": {"type": "int"}}},
+  "slashSessionCurrentMarker": " [current]",
+  "slashSessionsMore": "…… {count} more sessions in the session manager view.",
+  "@slashSessionsMore": {"placeholders": {"count": {"type": "int"}}},
+  "slashAccountTitle": "NovelAI account status:",
+  "slashAccountTier": "• Subscription tier: {tier}",
+  "@slashAccountTier": {"placeholders": {"tier": {"type": "String"}}},
+  "slashAccountStamina": "• V5 stamina pool: {percent}%",
+  "@slashAccountStamina": {"placeholders": {"percent": {"type": "String"}}},
+  "slashAccountAnlas": "• Available Anlas: {total} (gifted: {fixed}, purchased: {purchased})",
+  "@slashAccountAnlas": {"placeholders": {"total": {"type": "int"}, "fixed": {"type": "int"}, "purchased": {"type": "int"}}},
+  "slashAccountQuotaExhausted": "• V5 stamina quota exhausted; generation will consume Anlas at full price",
+  "slashAccountFailed": "Failed to query account info. Check the API Key settings.",
+  "slashTagUsage": "Usage: /tag <keyword> (e.g. /tag silver)",
+  "slashTagNotFound": "No tags found for \"{query}\".",
+  "@slashTagNotFound": {"placeholders": {"query": {"type": "String"}}},
+  "slashTagSuggestions": "Tag suggestions (\"{query}\"):\n{list}",
+  "@slashTagSuggestions": {"placeholders": {"query": {"type": "String"}, "list": {"type": "String"}}},
+  "slashUpscaleDone": "Upscale executed",
+  "slashNaiUsage": "Usage: /nai <prompt>",
+  "slashNaiDone": "Illustration generated: {path}\nSize: {width}x{height}, seed: {seed}",
+  "@slashNaiDone": {"placeholders": {"path": {"type": "String"}, "width": {"type": "int"}, "height": {"type": "int"}, "seed": {"type": "int"}}},
+  "slashNaiDoneFallback": "done",
+  "slashUnknown": "Unknown command \"{cmd}\". Type /help for available commands.",
+  "@slashUnknown": {"placeholders": {"cmd": {"type": "String"}}},
+  "vmSlashParamsTitle": "Workbench generation parameters:"
 }

@@ -5,6 +5,8 @@ import 'package:pasteboard/pasteboard.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/usage_ledger_service.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import 'chat_image_attachment.dart';
@@ -108,7 +110,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
 
     // 图片附件需要当前模型具备视觉能力
     if (attachments.isNotEmpty && !_isActiveModelMultimodal()) {
-      _showNotice('当前模型不支持图片输入，请先切换到多模态模型');
+      _showNotice(context.l10n.chatModelNoVisionNotice);
       return;
     }
 
@@ -206,7 +208,9 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 归一化并加入待发送附件；超上限或解码失败时提示
   Future<void> _addImageAttachment(Uint8List rawBytes) async {
     if (_pendingAttachments.length >= kMaxChatImageAttachments) {
-      _showNotice('一次最多附带 $kMaxChatImageAttachments 张图片');
+      _showNotice(
+        context.l10n.chatMaxAttachmentsNotice(kMaxChatImageAttachments),
+      );
       return;
     }
 
@@ -216,7 +220,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     setState(() => _processingImage = false);
 
     if (image == null) {
-      _showNotice('图片解析失败，请换一张图片重试');
+      _showNotice(context.l10n.chatImageParseFailedNotice);
       return;
     }
     setState(() {
@@ -225,7 +229,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       );
     });
     if (!_isActiveModelMultimodal()) {
-      _showNotice('当前模型不支持图片输入，发送前请切换到多模态模型');
+      _showNotice(context.l10n.chatModelNoVisionBeforeSendNotice);
     }
   }
 
@@ -285,6 +289,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       text: text,
       skills: widget.viewModel.availableSkills,
       presets: widget.viewModel.presets,
+      l10n: context.maybeL10n,
     );
     if (suggestions.isEmpty || text == _dismissedToken) {
       _hideSuggestions();
@@ -460,7 +465,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                             color: colors.textPrimary,
                           ),
                           decoration: InputDecoration(
-                            hintText: '输入绘画构思，或输入 /nai <词> 快速生图...',
+                            hintText: context.l10n.chatInputHint,
                             hintStyle: TextStyle(
                               fontSize: 13,
                               color: colors.textMuted,
@@ -501,17 +506,20 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                 // 📎 选择本地图片文件 (多模态参考图)
                 AspectRatio(
                   aspectRatio: 1.0,
-                  child: Material(
-                    color: colors.cardBackground,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    child: InkWell(
-                      onTap: _pickImageFiles,
+                  child: Tooltip(
+                    message: context.l10n.chatAddAttachmentTooltip,
+                    child: Material(
+                      color: colors.cardBackground,
                       borderRadius: BorderRadius.circular(AppRadius.md),
-                      child: Center(
-                        child: Icon(
-                          Icons.attach_file_rounded,
-                          size: 17,
-                          color: colors.textSecondary,
+                      child: InkWell(
+                        onTap: _pickImageFiles,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        child: Center(
+                          child: Icon(
+                            Icons.attach_file_rounded,
+                            size: 17,
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ),
                     ),
@@ -582,7 +590,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           // 1. 模型选择区 (Expanded 弹性自适应，长文本自动省略；悬停显示会话用量)
           Expanded(
             child: Tooltip(
-              message: _buildSessionUsageTooltip(),
+              message: _buildSessionUsageTooltip(context.l10n),
               waitDuration: const Duration(milliseconds: 400),
               textStyle: TextStyle(
                 fontSize: 11,
@@ -741,7 +749,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         ),
         const SizedBox(width: 4),
         Text(
-          '思考:',
+          context.l10n.chatThinkingLabel,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
@@ -762,13 +770,13 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                 borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
               child: Text(
-                effort == ThinkingEffort.off
-                    ? '关'
-                    : effort == ThinkingEffort.low
-                    ? '低'
-                    : effort == ThinkingEffort.medium
-                    ? '中'
-                    : '高',
+                switch (effort) {
+                  ThinkingEffort.off => context.l10n.chatThinkingEffortOff,
+                  ThinkingEffort.low => context.l10n.chatThinkingEffortLow,
+                  ThinkingEffort.medium =>
+                    context.l10n.chatThinkingEffortMedium,
+                  ThinkingEffort.high => context.l10n.chatThinkingEffortHigh,
+                },
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -785,26 +793,38 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   }
 
   /// 悬停模型选择器时展示的当前会话用量摘要
-  String _buildSessionUsageTooltip() {
+  String _buildSessionUsageTooltip(AppLocalizations l10n) {
     final usage = widget.viewModel.sessionModelUsage;
-    if (usage.isEmpty) return '当前会话暂无 Token 用量记录';
+    if (usage.isEmpty) return l10n.chatSessionUsageEmpty;
 
     final entries = usage.entries.toList()
       ..sort((a, b) => b.value.total.compareTo(a.value.total));
-    final buffer = StringBuffer('当前会话 Token 用量');
+    final buffer = StringBuffer(l10n.chatSessionUsageTitle);
     for (final entry in entries) {
       final u = entry.value;
       final detail = StringBuffer(
-        '输入 ${UsageLedgerService.formatTokens(u.input)} · '
-        '输出 ${UsageLedgerService.formatTokens(u.output)} · '
-        '总计 ${UsageLedgerService.formatTokens(u.total)}',
+        l10n.chatSessionUsageDetail(
+          UsageLedgerService.formatTokens(u.input),
+          UsageLedgerService.formatTokens(u.output),
+          UsageLedgerService.formatTokens(u.total),
+        ),
       );
       if (u.cacheRead > 0) {
         final rate = u.cacheHitRate;
-        detail.write(
-          ' · 缓存读 ${UsageLedgerService.formatTokens(u.cacheRead)}'
-          '${rate != null ? ' (${(rate * 100).toStringAsFixed(1)}%)' : ''}',
-        );
+        if (rate != null) {
+          detail.write(
+            l10n.chatSessionUsageCacheReadWithRate(
+              UsageLedgerService.formatTokens(u.cacheRead),
+              (rate * 100).toStringAsFixed(1),
+            ),
+          );
+        } else {
+          detail.write(
+            l10n.chatSessionUsageCacheRead(
+              UsageLedgerService.formatTokens(u.cacheRead),
+            ),
+          );
+        }
       }
       buffer.write('\n${entry.key}\n${detail.toString()}');
     }

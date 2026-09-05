@@ -372,7 +372,9 @@ mixin _StudioHarnessMixin on _StudioCore {
     _harness.setPreset(preset);
     _config = _config.copyWith(activePresetId: preset.id);
     _configService.saveConfig(_config);
-    _harness.addInfoMessage('已切换为预设: 【${preset.name}】\n${preset.description}');
+    _harness.addInfoMessage(
+      vmL10n.vmPresetSwitched(preset.name, preset.description),
+    );
     notifyListeners();
   }
 

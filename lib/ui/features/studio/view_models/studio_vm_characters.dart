@@ -122,7 +122,9 @@ mixin _StudioCharactersMixin on _StudioCore {
         negativePrompt ??
         (gender == null ? '' : NaiCharacterPrompt.presetNegativePrompt);
     final character = NaiCharacterPrompt.create(
-      name: name ?? '角色 ${_params.characterPrompts.length + 1}',
+      name:
+          name ??
+          vmL10n.vmCharacterDefaultName(_params.characterPrompts.length + 1),
       prompt: initialPrompt,
       negativePrompt: initialNegative,
     );

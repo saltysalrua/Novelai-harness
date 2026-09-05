@@ -1,16 +1,15 @@
 /// LLM 供应商与模型配置 (协议、思考强度、模型元数据与出厂目录)。
 library;
 
-/// LLM 接口协议类型
+/// LLM 接口协议类型 (纯结构化枚举，UI 展示名由 model_label_l10n 接管)
 enum LlmProtocol {
-  openAiChat('openai', 'OpenAI 兼容 (/chat/completions)', '/chat/completions'),
-  openAiResponses('responses', 'Response (/responses)', '/responses'),
-  anthropicMessages('messages', 'Message (/messages)', '/messages');
+  openAiChat('openai', '/chat/completions'),
+  openAiResponses('responses', '/responses'),
+  anthropicMessages('messages', '/messages');
 
   final String id;
-  final String label;
   final String defaultPath;
-  const LlmProtocol(this.id, this.label, this.defaultPath);
+  const LlmProtocol(this.id, this.defaultPath);
 
   static LlmProtocol fromId(String id) {
     return LlmProtocol.values.firstWhere(
@@ -23,19 +22,19 @@ enum LlmProtocol {
 /// 思考参数请求格式 (对齐 pi openai-completions 的 thinkingFormat 兼容矩阵)
 ///
 /// 不同供应商用不同字段开关思维链，格式不匹配时思考会被上游静默丢弃。
+/// 纯结构化枚举，UI 展示名由 model_label_l10n 接管。
 enum ThinkingParamFormat {
-  auto('auto', '自动 (按端点识别)'),
-  openai('openai', 'OpenAI (reasoning_effort)'),
-  deepseek('deepseek', 'DeepSeek (thinking)'),
-  qwen('qwen', 'Qwen (enable_thinking)'),
-  qwenChatTemplate('qwen_chat_template', 'Qwen Chat Template'),
-  zai('zai', 'Z.ai (thinking + clear_thinking)'),
-  openrouter('openrouter', 'OpenRouter (reasoning.effort)'),
-  together('together', 'Together (reasoning.enabled)');
+  auto('auto'),
+  openai('openai'),
+  deepseek('deepseek'),
+  qwen('qwen'),
+  qwenChatTemplate('qwen_chat_template'),
+  zai('zai'),
+  openrouter('openrouter'),
+  together('together');
 
   final String id;
-  final String label;
-  const ThinkingParamFormat(this.id, this.label);
+  const ThinkingParamFormat(this.id);
 
   static ThinkingParamFormat fromId(String? id) {
     return ThinkingParamFormat.values.firstWhere(
@@ -45,16 +44,16 @@ enum ThinkingParamFormat {
   }
 }
 
-/// LLM 思考强度等级 (Reasoning / Thinking Effort)
+/// LLM 思考强度等级 (Reasoning / Thinking Effort)。
+/// 纯结构化枚举，UI 展示名由 l10n chatThinkingEffort* 词条接管。
 enum ThinkingEffort {
-  off('off', '关闭'),
-  low('low', '低 (Low)'),
-  medium('medium', '中 (Medium)'),
-  high('high', '高 (High)');
+  off('off'),
+  low('low'),
+  medium('medium'),
+  high('high');
 
   final String id;
-  final String label;
-  const ThinkingEffort(this.id, this.label);
+  const ThinkingEffort(this.id);
 
   static ThinkingEffort fromId(String? id) {
     return ThinkingEffort.values.firstWhere(

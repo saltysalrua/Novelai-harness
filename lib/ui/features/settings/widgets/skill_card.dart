@@ -5,6 +5,7 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/context_l10n.dart';
 
 /// 预设配置中的单个 Skill 小卡片 (对齐 ModelCard 设计)
 class SkillCard extends StatelessWidget {
@@ -30,6 +31,7 @@ class SkillCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
 
     return SizedBox(
       width: 270,
@@ -77,7 +79,9 @@ class SkillCard extends StatelessWidget {
                 ),
                 // 内置 / 自定义 徽章
                 AppBadge(
-                  label: skill.isBuiltin ? '内置' : '自定义',
+                  label: skill.isBuiltin
+                      ? l10n.settingsBadgeBuiltin
+                      : l10n.settingsBadgeCustom,
                   variant: skill.isBuiltin
                       ? AppBadgeVariant.neutral
                       : AppBadgeVariant.warning,
@@ -90,7 +94,7 @@ class SkillCard extends StatelessWidget {
                     icon: Icons.download_rounded,
                     size: 26,
                     iconSize: 14,
-                    tooltip: '导出为 SKILL.md',
+                    tooltip: l10n.skillTooltipExport,
                     onPressed: () => onExport!(skill),
                   ),
                 // 编辑按钮
@@ -98,7 +102,7 @@ class SkillCard extends StatelessWidget {
                   icon: Icons.edit_outlined,
                   size: 26,
                   iconSize: 14,
-                  tooltip: '查看与编辑 Skill',
+                  tooltip: l10n.skillTooltipEdit,
                   onPressed: () => onEdit(skill),
                 ),
                 // 删除按钮 (仅自定义可删)
@@ -107,7 +111,7 @@ class SkillCard extends StatelessWidget {
                     icon: Icons.close_rounded,
                     size: 26,
                     iconSize: 14,
-                    tooltip: '删除 Skill',
+                    tooltip: l10n.skillTooltipDelete,
                     onPressed: onDelete,
                   ),
               ],
@@ -125,7 +129,9 @@ class SkillCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              skill.description.isNotEmpty ? skill.description : '暂无描述',
+              skill.description.isNotEmpty
+                  ? skill.description
+                  : l10n.skillNoDescription,
               style: TextStyle(
                 fontSize: 11,
                 color: colors.textSecondary,

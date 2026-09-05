@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/types.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_blocks.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_messages.dart';
 
@@ -9,6 +10,9 @@ void main() {
   const secondLine = '第二行构思：再补充光影与氛围。';
 
   Widget wrap(Widget child) => MaterialApp(
+    locale: const Locale('zh'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     theme: ThemeData(useMaterial3: true),
     home: Scaffold(body: SingleChildScrollView(child: child)),
   );

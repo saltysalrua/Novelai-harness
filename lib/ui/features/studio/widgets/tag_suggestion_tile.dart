@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/tag_models.dart';
+import '../../../core/context_l10n.dart';
+import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 
@@ -18,9 +20,12 @@ class TagCategoryPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = customLabel ?? category.label;
+    // 分类展示文案：l10n 可用时走 UI 扩展层映射，否则回退数据域 zh label
+    final l10n = context.maybeL10n;
+    final label = customLabel ??
+        (l10n != null ? tagCategoryLabelOf(l10n, category) : category.label);
     // 分类色统一事实源：context.tagCategoryColor (亮暗自适应)，
-    // 不再直连数据模型里的固定色 (Model 字段待阶段 4C 解耦删除)
+    // 数据模型固定色字段已在阶段 4C 删除
     final color = customLabel != null
         ? context
               .colors

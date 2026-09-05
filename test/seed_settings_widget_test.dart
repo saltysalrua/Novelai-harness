@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novelai_harness/ui/core/theme/app_theme.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
+import 'package:novelai_harness/ui/core/theme/app_theme.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/parameters_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,6 +24,9 @@ void main() {
 
   Widget buildTestWidget() {
     return MaterialApp(
+      locale: const Locale('zh'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: AppTheme.darkTheme,
       home: Scaffold(
         body: SizedBox(

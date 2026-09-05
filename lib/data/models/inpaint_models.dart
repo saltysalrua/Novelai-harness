@@ -2,21 +2,20 @@ import 'dart:math' as math;
 import 'dart:ui' show Offset, Rect;
 import 'nai_catalog.dart';
 
-/// 修复画板交互工具
+/// 修复画板交互工具。纯结构化枚举，UI 文案由 l10n 接管。
 enum InpaintTool {
   /// 矩形选框 (拖拽新建/移动/四角缩放)
-  rect('rect', '框选'),
+  rect('rect'),
 
   /// 画笔自由绘制蒙版
-  brush('brush', '画笔'),
+  brush('brush'),
 
   /// 橡皮擦除已有描边
-  eraser('eraser', '橡皮');
+  eraser('eraser');
 
   final String id;
-  final String label;
 
-  const InpaintTool(this.id, this.label);
+  const InpaintTool(this.id);
 }
 
 /// 画笔描边 (自由绘制修复蒙版)

@@ -30,6 +30,26 @@ String themeModePreferenceStorage(AppThemeModePreference mode) =>
       AppThemeModePreference.dark => 'dark',
     };
 
+/// 语言偏好 (跟随系统 / 中文 / English)
+///
+/// 纯 Dart 枚举，不依赖 Flutter 的 [Locale]；
+/// 由 UI 层负责映射 (见 ui/core/locale/app_locale_controller.dart)。
+enum AppLocalePreference { system, zh, en }
+
+/// 存储字符串 → 枚举 (未知/缺失值一律回退跟随系统，保持旧行为)
+AppLocalePreference parseLocalePreference(String? raw) => switch (raw) {
+  'zh' => AppLocalePreference.zh,
+  'en' => AppLocalePreference.en,
+  _ => AppLocalePreference.system,
+};
+
+/// 枚举 → 存储字符串
+String localePreferenceStorage(AppLocalePreference locale) => switch (locale) {
+  AppLocalePreference.system => 'system',
+  AppLocalePreference.zh => 'zh',
+  AppLocalePreference.en => 'en',
+};
+
 /// 全局配置数据模型
 class AppConfig {
   // NovelAI 设置
@@ -47,6 +67,9 @@ class AppConfig {
 
   /// 主题模式偏好 (跟随系统/亮色/深色)，由 AppThemeModeController 映射到 MaterialApp
   final AppThemeModePreference themeMode;
+
+  /// 语言偏好 (跟随系统/中文/English)，由 AppLocaleController 映射到 MaterialApp
+  final AppLocalePreference localePreference;
 
   /// 全局 UI 缩放系数 (浏览器式 Ctrl+=/- 整体缩放)，1.0 = 100%；
   /// 由 AppUiZoomController 在 MaterialApp 根节点 Transform 生效
@@ -149,6 +172,7 @@ class AppConfig {
     this.defaultCfgRescale = 0.0,
     this.opusFreeMode = true,
     this.themeMode = AppThemeModePreference.light,
+    this.localePreference = AppLocalePreference.system,
     this.uiZoom = 1.0,
     this.enableStreamPreview = true,
     this.enableTagAutocomplete = true,
@@ -190,6 +214,7 @@ class AppConfig {
     double? defaultCfgRescale,
     bool? opusFreeMode,
     AppThemeModePreference? themeMode,
+    AppLocalePreference? localePreference,
     double? uiZoom,
     bool? enableStreamPreview,
     bool? enableTagAutocomplete,
@@ -233,6 +258,7 @@ class AppConfig {
       defaultCfgRescale: defaultCfgRescale ?? this.defaultCfgRescale,
       opusFreeMode: opusFreeMode ?? this.opusFreeMode,
       themeMode: themeMode ?? this.themeMode,
+      localePreference: localePreference ?? this.localePreference,
       uiZoom: uiZoom ?? this.uiZoom,
       enableStreamPreview: enableStreamPreview ?? this.enableStreamPreview,
       enableTagAutocomplete:
@@ -281,6 +307,7 @@ class ConfigService {
   static const String _keyCfgRescale = 'novelai_cfg_rescale';
   static const String _keyOpusFreeMode = 'novelai_opus_free_mode';
   static const String _keyThemeMode = 'novelai_theme_mode';
+  static const String _keyLocalePreference = 'novelai_locale_preference';
   static const String _keyUiZoom = 'novelai_ui_zoom';
   static const String _keyEnableStreamPreview = 'novelai_enable_stream_preview';
   static const String _keyEnableTagAutocomplete =
@@ -380,6 +407,9 @@ class ConfigService {
     double rescale = prefs.getDouble(_keyCfgRescale) ?? 0.0;
     bool opusFree = prefs.getBool(_keyOpusFreeMode) ?? true;
     final themeMode = parseThemeModePreference(prefs.getString(_keyThemeMode));
+    final localePref = parseLocalePreference(
+      prefs.getString(_keyLocalePreference),
+    );
     final uiZoom = clampUiZoom(prefs.getDouble(_keyUiZoom) ?? 1.0);
     bool enableStream = prefs.getBool(_keyEnableStreamPreview) ?? true;
     bool enableTagAc = prefs.getBool(_keyEnableTagAutocomplete) ?? true;
@@ -597,6 +627,7 @@ class ConfigService {
       defaultCfgRescale: rescale,
       opusFreeMode: opusFree,
       themeMode: themeMode,
+      localePreference: localePref,
       uiZoom: uiZoom,
       enableStreamPreview: enableStream,
       enableTagAutocomplete: enableTagAc,
@@ -644,6 +675,10 @@ class ConfigService {
     await prefs.setString(
       _keyThemeMode,
       themeModePreferenceStorage(config.themeMode),
+    );
+    await prefs.setString(
+      _keyLocalePreference,
+      localePreferenceStorage(config.localePreference),
     );
     await prefs.setDouble(_keyUiZoom, clampUiZoom(config.uiZoom));
     await prefs.setBool(_keyEnableStreamPreview, config.enableStreamPreview);

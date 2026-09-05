@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/main.dart';
+import 'package:novelai_harness/ui/core/locale/app_locale_controller.dart';
 import 'package:novelai_harness/ui/core/widgets/app_nav_tile.dart';
 import 'package:novelai_harness/ui/features/settings/views/settings_dialog.dart';
 
@@ -15,6 +17,12 @@ void main() {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    // 阶段 4A：General 页文案已接入 l10n，测试环境默认 en_US 会切到英文；
+    // 直接经 AppLocaleController 注入 zh (同时验证根级 locale 接线)
+    AppLocaleController.instance.syncFromConfig(
+      const AppConfig(localePreference: AppLocalePreference.zh),
+    );
+    addTearDown(AppLocaleController.instance.resetForTest);
 
     await tester.pumpWidget(const NovelAiHarnessApp());
     await tester.pumpAndSettle();
@@ -85,6 +93,10 @@ void main() {
     tester.view.physicalSize = const Size(1400, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    AppLocaleController.instance.syncFromConfig(
+      const AppConfig(localePreference: AppLocalePreference.zh),
+    );
+    addTearDown(AppLocaleController.instance.resetForTest);
 
     await tester.pumpWidget(const NovelAiHarnessApp());
     await tester.pumpAndSettle();
@@ -136,6 +148,58 @@ void main() {
 
     // 取消关闭
     await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsDialog), findsNothing);
+  });
+
+  testWidgets('Settings dialog renders English localized text in en locale', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    AppLocaleController.instance.syncFromConfig(
+      const AppConfig(localePreference: AppLocalePreference.en),
+    );
+    addTearDown(AppLocaleController.instance.resetForTest);
+
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+
+    // 打开设置弹窗
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsDialog), findsOneWidget);
+
+    // Tab 0: General 英文副标题
+    expect(
+      find.textContaining('Configure NovelAI image generation credentials'),
+      findsOneWidget,
+    );
+
+    // 切到 Defaults 验证英文标题与副标题
+    await tester.tap(sidebarItem('Defaults'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Configure startup default image generation model'),
+      findsOneWidget,
+    );
+    expect(find.text('Default Model'), findsOneWidget);
+    expect(find.text('Default CFG Scale'), findsOneWidget);
+
+    // 切到 Bill 验证英文表头与周期胶囊
+    await tester.tap(sidebarItem('Bill'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Track Token usage bills for each model by period'),
+      findsOneWidget,
+    );
+    expect(find.text('Usage Bill'), findsOneWidget);
+    expect(find.text('Today'), findsOneWidget);
+    expect(find.text('Last 7 Days'), findsOneWidget);
+
+    // 取消按钮已切换为英文 Cancel
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(find.byType(SettingsDialog), findsNothing);
   });

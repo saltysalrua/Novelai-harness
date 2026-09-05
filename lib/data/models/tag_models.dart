@@ -1,19 +1,21 @@
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
 
 /// Danbooru 标签分类标准 (官方 0/1/3/4/5 规范)
+///
+/// 纯结构化枚举：中文 label 仅作为数据域展示名 (Danbooru 检索工具的 LLM
+/// 输出与离线词典数据使用)；UI 展示文案与配色分别由
+/// model_label_l10n.dart 与 theme_context_extensions.tagCategoryColor 接管。
 enum DanbooruTagCategory {
-  general(0, '通用', Color(0xFF555555)),
-  artist(1, '画师', Color(0xFF8E44AD)),
-  copyright(3, '作品', Color(0xFFD81B60)),
-  character(4, '角色', Color(0xFF2E7D32)),
-  meta(5, '元数据', Color(0xFFE67E22));
+  general(0, '通用'),
+  artist(1, '画师'),
+  copyright(3, '作品'),
+  character(4, '角色'),
+  meta(5, '元数据');
 
   final int code;
   final String label;
-  final Color color;
 
-  const DanbooruTagCategory(this.code, this.label, this.color);
+  const DanbooruTagCategory(this.code, this.label);
 
   static DanbooruTagCategory fromCode(dynamic code) {
     final c = switch (code) {

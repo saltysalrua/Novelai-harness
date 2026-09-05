@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -77,6 +78,7 @@ class _InpaintPageState extends State<InpaintPage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return ListenableBuilder(
       listenable: widget.viewModel,
       builder: (context, _) {
@@ -110,19 +112,22 @@ class _InpaintPageState extends State<InpaintPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const PageHeader(title: '修复设置', subtitle: '局部重绘与高精度潜空间焦点特写'),
+              PageHeader(
+                title: l10n.inpaintPageTitle,
+                subtitle: l10n.inpaintPageSubtitle,
+              ),
               const SizedBox(height: AppSpacing.lg),
 
               // 1. 修复模式切换 (AppOptionCard 选项)
-              const SectionHeader('修复模式'),
+              SectionHeader(l10n.inpaintSectionMode),
               const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
                   Expanded(
                     child: AppOptionCard<InpaintMode>(
                       value: InpaintMode.focus,
-                      title: '焦点特写',
-                      subtitle: '超采样无损回贴',
+                      title: l10n.inpaintModeFocus,
+                      subtitle: l10n.inpaintModeFocusSubtitle,
                       isSelected: isFocus,
                       onTap: () => vm.setInpaintMode(InpaintMode.focus),
                     ),
@@ -131,8 +136,8 @@ class _InpaintPageState extends State<InpaintPage> {
                   Expanded(
                     child: AppOptionCard<InpaintMode>(
                       value: InpaintMode.standard,
-                      title: '常规重绘',
-                      subtitle: '整图尺度重绘',
+                      title: l10n.inpaintModeStandard,
+                      subtitle: l10n.inpaintModeStandardSubtitle,
                       isSelected: inpaint.mode == InpaintMode.standard,
                       onTap: () => vm.setInpaintMode(InpaintMode.standard),
                     ),
@@ -141,8 +146,8 @@ class _InpaintPageState extends State<InpaintPage> {
                   Expanded(
                     child: AppOptionCard<InpaintMode>(
                       value: InpaintMode.aiEdit,
-                      title: 'AI 整图编辑',
-                      subtitle: '外部绘图模型重绘',
+                      title: l10n.inpaintModeAiEdit,
+                      subtitle: l10n.inpaintModeAiEditSubtitle,
                       isSelected: isAiEdit,
                       onTap: () => vm.setInpaintMode(InpaintMode.aiEdit),
                     ),
@@ -171,7 +176,7 @@ class _InpaintPageState extends State<InpaintPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SectionHeader('生图比例'),
+                          SectionHeader(l10n.inpaintAiEditAspectRatio),
                           const SizedBox(height: AppSpacing.sm),
                           AppDropdown<String>.simple(
                             value:
@@ -181,7 +186,8 @@ class _InpaintPageState extends State<InpaintPage> {
                                 ? inpaint.aiEditAspectRatio
                                 : '',
                             items: _aiEditAspectRatios,
-                            labelOf: (v) => v.isEmpty ? '跟随原图' : v,
+                            labelOf: (v) =>
+                                v.isEmpty ? l10n.inpaintAiEditFollowSource : v,
                             iconOf: (_) => Icons.aspect_ratio_rounded,
                             onChanged: vm.setInpaintAiEditAspectRatio,
                           ),
@@ -193,7 +199,7 @@ class _InpaintPageState extends State<InpaintPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SectionHeader('生图分辨率'),
+                          SectionHeader(l10n.inpaintAiEditResolution),
                           const SizedBox(height: AppSpacing.sm),
                           AppDropdown<String>.simple(
                             value:
@@ -203,7 +209,9 @@ class _InpaintPageState extends State<InpaintPage> {
                                 ? inpaint.aiEditResolution
                                 : '',
                             items: _aiEditResolutions,
-                            labelOf: (v) => v.isEmpty ? '默认' : v,
+                            labelOf: (v) => v.isEmpty
+                                ? l10n.inpaintAiEditDefaultResolution
+                                : v,
                             iconOf: (_) =>
                                 Icons.photo_size_select_actual_outlined,
                             onChanged: vm.setInpaintAiEditResolution,
@@ -219,7 +227,7 @@ class _InpaintPageState extends State<InpaintPage> {
               // 3. 数值滑块调节 (NovelAI 重绘专属，AI 整图编辑不需要)
               if (isFocus && !isAiEdit) ...[
                 AppNumberSlider.integer(
-                  title: '外延上下文 (px)',
+                  title: l10n.inpaintContextPadding,
                   value: inpaint.contextPadding.round(),
                   min: 16,
                   max: 192,
@@ -230,7 +238,7 @@ class _InpaintPageState extends State<InpaintPage> {
 
               if (!isAiEdit) ...[
                 AppNumberSlider(
-                  title: '重绘强度',
+                  title: l10n.inpaintStrength,
                   value: inpaint.strength,
                   min: 0.0,
                   max: 1.0,
@@ -240,7 +248,7 @@ class _InpaintPageState extends State<InpaintPage> {
                 const SizedBox(height: AppSpacing.md),
 
                 AppNumberSlider(
-                  title: '附加噪声',
+                  title: l10n.inpaintNoise,
                   value: inpaint.noise,
                   min: 0.0,
                   max: 1.0,
@@ -252,12 +260,18 @@ class _InpaintPageState extends State<InpaintPage> {
                 const SizedBox(height: AppSpacing.xs),
 
               // 4. 提示词与指令选项 (复用 / 自定义卡片设计)
-              SectionHeader(isAiEdit ? '修改指令设置' : '提示词设置'),
+              SectionHeader(
+                isAiEdit
+                    ? l10n.inpaintSectionInstruction
+                    : l10n.inpaintSectionPrompt,
+              ),
               const SizedBox(height: AppSpacing.sm),
 
               _buildToggleRow(
                 context: context,
-                label: isAiEdit ? '复用主工作台正向词作为指令' : '复用主工作台正向词',
+                label: isAiEdit
+                    ? l10n.inpaintReuseMainPromptAsInstruction
+                    : l10n.inpaintReuseMainPrompt,
                 value: inpaint.useMainPrompt,
                 onChanged: vm.setInpaintUseMainPrompt,
               ),
@@ -267,7 +281,9 @@ class _InpaintPageState extends State<InpaintPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      isAiEdit ? '自定义修改指令' : '修复专属正向词',
+                      isAiEdit
+                          ? l10n.inpaintCustomInstruction
+                          : l10n.inpaintCustomPrompt,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -288,8 +304,8 @@ class _InpaintPageState extends State<InpaintPage> {
                   controller: _promptController,
                   onChanged: vm.setInpaintCustomPrompt,
                   hintText: isAiEdit
-                      ? '输入自然语言修改指令，如: 把背景换成夕阳下的海滩...'
-                      : '输入修复专属正向提示词...',
+                      ? l10n.inpaintInstructionHint
+                      : l10n.inpaintPromptHint,
                   minLines: 3,
                   maxLines: 8,
                   minHeight: 80.0,
@@ -306,7 +322,7 @@ class _InpaintPageState extends State<InpaintPage> {
               ] else ...[
                 _buildReusedPromptPreview(
                   context: context,
-                  label: '主工作台正向词',
+                  label: l10n.inpaintMainPrompt,
                   text: vm.params.prompt,
                 ),
               ],
@@ -315,7 +331,7 @@ class _InpaintPageState extends State<InpaintPage> {
               if (!isAiEdit) ...[
                 _buildToggleRow(
                   context: context,
-                  label: '复用主工作台负向词',
+                  label: l10n.inpaintReuseMainNegative,
                   value: inpaint.useMainNegative,
                   onChanged: vm.setInpaintUseMainNegative,
                 ),
@@ -325,7 +341,7 @@ class _InpaintPageState extends State<InpaintPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '修复专属负向词',
+                        l10n.inpaintCustomNegative,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -345,7 +361,7 @@ class _InpaintPageState extends State<InpaintPage> {
                   PromptEditorCard(
                     controller: _negativeController,
                     onChanged: vm.setInpaintCustomNegativePrompt,
-                    hintText: '输入修复专属负向提示词...',
+                    hintText: l10n.inpaintNegativePromptHint,
                     minLines: 3,
                     maxLines: 8,
                     minHeight: 80.0,
@@ -361,7 +377,7 @@ class _InpaintPageState extends State<InpaintPage> {
                 ] else ...[
                   _buildReusedPromptPreview(
                     context: context,
-                    label: '主工作台负向词',
+                    label: l10n.inpaintMainNegativePrompt,
                     text: vm.params.negativePrompt,
                   ),
                 ],
@@ -381,6 +397,7 @@ class _InpaintPageState extends State<InpaintPage> {
     ({String providerName, String modelName, String modelId})? info,
   ) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final configured = info != null;
     return AppCollapsibleSection(
       initiallyExpanded: true,
@@ -399,7 +416,7 @@ class _InpaintPageState extends State<InpaintPage> {
           Icon(Icons.auto_awesome, size: 14, color: colors.textSecondary),
           const SizedBox(width: 6),
           Text(
-            '绘图模型',
+            l10n.inpaintImageModel,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -408,16 +425,19 @@ class _InpaintPageState extends State<InpaintPage> {
           ),
         ],
       ),
-      trailing: const AppBadge(
-        label: '消耗绘图模型额度',
+      trailing: AppBadge(
+        label: l10n.inpaintConsumeQuota,
         variant: AppBadgeVariant.warning,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (configured) ...[
-            AppKeyValueRow(label: '供应商', value: info.providerName),
-            AppKeyValueRow(label: '模型', value: info.modelName),
+            AppKeyValueRow(
+              label: l10n.inpaintProvider,
+              value: info.providerName,
+            ),
+            AppKeyValueRow(label: l10n.inpaintModel, value: info.modelName),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
               child: Text(
@@ -433,7 +453,7 @@ class _InpaintPageState extends State<InpaintPage> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
               child: Text(
-                '未配置绘图模型。请到设置 → Models 页「AI 整图编辑」选择具备图像输出能力的模型供应商与模型 (如 nano banana / gpt-image)。',
+                l10n.inpaintNoModelConfigured,
                 style: TextStyle(fontSize: 11, color: colors.textSecondary),
               ),
             ),
@@ -444,6 +464,7 @@ class _InpaintPageState extends State<InpaintPage> {
 
   Widget _buildGeometryCard(BuildContext context, InpaintGeometry geometry) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return AppCollapsibleSection(
       initiallyExpanded: true,
       headerPadding: const EdgeInsets.symmetric(
@@ -465,7 +486,7 @@ class _InpaintPageState extends State<InpaintPage> {
           ),
           const SizedBox(width: 6),
           Text(
-            '潜空间焦点几何',
+            l10n.inpaintLatentFocusGeometry,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -475,7 +496,7 @@ class _InpaintPageState extends State<InpaintPage> {
         ],
       ),
       trailing: AppBadge(
-        label: geometry.isOpusFree ? 'Opus 免费' : '需消耗点数',
+        label: geometry.isOpusFree ? l10n.opusFree : l10n.inpaintRequiresPoints,
         variant: geometry.isOpusFree
             ? AppBadgeVariant.success
             : AppBadgeVariant.warning,
@@ -484,19 +505,19 @@ class _InpaintPageState extends State<InpaintPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppKeyValueRow(
-            label: '目标选区',
+            label: l10n.inpaintTargetSelection,
             value:
                 '${geometry.focusBounds.width.round()} × ${geometry.focusBounds.height.round()} px',
           ),
           AppKeyValueRow(
-            label: '上下文外延',
+            label: l10n.inpaintContextCrop,
             value:
                 '${geometry.contextCrop.width.round()} × ${geometry.contextCrop.height.round()} px',
           ),
           AppKeyValueRow(
-            label: '请求分辨率',
+            label: l10n.inpaintRequestResolution,
             value:
-                '${geometry.requestWidth} × ${geometry.requestHeight} (${geometry.scale.toStringAsFixed(2)}x 超采样)',
+                '${geometry.requestWidth} × ${geometry.requestHeight} (${l10n.inpaintSupersample(geometry.scale.toStringAsFixed(2))})',
           ),
         ],
       ),
@@ -533,6 +554,7 @@ class _InpaintPageState extends State<InpaintPage> {
     required String text,
   }) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final isEmpty = text.trim().isEmpty;
     return Container(
       width: double.infinity,
@@ -555,7 +577,7 @@ class _InpaintPageState extends State<InpaintPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '已复用 $label',
+                  l10n.inpaintReusedLabel(label),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -564,7 +586,7 @@ class _InpaintPageState extends State<InpaintPage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isEmpty ? '（内容为空，可至提示词管理页配置）' : text.trim(),
+                  isEmpty ? l10n.inpaintReusedPromptEmpty : text.trim(),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

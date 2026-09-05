@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_icon_button.dart';
@@ -148,7 +149,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                                   ),
                                   const SizedBox(width: 3),
                                   Text(
-                                    '已连线',
+                                    context.l10n.boardNoteConnected,
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w600,
@@ -159,7 +160,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                               )
                             else
                               Text(
-                                '便签',
+                                context.l10n.boardNoteTitle,
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
@@ -170,7 +171,8 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                             if (note.isConnected)
                               AppIconButton(
                                 icon: Icons.link_off_rounded,
-                                tooltip: '断开连线',
+                                tooltip:
+                                    context.l10n.boardNoteDisconnectTooltip,
                                 size: 20,
                                 iconSize: 14,
                                 variant: AppIconButtonVariant.ghost,
@@ -181,7 +183,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                             const SizedBox(width: 4),
                             AppIconButton(
                               icon: Icons.close_rounded,
-                              tooltip: '删除便签',
+                              tooltip: context.l10n.boardNoteDeleteTooltip,
                               size: 20,
                               iconSize: 14,
                               variant: AppIconButtonVariant.ghost,
@@ -210,7 +212,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                             height: 1.35,
                           ),
                           decoration: InputDecoration(
-                            hintText: '输入修改意见...',
+                            hintText: context.l10n.boardNoteHint,
                             hintStyle: TextStyle(
                               fontSize: 12,
                               color: colors.textMuted,
@@ -236,7 +238,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
             left: -6,
             top: 8,
             child: Tooltip(
-              message: '按住拖出连线到选区/图钉',
+              message: context.l10n.boardWireDragSourceTooltip,
               child: GestureDetector(
                 onPanStart: (_) {
                   widget.onStartWireFromNote(notePos + const Offset(0, 14));
@@ -269,7 +271,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
             right: 0,
             bottom: 0,
             child: BoardCardResizeHandle(
-              tooltip: '拖拽调节便签大小',
+              tooltip: context.l10n.boardNoteResizeTooltip,
               color: color,
               onPanStart: () {
                 _noteResizeStartSize =

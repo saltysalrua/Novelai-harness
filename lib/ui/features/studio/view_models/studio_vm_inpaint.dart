@@ -217,7 +217,7 @@ mixin _StudioInpaintMixin on _StudioCore {
         setInpaintCustomPrompt(annotation.note.trim());
         setInpaintUseMainPrompt(false);
       }
-      _statusMessage = '已将批注转换为修复选区';
+      _statusMessage = vmL10n.vmInpaintConverted;
       notifyListeners();
     }
   }
@@ -225,7 +225,9 @@ mixin _StudioInpaintMixin on _StudioCore {
   /// 图片右键「发送到修复」：设为修复底图并切换到修复页签
   void sendImageToInpaint(NaiGeneratedImage image) {
     _inpaintSourceImage = image;
-    _statusMessage = '已发送到修复画板: ${image.localFilePath ?? image.id}';
+    _statusMessage = vmL10n.vmInpaintSentToBoard(
+      image.localFilePath ?? image.id,
+    );
     setActiveSidebarTab(StudioSidebarTab.inpaint);
   }
 
@@ -257,7 +259,7 @@ mixin _StudioInpaintMixin on _StudioCore {
 
     final target = inpaintSourceImage;
     if (target == null) {
-      _errorMessage = '未找到可供修复的底图，请先选择或生成图片。';
+      _errorMessage = vmL10n.vmInpaintNoImage;
       notifyListeners();
       return;
     }
@@ -268,14 +270,14 @@ mixin _StudioInpaintMixin on _StudioCore {
     if (_inpaintParams.mode == InpaintMode.focus &&
         _inpaintParams.selectionRect == null &&
         !_inpaintParams.hasBrushMask) {
-      _errorMessage = '请先在修复画板框选或用画笔绘制待修复区域。';
+      _errorMessage = vmL10n.vmInpaintNoMask;
       notifyListeners();
       return;
     }
 
     final config = _config;
     if (config.novelAiKey.trim().isEmpty) {
-      _errorMessage = '未配置 NovelAI API Key，请在设置中输入 Token。';
+      _errorMessage = vmL10n.vmInpaintNoApiKey;
       notifyListeners();
       return;
     }
@@ -283,7 +285,7 @@ mixin _StudioInpaintMixin on _StudioCore {
     _isExecutingInpaint = true;
     _errorMessage = null;
     _inpaintPreviewBytes = null;
-    _statusMessage = '正在执行局部修复...';
+    _statusMessage = vmL10n.vmInpaintRunning;
     notifyListeners();
 
     try {
@@ -339,9 +341,9 @@ mixin _StudioInpaintMixin on _StudioCore {
       }
 
       _inpaintPreviewBytes = null;
-      _statusMessage = '局部修复完成';
+      _statusMessage = vmL10n.vmInpaintDone;
     } catch (e) {
-      _errorMessage = '修复失败: $e';
+      _errorMessage = vmL10n.vmInpaintFailed('$e');
     } finally {
       _isExecutingInpaint = false;
       notifyListeners();
@@ -353,7 +355,7 @@ mixin _StudioInpaintMixin on _StudioCore {
   Future<void> executeAiImageEdit() async {
     final target = inpaintSourceImage;
     if (target == null) {
-      _errorMessage = '未找到可供编辑的底图，请先选择或生成图片。';
+      _errorMessage = vmL10n.vmAiEditNoImage;
       notifyListeners();
       return;
     }
@@ -363,12 +365,12 @@ mixin _StudioInpaintMixin on _StudioCore {
     final config = _config;
     final provider = config.imageEditProvider;
     if (provider == null) {
-      _errorMessage = '未配置 AI 整图编辑的绘图模型，请在设置 → Models 页选择绘图模型供应商与模型。';
+      _errorMessage = vmL10n.vmAiEditNoModel;
       notifyListeners();
       return;
     }
     if (provider.apiKey.trim().isEmpty) {
-      _errorMessage = '绘图模型供应商「${provider.name}」未配置 API Key，请先在设置中填写。';
+      _errorMessage = vmL10n.vmAiEditNoKey(provider.name);
       notifyListeners();
       return;
     }
@@ -378,14 +380,14 @@ mixin _StudioInpaintMixin on _StudioCore {
         ? _params.prompt
         : _inpaintParams.customPrompt;
     if (prompt.trim().isEmpty) {
-      _errorMessage = '请先输入 AI 整图编辑的修改指令 (修复页提示词设置，或关闭「复用主工作台正向词」后填写)。';
+      _errorMessage = vmL10n.vmAiEditEmptyPrompt;
       notifyListeners();
       return;
     }
 
     _isExecutingAiEdit = true;
     _errorMessage = null;
-    _statusMessage = 'AI 整图编辑中 (绘图模型处理中，通常需要数十秒)...';
+    _statusMessage = vmL10n.vmAiEditRunning;
     notifyListeners();
 
     try {
@@ -411,9 +413,9 @@ mixin _StudioInpaintMixin on _StudioCore {
       // 完成直接跳到新图：选中新图并把编辑底图切到新图，便于继续迭代
       _applyGeneratedImage(result, wasViewingLatest: true);
       _inpaintSourceImage = result;
-      _statusMessage = 'AI 整图编辑完成';
+      _statusMessage = vmL10n.vmAiEditDone;
     } catch (e) {
-      _errorMessage = 'AI 整图编辑失败: $e';
+      _errorMessage = vmL10n.vmAiEditFailed('$e');
     } finally {
       _isExecutingAiEdit = false;
       notifyListeners();

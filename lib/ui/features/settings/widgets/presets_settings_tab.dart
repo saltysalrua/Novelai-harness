@@ -4,6 +4,7 @@ import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../../data/services/config_service.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
@@ -52,12 +53,12 @@ class PresetsSettingsDraft {
   );
 
   /// 将表单内容写回当前编辑的预设条目
-  void syncFromForm() {
+  void syncFromForm([String? fallbackName]) {
     final idx = presets.indexWhere((p) => p.id == selectedPresetId);
     if (idx >= 0) {
       presets[idx] = presets[idx].copyWith(
         name: nameController.text.trim().isEmpty
-            ? '自定义预设'
+            ? (fallbackName ?? '自定义预设')
             : nameController.text.trim(),
         description: descController.text.trim(),
         systemPrompt: promptController.text.trim(),
@@ -74,9 +75,9 @@ class PresetsSettingsDraft {
   }
 
   /// 切换当前编辑的预设，切换前自动同步表单
-  void switchPreset(String newPresetId) {
+  void switchPreset(String newPresetId, [String? fallbackName]) {
     if (newPresetId == selectedPresetId) return;
-    syncFromForm();
+    syncFromForm(fallbackName);
     loadPresetToForm(
       presets.firstWhere(
         (p) => p.id == newPresetId,
@@ -92,13 +93,19 @@ class PresetsSettingsDraft {
   }
 
   /// 新建预设并载入表单
-  void addNewPreset(List<String> allToolNames) {
-    syncFromForm();
+  void addNewPreset(
+    List<String> allToolNames, {
+    String? defaultName,
+    String? defaultDescription,
+    String? defaultPrompt,
+    String? fallbackName,
+  }) {
+    syncFromForm(fallbackName);
     final newPreset = AgentPreset(
       id: 'preset_${DateTime.now().millisecondsSinceEpoch}',
-      name: '新预设 ${presets.length + 1}',
-      description: '自定义 Agent 预设描述',
-      systemPrompt: '你是由 NovelAI Harness 驱动的绘画创作助手。',
+      name: defaultName ?? '新预设 ${presets.length + 1}',
+      description: defaultDescription ?? '自定义 Agent 预设描述',
+      systemPrompt: defaultPrompt ?? '你是由 NovelAI Harness 驱动的绘画创作助手。',
       enabledSkillIds: const ['v5-architect'],
       enabledToolNames: allToolNames,
       allowedModifiableParams: PresetParamKeys.all,
@@ -109,11 +116,15 @@ class PresetsSettingsDraft {
   }
 
   /// 复制预设并载入表单
-  void duplicatePreset(AgentPreset preset) {
-    syncFromForm();
+  void duplicatePreset(
+    AgentPreset preset, {
+    String? duplicateName,
+    String? fallbackName,
+  }) {
+    syncFromForm(fallbackName);
     final clone = preset.copyWith(
       id: 'preset_${DateTime.now().millisecondsSinceEpoch}',
-      name: '${preset.name} (副本)',
+      name: duplicateName ?? '${preset.name} (副本)',
       isBuiltin: false,
     );
     presets.add(clone);
@@ -121,9 +132,9 @@ class PresetsSettingsDraft {
   }
 
   /// 删除指定预设 (至少保留一个)
-  void deletePreset(String presetId) {
+  void deletePreset(String presetId, [String? fallbackName]) {
     if (presets.length <= 1) return;
-    syncFromForm();
+    syncFromForm(fallbackName);
     presets.removeWhere((p) => p.id == presetId);
     if (selectedPresetId == presetId) {
       selectedPresetId = presets.first.id;
@@ -135,8 +146,8 @@ class PresetsSettingsDraft {
   }
 
   /// 开关预设内的技能
-  void toggleSkill(String skillId, bool enable) {
-    syncFromForm();
+  void toggleSkill(String skillId, bool enable, [String? fallbackName]) {
+    syncFromForm(fallbackName);
     _toggleListField(
       enabled: enable,
       read: (p) => p.enabledSkillIds,
@@ -146,8 +157,8 @@ class PresetsSettingsDraft {
   }
 
   /// 开关预设内的工具
-  void toggleTool(String toolName, bool enable) {
-    syncFromForm();
+  void toggleTool(String toolName, bool enable, [String? fallbackName]) {
+    syncFromForm(fallbackName);
     _toggleListField(
       enabled: enable,
       read: (p) => p.enabledToolNames,
@@ -157,8 +168,8 @@ class PresetsSettingsDraft {
   }
 
   /// 开关预设内允许修改的生图参数
-  void toggleParam(String paramKey, bool enable) {
-    syncFromForm();
+  void toggleParam(String paramKey, bool enable, [String? fallbackName]) {
+    syncFromForm(fallbackName);
     _toggleListField(
       enabled: enable,
       read: (p) => p.allowedModifiableParams,
@@ -212,7 +223,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
 
   void _syncSelectedAndRebuild() {
     if (!mounted) return;
-    setState(() => _draft.syncFromForm());
+    setState(() => _draft.syncFromForm(context.l10n.presetDefaultCustomName));
   }
 
   @override
@@ -265,7 +276,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     Clipboard.setData(ClipboardData(text: skill.toSkillMd()));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('已复制 Skill [${skill.name}] 为标准 SKILL.md 至剪贴板'),
+        content: Text(context.l10n.presetExportSkillSuccess(skill.name)),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -314,6 +325,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final currentPreset = _draft.currentPreset;
     final isSelectedActive = currentPreset.id == _draft.activePresetId;
 
@@ -326,10 +338,10 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. 顶部总选择与管理坞
-          const AppSectionHeader(title: 'Preset Selection'),
+          AppSectionHeader(title: l10n.settingsSectionPresetSelection),
           AppSettingTile(
-            title: '当前预设',
-            subtitle: '选择要配置的 Agent 预设（系统提示词、可用技能、工具与参数权限）',
+            title: l10n.presetCurrentPreset,
+            subtitle: l10n.presetCurrentPresetSubtitle,
             control: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -342,19 +354,27 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                           value: p.id,
                           label: p.name,
                           trailing: p.id == _draft.activePresetId
-                              ? const AppBadge(label: '当前默认', fontSize: 9)
+                              ? AppBadge(
+                                  label: l10n.presetBadgeActiveDefault,
+                                  fontSize: 9,
+                                )
                               : null,
                         ),
                       )
                       .toList(),
-                  onChanged: (val) => setState(() => _draft.switchPreset(val)),
+                  onChanged: (val) => setState(
+                    () => _draft.switchPreset(
+                      val,
+                      l10n.presetDefaultCustomName,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 8),
 
                 // 设为默认按钮
                 if (!isSelectedActive)
                   AppActionButton(
-                    label: '设为当前默认',
+                    label: l10n.presetSetAsActiveDefault,
                     onPressed: () => setState(
                       () => _draft.setActivePreset(currentPreset.id),
                     ),
@@ -363,22 +383,35 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                 const SizedBox(width: 6),
                 AppActionButton(
                   icon: Icons.add_rounded,
-                  label: '新建',
+                  label: l10n.presetNewButton,
                   onPressed: () => setState(
                     () => _draft.addNewPreset(
                       widget.viewModel.availableTools
                           .map((t) => t.name)
                           .toList(),
+                      defaultName: l10n.presetNewName(
+                        _draft.presets.length + 1,
+                      ),
+                      defaultDescription: l10n.presetNewDescription,
+                      defaultPrompt: l10n.presetNewSystemPrompt,
+                      fallbackName: l10n.presetDefaultCustomName,
                     ),
                   ),
                 ),
                 const SizedBox(width: 6),
                 AppActionButton(
                   icon: Icons.copy_rounded,
-                  label: '复制',
+                  label: l10n.copy,
                   iconSize: 14,
-                  onPressed: () =>
-                      setState(() => _draft.duplicatePreset(currentPreset)),
+                  onPressed: () => setState(
+                    () => _draft.duplicatePreset(
+                      currentPreset,
+                      duplicateName: l10n.presetDuplicateName(
+                        currentPreset.name,
+                      ),
+                      fallbackName: l10n.presetDefaultCustomName,
+                    ),
+                  ),
                 ),
 
                 // 删除按钮 (多于1个且非内置时可删)
@@ -389,9 +422,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     iconSize: 18,
                     variant: AppIconButtonVariant.ghost,
                     iconColor: colors.error,
-                    tooltip: '删除此预设',
-                    onPressed: () =>
-                        setState(() => _draft.deletePreset(currentPreset.id)),
+                    tooltip: l10n.presetDeleteTooltip,
+                    onPressed: () => setState(
+                      () => _draft.deletePreset(
+                        currentPreset.id,
+                        l10n.presetDefaultCustomName,
+                      ),
+                    ),
                   ),
                 ],
               ],
@@ -401,7 +438,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           const SizedBox(height: 14),
 
           // 2. 预设基础信息与系统提示词
-          const AppSectionHeader(title: 'Preset Profile & System Prompt'),
+          AppSectionHeader(title: l10n.settingsSectionPresetProfile),
           if (currentPreset.isBuiltin) ...[
             Container(
               width: double.infinity,
@@ -413,7 +450,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                 border: Border.all(color: colors.borderDefault),
               ),
               child: Text(
-                '内置预设为出厂定义，每次启动以代码为准自动刷新，不支持直接修改。需要定制请先点击「复制」生成副本。',
+                l10n.presetBuiltinNotice,
                 style: TextStyle(fontSize: 11, color: colors.textSecondary),
               ),
             ),
@@ -429,9 +466,9 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     Expanded(
                       flex: 4,
                       child: _buildLabeledField(
-                        label: '预设显示名称',
+                        label: l10n.presetDisplayName,
                         controller: _draft.nameController,
-                        hintText: '如 V5 自然语言架构师',
+                        hintText: l10n.presetDisplayNameHint,
                         readOnly: currentPreset.isBuiltin,
                       ),
                     ),
@@ -439,9 +476,9 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     Expanded(
                       flex: 6,
                       child: _buildLabeledField(
-                        label: '预设描述',
+                        label: l10n.presetDescription,
                         controller: _draft.descController,
-                        hintText: '如 擅长 V5 自然语言散文提示词...',
+                        hintText: l10n.presetDescriptionHint,
                         readOnly: currentPreset.isBuiltin,
                       ),
                     ),
@@ -449,7 +486,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  '系统提示词 (System Prompt - 作为对话首要根基指令)',
+                  l10n.presetSystemPrompt,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -466,7 +503,9 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     fontFamily: 'monospace',
                     height: 1.4,
                   ),
-                  decoration: _fieldDecoration(hint: '输入 AI 助手的核心人设与工作流指引...'),
+                  decoration: _fieldDecoration(
+                    hint: l10n.presetSystemPromptHint,
+                  ),
                 ),
               ],
             ),
@@ -476,19 +515,19 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
 
           // 3. 可用 Skill 库 (Pi 标准按需加载小卡片组)
           AppSectionHeader(
-            title: 'Available Skills',
+            title: l10n.settingsSectionAvailableSkills,
             trailing: Row(
               children: [
                 AppActionButton(
                   icon: Icons.file_upload_outlined,
-                  label: '导入 SKILL.md',
+                  label: l10n.presetImportSkill,
                   iconSize: 14,
                   onPressed: _openImportSkillDialog,
                 ),
                 const SizedBox(width: 6),
                 AppActionButton(
                   icon: Icons.add_rounded,
-                  label: '新建 Skill',
+                  label: l10n.presetNewSkill,
                   onPressed: _openNewSkillDialog,
                 ),
               ],
@@ -508,8 +547,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                 isEnabled: isEnabled,
                 onToggle: isBuiltinPreset
                     ? null
-                    : (val) =>
-                          setState(() => _draft.toggleSkill(skill.id, val)),
+                    : (val) => setState(
+                        () => _draft.toggleSkill(
+                          skill.id,
+                          val,
+                          l10n.presetDefaultCustomName,
+                        ),
+                      ),
                 onEdit: _openEditSkillDialog,
                 onExport: _exportSkillMd,
                 onDelete: !skill.isBuiltin
@@ -523,10 +567,10 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
 
           // 4. 开放工具库 (Enabled Tools 小卡片组)
           AppSectionHeader(
-            title: 'Enabled Tools',
+            title: l10n.settingsSectionEnabledTools,
             trailing: AppActionButton(
               icon: Icons.add_rounded,
-              label: '新建自定义工具',
+              label: l10n.presetNewCustomTool,
               onPressed: _openNewToolDialog,
             ),
           ),
@@ -542,8 +586,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                 isEnabled: isEnabled,
                 onToggle: isBuiltinPreset
                     ? null
-                    : (val) =>
-                          setState(() => _draft.toggleTool(tool.name, val)),
+                    : (val) => setState(
+                        () => _draft.toggleTool(
+                          tool.name,
+                          val,
+                          l10n.presetDefaultCustomName,
+                        ),
+                      ),
                 onInspectSchema: _openInspectToolSchemaDialog,
                 onEditCustomTool: tool is CustomAgentTool
                     ? _openEditToolDialog
@@ -556,7 +605,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           const SizedBox(height: 18),
 
           // 5. 生图参数控制权限 (Modifiable Parameters)
-          const AppSectionHeader(title: 'Modifiable Parameters'),
+          AppSectionHeader(title: l10n.settingsSectionModifiableParams),
           const SizedBox(height: 10),
           Container(
             width: double.infinity,
@@ -571,7 +620,26 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
               runSpacing: 8,
               children: PresetParamKeys.all.map((key) {
                 final isAllowed = currentPreset.isParamModifiable(key);
-                final label = PresetParamKeys.getLabel(key);
+                final label = switch (key) {
+                  PresetParamKeys.prompt => l10n.presetParamPrompt,
+                  PresetParamKeys.negativePrompt =>
+                    l10n.presetParamNegativePrompt,
+                  PresetParamKeys.model => l10n.presetParamModel,
+                  PresetParamKeys.resolution => l10n.presetParamResolution,
+                  PresetParamKeys.width => l10n.presetParamWidth,
+                  PresetParamKeys.height => l10n.presetParamHeight,
+                  PresetParamKeys.steps => l10n.presetParamSteps,
+                  PresetParamKeys.scale => l10n.presetParamScale,
+                  PresetParamKeys.cfgRescale => l10n.presetParamCfgRescale,
+                  PresetParamKeys.sampler => l10n.presetParamSampler,
+                  PresetParamKeys.noiseSchedule =>
+                    l10n.presetParamNoiseSchedule,
+                  PresetParamKeys.qualityPreset =>
+                    l10n.presetParamQualityPreset,
+                  PresetParamKeys.characterAiPosition =>
+                    l10n.presetParamCharacterAiPosition,
+                  _ => PresetParamKeys.getLabel(key),
+                };
                 return FilterChip(
                   label: Text(
                     label,
@@ -586,7 +654,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   selected: isAllowed,
                   onSelected: currentPreset.isBuiltin
                       ? null
-                      : (val) => setState(() => _draft.toggleParam(key, val)),
+                      : (val) => setState(
+                          () => _draft.toggleParam(
+                            key,
+                            val,
+                            l10n.presetDefaultCustomName,
+                          ),
+                        ),
                   backgroundColor: colors.mutedBackground,
                   selectedColor: colors.primary.withValues(alpha: 0.12),
                   checkmarkColor: colors.primary,

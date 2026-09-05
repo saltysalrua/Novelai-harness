@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../data/models/tag_models.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
@@ -79,9 +80,12 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
 
   void _addTag(String tag, [String? zh]) {
     widget.onTagSelected(tag);
+    final l10n = context.l10n;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: zh == null ? Text('已添加标签: $tag') : Text('已添加标签: $tag ($zh)'),
+        content: zh == null
+            ? Text(l10n.tagBrowserAddedTag(tag))
+            : Text(l10n.tagBrowserAddedTagWithZh(tag, zh)),
         duration: const Duration(milliseconds: 900),
         behavior: SnackBarBehavior.floating,
       ),
@@ -91,9 +95,10 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
 
     return AppDialogScaffold(
-      title: 'Danbooru 标签灵感库',
+      title: l10n.tagBrowserTitle,
       width: 720,
       height: 600,
       body: Column(
@@ -104,7 +109,7 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
             child: AppSearchField(
               controller: _searchController,
-              hintText: '输入英文或中文搜索 14万+ Danbooru 标签...',
+              hintText: l10n.tagBrowserSearchHint,
               debounceDuration: const Duration(milliseconds: 120),
               onChanged: _onSearchChanged,
               onClear: () {
@@ -128,11 +133,12 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
 
   Widget _buildSearchResults(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     if (_searchResults.isEmpty) {
-      return const AppEmptyState(
+      return AppEmptyState(
         icon: Icons.search_off_outlined,
-        title: '未找到匹配标签',
-        description: '请尝试输入其他英文或中文关键词检索',
+        title: l10n.tagBrowserNoMatchingTitle,
+        description: l10n.tagBrowserNoMatchingDesc,
         isCompact: true,
       );
     }

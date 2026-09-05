@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../data/services/session_log_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -62,12 +63,12 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
   void _showRenameDialog(SessionInfo session) async {
     final newName = await showAppPromptDialog(
       context,
-      title: '重命名会话',
+      title: context.l10n.sessionRenameTitle,
       initialValue: session.title,
-      hintText: '请输入会话新名称...',
+      hintText: context.l10n.sessionRenameHint,
       icon: Icons.edit_outlined,
-      confirmLabel: '保存',
-      cancelLabel: '取消',
+      confirmLabel: context.l10n.sessionSave,
+      cancelLabel: context.l10n.sessionCancel,
     );
     if (newName != null && newName.trim().isNotEmpty) {
       widget.viewModel.renameSession(session.id, newName.trim());
@@ -77,10 +78,10 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
   void _showDeleteConfirmDialog(SessionInfo session) async {
     final confirmed = await showAppConfirmDialog(
       context,
-      title: '删除会话',
-      message: '确定要永久删除会话 "${session.title}" 吗？此操作无法撤销。',
-      confirmLabel: '删除',
-      cancelLabel: '取消',
+      title: context.l10n.sessionDeleteTitle,
+      message: context.l10n.sessionDeleteConfirm(session.title),
+      confirmLabel: context.l10n.sessionDeleteConfirmButton,
+      cancelLabel: context.l10n.sessionCancel,
       isDestructive: true,
     );
     if (confirmed == true) {
@@ -96,7 +97,11 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
     if (isToday) {
       return '${two(dt.hour)}:${two(dt.minute)}';
     }
-    return '${dt.month}月${dt.day}日 ${two(dt.hour)}:${two(dt.minute)}';
+    return context.l10n.sessionDateFormat(
+      dt.month,
+      dt.day,
+      '${two(dt.hour)}:${two(dt.minute)}',
+    );
   }
 
   @override
@@ -124,7 +129,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
               children: [
                 AppIconButton(
                   icon: Icons.arrow_back_ios_new_rounded,
-                  tooltip: '返回对话',
+                  tooltip: context.l10n.sessionBackTooltip,
                   size: 28,
                   iconSize: 14,
                   variant: AppIconButtonVariant.ghost,
@@ -134,7 +139,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                 Icon(Icons.forum_outlined, size: 15, color: colors.primary),
                 const SizedBox(width: 6),
                 Text(
-                  '会话管理',
+                  context.l10n.sessionTitle,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -144,9 +149,12 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                 const Spacer(),
                 FilledButton.icon(
                   icon: const Icon(Icons.add_rounded, size: 14),
-                  label: const Text(
-                    '新建会话',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  label: Text(
+                    context.l10n.sessionNew,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: colors.primary,
@@ -175,7 +183,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
             child: AppSearchField(
               controller: _searchController,
-              hintText: '搜索历史会话...',
+              hintText: context.l10n.sessionSearchHint,
               height: 34,
               fontSize: 12,
               debounceDuration: Duration.zero,
@@ -189,7 +197,9 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                 ? AppEmptyState(
                     icon: Icons.chat_bubble_outline_rounded,
                     iconSize: 32,
-                    title: _searchQuery.isNotEmpty ? '未找到匹配的会话' : '暂无历史会话记录',
+                    title: _searchQuery.isNotEmpty
+                        ? context.l10n.sessionNoMatchingTitle
+                        : context.l10n.sessionEmptyTitle,
                     isCompact: true,
                   )
                 : ListView.separated(
@@ -241,7 +251,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
               children: [
                 if (isCurrent) ...[
                   AppBadge.pill(
-                    label: '当前',
+                    label: context.l10n.sessionCurrentBadge,
                     variant: AppBadgeVariant.primary,
                     customBackgroundColor: colors.primary,
                     customForegroundColor: Colors.white,
@@ -287,7 +297,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '重命名',
+                            context.l10n.sessionRenameAction,
                             style: TextStyle(
                               fontSize: 12,
                               color: colors.textPrimary,
@@ -308,7 +318,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '删除',
+                            context.l10n.sessionDeleteAction,
                             style: TextStyle(fontSize: 12, color: colors.error),
                           ),
                         ],
@@ -350,7 +360,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                 ),
                 const SizedBox(width: 3),
                 Text(
-                  '${session.messageCount} 条',
+                  context.l10n.sessionMessageCount(session.messageCount),
                   style: TextStyle(fontSize: 11, color: colors.textMuted),
                 ),
                 const SizedBox(width: 8),

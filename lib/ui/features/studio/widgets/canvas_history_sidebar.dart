@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
+import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_thumbnail_card.dart';
@@ -93,7 +95,7 @@ class HistorySidebarHeader extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'History',
+                context.l10n.history,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -155,7 +157,7 @@ class _ImageHistoryThumb extends StatelessWidget {
           ? Container(color: context.colors.mutedBackground)
           : null,
       cacheWidth: 240,
-      badgeLabel: item.historyBadgeLabel,
+      badgeLabel: historyBadgeLabelOf(context.l10n, item.provenance),
       badgeColor: Colors.black.withValues(alpha: 0.72),
       onTap: () {
         viewModel.selectImage(item);
@@ -244,9 +246,9 @@ class _HistoryEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const AppEmptyState(
+    return AppEmptyState(
       icon: Icons.history_rounded,
-      title: '暂无历史',
+      title: context.l10n.canvasHistoryEmpty,
       isCompact: true,
     );
   }

@@ -5,6 +5,7 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/context_l10n.dart';
 
 /// 预设配置中的单个 Tool 小卡片 (对齐 ModelCard 设计)
 class ToolCard extends StatelessWidget {
@@ -30,6 +31,7 @@ class ToolCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final properties = (tool.parameters['properties'] is Map)
         ? (tool.parameters['properties'] as Map).keys.toList()
         : <dynamic>[];
@@ -80,7 +82,9 @@ class ToolCard extends StatelessWidget {
                 ),
                 // 内置 / 自定义 徽章
                 AppBadge(
-                  label: tool.isBuiltin ? '内置' : '自定义',
+                  label: tool.isBuiltin
+                      ? l10n.settingsBadgeBuiltin
+                      : l10n.settingsBadgeCustom,
                   variant: tool.isBuiltin
                       ? AppBadgeVariant.neutral
                       : AppBadgeVariant.success,
@@ -94,7 +98,9 @@ class ToolCard extends StatelessWidget {
                       : Icons.code_rounded,
                   size: 26,
                   iconSize: 14,
-                  tooltip: tool is CustomAgentTool ? '编辑工具' : '查看 Schema',
+                  tooltip: tool is CustomAgentTool
+                      ? l10n.toolTooltipEdit
+                      : l10n.toolTooltipInspectSchema,
                   onPressed: () {
                     if (tool is CustomAgentTool && onEditCustomTool != null) {
                       onEditCustomTool!(tool as CustomAgentTool);
@@ -109,7 +115,7 @@ class ToolCard extends StatelessWidget {
                     icon: Icons.close_rounded,
                     size: 26,
                     iconSize: 14,
-                    tooltip: '删除自定义工具',
+                    tooltip: l10n.toolTooltipDelete,
                     onPressed: onDelete,
                   ),
               ],
@@ -127,7 +133,9 @@ class ToolCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              tool.description.isNotEmpty ? tool.description : '暂无工具描述',
+              tool.description.isNotEmpty
+                  ? tool.description
+                  : l10n.toolNoDescription,
               style: TextStyle(
                 fontSize: 11,
                 color: colors.textSecondary,

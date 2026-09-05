@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui' show Offset, Rect;
+import 'dart:ui' show Locale, Offset, Rect;
 import 'package:flutter/foundation.dart';
 import '../../../../core/harness/agent_harness.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
@@ -9,6 +9,7 @@ import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 // AiEditImageTool 在 part 分部 studio_vm_harness.dart 中注册使用
 import '../../../../core/harness/tools/ai_edit_image_tool.dart';
+import '../../../core/locale/app_locale_controller.dart';
 import '../../../core/theme/theme_mode_controller.dart';
 import '../../../core/theme/ui_zoom_controller.dart';
 import '../../../../core/harness/tools/annotation_tools.dart';
@@ -36,6 +37,8 @@ import '../../../../data/services/session_log_service.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
+import '../../../../l10n/app_localizations.dart'
+    show AppLocalizations, lookupAppLocalizations;
 import 'param_snapshot_journal.dart';
 import 'slash_command_catalog.dart';
 import 'streaming_controllers.dart';
@@ -94,6 +97,14 @@ mixin _StudioCore on ChangeNotifier {
 
   AppConfig _config = const AppConfig();
   NaiGenerationParams _params = const NaiGenerationParams(prompt: '');
+
+  /// VM 侧本地化取词入口 (阶段 4C 数据层文案解耦)：
+  /// ViewModel 状态/错误/确认消息不再硬编码中文，统一经 vmL10n 生成；
+  /// 默认 zh (与既有测试断言一致)，updateConfig 时随 localePreference 刷新。
+  /// 后端原始错误、Agent prompt、用户输入仍原样透传不翻译。
+  Locale _vmLocale = const Locale('zh');
+  AppLocalizations get vmL10n => lookupAppLocalizations(_vmLocale);
+
   NaiAccountInfo? _accountInfo;
   bool _isLoadingAccount = false;
   bool _isGenerating = false;
@@ -687,6 +698,15 @@ class StudioViewModel extends ChangeNotifier
 
   // ------------------------- 配置 -------------------------
 
+  /// 解析 system 档位下的平台首选语言 (仅支持 zh/en，未知回退 zh)
+  Locale _resolveSystemLocale() {
+    final platform = PlatformDispatcher.instance.locale;
+    final matched = AppLocalizations.supportedLocales
+        .where((l) => l.languageCode == platform.languageCode)
+        .firstOrNull;
+    return matched ?? const Locale('zh');
+  }
+
   /// 保存全局配置
   Future<void> updateConfig(AppConfig newConfig) async {
     final oldConfig = _config;
@@ -694,6 +714,14 @@ class StudioViewModel extends ChangeNotifier
     // 主题模式即时生效：MaterialApp 根节点监听全局控制器局部刷新，
     // 200ms 平滑切色，不走 notifyListeners 全局重绘
     AppThemeModeController.instance.syncFromConfig(newConfig);
+    // 语言同理：根级 ValueListenableBuilder 局部接管，不全局重绘
+    AppLocaleController.instance.syncFromConfig(newConfig);
+    // VM 侧消息文案同步跟随语言设置 (system 跟随平台首选语言)
+    _vmLocale = switch (newConfig.localePreference) {
+      AppLocalePreference.zh => const Locale('zh'),
+      AppLocalePreference.en => const Locale('en'),
+      AppLocalePreference.system => _resolveSystemLocale(),
+    };
     // UI 缩放同理：根级 ValueListenableBuilder 局部接管，不全局重绘
     AppUiZoomController.instance.syncFromConfig(newConfig);
     notifyListeners();
@@ -904,7 +932,7 @@ class StudioViewModel extends ChangeNotifier
       }
     }
 
-    _statusMessage = '已从历史记录删除图片';
+    _statusMessage = vmL10n.vmHistoryDeleted;
     notifyListeners();
   }
 
@@ -957,7 +985,7 @@ class StudioViewModel extends ChangeNotifier
       }
     }
 
-    _statusMessage = '已清空历史记录';
+    _statusMessage = vmL10n.vmHistoryCleared;
     notifyListeners();
   }
 
@@ -1090,7 +1118,7 @@ class StudioViewModel extends ChangeNotifier
         charPrompts.add(
           NaiCharacterPrompt(
             id: 'char_${DateTime.now().millisecondsSinceEpoch}_$i',
-            name: '角色 ${i + 1}',
+            name: vmL10n.vmCharacterDefaultName(i + 1),
             prompt: p,
             negativePrompt: uc,
           ),
@@ -1128,7 +1156,7 @@ class StudioViewModel extends ChangeNotifier
     );
 
     updateParams(newParams);
-    _statusMessage = '已应用图片元数据至工作台';
+    _statusMessage = vmL10n.vmMetadataApplied;
     notifyListeners();
   }
 

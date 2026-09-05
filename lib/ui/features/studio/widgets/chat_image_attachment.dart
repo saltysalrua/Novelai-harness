@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../../core/harness/types.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_thumbnail_card.dart';
 
@@ -208,19 +209,22 @@ class ChatImageThumbnail extends StatelessWidget {
         Positioned(
           top: -6,
           right: -6,
-          child: GestureDetector(
-            onTap: remove,
-            child: Container(
-              width: 18,
-              height: 18,
-              decoration: const BoxDecoration(
-                color: Colors.black87,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.close_rounded,
-                size: 12,
-                color: Colors.white,
+          child: Tooltip(
+            message: context.l10n.chatRemoveAttachmentTooltip,
+            child: GestureDetector(
+              onTap: remove,
+              child: Container(
+                width: 18,
+                height: 18,
+                decoration: const BoxDecoration(
+                  color: Colors.black87,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  size: 12,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),

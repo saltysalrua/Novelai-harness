@@ -193,15 +193,14 @@ enum ResolutionCategory {
   }
 }
 
-/// 分辨率方向 (横屏、竖屏、正方形)
+/// 分辨率方向 (横屏、竖屏、正方形)。纯结构化枚举，UI 文案由 l10n 接管。
 enum ResolutionOrientation {
-  landscape('landscape', '横屏'),
-  portrait('portrait', '竖屏'),
-  square('square', '正方形');
+  landscape('landscape'),
+  portrait('portrait'),
+  square('square');
 
   final String key;
-  final String label;
-  const ResolutionOrientation(this.key, this.label);
+  const ResolutionOrientation(this.key);
 
   static ResolutionOrientation fromDimensions(int width, int height) {
     if (width > height) return ResolutionOrientation.landscape;
@@ -295,17 +294,16 @@ enum ResolutionPreset {
   }
 }
 
-/// 种子模式 (Seed Mode)
+/// 种子模式 (Seed Mode)。UI 文案由 l10n 接管，label 仅为英文术语标识。
 enum NaiSeedMode {
-  random('random', 'Random', '随机'),
-  increase('increase', 'Increase', '递增'),
-  fixed('fixed', 'Fixed', '固定');
+  random('random', 'Random'),
+  increase('increase', 'Increase'),
+  fixed('fixed', 'Fixed');
 
   final String id;
   final String label;
-  final String chineseLabel;
 
-  const NaiSeedMode(this.id, this.label, this.chineseLabel);
+  const NaiSeedMode(this.id, this.label);
 
   static NaiSeedMode fromId(String? id) {
     if (id == null) return NaiSeedMode.random;
@@ -316,15 +314,14 @@ enum NaiSeedMode {
   }
 }
 
-/// 种子生成控制 / 变更时机 (Generation Timing)
+/// 种子生成控制 / 变更时机 (Generation Timing)。UI 文案由 l10n 接管。
 enum NaiSeedTiming {
-  before('before', '生成前'),
-  after('after', '生成后');
+  before('before'),
+  after('after');
 
   final String id;
-  final String label;
 
-  const NaiSeedTiming(this.id, this.label);
+  const NaiSeedTiming(this.id);
 
   static NaiSeedTiming fromId(String? id) {
     if (id == null) return NaiSeedTiming.before;

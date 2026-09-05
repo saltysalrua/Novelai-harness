@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/watermark_service.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -109,7 +110,9 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
               ),
               const SizedBox(width: 6),
               Text(
-                hasWatermark ? '盲水印内容' : '未检测到盲水印',
+                hasWatermark
+                    ? context.l10n.metadataBlindWatermarkContent
+                    : context.l10n.metadataBlindWatermarkNotFound,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -148,9 +151,10 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
   @override
   Widget build(BuildContext context) {
     final meta = widget.metadata;
+    final l10n = context.l10n;
 
     return AppDialogScaffold(
-      title: widget.fileName ?? '图像元数据读取',
+      title: widget.fileName ?? l10n.metadataDialogTitle,
       width: 720,
       maxHeight: 760,
       actions: _buildBottomActionButtons(context, meta),
@@ -175,10 +179,10 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
             if (meta.prompt.isNotEmpty) ...[
               _buildNotionSection(
                 context: context,
-                title: '正向提示词 (Prompt)',
+                title: l10n.metadataPromptTitle,
                 icon: Icons.text_fields_rounded,
                 content: meta.prompt,
-                onCopy: () => _copyText(meta.prompt, '已复制正向提示词'),
+                onCopy: () => _copyText(meta.prompt, l10n.metadataCopiedPrompt),
               ),
               const SizedBox(height: 14),
             ],
@@ -187,10 +191,13 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
             if (meta.negativePrompt.isNotEmpty) ...[
               _buildNotionSection(
                 context: context,
-                title: '负向提示词 (Negative Prompt)',
+                title: l10n.metadataNegativePromptTitle,
                 icon: Icons.remove_circle_outline_rounded,
                 content: meta.negativePrompt,
-                onCopy: () => _copyText(meta.negativePrompt, '已复制负向提示词'),
+                onCopy: () => _copyText(
+                  meta.negativePrompt,
+                  l10n.metadataCopiedNegativePrompt,
+                ),
               ),
               const SizedBox(height: 14),
             ],
@@ -220,6 +227,16 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
 
   Widget _buildImagePreviewRow(BuildContext context, ImageMetadataResult meta) {
     final colors = context.colors;
+    final l10n = context.l10n;
+    final widthStr = meta.width != null
+        ? '${meta.width}'
+        : l10n.metadataDimensionAuto;
+    final heightStr = meta.height != null
+        ? '${meta.height}'
+        : l10n.metadataDimensionAuto;
+    final modelStr = meta.model ?? l10n.metadataModelUnknown;
+    final samplerStr = meta.sampler ?? l10n.metadataSamplerDefault;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -244,7 +261,7 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '尺寸: ${meta.width ?? '自动'} x ${meta.height ?? '自动'}',
+                  l10n.metadataDimensions(widthStr, heightStr),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -253,13 +270,13 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '模型: ${meta.model ?? '未知模型'}  ·  采样: ${meta.sampler ?? '默认'}',
+                  l10n.metadataModelAndSampler(modelStr, samplerStr),
                   style: TextStyle(fontSize: 11, color: colors.textSecondary),
                 ),
                 if (meta.seed != null) ...[
                   const SizedBox(height: 2),
                   Text(
-                    '种子: ${meta.seed}',
+                    l10n.metadataSeedLabel('${meta.seed}'),
                     style: TextStyle(
                       fontSize: 11,
                       color: colors.textSecondary,
@@ -317,7 +334,7 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
                     Icon(Icons.copy_rounded, size: 12, color: colors.primary),
                     const SizedBox(width: 4),
                     Text(
-                      '复制',
+                      context.l10n.copy,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
@@ -357,6 +374,7 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
     ImageMetadataResult meta,
   ) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -369,7 +387,7 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
             ),
             const SizedBox(width: 6),
             Text(
-              '多角色提示词 (Character Prompts)',
+              l10n.metadataCharacterPromptsTitle,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -396,7 +414,7 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 AppBadge(
-                  label: '角色 ${idx + 1}',
+                  label: l10n.metadataCharacterIndex(idx + 1),
                   variant: AppBadgeVariant.primary,
                 ),
                 const SizedBox(height: 6),
@@ -407,7 +425,7 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
                 if (neg.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   SelectableText(
-                    '负向: $neg',
+                    l10n.metadataNegativePrefix(neg),
                     style: TextStyle(fontSize: 11, color: colors.textSecondary),
                   ),
                 ],
@@ -421,25 +439,47 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
 
   Widget _buildParametersGrid(BuildContext context, ImageMetadataResult meta) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final items = <_ParamItem>[
-      _ParamItem('模型', meta.model ?? '未知'),
-      _ParamItem('采样算法', meta.sampler ?? '默认'),
-      _ParamItem('步数', meta.steps != null ? '${meta.steps}' : '28'),
-      _ParamItem('CFG Scale', meta.scale != null ? '${meta.scale}' : '5.0'),
+      _ParamItem(
+        l10n.metadataParamModel,
+        meta.model ?? l10n.metadataParamUnknown,
+      ),
+      _ParamItem(
+        l10n.metadataParamSampler,
+        meta.sampler ?? l10n.metadataParamDefault,
+      ),
+      _ParamItem(
+        l10n.metadataParamSteps,
+        meta.steps != null ? '${meta.steps}' : '28',
+      ),
+      _ParamItem(
+        'CFG Scale',
+        meta.scale != null ? '${meta.scale}' : '5.0',
+        isMonospace: true,
+      ),
       if (meta.cfgRescale != null && meta.cfgRescale! > 0)
-        _ParamItem('CFG Rescale', '${meta.cfgRescale}'),
-      _ParamItem('种子 (Seed)', meta.seed != null ? '${meta.seed}' : '随机'),
-      if (meta.noiseSchedule != null) _ParamItem('噪声调度', meta.noiseSchedule!),
-      if (meta.qualityPreset != null) _ParamItem('质量预设', meta.qualityPreset!),
-      if (meta.ucPreset != null) _ParamItem('UC 预设', meta.ucPreset!),
-      if (meta.transparentBackground == true) _ParamItem('透明背景', '开启'),
+        _ParamItem('CFG Rescale', '${meta.cfgRescale}', isMonospace: true),
+      _ParamItem(
+        l10n.metadataParamSeed,
+        meta.seed != null ? '${meta.seed}' : l10n.metadataParamSeedRandom,
+        isMonospace: true,
+      ),
+      if (meta.noiseSchedule != null)
+        _ParamItem(l10n.metadataParamNoiseSchedule, meta.noiseSchedule!),
+      if (meta.qualityPreset != null)
+        _ParamItem(l10n.metadataParamQualityPreset, meta.qualityPreset!),
+      if (meta.ucPreset != null)
+        _ParamItem(l10n.metadataParamUcPreset, meta.ucPreset!),
+      if (meta.transparentBackground == true)
+        _ParamItem(l10n.metadataParamTransparentBg, l10n.metadataParamEnabled),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '生成参数',
+          l10n.metadataParametersTitle,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
@@ -459,8 +499,7 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
               return AppKeyValueRow(
                 label: item.label,
                 value: item.value,
-                isMonospace:
-                    item.label.contains('种子') || item.label.contains('CFG'),
+                isMonospace: item.isMonospace,
               );
             }).toList(),
           ),
@@ -471,14 +510,15 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
 
   Widget _buildRawJsonCollapsible(BuildContext context, String rawJson) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return AppCollapsibleSection(
-      title: '原始元数据 (Raw JSON / Text)',
+      title: l10n.metadataRawJsonTitle,
       initiallyExpanded: false,
       trailing: IconButton(
         icon: const Icon(Icons.copy_rounded, size: 14),
         visualDensity: VisualDensity.compact,
-        tooltip: '复制原始文本',
-        onPressed: () => _copyText(rawJson, '已复制原始元数据'),
+        tooltip: l10n.metadataCopyRawTooltip,
+        onPressed: () => _copyText(rawJson, l10n.metadataCopiedRaw),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 180),
@@ -505,11 +545,12 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
     ImageMetadataResult meta,
   ) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return [
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
         style: TextButton.styleFrom(foregroundColor: colors.textSecondary),
-        child: const Text('关闭'),
+        child: Text(l10n.close),
       ),
       const SizedBox(width: 8),
       if (widget.imageBytes != null) ...[
@@ -521,7 +562,7 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.visibility_off_outlined, size: 16),
-          label: const Text('提取盲水印'),
+          label: Text(l10n.metadataExtractBlindWatermark),
           style: OutlinedButton.styleFrom(
             foregroundColor: colors.textPrimary,
             backgroundColor: colors.cardBackground,
@@ -535,7 +576,7 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
         const SizedBox(width: 8),
         OutlinedButton.icon(
           icon: const Icon(Icons.photo_library_outlined, size: 16),
-          label: const Text('作为参考图导入'),
+          label: Text(l10n.metadataImportAsReference),
           style: OutlinedButton.styleFrom(
             foregroundColor: colors.textPrimary,
             backgroundColor: colors.cardBackground,
@@ -550,16 +591,16 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
               fileName: widget.fileName,
             );
             Navigator.of(context).pop();
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('已导入参考图')));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.metadataImportedReference)),
+            );
           },
         ),
         const SizedBox(width: 8),
       ],
       ElevatedButton.icon(
         icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
-        label: const Text('应用全部参数到工作台'),
+        label: Text(l10n.metadataApplyToWorkbench),
         style: ElevatedButton.styleFrom(
           backgroundColor: colors.primary,
           foregroundColor: Colors.white,
@@ -580,5 +621,6 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
 class _ParamItem {
   final String label;
   final String value;
-  const _ParamItem(this.label, this.value);
+  final bool isMonospace;
+  const _ParamItem(this.label, this.value, {this.isMonospace = false});
 }

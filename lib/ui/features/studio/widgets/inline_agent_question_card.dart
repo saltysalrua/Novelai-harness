@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -80,7 +81,8 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
         questions.first.options.length == 2 &&
         !questions.first.allowCustomInput;
 
-    final headerText = questions.first.header ?? '向用户提问';
+    final headerText =
+        questions.first.header ?? context.l10n.askCardDefaultHeader;
     final isPaymentHeader =
         headerText.contains('点数') || headerText.contains('付费');
 
@@ -136,8 +138,8 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                   ),
                 ),
                 const Spacer(),
-                const AppBadge(
-                  label: '待确认',
+                AppBadge(
+                  label: context.l10n.askCardPendingConfirm,
                   variant: AppBadgeVariant.neutral,
                   fontSize: 11,
                 ),
@@ -173,7 +175,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                       foregroundColor: colors.textMuted,
                       visualDensity: VisualDensity.compact,
                     ),
-                    child: const Text('取消'),
+                    child: Text(context.l10n.askCardCancel),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
@@ -187,7 +189,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                       visualDensity: VisualDensity.compact,
                     ),
                     onPressed: _isAllAnswered ? _submit : null,
-                    child: const Text('提交回答'),
+                    child: Text(context.l10n.askCardSubmit),
                   ),
                 ],
               ),
@@ -273,7 +275,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
             style: TextStyle(fontSize: 13, color: colors.textPrimary),
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText: '输入自定义回答...',
+              hintText: context.l10n.askCardCustomInputHint,
               hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
               isDense: true,
               filled: true,

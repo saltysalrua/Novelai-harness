@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
+import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/novelai_service.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:path/path.dart' as p;
@@ -127,7 +128,7 @@ void main() {
       expect(results, hasLength(1));
       final image = results.first;
       expect(image.isUnsaved, isTrue);
-      expect(image.historyBadgeLabel, equals('未保存'));
+      expect(image.provenance, equals(NaiImageProvenance.unsaved));
       // 文件必须落在 cache 子目录且为无处理原图字节
       final cacheDir = Directory(p.join(saveDir.path, 'cache'));
       expect(cacheDir.existsSync(), isTrue);
@@ -366,7 +367,7 @@ void main() {
       );
       final restored = NaiGeneratedImage.fromJson(image.toJson());
       expect(restored.isUnsaved, isTrue);
-      expect(restored.historyBadgeLabel, equals('未保存'));
+      expect(restored.provenance, equals(NaiImageProvenance.unsaved));
 
       final saved = NaiGeneratedImage(
         id: 's3',
@@ -405,6 +406,7 @@ void main() {
         vm.config.copyWith(
           saveDirectory: vmSaveDir.path,
           autoSaveImages: false,
+          localePreference: AppLocalePreference.zh,
         ),
       );
 

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/novelai_service.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/theme/app_theme.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_editor_card.dart';
@@ -60,6 +61,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: AppTheme.lightTheme,
           home: Scaffold(
             body: SingleChildScrollView(
@@ -109,6 +113,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: AppTheme.lightTheme,
           home: Scaffold(
             body: SingleChildScrollView(
@@ -153,6 +160,9 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             theme: AppTheme.lightTheme,
             home: Scaffold(
               body: PromptEditorCard(
@@ -234,6 +244,9 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             theme: AppTheme.lightTheme,
             home: Scaffold(
               body: SingleChildScrollView(
@@ -247,24 +260,24 @@ void main() {
           ),
         );
 
-        // 初始处于 Character Prompts 标签
-        expect(find.text('Character Prompts'), findsOneWidget);
-        expect(find.text('Fixed Affixes'), findsOneWidget);
+        // 初始处于 Character Prompts (多角色提示词) 标签
+        expect(find.text('多角色提示词'), findsOneWidget);
+        expect(find.text('固定词缀'), findsOneWidget);
         expect(find.text('银发少女'), findsOneWidget);
         expect(find.text('女'), findsOneWidget);
         expect(find.text('男'), findsOneWidget);
         expect(find.text('其他'), findsOneWidget);
 
-        // 点击切换到 Fixed Affixes 标签
-        await tester.tap(find.text('Fixed Affixes'));
+        // 点击切换到 Fixed Affixes (固定词缀) 标签
+        await tester.tap(find.text('固定词缀'));
         await tester.pumpAndSettle();
 
         expect(find.text('PREFIX'), findsOneWidget);
         expect(find.text('SUFFIX'), findsOneWidget);
         expect(find.text('0.7::artist::'), findsOneWidget);
 
-        // 点击切回 Character Prompts 标签
-        await tester.tap(find.text('Character Prompts'));
+        // 点击切回 Character Prompts (多角色提示词) 标签
+        await tester.tap(find.text('多角色提示词'));
         await tester.pumpAndSettle();
 
         expect(find.text('银发少女'), findsOneWidget);

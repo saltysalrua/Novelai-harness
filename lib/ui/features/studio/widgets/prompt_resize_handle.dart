@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_resize_divider.dart';
 import 'prompt_edit_actions.dart';
 import 'tag_autocomplete_overlay.dart';
@@ -10,13 +11,13 @@ import 'tag_autocomplete_overlay.dart';
 class PromptResizeHandle extends StatelessWidget {
   final ValueChanged<double> onDelta;
   final VoidCallback? onReset;
-  final String tooltip;
+  final String? tooltip;
 
   const PromptResizeHandle({
     super.key,
     required this.onDelta,
     this.onReset,
-    this.tooltip = '上下拖动调节高度 (双击重置)',
+    this.tooltip,
   });
 
   @override
@@ -25,7 +26,7 @@ class PromptResizeHandle extends StatelessWidget {
       axis: Axis.vertical,
       onDelta: onDelta,
       onReset: onReset,
-      tooltip: tooltip,
+      tooltip: tooltip ?? context.maybeL10n?.promptResizeTooltip ?? '',
       hitThickness: 12.0,
       initialHandleSize: 28.0,
       expandedHandleSize: 42.0,
@@ -60,7 +61,7 @@ class ResizableTextField extends StatefulWidget {
   final double maxHeight;
 
   /// 拖拽手柄提示文案
-  final String resizeTooltip;
+  final String? resizeTooltip;
 
   /// 输入框文字与占位文字样式
   final TextStyle? style;
@@ -88,7 +89,7 @@ class ResizableTextField extends StatefulWidget {
     this.onHeightChanged,
     this.minHeight = 44,
     this.maxHeight = 400,
-    this.resizeTooltip = '拖动调整高度 (双击重置)',
+    this.resizeTooltip,
     this.style,
     this.hintStyle,
     this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

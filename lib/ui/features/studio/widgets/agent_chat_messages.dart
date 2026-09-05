@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../../../core/harness/types.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import 'agent_chat_blocks.dart';
@@ -220,7 +221,7 @@ class ToolResultBlock extends StatelessWidget {
         ? 0
         : message.content.split('\n').length;
     final firstLine = message.content.isEmpty
-        ? '(无输出)'
+        ? context.l10n.chatToolNoOutput
         : message.content.split('\n').first.trim();
     final accent = message.isError ? colors.error : colors.success;
 
@@ -257,7 +258,7 @@ class ToolResultBlock extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    '$lineCount 行 · $firstLine',
+                    context.l10n.chatToolResultSummary(lineCount, firstLine),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -425,7 +426,7 @@ class StreamingMessageBubble extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '正在思考...',
+                  context.l10n.chatThinkingProgress,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -461,7 +462,7 @@ class StreamingMessageBubble extends StatelessWidget {
             const SizedBox(height: 6),
           ],
           MarkdownBody(
-            data: content.isEmpty ? '构思中...' : content,
+            data: content.isEmpty ? context.l10n.chatConceiving : content,
             selectable: true,
             softLineBreak: true,
             styleSheet: buildAgentMarkdownStyleSheet(context),

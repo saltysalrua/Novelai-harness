@@ -4,9 +4,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
 import 'package:novelai_harness/data/services/tag_dictionary_service.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_resize_handle.dart';
 
 import 'test_library_seeds.dart';
+
+Widget buildTestApp(Widget child, [Locale locale = const Locale('zh')]) {
+  return MaterialApp(
+    locale: locale,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: Scaffold(body: child),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -41,16 +51,14 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
       String updated = '';
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Padding(
-              padding: const EdgeInsets.all(20),
-              child: ResizableTextField(
-                controller: controller,
-                onChanged: (val) => updated = val,
-                hintText: '输入提示词...',
-                defaultHeight: 120,
-              ),
+        buildTestApp(
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: ResizableTextField(
+              controller: controller,
+              onChanged: (val) => updated = val,
+              hintText: '输入提示词...',
+              defaultHeight: 120,
             ),
           ),
         ),
@@ -91,30 +99,28 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
       final controller = TextEditingController();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Row(
-              children: [
-                SizedBox(
-                  width: 320,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: ResizableTextField(
-                      controller: controller,
-                      onChanged: (val) {},
-                      hintText: '输入提示词...',
-                      defaultHeight: 120,
-                    ),
+        buildTestApp(
+          Row(
+            children: [
+              SizedBox(
+                width: 320,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: ResizableTextField(
+                    controller: controller,
+                    onChanged: (val) {},
+                    hintText: '输入提示词...',
+                    defaultHeight: 120,
                   ),
                 ),
-                const Expanded(
-                  child: ColoredBox(
-                    color: Colors.grey,
-                    child: Center(child: Text('Image Column')),
-                  ),
+              ),
+              const Expanded(
+                child: ColoredBox(
+                  color: Colors.grey,
+                  child: Center(child: Text('Image Column')),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );
@@ -146,16 +152,14 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
     final controller = TextEditingController();
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Padding(
-            padding: const EdgeInsets.all(20),
-            child: ResizableTextField(
-              controller: controller,
-              onChanged: (val) {},
-              hintText: '输入提示词...',
-              defaultHeight: 120,
-            ),
+      buildTestApp(
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: ResizableTextField(
+            controller: controller,
+            onChanged: (val) {},
+            hintText: '输入提示词...',
+            defaultHeight: 120,
           ),
         ),
       ),
@@ -193,16 +197,14 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
       ); // 光标在 "lo" 后面
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Padding(
-              padding: const EdgeInsets.all(20),
-              child: ResizableTextField(
-                controller: controller,
-                onChanged: (val) {},
-                hintText: '输入提示词...',
-                defaultHeight: 120,
-              ),
+        buildTestApp(
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: ResizableTextField(
+              controller: controller,
+              onChanged: (val) {},
+              hintText: '输入提示词...',
+              defaultHeight: 120,
             ),
           ),
         ),
@@ -233,16 +235,14 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
     ); // 光标在 "lo" 后面
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Padding(
-            padding: const EdgeInsets.all(20),
-            child: ResizableTextField(
-              controller: controller,
-              onChanged: (val) {},
-              hintText: '输入提示词...',
-              defaultHeight: 120,
-            ),
+      buildTestApp(
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: ResizableTextField(
+            controller: controller,
+            onChanged: (val) {},
+            hintText: '输入提示词...',
+            defaultHeight: 120,
           ),
         ),
       ),
@@ -269,16 +269,14 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
       final controller = TextEditingController();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Padding(
-              padding: const EdgeInsets.all(20),
-              child: ResizableTextField(
-                controller: controller,
-                onChanged: (val) {},
-                hintText: '输入提示词...',
-                defaultHeight: 120,
-              ),
+        buildTestApp(
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: ResizableTextField(
+              controller: controller,
+              onChanged: (val) {},
+              hintText: '输入提示词...',
+              defaultHeight: 120,
             ),
           ),
         ),
@@ -316,16 +314,14 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
       final controller = TextEditingController();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Padding(
-              padding: const EdgeInsets.all(20),
-              child: ResizableTextField(
-                controller: controller,
-                onChanged: (val) {},
-                hintText: '输入提示词...',
-                defaultHeight: 120,
-              ),
+        buildTestApp(
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: ResizableTextField(
+              controller: controller,
+              onChanged: (val) {},
+              hintText: '输入提示词...',
+              defaultHeight: 120,
             ),
           ),
         ),

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/context_l10n.dart';
 
 /// Tool 查看 Schema / 编辑 / 新建自定义工具对话框 (Pi 风格工具构建器)
 class ToolEditorDialog extends StatefulWidget {
@@ -69,16 +70,19 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final isReadOnly =
         widget.isReadOnlySchemaView ||
         (widget.tool != null && widget.tool!.isBuiltin);
 
     return AppDialogScaffold(
       title: isReadOnly
-          ? '工具 Schema (${widget.tool?.label ?? widget.tool?.name})'
+          ? l10n.toolDialogSchemaTitle(
+              widget.tool?.label ?? widget.tool?.name ?? '',
+            )
           : (widget.tool == null
-                ? '新建自定义工具'
-                : '编辑自定义工具 (${widget.tool!.label})'),
+                ? l10n.toolDialogNewTitle
+                : l10n.toolDialogEditTitle(widget.tool!.label)),
       width: 640,
       height: 600,
       body: Padding(
@@ -94,7 +98,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '标识',
+                          l10n.toolFieldId,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -110,7 +114,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                             fontFamily: 'monospace',
                           ),
                           decoration: _fieldDecoration(
-                            hint: '如 custom_tool',
+                            hint: l10n.toolFieldIdHint,
                             filled: isReadOnly,
                           ),
                         ),
@@ -123,7 +127,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '名称',
+                          l10n.toolFieldName,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -136,7 +140,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                           enabled: !isReadOnly,
                           style: const TextStyle(fontSize: 12),
                           decoration: _fieldDecoration(
-                            hint: '如 自定义工具',
+                            hint: l10n.toolFieldNameHint,
                             filled: isReadOnly,
                           ),
                         ),
@@ -147,7 +151,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
               ),
               const SizedBox(height: 12),
               Text(
-                '工具描述',
+                l10n.toolFieldDescription,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -162,7 +166,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                 maxLines: 4,
                 style: const TextStyle(fontSize: 12, height: 1.4),
                 decoration: _fieldDecoration(
-                  hint: '清楚描述该工具的作用与使用时机...',
+                  hint: l10n.toolFieldDescriptionHint,
                   filled: isReadOnly,
                 ),
               ),
@@ -170,7 +174,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
               Row(
                 children: [
                   Text(
-                    '参数 Schema',
+                    l10n.toolFieldSchema,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -184,9 +188,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                         ClipboardData(text: _schemaController.text),
                       );
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('已复制 Schema JSON 至剪贴板'),
-                          duration: Duration(seconds: 2),
+                        SnackBar(
+                          content: Text(l10n.toolCopySchemaSuccess),
+                          duration: const Duration(seconds: 2),
                         ),
                       );
                     },
@@ -204,7 +208,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '复制 Schema',
+                            l10n.toolCopySchema,
                             style: TextStyle(
                               fontSize: 11,
                               color: colors.primary,
@@ -232,7 +236,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
               if (!isReadOnly) ...[
                 const SizedBox(height: 12),
                 Text(
-                  '输出模板',
+                  l10n.toolFieldOutputTemplate,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -244,7 +248,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                   controller: _templateController,
                   maxLines: 3,
                   style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                  decoration: _fieldDecoration(hint: '如：已成功执行并构建结果：{{query}}'),
+                  decoration: _fieldDecoration(
+                    hint: l10n.toolFieldOutputTemplateHint('{{query}}'),
+                  ),
                 ),
               ],
             ],
@@ -255,7 +261,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
-            isReadOnly ? '关闭' : '取消',
+            isReadOnly ? l10n.close : l10n.cancel,
             style: TextStyle(color: colors.textSecondary),
           ),
         ),
@@ -271,7 +277,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
               ),
             ),
             onPressed: _saveCustomTool,
-            child: const Text('保存工具'),
+            child: Text(l10n.toolSave),
           ),
         ],
       ],
@@ -310,7 +316,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
     if (name.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('工具名称 (Name) 不能为空')));
+      ).showSnackBar(SnackBar(content: Text(context.l10n.toolNameEmptyError)));
       return;
     }
 
@@ -326,7 +332,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Schema JSON 解析失败: $e')));
+      ).showSnackBar(
+        SnackBar(content: Text(context.l10n.toolSchemaParseError('$e'))),
+      );
       return;
     }
 

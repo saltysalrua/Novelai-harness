@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HardwareKeyboard;
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_icon_button.dart';
@@ -151,8 +152,11 @@ class _BoardImageCardState extends State<BoardImageCard> {
                   Expanded(
                     child: Text(
                       isMain
-                          ? '主图 (当前生成图)'
-                          : '参考图 (${imgNode.image.params.width}x${imgNode.image.params.height})',
+                          ? context.l10n.boardImageCardMainTitle
+                          : context.l10n.boardImageCardRefTitle(
+                              imgNode.image.params.width,
+                              imgNode.image.params.height,
+                            ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -165,7 +169,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                   if (!isMain)
                     AppIconButton(
                       icon: Icons.close_rounded,
-                      tooltip: '移除参考图卡片',
+                      tooltip: context.l10n.boardImageCardRemoveTooltip,
                       size: 20,
                       iconSize: 14,
                       variant: AppIconButtonVariant.ghost,
@@ -343,7 +347,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                           right: 0,
                           bottom: 0,
                           child: BoardCardResizeHandle(
-                            tooltip: '拖拽调节图片卡片大小 (按住 Shift 锁定宽高比)',
+                            tooltip: context.l10n.boardImageResizeTooltip,
                             color: isMain
                                 ? colors.primary
                                 : (context.isDarkMode
@@ -489,7 +493,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                 actions: [
                   ContextMenuItem(
                     icon: Icons.auto_fix_high_outlined,
-                    label: '发送到修复',
+                    label: context.l10n.boardImageSendToInpaint,
                     onTap: () => widget.viewModel.sendAnnotationToInpaint(
                       imgNode.image,
                       ann,
@@ -543,7 +547,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                 right: 4,
                 top: 4,
                 child: _AnnotationDeleteChip(
-                  tooltip: '删除选区',
+                  tooltip: context.l10n.boardAnnotationDeleteRect,
                   onDelete: () => widget.viewModel
                       .removeAnnotationFromImageNode(imgNode.id, ann.id),
                 ),
@@ -613,7 +617,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                 left: 30,
                 top: 4,
                 child: _AnnotationDeleteChip(
-                  tooltip: '删除锚点',
+                  tooltip: context.l10n.boardAnnotationDeletePoint,
                   onDelete: () =>
                       widget.viewModel.removeAnnotationFromImageNode(
                         widget.imageNode.id,
@@ -695,7 +699,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
         onPanEnd: (_) => _finishAnnotationDrag(ann, rect: _liveRect),
         onPanCancel: () => _finishAnnotationDrag(ann, rect: _liveRect),
         child: Tooltip(
-          message: '拖拽调节选区大小',
+          message: context.l10n.boardAnnotationResizeRect,
           child: MouseRegion(
             cursor:
                 corner == _RectCorner.topLeft ||
@@ -807,7 +811,7 @@ class _PinPortBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: '点击选中该批注',
+      message: context.l10n.boardAnnotationSelectTooltip,
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
@@ -900,7 +904,7 @@ class _WireSourcePort extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: '按住拖出连线到选区/图钉',
+      message: context.l10n.boardWireDragSourceTooltip,
       child: GestureDetector(
         onPanStart: (_) => onPanStart(),
         onPanUpdate: (details) => onPanUpdate(details.globalPosition),

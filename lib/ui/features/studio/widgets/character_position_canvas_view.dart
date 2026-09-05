@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../view_models/studio_view_model.dart';
@@ -454,6 +455,7 @@ class CanvasPositionPlaceholderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final params = viewModel.params;
     final aspectRatio = (params.width > 0 && params.height > 0)
         ? (params.width / params.height)
@@ -503,7 +505,7 @@ class CanvasPositionPlaceholderCard extends StatelessWidget {
                     border: Border.all(color: colors.borderSubtle),
                   ),
                   child: Text(
-                    '临时画板 · ${params.width} × ${params.height}',
+                    l10n.charPosCanvasTempBoard(params.width, params.height),
                     style: TextStyle(
                       fontSize: 12,
                       fontFamily: 'monospace',

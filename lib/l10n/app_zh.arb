@@ -22,5 +22,1247 @@
   "copy": "复制",
   "close": "关闭",
   "import": "导入",
-  "export": "导出"
+  "export": "导出",
+  "settingsSectionAppearance": "外观",
+  "settingsThemeMode": "主题模式",
+  "settingsThemeModeSubtitle": "切换亮色/深色工作台外观，深色采用 Notion 极简暗调色板",
+  "themeModeSystem": "跟随系统",
+  "themeModeLight": "亮色",
+  "themeModeDark": "深色",
+  "settingsLanguage": "语言",
+  "settingsLanguageSubtitle": "切换界面显示语言；现阶段设置页优先接入，其余界面将分模块逐步迁移",
+  "localeSystem": "跟随系统",
+  "localeChinese": "中文",
+  "localeEnglish": "English",
+  "settingsUiZoom": "界面缩放",
+  "settingsUiZoomSubtitle": "整体缩放工作台界面；快捷键 Ctrl + = / Ctrl + - 步进，Ctrl + 0 重置",
+  "settingsSectionNovelaiService": "NovelAI Service",
+  "settingsApiKeyTitle": "NovelAI API Key",
+  "settingsApiKeySubtitle": "官方 API 凭证 (pst-...)，用于图像生成与体力池同步",
+  "settingsSaveDirTitle": "本地存储目录",
+  "settingsSaveDirSubtitle": "生成的高清图像与元数据自动保存至此路径",
+  "settingsSaveDirHint": "存储路径...",
+  "settingsChooseButton": "选择",
+  "settingsAutoSaveTitle": "自动保存生成图片",
+  "settingsAutoSaveSubtitleOn": "生成图片自动写入本地存储目录 (按导出设置处理元数据与水印)",
+  "settingsAutoSaveSubtitleOff": "生成图片先存入缓存目录 (无水印)，在画板右下角点击保存按钮手动保存；超出历史上限的缓存图片自动删除",
+  "settingsStreamPreviewTitle": "实时生图预览",
+  "settingsStreamPreviewSubtitle": "生图过程中接收并实时渲染中间去噪步数预览图 (Stream Preview)",
+  "settingsImagePersistenceTitle": "图片历史持久化",
+  "settingsImagePersistenceSubtitle": "应用重启后自动恢复画板历史中的生成图片记录",
+  "settingsMaxImagesTitle": "可持久化图像上限",
+  "settingsMaxImagesSubtitle": "限制本地画板历史中保留的最大图片数量",
+  "settingsImageCount": "{count} 张",
+  "@settingsImageCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "settingsSectionTagAutocomplete": "Danbooru Tag Autocomplete",
+  "settingsTagAutocompleteTitle": "标签智能自动补全",
+  "settingsTagAutocompleteSubtitle": "输入提示词时自动弹出 32万+ Danbooru 词库悬浮联想建议",
+  "settingsDictUpdateTitle": "词库在线更新",
+  "settingsDictUpdateNowButton": "立即更新",
+  "settingsDictAutoCheckTitle": "启动时自动检查更新",
+  "settingsDictAutoCheckSubtitle": "每日一次后台拉取最新词库 (ffdkj 每日构建，含新标签与中文翻译)",
+  "settingsTagTranslationsTitle": "显示标签中文释义",
+  "settingsTagTranslationsSubtitle": "在补全候选词列表与灵感库中展示对应的中文翻译释义",
+  "settingsTagColorsTitle": "标签分类着色高亮",
+  "settingsTagColorsSubtitle": "在提示词输入框中对画师、角色、作品、通用等标签施加分类色彩高亮",
+  "dictOnlineInfo": "在线词库 {count} 条 · 更新于 {date}",
+  "@dictOnlineInfo": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "date": { "type": "String" }
+    }
+  },
+  "dictBuiltinInfo": "内置词库 {count} 条",
+  "@dictBuiltinInfo": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "dictBuiltinLoading": "内置词库 (加载中)",
+  "settingsSectionProtection": "保护",
+  "settingsOpusTitle": "Opus 免点数保护",
+  "settingsOpusSubtitle": "自动将默认参数限制在免费区间内 (像素 <= 1048576 且 步数 <= 28)",
+  "dictUpdateFailed": "更新失败: {error}",
+  "@dictUpdateFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "settingsModelSettings": "模型设置",
+  "settingsDeleteModel": "删除模型",
+  "settingsModelBadgeThinking": "思考",
+  "settingsModelBadgeMultimodal": "多模态",
+  "settingsModelBadgeImageOutput": "绘图",
+  "settingsModelBadgeContext": "{tokens} 上下文",
+  "@settingsModelBadgeContext": {
+    "placeholders": {
+      "tokens": { "type": "String" }
+    }
+  },
+  "settingsAddModel": "添加模型",
+  "settingsModelIdEmptyError": "模型 ID 不能为空",
+  "settingsModelDisplayName": "显示名称",
+  "settingsModelDisplayNameHint": "如 DeepSeek R1",
+  "settingsModelId": "模型 ID",
+  "settingsModelIdHint": "发送给 API 的模型标识",
+  "settingsModelTemperature": "温度 (Temperature)",
+  "settingsModelReasoning": "深度思考 (Reasoning)",
+  "settingsModelThinkingEffort": "思考等级",
+  "settingsModelMultimodal": "多模态 (图像输入)",
+  "settingsModelImageOutput": "图像输出 (绘图模型)",
+  "settingsModelContextWindow": "上下文窗口 (tokens)",
+  "settingsModelMaxTokens": "最大输出 (tokens)",
+  "settingsAdd": "添加",
+  "settingsCustomProviderDefaultName": "自定义供应商",
+  "settingsNewProviderDefaultName": "新供应商 {index}",
+  "@settingsNewProviderDefaultName": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "settingsFetchModelsEnterBaseUrl": "请先填写有效的 API 基础 URL",
+  "settingsFetchModelsSuccess": "成功拉取 {count} 个模型",
+  "@settingsFetchModelsSuccess": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "settingsFetchModelsSuccessWithEnriched": "成功拉取 {count} 个模型，{enrichedCount} 个已匹配 models.dev 元数据",
+  "@settingsFetchModelsSuccessWithEnriched": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "enrichedCount": { "type": "int" }
+    }
+  },
+  "settingsEndpointUrlNotConfigured": "未配置 URL",
+  "settingsFullEndpoint": "完整接口地址: {endpoint}",
+  "@settingsFullEndpoint": {
+    "placeholders": {
+      "endpoint": { "type": "String" }
+    }
+  },
+  "settingsSectionProviderSelection": "Provider Selection",
+  "settingsSectionProviderProfile": "Provider Profile & Endpoint",
+  "settingsSectionModels": "Models",
+  "settingsSectionImageEdit": "AI 整图编辑",
+  "settingsCurrentProvider": "当前供应商",
+  "settingsCurrentProviderSubtitle": "选择要配置的 AI 服务商，或添加自定义供应商",
+  "settingsNewProviderButton": "新建",
+  "settingsDeleteCurrentProviderTooltip": "删除当前供应商",
+  "settingsProviderName": "供应商名称",
+  "settingsProviderNameSubtitle": "在界面与下拉菜单中显示的自定义标识",
+  "settingsProviderNameHint": "如 DeepSeek / OpenAI / 本地 Ollama",
+  "settingsApiEndpointAndProtocol": "API 接口与协议",
+  "settingsApiEndpointAndProtocolSubtitle": "服务基础 URL 与对应的通讯协议格式",
+  "settingsLlmApiKeyTitle": "LLM API Key",
+  "settingsLlmApiKeySubtitle": "访问该供应商所需的身份密钥",
+  "settingsThinkingParamFormat": "思考参数格式",
+  "settingsThinkingParamFormatSubtitle": "不同供应商用不同字段开关思维链，格式不匹配时思考会被静默丢弃；中转站请按其上游格式指定",
+  "settingsModelsListTitle": "模型列表",
+  "settingsModelsListSubtitle": "点击卡片切换当前模型，设置按钮调整模型参数与能力档案",
+  "settingsFetchingModels": "拉取中...",
+  "settingsFetchModelsOnline": "在线拉取模型",
+  "settingsImageEditModelTitle": "绘图模型",
+  "settingsImageEditModelSubtitle": "修复页「AI 整图编辑」使用的供应商与模型 (仅列出绘图模型)，独立于对话 LLM；需选择具备图像输出能力的模型 (如 nano banana / gpt-image)",
+  "settingsDropdownNotConfigured": "未配置",
+  "settingsDropdownNoModelSelected": "未选择模型",
+  "settingsImageEditUnrecognizedModel": "{modelId} (未识别为绘图模型)",
+  "@settingsImageEditUnrecognizedModel": {
+    "placeholders": {
+      "modelId": { "type": "String" }
+    }
+  },
+  "settingsImageEditTip": "整图编辑不消耗 Anlas 点数，计费走绘图模型供应商；未识别到能力的模型可在模型设置中手动开启「图像输出」",
+  "settingsSearchModelHint": "搜索模型名称或 ID",
+  "settingsModelSortDefault": "默认顺序",
+  "settingsModelSortNameAsc": "名称 A-Z",
+  "settingsModelSortNameDesc": "名称 Z-A",
+  "settingsFilterImageOnly": "仅绘图模型",
+  "settingsFilterImageOnlyTooltip": "仅显示具备图像输出能力的模型 (如 nano banana / gpt-image)",
+  "settingsModelCount": "{current} / {total} 个模型",
+  "@settingsModelCount": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "settingsNoModelsInProvider": "当前供应商暂无模型",
+  "settingsNoModelsInProviderDesc": "点击上方\"在线拉取模型\"或\"添加模型\"",
+  "settingsNoMatchingModels": "没有匹配 \"{query}\" 的模型",
+  "@settingsNoMatchingModels": {
+    "placeholders": {
+      "query": { "type": "String" }
+    }
+  },
+  "settingsBadgeBuiltin": "内置",
+  "settingsBadgeCustom": "自定义",
+  "settingsSectionPresetSelection": "Preset Selection",
+  "settingsSectionPresetProfile": "Preset Profile & System Prompt",
+  "settingsSectionAvailableSkills": "Available Skills",
+  "settingsSectionEnabledTools": "Enabled Tools",
+  "settingsSectionModifiableParams": "Modifiable Parameters",
+  "presetCurrentPreset": "当前预设",
+  "presetCurrentPresetSubtitle": "选择要配置的 Agent 预设（系统提示词、可用技能、工具与参数权限）",
+  "presetBadgeActiveDefault": "当前默认",
+  "presetSetAsActiveDefault": "设为当前默认",
+  "presetNewButton": "新建",
+  "presetDeleteTooltip": "删除此预设",
+  "presetDefaultCustomName": "自定义预设",
+  "presetNewName": "新预设 {index}",
+  "@presetNewName": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "presetNewDescription": "自定义 Agent 预设描述",
+  "presetNewSystemPrompt": "你是由 NovelAI Harness 驱动的绘画创作助手。",
+  "presetDuplicateName": "{name} (副本)",
+  "@presetDuplicateName": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "presetExportSkillSuccess": "已复制 Skill [{name}] 为标准 SKILL.md 至剪贴板",
+  "@presetExportSkillSuccess": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "presetBuiltinNotice": "内置预设为出厂定义，每次启动以代码为准自动刷新，不支持直接修改。需要定制请先点击「复制」生成副本。",
+  "presetDisplayName": "预设显示名称",
+  "presetDisplayNameHint": "如 V5 自然语言架构师",
+  "presetDescription": "预设描述",
+  "presetDescriptionHint": "如 擅长 V5 自然语言散文提示词...",
+  "presetSystemPrompt": "系统提示词 (System Prompt - 作为对话首要根基指令)",
+  "presetSystemPromptHint": "输入 AI 助手的核心人设与工作流指引...",
+  "presetImportSkill": "导入 SKILL.md",
+  "presetNewSkill": "新建 Skill",
+  "presetNewCustomTool": "新建自定义工具",
+  "presetParamPrompt": "提示词",
+  "presetParamNegativePrompt": "负向提示词",
+  "presetParamModel": "模型",
+  "presetParamResolution": "分辨率",
+  "presetParamWidth": "宽度",
+  "presetParamHeight": "高度",
+  "presetParamSteps": "步数",
+  "presetParamScale": "CFG",
+  "presetParamCfgRescale": "CFG Rescale",
+  "presetParamSampler": "采样器",
+  "presetParamNoiseSchedule": "噪声调度",
+  "presetParamQualityPreset": "质量标签",
+  "presetParamCharacterAiPosition": "角色定位模式",
+  "skillTooltipExport": "导出为 SKILL.md",
+  "skillTooltipEdit": "查看与编辑 Skill",
+  "skillTooltipDelete": "删除 Skill",
+  "skillNoDescription": "暂无描述",
+  "skillDialogImportTitle": "导入标准 SKILL.md",
+  "skillDialogNewTitle": "新建 Skill",
+  "skillDialogEditTitle": "编辑 Skill ({name})",
+  "@skillDialogEditTitle": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "skillEditorTabStructured": "结构化编辑",
+  "skillEditorTabRaw": "SKILL.md 源码",
+  "skillCopySkillMd": "复制 SKILL.md",
+  "skillCopySuccess": "已复制标准 SKILL.md 内容至剪贴板",
+  "skillSave": "保存 Skill",
+  "skillFieldId": "标识",
+  "skillFieldIdHint": "如 v5-architect",
+  "skillFieldName": "名称",
+  "skillFieldNameHint": "如 V5 自然语言架构师",
+  "skillFieldDescription": "技能描述",
+  "skillFieldDescriptionHint": "简要说明该技能擅长处理的任务场景...",
+  "skillFieldPrompt": "技能指令",
+  "skillFieldDisableInvocation": "禁止自动调用",
+  "skillFieldPromptHint": "输入该技能加载后生效的完整提示词与规范...",
+  "skillRawEditorHelp": "粘贴或编辑标准 SKILL.md (含 YAML Frontmatter 与 Markdown Body)：",
+  "skillIdEmptyError": "Skill 标识 (ID) 不能为空",
+  "toolTooltipEdit": "编辑工具",
+  "toolTooltipInspectSchema": "查看 Schema",
+  "toolTooltipDelete": "删除自定义工具",
+  "toolNoDescription": "暂无工具描述",
+  "toolDialogSchemaTitle": "工具 Schema ({label})",
+  "@toolDialogSchemaTitle": {
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "toolDialogNewTitle": "新建自定义工具",
+  "toolDialogEditTitle": "编辑自定义工具 ({label})",
+  "@toolDialogEditTitle": {
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "toolFieldId": "标识",
+  "toolFieldIdHint": "如 custom_tool",
+  "toolFieldName": "名称",
+  "toolFieldNameHint": "如 自定义工具",
+  "toolFieldDescription": "工具描述",
+  "toolFieldDescriptionHint": "清楚描述该工具的作用与使用时机...",
+  "toolFieldSchema": "参数 Schema",
+  "toolCopySchema": "复制 Schema",
+  "toolCopySchemaSuccess": "已复制 Schema JSON 至剪贴板",
+  "toolFieldOutputTemplate": "输出模板",
+  "toolFieldOutputTemplateHint": "如：已成功执行并构建结果：{placeholder}",
+  "@toolFieldOutputTemplateHint": {
+    "placeholders": {
+      "placeholder": { "type": "String" }
+    }
+  },
+  "toolSave": "保存工具",
+  "toolNameEmptyError": "工具名称 (Name) 不能为空",
+  "toolSchemaParseError": "Schema JSON 解析失败: {error}",
+  "@toolSchemaParseError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "settingsSaveButton": "保存设置",
+  "settingsSubtitleGeneral": "配置 NovelAI 绘图服务凭证、本地存储目录与 Opus 免点保护。",
+  "settingsSubtitleModels": "按供应商管理大语言模型服务，在线拉取模型列表并自动匹配 models.dev 能力元数据。",
+  "settingsSubtitlePresets": "管理 Agent 预设，配置系统提示词、按需加载的 Skill 库与生图参数控制权限。",
+  "settingsSubtitleDefaults": "配置启动时的出厂默认生图模型、采样算法与步数引导。",
+  "settingsSubtitleBill": "按周期统计各模型的 Token 用量账单，数据来自本地增量账本。",
+  "settingsSectionModelAndSampler": "Model & Sampler",
+  "settingsDefaultModelTitle": "默认生图模型",
+  "settingsDefaultModelSubtitle": "应用启动或参数重置时的默认出厂模型",
+  "settingsDefaultSamplerTitle": "默认采样算法",
+  "settingsDefaultSamplerSubtitle": "生图时默认使用的降噪采样器",
+  "settingsDefaultNoiseScheduleTitle": "默认噪声调度",
+  "settingsDefaultNoiseScheduleSubtitle": "采样降噪过程中的时间步长调度算法",
+  "settingsSectionDefaultStepsAndScale": "Default Steps & Scale",
+  "settingsDefaultStepsTitle": "默认步数 (Steps)",
+  "settingsDefaultStepsSubtitle": "初始采样迭代步数",
+  "settingsDefaultScaleTitle": "默认 CFG Scale",
+  "settingsDefaultScaleSubtitle": "提示词引导强度 (当前: {scale})",
+  "@settingsDefaultScaleSubtitle": {
+    "placeholders": {
+      "scale": { "type": "String" }
+    }
+  },
+  "settingsSectionAgentLoop": "Agent Loop",
+  "settingsAgentMaxTurnsTitle": "Agent 最大工具轮数",
+  "settingsAgentMaxTurnsSubtitle": "单次对话允许的工具链式调用轮数，达到后自动收尾总结",
+  "settingsSectionUsageBill": "Usage Bill",
+  "billPeriodToday": "今天",
+  "billPeriodLast7Days": "近 7 天",
+  "billPeriodLast30Days": "近 30 天",
+  "billPeriodAll": "全部",
+  "billSummaryRequestsAndTokens": "{requests} 次请求 · 总计 {tokens} tokens",
+  "@billSummaryRequestsAndTokens": {
+    "placeholders": {
+      "requests": { "type": "int" },
+      "tokens": { "type": "String" }
+    }
+  },
+  "billEmptyRecords": "该周期内暂无用量记录",
+  "billTableHeaderModel": "模型",
+  "billTableHeaderRequests": "请求数",
+  "billTableHeaderInput": "输入",
+  "billTableHeaderOutput": "输出",
+  "billTableHeaderCacheRead": "缓存读",
+  "billTableHeaderHitRate": "命中率",
+  "billTableHeaderTotal": "总计",
+  "billTableTotalRow": "总计",
+  "paramsPageTitle": "参数设置",
+  "paramsPageSubtitle": "模型、分辨率与采样属性调节",
+  "paramsSectionModel": "模型",
+  "paramsSteps": "Steps",
+  "paramsPromptGuidance": "Prompt Guidance",
+  "paramsSectionSeed": "Seed",
+  "paramsSeedHint": "Enter a seed",
+  "paramsSeedTooltip": "种子设置 ({mode} · {timing})",
+  "@paramsSeedTooltip": {
+    "placeholders": {
+      "mode": { "type": "String" },
+      "timing": { "type": "String" }
+    }
+  },
+  "paramsSeedModeRandomShort": "随机",
+  "paramsSeedModeIncreaseShort": "递增",
+  "paramsSeedModeFixedShort": "固定",
+  "paramsSeedTimingBefore": "生成前",
+  "paramsSeedTimingAfter": "生成后",
+  "paramsSectionSampler": "Sampler",
+  "paramsSeedModeGroup": "种子模式",
+  "paramsSeedModeRandomTitle": "1. Random (随机)",
+  "paramsSeedModeRandomSubtitle": "生图时自动生成全新随机种子",
+  "paramsSeedModeIncreaseTitle": "2. Increase (递增)",
+  "paramsSeedModeIncreaseSubtitle": "生图时种子数值自动 +1",
+  "paramsSeedModeFixedTitle": "3. Fixed (固定)",
+  "paramsSeedModeFixedSubtitle": "保持当前设置的种子数值不变",
+  "paramsSeedTimingGroup": "生成控制",
+  "paramsSeedRandomizeNow": "立即随机种子",
+  "paramsSeedResetRandom": "清空重置为随机 (-1)",
+  "paramsSectionAdvanced": "Advanced Settings",
+  "paramsPromptGuidanceRescale": "Prompt Guidance Rescale",
+  "paramsSectionNoiseSchedule": "Noise Schedule",
+  "paramsStripMetadata": "删除元数据",
+  "paramsStripMetadataSubtitle": "导出与复制时抹除所有生成参数与隐写",
+  "paramsAddWatermark": "添加水印",
+  "paramsAddWatermarkSubtitle": "仅在复制/下载时生效，UI 画板不显示",
+  "paramsKeepOriginalImage": "保持原图像",
+  "paramsKeepOriginalImageSubtitle": "生图落盘时额外保存一份纯净原图 (_raw.png)",
+  "resolutionTitle": "分辨率",
+  "resolutionOrientationLandscape": "Landscape",
+  "resolutionOrientationPortrait": "Portrait",
+  "resolutionOrientationSquare": "Square",
+  "resolutionOrientationSquareDisabled": "Square (Wallpaper 暂无 1:1 比例)",
+  "resolutionSwapTooltip": "Swap",
+  "watermarkPickImageFailed": "选择图片失败: {error}",
+  "@watermarkPickImageFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "watermarkPositionTopLeft": "左上",
+  "watermarkPositionTopRight": "右上",
+  "watermarkPositionCenter": "居中",
+  "watermarkPositionBottomLeft": "左下",
+  "watermarkPositionBottomRight": "右下",
+  "watermarkSmartPositionApplied": "已按低信息区域智能选位",
+  "watermarkSmartPositionNoImage": "画板暂无图片，无法智能选位",
+  "watermarkPositionTitle": "水印位置",
+  "watermarkSmartPositionTooltip": "智能选位：分析当前画板图像，把水印放到细节最少的区域",
+  "watermarkPositionPillTooltip": "在画板上拖动定位水印 (或按 ESC 退出)",
+  "watermarkPositionPillLabel": "位置: {position}",
+  "@watermarkPositionPillLabel": {
+    "placeholders": {
+      "position": { "type": "String" }
+    }
+  },
+  "watermarkAutoPosition": "自动选位",
+  "watermarkAutoPositionSubtitle": "每次合成时分析图像，自动放入信息量最低的区域",
+  "watermarkAutoContrast": "自动对比度",
+  "watermarkAutoContrastSubtitle": "按水印下方背景亮度自动加深或提亮，保证可见",
+  "watermarkScalePercent": "水印缩放 (%)",
+  "watermarkOpacityPercent": "不透明度 (%)",
+  "watermarkMarginPercent": "边距比例 (%)",
+  "watermarkBlindTitle": "盲水印",
+  "watermarkBlindSubtitle": "频域隐形水印，肉眼不可见；粘贴图片到元数据弹窗可提取",
+  "watermarkBlindEnable": "启用",
+  "watermarkBlindTextHint": "签名 / 版权信息文本",
+  "watermarkBlindStrength": "盲水印强度",
+  "watermarkLoadedImage": "已加载水印图片",
+  "watermarkEffectiveOnExport": "仅在复制/下载时合成生效",
+  "watermarkChangeImageTooltip": "更换图片",
+  "watermarkClearImageTooltip": "清除水印图片",
+  "watermarkSelectLocalImage": "点击选择本地水印图片 (PNG/JPG)",
+  "watermarkOverlayScale": "缩放: {scale}%",
+  "@watermarkOverlayScale": {
+    "placeholders": {
+      "scale": { "type": "String" }
+    }
+  },
+  "watermarkOverlayPosition": "位置: {x}%, {y}%",
+  "@watermarkOverlayPosition": {
+    "placeholders": {
+      "x": { "type": "int" },
+      "y": { "type": "int" }
+    }
+  },
+  "promptsPageTitle": "提示词管理",
+  "promptsPageSubtitle": "正向提示词、负面排除词与全局固定词缀",
+  "promptsCorePromptHint": "输入核心提示词或自然语言散文描述，如: 1girl, solo, silver hair, masterpiece...",
+  "promptsSwitchToTabbedMode": "切换为标签页模式",
+  "promptsCustomUndesiredHint": "输入自定义排除词，如: bad hands, blurry, extra limbs...",
+  "promptsSwitchToStackedMode": "切换为垂直并排模式",
+  "promptsTabbedPromptHint": "输入核心提示词或自然语言散文描述，如: 1girl, solo, silver hair...",
+  "promptsTabbedUndesiredHint": "排除不需要的特征与缺陷，如: lowres, bad anatomy, bad hands...",
+  "promptsResizePromptTooltip": "拖动调整提示词输入区高度 (双击重置)",
+  "promptsIncreaseWeightTooltip": "增加标签数值权重 (Ctrl+↑，格式 x.x::tag::)",
+  "promptsDecreaseWeightTooltip": "降低标签数值权重 (Ctrl+↓，格式 x.x::tag::)",
+  "promptsToggleDisabledTooltip": "切换禁用状态 (Ctrl+/)",
+  "promptsFormatTooltip": "格式化与SD语法转换 (Ctrl+Shift+F)",
+  "promptsTagBrowserTooltip": "打开 Danbooru 标签灵感库",
+  "promptsAffixesHint": "全局固定前置与后置词缀",
+  "charPromptDeckTabCharacter": "多角色提示词",
+  "charPromptDeckTabAffixes": "固定词缀",
+  "charPromptEnabled": "已启用",
+  "charPromptDisabled": "已停用",
+  "charPromptPositionAi": "AI 自动",
+  "charPromptPositionCustom": "自定义",
+  "charPromptIsolationHint": "独立角色物理隔离",
+  "charPromptUnsupportedModel": "当前模型不支持角色提示词 (仅 V4 及以上模型生效)，下方配置将保留但不会参与生成。",
+  "charPromptEmptyTitle": "暂无独立角色提示词",
+  "charPromptEmptyDescription": "点击右上角「女 / 男 / 其他」预设按钮即可开启多角色防串色隔离生图",
+  "charPromptExitCanvasEditTooltip": "退出画板位置编辑",
+  "charPromptEnterCanvasEditTooltip": "在中间画板编辑角色位置",
+  "charPromptCanvasEditing": "编辑中",
+  "charPromptCanvasEdit": "画板编辑",
+  "charPromptAddFemaleTooltip": "添加女角色 (初始提示词 girl)",
+  "charPromptAddMaleTooltip": "添加男角色 (初始提示词 boy)",
+  "charPromptAddOtherTooltip": "添加其他角色 (初始提示词留空)",
+  "charPromptLimitReached": "已达上限",
+  "charPromptGenderFemale": "女",
+  "charPromptGenderMale": "男",
+  "charPromptGenderOther": "其他",
+  "charPromptDefaultName": "角色 {index}",
+  "@charPromptDefaultName": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "charPromptNameHint": "角色名称 (可选)",
+  "charPromptSaveToLibraryTooltip": "保存角色到词库",
+  "charPromptDeleteTooltip": "删除该角色",
+  "charPromptEnable": "启用",
+  "charPromptDisable": "停用",
+  "charPromptPromptHint": "角色正向提示词，如: 1girl, silver hair, twintails, smile...",
+  "charPromptResizePromptTooltip": "拖动调整正向提示词高度 (双击重置)",
+  "charPromptNegativePromptHint": "角色负面提示词 (可选)，如: bad hands, blurry...",
+  "charPromptResizeNegativeTooltip": "拖动调整负面提示词高度 (双击重置)",
+  "affixPrefixTitle": "前置词 (放置于主提示词最前)",
+  "affixResizePrefixTooltip": "拖动调整前置词高度 (双击重置)",
+  "affixSuffixTitle": "后缀词 (放置于主提示词最后)",
+  "affixResizeSuffixTooltip": "拖动调整后缀词高度 (双击重置)",
+  "annotHistoryTitle": "History ",
+  "annotHistoryEmpty": "无图片",
+  "annotHistoryAddedAsReference": "已将历史图片添加为大画布参考图",
+  "annotHistoryImportTooltip": "导入本地图片为参考图",
+  "annotHistoryImportImage": "导入图片",
+  "inpaintPageTitle": "修复设置",
+  "inpaintPageSubtitle": "局部重绘与高精度潜空间焦点特写",
+  "inpaintSectionMode": "修复模式",
+  "inpaintModeFocus": "焦点特写",
+  "inpaintModeFocusSubtitle": "超采样无损回贴",
+  "inpaintModeStandard": "常规重绘",
+  "inpaintModeStandardSubtitle": "整图尺度重绘",
+  "inpaintModeAiEdit": "AI 整图编辑",
+  "inpaintModeAiEditSubtitle": "外部绘图模型重绘",
+  "inpaintAiEditAspectRatio": "生图比例",
+  "inpaintAiEditFollowSource": "跟随原图",
+  "inpaintAiEditResolution": "生图分辨率",
+  "inpaintAiEditDefaultResolution": "默认",
+  "inpaintContextPadding": "外延上下文 (px)",
+  "inpaintStrength": "重绘强度",
+  "inpaintNoise": "附加噪声",
+  "inpaintSectionInstruction": "修改指令设置",
+  "inpaintSectionPrompt": "提示词设置",
+  "inpaintReuseMainPromptAsInstruction": "复用主工作台正向词作为指令",
+  "inpaintReuseMainPrompt": "复用主工作台正向词",
+  "inpaintCustomInstruction": "自定义修改指令",
+  "inpaintCustomPrompt": "修复专属正向词",
+  "inpaintInstructionHint": "输入自然语言修改指令，如: 把背景换成夕阳下的海滩...",
+  "inpaintPromptHint": "输入修复专属正向提示词...",
+  "inpaintMainPrompt": "主工作台正向词",
+  "inpaintMainNegativePrompt": "主工作台负向词",
+  "inpaintReuseMainNegative": "复用主工作台负向词",
+  "inpaintCustomNegative": "修复专属负向词",
+  "inpaintNegativePromptHint": "输入修复专属负向提示词...",
+  "inpaintImageModel": "绘图模型",
+  "inpaintConsumeQuota": "消耗绘图模型额度",
+  "inpaintProvider": "供应商",
+  "inpaintModel": "模型",
+  "inpaintNoModelConfigured": "未配置绘图模型。请到设置 → Models 页「AI 整图编辑」选择具备图像输出能力的模型供应商与模型 (如 nano banana / gpt-image)。",
+  "inpaintLatentFocusGeometry": "潜空间焦点几何",
+  "inpaintRequiresPoints": "需消耗点数",
+  "inpaintTargetSelection": "目标选区",
+  "inpaintContextCrop": "上下文外延",
+  "inpaintRequestResolution": "请求分辨率",
+  "inpaintSupersample": "{scale}x 超采样",
+  "@inpaintSupersample": {
+    "placeholders": {
+      "scale": { "type": "String" }
+    }
+  },
+  "inpaintReusedLabel": "已复用 {label}",
+  "@inpaintReusedLabel": {
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "inpaintReusedPromptEmpty": "（内容为空，可至提示词管理页配置）",
+  "inpaintOverlayEmptyHint": "生成或选择一张图片后即可开始局部修复",
+  "inpaintOverlayContextCrop": "上下文外延 +{padding}px",
+  "@inpaintOverlayContextCrop": {
+    "placeholders": {
+      "padding": { "type": "int" }
+    }
+  },
+  "inpaintOverlayInProgress": "局部修复中...",
+  "inpaintOverlayAiEditHint": "AI 整图编辑 · 整张图片重绘，无需框选区域",
+  "inpaintToolRect": "框选",
+  "inpaintToolBrush": "画笔",
+  "inpaintToolEraser": "橡皮",
+  "inpaintClearMask": "清除蒙版",
+  "canvasImportedReference": "已导入参考图: {fileName}",
+  "@canvasImportedReference": {
+    "placeholders": {
+      "fileName": { "type": "String" }
+    }
+  },
+  "canvasDropTargetTitle": "松开鼠标导入图片 (自动识别生成元数据)",
+  "canvasCopiedRawImage": "已复制原图像到剪贴板",
+  "canvasCopiedImage": "已复制图像到剪贴板",
+  "canvasCopyImageFailed": "复制图像失败",
+  "canvasActionAddAnnotation": "添加批注",
+  "canvasActionViewAnnotation": "查看批注 ({count})",
+  "@canvasActionViewAnnotation": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "canvasActionSendToInpaint": "发送到修复",
+  "canvasActionUpscale": "超分放大",
+  "canvasActionCopyImage": "复制图像",
+  "canvasActionCopyRawImage": "复制原图像",
+  "canvasActionCopyPrompt": "复制提示词",
+  "canvasCopiedPrompt": "已复制提示词到剪贴板",
+  "canvasActionReuseParams": "复用参数",
+  "canvasAppliedParams": "已应用该图参数至左侧面板",
+  "canvasActionViewLightbox": "查看大图",
+  "canvasActionDeleteFromHistory": "从历史记录删除",
+  "canvasDeletedFromHistory": "已从历史记录删除图片",
+  "canvasActionClearHistory": "清空历史记录",
+  "canvasClearedHistory": "已清空历史记录",
+  "canvasClearHistoryAutoSaveMessage": "确定要清空画板历史中的 {count} 张图片吗？仅清空界面记录，本地已保存的图片文件会保留，此操作无法撤销。",
+  "@canvasClearHistoryAutoSaveMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "canvasClearHistoryManualSaveMessage": "确定要清空历史中的 {count} 张图片吗？缓存中未保存的图片会被删除，已手动保存到存储目录的文件会保留，此操作无法撤销。",
+  "@canvasClearHistoryManualSaveMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "canvasHistoryEmpty": "暂无历史",
+  "canvasCopySeedTooltip": "点击复制随机种子",
+  "canvasCopiedSeed": "已复制种子到剪贴板",
+  "canvasEnterAnnotationTooltip": "进入画板批注模式 (圈选/锚点/整图)",
+  "canvasAnnotate": "批注",
+  "canvasAnnotateWithCount": "批注 ({count})",
+  "@canvasAnnotateWithCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "canvasSaveButtonTooltip": "保存当前图片到本地存储目录 (按导出设置处理元数据与水印)",
+  "canvasSavedImage": "已保存: {path}",
+  "@canvasSavedImage": {
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "canvasSaveFailed": "保存失败，请检查存储目录设置",
+  "canvasSaveImage": "保存图片",
+  "canvasUnseenLatestBanner": "已生成新图片 · 点击查看最新",
+  "canvasOpenHistoryTooltip": "展开历史记录",
+  "canvasEmptyTitle": "画板暂无图像",
+  "canvasEmptyDescription": "可在左侧配置参数后生成图片，历史记录将以垂直图像流展示",
+  "metadataBlindWatermarkContent": "盲水印内容",
+  "metadataBlindWatermarkNotFound": "未检测到盲水印",
+  "metadataDialogTitle": "图像元数据读取",
+  "metadataPromptTitle": "正向提示词 (Prompt)",
+  "metadataCopiedPrompt": "已复制正向提示词",
+  "metadataNegativePromptTitle": "负向提示词 (Negative Prompt)",
+  "metadataCopiedNegativePrompt": "已复制负向提示词",
+  "metadataDimensionAuto": "自动",
+  "metadataDimensions": "尺寸: {width} x {height}",
+  "@metadataDimensions": {
+    "placeholders": {
+      "width": { "type": "String" },
+      "height": { "type": "String" }
+    }
+  },
+  "metadataModelUnknown": "未知模型",
+  "metadataSamplerDefault": "默认",
+  "metadataModelAndSampler": "模型: {model}  ·  采样: {sampler}",
+  "@metadataModelAndSampler": {
+    "placeholders": {
+      "model": { "type": "String" },
+      "sampler": { "type": "String" }
+    }
+  },
+  "metadataSeedLabel": "种子: {seed}",
+  "@metadataSeedLabel": {
+    "placeholders": {
+      "seed": { "type": "String" }
+    }
+  },
+  "metadataCharacterPromptsTitle": "多角色提示词 (Character Prompts)",
+  "metadataCharacterIndex": "角色 {index}",
+  "@metadataCharacterIndex": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "metadataNegativePrefix": "负向: {negative}",
+  "@metadataNegativePrefix": {
+    "placeholders": {
+      "negative": { "type": "String" }
+    }
+  },
+  "metadataParametersTitle": "生成参数",
+  "metadataParamModel": "模型",
+  "metadataParamUnknown": "未知",
+  "metadataParamSampler": "采样算法",
+  "metadataParamDefault": "默认",
+  "metadataParamSteps": "步数",
+  "metadataParamSeed": "种子 (Seed)",
+  "metadataParamSeedRandom": "随机",
+  "metadataParamNoiseSchedule": "噪声调度",
+  "metadataParamQualityPreset": "质量预设",
+  "metadataParamUcPreset": "UC 预设",
+  "metadataParamTransparentBg": "透明背景",
+  "metadataParamEnabled": "开启",
+  "metadataRawJsonTitle": "原始元数据 (Raw JSON / Text)",
+  "metadataCopyRawTooltip": "复制原始文本",
+  "metadataCopiedRaw": "已复制原始元数据",
+  "metadataExtractBlindWatermark": "提取盲水印",
+  "metadataImportAsReference": "作为参考图导入",
+  "metadataImportedReference": "已导入参考图",
+  "metadataApplyToWorkbench": "应用全部参数到工作台",
+  "dockAbortWithSteps": "终止生成 ({current}/{total})",
+  "@dockAbortWithSteps": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "dockGenerateWithCost": "生成图片 ({cost} Anlas)",
+  "@dockGenerateWithCost": {
+    "placeholders": {
+      "cost": { "type": "int" }
+    }
+  },
+  "dockGenerateNeedPoints": "生成图片 (需点数)",
+  "dockNoAccountInfo": "未获取账号信息 (请检查 API Key)",
+  "dockAiEditing": "AI 编辑中...",
+  "dockInpainting": "修复中...",
+  "dockRefreshTooltip": "刷新体力与点数",
+  "sidebarTabParameters": "参数",
+  "sidebarTabInpaint": "修复",
+  "sidebarSettingsTooltip": "全局配置 (API Key / 存储 / LLM)",
+  "promptResizeTooltip": "拖动调整高度 (双击重置)",
+  "studioClipboardImageDefaultName": "剪贴板图片.png",
+  "studioImportedReference": "已导入参考图",
+  "boardPastedImage": "已粘贴图片至大画布",
+  "boardImportedReferenceNamed": "已导入参考图: {name}",
+  "@boardImportedReferenceNamed": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "boardAddedHistoryImage": "已将历史图片添加为大画布参考图",
+  "boardDropInternalHint": "松开鼠标放置参考图",
+  "boardDropExternalHint": "松开鼠标导入外部参考图",
+  "boardExitAnnotation": "退出批注",
+  "boardSendAllToAi": "发送全部批注到 AI",
+  "boardWireMissedTarget": "未命中选区/图钉，已取消连线",
+  "boardToolPan": "漫游",
+  "boardToolRect": "圈选选区",
+  "boardToolPoint": "图钉锚点",
+  "boardToolAddNote": "+ 便利贴",
+  "boardToolAddImage": "+ 参考图",
+  "boardToolPasteImage": "粘贴图 (Ctrl+V)",
+  "boardToolResetView": "适应视口",
+  "boardImageCardMainTitle": "主图 (当前生成图)",
+  "boardImageCardRefTitle": "参考图 ({width}x{height})",
+  "@boardImageCardRefTitle": {
+    "placeholders": {
+      "width": { "type": "int" },
+      "height": { "type": "int" }
+    }
+  },
+  "boardImageCardRemoveTooltip": "移除参考图卡片",
+  "boardImageResizeTooltip": "拖拽调节图片卡片大小 (按住 Shift 锁定宽高比)",
+  "boardImageSendToInpaint": "发送到修复",
+  "boardAnnotationDeleteRect": "删除选区",
+  "boardAnnotationDeletePoint": "删除锚点",
+  "boardAnnotationResizeRect": "拖拽调节选区大小",
+  "boardAnnotationSelectTooltip": "点击选中该批注",
+  "boardWireDragSourceTooltip": "按住拖出连线到选区/图钉",
+  "boardNoteConnected": "已连线",
+  "boardNoteTitle": "便签",
+  "boardNoteDisconnectTooltip": "断开连线",
+  "boardNoteDeleteTooltip": "删除便签",
+  "boardNoteHint": "输入修改意见...",
+  "boardNoteResizeTooltip": "拖拽调节便签大小",
+  "charPosCanvasTempBoard": "临时画板 · {width} × {height}",
+  "@charPosCanvasTempBoard": {
+    "placeholders": {
+      "width": { "type": "int" },
+      "height": { "type": "int" }
+    }
+  },
+  "posControlsDoneEditing": "完成编辑",
+  "lightboxCloseTooltip": "关闭大图展示",
+  "librarySearchHint": "搜索词组合名称、提示词、标签...",
+  "libraryDataManagement": "数据管理",
+  "libraryExportJson": "导出词库 (JSON)",
+  "libraryImportJson": "导入词库 (JSON)",
+  "libraryManageButton": "管理",
+  "libraryNewCombo": "新建词组合",
+  "libraryCategorySidebarTitle": "标签分类",
+  "libraryEntriesCount": "{count} 条",
+  "@libraryEntriesCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "libraryCategoryAll": "全部",
+  "libraryExportCopied": "已复制词库 JSON 数据到剪贴板，可粘贴备份或分享",
+  "libraryExportFailed": "导出失败: {error}",
+  "@libraryExportFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "libraryImportDialogTitle": "导入词库 JSON",
+  "libraryImportPrompt": "请粘贴导出的词库 JSON 文本：",
+  "libraryImportSuccess": "成功导入 {count} 个新词组合条目",
+  "@libraryImportSuccess": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "libraryImportFailed": "导入失败，请检查 JSON 格式: {error}",
+  "@libraryImportFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "libraryApplyAsCharacter": "已添加角色卡片: {title}",
+  "@libraryApplyAsCharacter": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryApplyReplace": "已替换工作台提示词: {title}",
+  "@libraryApplyReplace": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryApplyAppendBoth": "已追加正负提示词: {title}",
+  "@libraryApplyAppendBoth": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryApplyAppendPrompt": "已追加主提示词: {title}",
+  "@libraryApplyAppendPrompt": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryReturnToWorkbench": "返回工作台",
+  "libraryDeleteDialogTitle": "删除词组合",
+  "libraryDeleteDialogMessage": "确定要删除词组合「{title}」吗？此操作无法撤销。",
+  "@libraryDeleteDialogMessage": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryDeletedCombo": "已删除词组合: {title}",
+  "@libraryDeletedCombo": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryEmptyTitle": "词库暂无条目",
+  "libraryNoMatchingTitle": "没有匹配的词组合",
+  "libraryEmptyDescription": "点击右上角「新建词组合」创建您的第一个专属提示词组合",
+  "libraryNoMatchingDescription": "请尝试更换搜索词或分类筛选条件",
+  "libraryResetFilter": "重置筛选条件",
+  "libraryCardCopiedPrompt": "已复制「{title}」提示词到剪贴板",
+  "@libraryCardCopiedPrompt": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryMenuAppendToPrompt": "追加到工作台提示词",
+  "libraryMenuReplacePrompt": "替换工作台提示词",
+  "libraryMenuAddAsCharacter": "添加为多角色卡片",
+  "libraryMenuCopyPrompt": "复制提示词",
+  "libraryMenuEdit": "编辑",
+  "libraryCardApply": "应用到工作台",
+  "libraryCardAddAsCharacterTooltip": "添加为工作台多角色卡片",
+  "libraryCardAddCharacter": "+ 角色",
+  "libraryCardNoPreview": "无预览图",
+  "libraryEditCustomCategoryOption": "自定义...",
+  "libraryEditPickImageFailed": "选择图片失败: {error}",
+  "@libraryEditPickImageFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "libraryEditAdoptedCanvasImage": "已采用当前画板图像作为预览图",
+  "libraryEditCanvasNoImage": "画板当前暂无生成的图像",
+  "libraryEditWorkspacePromptEmpty": "工作台主提示词为空",
+  "libraryEditWorkspaceNegativeEmpty": "工作台负面提示词为空",
+  "libraryEditTitleEmpty": "请输入词组合名称",
+  "libraryEditPromptEmpty": "请输入主提示词内容",
+  "libraryEditUpdatedSuccess": "已更新词组合: {title}",
+  "@libraryEditUpdatedSuccess": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryEditCreatedSuccess": "已添加词组合: {title}",
+  "@libraryEditCreatedSuccess": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryEditSaveFailed": "保存失败: {error}",
+  "@libraryEditSaveFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "libraryEditDialogTitleEdit": "编辑词组合",
+  "libraryEditDialogTitleNew": "新建词组合",
+  "libraryEditFieldTitle": "组合名称",
+  "libraryEditFieldTitleHint": "例如：赛博朋克猫耳少女 / 日系水彩插画",
+  "libraryEditFieldCategory": "分类",
+  "libraryEditFieldCustomCategoryHint": "输入自定义分类名称 (如：光影、视角)",
+  "libraryEditFieldPrompt": "主提示词",
+  "libraryEditFillFromPrompt": "填入工作台主词",
+  "libraryEditFieldPromptHint": "输入正向提示词 (如: 1girl, hatsune miku, cybernetic...)",
+  "libraryEditFieldNegative": "负面提示词",
+  "libraryEditCharacterOnlyBadge": "仅角色分类可用",
+  "libraryEditFillFromNegative": "填入工作台负向词",
+  "libraryEditFieldNegativeHint": "角色专有负面词 (如: worst quality, bad hands, mutated...)",
+  "libraryEditFieldTags": "检索标签 (Tags)",
+  "libraryEditFieldTagsHint": "用于快速筛选，用逗号分隔 (例如：miku, 水彩, 二次元, 赛博)",
+  "libraryEditSaveButton": "保存修改",
+  "libraryEditCreateButton": "创建词组合",
+  "libraryEditPosterTitle": "设置预览图",
+  "libraryEditPickLocalImage": "选择本地图片",
+  "libraryEditUseCanvasImage": "使用画板当前图",
+  "libraryEditRemovePreviewImage": "移除预览图",
+  "tagAcAlias": "别名: {alias}",
+  "@tagAcAlias": {
+    "placeholders": {
+      "alias": { "type": "String" }
+    }
+  },
+  "tagBrowserTitle": "Danbooru 标签灵感库",
+  "tagBrowserSearchHint": "输入英文或中文搜索 14万+ Danbooru 标签...",
+  "tagBrowserAddedTag": "已添加标签: {tag}",
+  "@tagBrowserAddedTag": {
+    "placeholders": {
+      "tag": { "type": "String" }
+    }
+  },
+  "tagBrowserAddedTagWithZh": "已添加标签: {tag} ({zh})",
+  "@tagBrowserAddedTagWithZh": {
+    "placeholders": {
+      "tag": { "type": "String" },
+      "zh": { "type": "String" }
+    }
+  },
+  "tagBrowserNoMatchingTitle": "未找到匹配标签",
+  "tagBrowserNoMatchingDesc": "请尝试输入其他英文或中文关键词检索",
+  "chatSessionManagementTooltip": "会话管理",
+  "chatModelNoVisionNotice": "当前模型不支持图片输入，请先切换到多模态模型",
+  "chatMaxAttachmentsNotice": "一次最多附带 {count} 张图片",
+  "@chatMaxAttachmentsNotice": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "chatImageParseFailedNotice": "图片解析失败，请换一张图片重试",
+  "chatModelNoVisionBeforeSendNotice": "当前模型不支持图片输入，发送前请切换到多模态模型",
+  "chatInputHint": "输入绘画构思，或输入 /nai <词> 快速生图...",
+  "chatThinkingLabel": "思考:",
+  "chatThinkingEffortOff": "关",
+  "chatThinkingEffortLow": "低",
+  "chatThinkingEffortMedium": "中",
+  "chatThinkingEffortHigh": "高",
+  "chatSessionUsageEmpty": "当前会话暂无 Token 用量记录",
+  "chatSessionUsageTitle": "当前会话 Token 用量",
+  "chatSessionUsageDetail": "输入 {input} · 输出 {output} · 总计 {total}",
+  "@chatSessionUsageDetail": {
+    "placeholders": {
+      "input": { "type": "String" },
+      "output": { "type": "String" },
+      "total": { "type": "String" }
+    }
+  },
+  "chatSessionUsageCacheRead": " · 缓存读 {cacheRead}",
+  "@chatSessionUsageCacheRead": {
+    "placeholders": {
+      "cacheRead": { "type": "String" }
+    }
+  },
+  "chatSessionUsageCacheReadWithRate": " · 缓存读 {cacheRead} ({rate}%)",
+  "@chatSessionUsageCacheReadWithRate": {
+    "placeholders": {
+      "cacheRead": { "type": "String" },
+      "rate": { "type": "String" }
+    }
+  },
+  "chatToolNoOutput": "(无输出)",
+  "chatToolResultSummary": "{count} 行 · {firstLine}",
+  "@chatToolResultSummary": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "firstLine": { "type": "String" }
+    }
+  },
+  "chatThinkingProgress": "正在思考...",
+  "chatConceiving": "构思中...",
+  "chatRemoveAttachmentTooltip": "移除附件",
+  "chatAddAttachmentTooltip": "添加附件",
+  "rewindBackTooltip": "返回对话 (ESC)",
+  "rewindTitle": "回溯历史时刻",
+  "rewindEscExit": "ESC 退出",
+  "rewindDescription": "选择要回退到的对话时刻。确认后将撤销此时刻之后的所有修改与对话记录。",
+  "rewindEmptyTitle": "当前会话暂无历史对话轮次可回溯",
+  "rewindBackAction": "返回对话",
+  "rewindLatestBadge": "(最新时刻)",
+  "rewindSelectedTurn": "已选择第 #{index} 轮对话",
+  "@rewindSelectedTurn": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "rewindSelectPrompt": "请在上方列表中选择要回退的轮次",
+  "rewindCancelButton": "取消",
+  "rewindConfirmButton": "回到此时刻",
+  "sessionRenameTitle": "重命名会话",
+  "sessionRenameHint": "请输入会话新名称...",
+  "sessionSave": "保存",
+  "sessionCancel": "取消",
+  "sessionDeleteTitle": "删除会话",
+  "sessionDeleteConfirm": "确定要永久删除会话 \"{title}\" 吗？此操作无法撤销。",
+  "@sessionDeleteConfirm": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "sessionDeleteConfirmButton": "删除",
+  "sessionDateFormat": "{month}月{day}日 {time}",
+  "@sessionDateFormat": {
+    "placeholders": {
+      "month": { "type": "int" },
+      "day": { "type": "int" },
+      "time": { "type": "String" }
+    }
+  },
+  "sessionBackTooltip": "返回对话",
+  "sessionTitle": "会话管理",
+  "sessionNew": "新建会话",
+  "sessionSearchHint": "搜索历史会话...",
+  "sessionNoMatchingTitle": "未找到匹配的会话",
+  "sessionEmptyTitle": "暂无历史会话记录",
+  "sessionCurrentBadge": "当前",
+  "sessionRenameAction": "重命名",
+  "sessionDeleteAction": "删除",
+  "sessionMessageCount": "{count} 条",
+  "@sessionMessageCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "askCardDefaultHeader": "向用户提问",
+  "askCardPendingConfirm": "待确认",
+  "askCardCancel": "取消",
+  "askCardSubmit": "提交回答",
+  "askCardCustomInputHint": "输入自定义回答...",
+  "chatThinkingProcess": "思考过程",
+
+  "canvasBadgeUnsaved": "未保存",
+  "canvasBadgeUpscale": "放大",
+  "canvasBadgeInpaint": "修复",
+  "canvasBadgeAiEdit": "AI 编辑",
+  "canvasBadgeImported": "导入",
+  "tagCatGeneral": "通用",
+  "tagCatArtist": "画师",
+  "tagCatCopyright": "作品",
+  "tagCatCharacter": "角色",
+  "tagCatMeta": "元数据",
+  "llmProtocolOpenAiChat": "OpenAI 兼容 (/chat/completions)",
+  "llmProtocolOpenAiResponses": "Response (/responses)",
+  "llmProtocolAnthropicMessages": "Message (/messages)",
+  "thinkingFormatAuto": "自动 (按端点识别)",
+  "thinkingFormatOpenai": "OpenAI (reasoning_effort)",
+  "thinkingFormatDeepseek": "DeepSeek (thinking)",
+  "thinkingFormatQwen": "Qwen (enable_thinking)",
+  "thinkingFormatQwenChatTemplate": "Qwen Chat Template",
+  "thinkingFormatZai": "Z.ai (thinking + clear_thinking)",
+  "thinkingFormatOpenrouter": "OpenRouter (reasoning.effort)",
+  "thinkingFormatTogether": "Together (reasoning.enabled)",
+  "libraryCatCharacter": "角色",
+  "libraryCatStyle": "风格",
+  "libraryCatAttire": "服装",
+  "libraryCatComposition": "构图",
+  "libraryCatEnvironment": "环境",
+  "libraryCatEffect": "特效",
+  "libraryCatOther": "其他",
+  "libraryCatCustom": "自定义...",
+  "vmGenDoneUnsaved": "生图完成 (未保存，可点击画板右下角保存)",
+  "vmGenDoneSavedTo": "生图完成，已保存在 {path}",
+  "@vmGenDoneSavedTo": {"placeholders": {"path": {"type": "String"}}},
+  "vmGenLocalPath": "本地",
+  "vmGenNoSaveDir": "未设置本地存储目录，请先在设置中配置保存路径。",
+  "vmGenSaveFailedNoTarget": "保存图片失败：未找到图片或存储目录不可写。",
+  "vmGenSavedTo": "已保存到 {path}",
+  "@vmGenSavedTo": {"placeholders": {"path": {"type": "String"}}},
+  "vmGenSaveFailed": "保存图片失败: {error}",
+  "@vmGenSaveFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmGenAborted": "已终止生成",
+  "vmGenEmptyPrompt": "提示词不能为空，请先在左侧或对话框中输入描述。",
+  "vmGenNoApiKey": "未配置 NovelAI API Key，请点击右上角设置。",
+  "vmGenRequesting": "正在请求 NovelAI 生图 ({width}x{height}, {steps}步)...",
+  "@vmGenRequesting": {"placeholders": {"width": {"type": "int"}, "height": {"type": "int"}, "steps": {"type": "int"}}},
+  "vmGenFailed": "生图失败: {error}",
+  "@vmGenFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmUpscaleNoImage": "当前画板中无图片可供放大。",
+  "vmUpscaleNoApiKey": "未配置 NovelAI API Key。",
+  "vmUpscaleRunning": "正在执行图像超分放大...",
+  "vmUpscaleDoneUnsaved": "放大完成 ({width}x{height}，未保存)",
+  "@vmUpscaleDoneUnsaved": {"placeholders": {"width": {"type": "int"}, "height": {"type": "int"}}},
+  "vmUpscaleDone": "放大完成 ({width}x{height})",
+  "@vmUpscaleDone": {"placeholders": {"width": {"type": "int"}, "height": {"type": "int"}}},
+  "vmUpscaleFailed": "放大失败: {error}",
+  "@vmUpscaleFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmChatSlashNoImage": "斜杠指令不支持附带图片，请直接发送对话消息",
+  "vmChatSlashFailed": "指令执行失败: {error}",
+  "@vmChatSlashFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmChatRetryNotice": "请求失败自动重试 ({attempt}/{max}): {reason} · {retry}",
+  "@vmChatRetryNotice": {"placeholders": {"attempt": {"type": "int"}, "max": {"type": "int"}, "reason": {"type": "String"}, "retry": {"type": "String"}}},
+  "vmChatRetryDelayed": "{seconds} 秒后重试",
+  "@vmChatRetryDelayed": {"placeholders": {"seconds": {"type": "int"}}},
+  "vmChatRetrySoon": "即将重试",
+  "vmChatCompacted": "上下文已自动压缩 ({before} → {after} tokens)，更早消息已摘要替换",
+  "@vmChatCompacted": {"placeholders": {"before": {"type": "int"}, "after": {"type": "int"}}},
+  "vmChatError": "对话异常: {error}",
+  "@vmChatError": {"placeholders": {"error": {"type": "String"}}},
+  "vmChatForceAborted": "已强制终止当前生成",
+  "vmCostNoOpusQuota": "当前账号无 Opus 免费额度",
+  "vmCostEstimate": "预计消耗 {cost} Anlas 点数",
+  "@vmCostEstimate": {"placeholders": {"cost": {"type": "int"}}},
+  "vmCostWillCost": "将消耗 Anlas 点数",
+  "vmCostTitle": "点数消耗申请",
+  "vmCostGenQuestion": "本次生图参数（{reasons}）{cost}。是否确认生成？",
+  "@vmCostGenQuestion": {"placeholders": {"reasons": {"type": "String"}, "cost": {"type": "String"}}},
+  "vmCostGenConfirm": "确认生成",
+  "vmCostGenConfirmDesc": "使用当前参数直接生图并扣除点数",
+  "vmCostGenCancel": "取消生图",
+  "vmCostGenCancelDesc": "取消本次生成，调整参数至免费区间",
+  "vmCostUpscaleQuestion": "将输入尺寸 {width}x{height} 的图片执行官方超分放大，预计消耗 {cost} Anlas 点数。是否确认放大？",
+  "@vmCostUpscaleQuestion": {"placeholders": {"width": {"type": "int"}, "height": {"type": "int"}, "cost": {"type": "int"}}},
+  "vmCostUpscaleConfirm": "确认放大",
+  "vmCostUpscaleConfirmDesc": "执行官方超分并扣除点数",
+  "vmCostUpscaleCancel": "取消放大",
+  "vmCostUpscaleCancelDesc": "取消本次超分操作",
+  "vmInpaintConverted": "已将批注转换为修复选区",
+  "vmInpaintSentToBoard": "已发送到修复画板: {path}",
+  "@vmInpaintSentToBoard": {"placeholders": {"path": {"type": "String"}}},
+  "vmInpaintNoImage": "未找到可供修复的底图，请先选择或生成图片。",
+  "vmInpaintNoMask": "请先在修复画板框选或用画笔绘制待修复区域。",
+  "vmInpaintNoApiKey": "未配置 NovelAI API Key，请在设置中输入 Token。",
+  "vmInpaintRunning": "正在执行局部修复...",
+  "vmInpaintDone": "局部修复完成",
+  "vmInpaintFailed": "修复失败: {error}",
+  "@vmInpaintFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmAiEditNoImage": "未找到可供编辑的底图，请先选择或生成图片。",
+  "vmAiEditNoModel": "未配置 AI 整图编辑的绘图模型，请在设置 → Models 页选择绘图模型供应商与模型。",
+  "vmAiEditNoKey": "绘图模型供应商「{provider}」未配置 API Key，请先在设置中填写。",
+  "@vmAiEditNoKey": {"placeholders": {"provider": {"type": "String"}}},
+  "vmAiEditEmptyPrompt": "请先输入 AI 整图编辑的修改指令 (修复页提示词设置，或关闭「复用主工作台正向词」后填写)。",
+  "vmAiEditRunning": "AI 整图编辑中 (绘图模型处理中，通常需要数十秒)...",
+  "vmAiEditDone": "AI 整图编辑完成",
+  "vmAiEditFailed": "AI 整图编辑失败: {error}",
+  "@vmAiEditFailed": {"placeholders": {"error": {"type": "String"}}},
+  "vmSessionSwitched": "已切换会话: {title}",
+  "@vmSessionSwitched": {"placeholders": {"title": {"type": "String"}}},
+  "vmSessionCreated": "已创建新会话",
+  "vmSessionDeleted": "会话已删除",
+  "vmRewindChatAndParams": "已回到历史时刻，后续对话与参数修改已撤回",
+  "vmRewindChatOnly": "已回到历史时刻，后续对话与修改已撤回",
+  "vmHistoryDeleted": "已从历史记录删除图片",
+  "vmHistoryCleared": "已清空历史记录",
+  "vmMetadataApplied": "已应用图片元数据至工作台",
+  "vmPresetSwitched": "已切换为预设: 【{name}】\n{description}",
+  "@vmPresetSwitched": {"placeholders": {"name": {"type": "String"}, "description": {"type": "String"}}},
+  "vmCharacterDefaultName": "角色 {index}",
+  "@vmCharacterDefaultName": {"placeholders": {"index": {"type": "int"}}},
+  "vmNewCharacterName": "新角色",
+  "slashHelpHeader": "快捷指令说明：",
+  "slashDescHelp": "查看指令帮助列表",
+  "slashDescParams": "查看工作台当前生效的生图参数",
+  "slashDescPreset": "切换当前 Agent 预设",
+  "slashDescSkill": "按需加载并执行专业技能",
+  "slashDescNai": "快速生成插画，支持 --landscape/--portrait/--square/--wallpaper 方向标志",
+  "slashDescUpscale": "超分放大当前图片",
+  "slashDescTag": "查询 Danbooru 官方标签联想",
+  "slashDescAccount": "查询账号等级与 V5 专属体力池",
+  "slashDescCompact": "手动压缩对话上下文 (摘要替换更早消息，原始消息仍保留)",
+  "slashDescNew": "新建一个空白会话 (可附带标题)",
+  "slashDescUndo": "撤销上一轮对话 (回复与参数修改一并回滚)",
+  "slashDescRename": "重命名当前会话",
+  "slashDescSessions": "列出已保存的会话",
+  "slashDescClear": "清空对话历史",
+  "slashArgsName": "<名称>",
+  "slashArgsPrompt": "<提示词>",
+  "slashArgsKeyword": "<关键词>",
+  "slashArgsTitle": "<标题>",
+  "slashPresetListIntro": "可用预设列表：",
+  "slashPresetUsage": "用法: /preset <预设名称或ID>",
+  "slashPresetNotFound": "未找到预设 \"{query}\"，输入 /preset 查看可用预设。",
+  "@slashPresetNotFound": {"placeholders": {"query": {"type": "String"}}},
+  "slashSkillListIntro": "可用技能列表：",
+  "slashSkillUsage": "用法: /skill <技能名称或ID>",
+  "slashSkillLoaded": "【Skill 已载入】{name}\n{description}\n\n{systemPrompt}",
+  "@slashSkillLoaded": {"placeholders": {"name": {"type": "String"}, "description": {"type": "String"}, "systemPrompt": {"type": "String"}}},
+  "slashSkillNotFound": "未找到技能 \"{query}\"，输入 /skill 查看可用技能。",
+  "@slashSkillNotFound": {"placeholders": {"query": {"type": "String"}}},
+  "slashCompactNoProvider": "未配置 LLM 提供商，无法压缩上下文。",
+  "slashCompactEmpty": "当前对话为空，无需压缩上下文。",
+  "slashCompactRunning": "正在压缩对话上下文...",
+  "slashCompactNothing": "上下文没有可压缩的内容 (需要至少两轮对话)，或摘要生成失败。",
+  "slashCompactDone": "上下文压缩完成 ({before} → {after} tokens)。更早的消息已替换为以下摘要，原始消息仍保留在对话流与会话记录中：\n\n{summary}",
+  "@slashCompactDone": {"placeholders": {"before": {"type": "int"}, "after": {"type": "int"}, "summary": {"type": "String"}}},
+  "slashNewNoTitle": "已创建新会话，开始新的对话吧。",
+  "slashNewWithTitle": "已创建新会话: {title}",
+  "@slashNewWithTitle": {"placeholders": {"title": {"type": "String"}}},
+  "slashUndoNothing": "没有可撤销的上一轮对话 (首轮之前的消息不存在)。",
+  "slashRenameUsage": "用法: /rename <新标题>",
+  "slashRenameNoSession": "当前没有活跃会话，无法重命名。",
+  "slashRenamed": "会话已重命名为 \"{title}\"",
+  "@slashRenamed": {"placeholders": {"title": {"type": "String"}}},
+  "slashSessionsEmpty": "暂无已保存的会话。",
+  "slashSessionsHeader": "已保存的会话 (共 {count} 个，按最近使用排序)：",
+  "@slashSessionsHeader": {"placeholders": {"count": {"type": "int"}}},
+  "slashSessionMsgCount": "{count} 条消息",
+  "@slashSessionMsgCount": {"placeholders": {"count": {"type": "int"}}},
+  "slashSessionCurrentMarker": " [当前]",
+  "slashSessionsMore": "…… 其余 {count} 个会话请打开会话管理视图查看。",
+  "@slashSessionsMore": {"placeholders": {"count": {"type": "int"}}},
+  "slashAccountTitle": "NovelAI 账号状态：",
+  "slashAccountTier": "• 订阅等级: {tier}",
+  "@slashAccountTier": {"placeholders": {"tier": {"type": "String"}}},
+  "slashAccountStamina": "• V5 专属体力池: {percent}%",
+  "@slashAccountStamina": {"placeholders": {"percent": {"type": "String"}}},
+  "slashAccountAnlas": "• 可用 Anlas: {total} (赠送: {fixed}, 购买: {purchased})",
+  "@slashAccountAnlas": {"placeholders": {"total": {"type": "int"}, "fixed": {"type": "int"}, "purchased": {"type": "int"}}},
+  "slashAccountQuotaExhausted": "• V5 体力配额已透支，生图将按正常价消耗 Anlas",
+  "slashAccountFailed": "查询账号信息失败，请检查 API Key 设置。",
+  "slashTagUsage": "用法: /tag <关键词> (例如: /tag silver)",
+  "slashTagNotFound": "未找到与 \"{query}\" 相关的标签。",
+  "@slashTagNotFound": {"placeholders": {"query": {"type": "String"}}},
+  "slashTagSuggestions": "标签联想建议 (\"{query}\"):\n{list}",
+  "@slashTagSuggestions": {"placeholders": {"query": {"type": "String"}, "list": {"type": "String"}}},
+  "slashUpscaleDone": "已执行超分放大",
+  "slashNaiUsage": "用法: /nai <提示词>",
+  "slashNaiDone": "插画已生成: {path}\n尺寸: {width}x{height}, 种子: {seed}",
+  "@slashNaiDone": {"placeholders": {"path": {"type": "String"}, "width": {"type": "int"}, "height": {"type": "int"}, "seed": {"type": "int"}}},
+  "slashNaiDoneFallback": "完成",
+  "slashUnknown": "未知指令 \"{cmd}\"，输入 /help 查看可用指令。",
+  "@slashUnknown": {"placeholders": {"cmd": {"type": "String"}}},
+  "vmSlashParamsTitle": "工作台当前生图参数："
 }

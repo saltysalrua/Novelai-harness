@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/services/image_metadata_service.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/custom_title_bar.dart';
@@ -175,7 +176,7 @@ class _StudioViewState extends State<StudioView> {
             context,
             metadata: metadata,
             imageBytes: imageBytes,
-            fileName: fileName ?? '剪贴板图片.png',
+            fileName: fileName ?? context.l10n.studioClipboardImageDefaultName,
             viewModel: _viewModel,
           );
         } else if (mounted) {
@@ -184,7 +185,7 @@ class _StudioViewState extends State<StudioView> {
             fileName: fileName,
           );
           if (mounted) {
-            showCanvasSnackBar(context, '已导入参考图');
+            showCanvasSnackBar(context, context.l10n.studioImportedReference);
           }
         }
       }
@@ -302,6 +303,7 @@ class _StudioViewState extends State<StudioView> {
                               size: 14,
                               color: colors.textSecondary,
                             ),
+                            tooltip: context.l10n.close,
                             onPressed: () => _viewModel.clearError(),
                             visualDensity: VisualDensity.compact,
                             padding: EdgeInsets.zero,

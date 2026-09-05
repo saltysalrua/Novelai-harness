@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -108,6 +109,7 @@ class PromptEditorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -123,7 +125,7 @@ class PromptEditorCard extends StatelessWidget {
             onHeightChanged: onHeightChanged,
             minHeight: minHeight,
             maxHeight: maxHeight,
-            resizeTooltip: '拖动调整提示词输入区高度 (双击重置)',
+            resizeTooltip: l10n.promptsResizePromptTooltip,
             enableAutocomplete: enableAutocomplete,
             showTranslation: showTranslation,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -155,7 +157,7 @@ class PromptEditorCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         _QuickActionButton(
-                          tooltip: '增加标签数值权重 (Ctrl+↑，格式 x.x::tag::)',
+                          tooltip: l10n.promptsIncreaseWeightTooltip,
                           label: '+0.1',
                           onTap: () => PromptEditActions.adjustWeight(
                             controller,
@@ -165,7 +167,7 @@ class PromptEditorCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         _QuickActionButton(
-                          tooltip: '降低标签数值权重 (Ctrl+↓，格式 x.x::tag::)',
+                          tooltip: l10n.promptsDecreaseWeightTooltip,
                           label: '-0.1',
                           onTap: () => PromptEditActions.adjustWeight(
                             controller,
@@ -175,7 +177,7 @@ class PromptEditorCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         _QuickActionButton(
-                          tooltip: '切换禁用状态 (Ctrl+/)',
+                          tooltip: l10n.promptsToggleDisabledTooltip,
                           label: '~',
                           onTap: () => PromptEditActions.toggleDisabled(
                             controller,
@@ -184,7 +186,7 @@ class PromptEditorCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         _QuickActionButton(
-                          tooltip: '格式化与SD语法转换 (Ctrl+Shift+F)',
+                          tooltip: l10n.promptsFormatTooltip,
                           icon: Icons.auto_fix_high_outlined,
                           onTap: () => PromptEditActions.formatPrompt(
                             controller,
@@ -193,7 +195,7 @@ class PromptEditorCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         _QuickActionButton(
-                          tooltip: '打开 Danbooru 标签灵感库',
+                          tooltip: l10n.promptsTagBrowserTooltip,
                           icon: Icons.style_outlined,
                           onTap: () => _openTagBrowser(context),
                         ),

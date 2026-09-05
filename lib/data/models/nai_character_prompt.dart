@@ -66,14 +66,12 @@ abstract final class NaiCharacterPositionLayout {
   static double clamp(double value) => value.clamp(0.0, 1.0);
 }
 
-/// 角色性别预设 (官方添加角色的三个预设：女 / 男 / 其他)
+/// 角色性别预设 (官方添加角色的三个预设：女 / 男 / 其他)。纯结构化枚举，
+/// UI 文案由 l10n 接管 (charPromptGender* 词条)。
 enum NaiCharacterGender {
-  female('女'),
-  male('男'),
-  other('其他');
-
-  final String label;
-  const NaiCharacterGender(this.label);
+  female,
+  male,
+  other;
 
   /// 解析持久化/工具传回的性别名，未知值回退到 other
   static NaiCharacterGender fromName(String? name) {

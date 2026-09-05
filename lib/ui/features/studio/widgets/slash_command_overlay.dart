@@ -3,6 +3,7 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_autocomplete_panel.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/skills/skills.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../view_models/slash_command_catalog.dart';
 
 /// 一条斜杠指令补全建议
@@ -27,10 +28,14 @@ class SlashSuggestion {
 /// - 文本以 "/" 开头且尚无空格: 按前缀匹配指令名
 /// - "/skill" 或 "/preset" 后的第一个参数: 按前缀匹配技能 ID/名称或预设
 /// - 其余情况返回空列表
+///
+/// 传 [l10n] 时指令名补全的标题/说明本地化；技能与预设的说明属
+/// 数据域文本原样透传。缺省 l10n 回退中文数据域文案。
 List<SlashSuggestion> buildSlashSuggestions({
   required String text,
   required List<Skill> skills,
   required List<AgentPreset> presets,
+  AppLocalizations? l10n,
 }) {
   if (!text.startsWith('/')) return const [];
 
@@ -43,8 +48,12 @@ List<SlashSuggestion> buildSlashSuggestions({
         .map(
           (c) => SlashSuggestion(
             completion: c.name,
-            title: c.displayTitle,
-            description: c.description,
+            title: l10n != null
+                ? c.localizedDisplayTitle(l10n)
+                : c.displayTitle,
+            description: l10n != null
+                ? slashCommandDescriptionOf(l10n, c)
+                : c.description,
           ),
         )
         .toList();

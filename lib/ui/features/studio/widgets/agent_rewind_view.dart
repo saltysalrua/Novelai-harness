@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -96,7 +97,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                 children: [
                   AppIconButton(
                     icon: Icons.arrow_back_rounded,
-                    tooltip: '返回对话 (ESC)',
+                    tooltip: context.l10n.rewindBackTooltip,
                     size: 28,
                     variant: AppIconButtonVariant.ghost,
                     onPressed: widget.onBack,
@@ -105,7 +106,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                   Icon(Icons.history_rounded, size: 15, color: colors.primary),
                   const SizedBox(width: 6),
                   Text(
-                    '回溯历史时刻',
+                    context.l10n.rewindTitle,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -113,8 +114,8 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                     ),
                   ),
                   const Spacer(),
-                  const AppBadge(
-                    label: 'ESC 退出',
+                  AppBadge(
+                    label: context.l10n.rewindEscExit,
                     variant: AppBadgeVariant.neutral,
                     shape: AppBadgeShape.pill,
                     fontSize: 10,
@@ -142,7 +143,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '选择要回退到的对话时刻。确认后将撤销此时刻之后的所有修改与对话记录。',
+                      context.l10n.rewindDescription,
                       style: TextStyle(
                         fontSize: 11,
                         color: colors.textSecondary,
@@ -160,8 +161,8 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                   ? AppEmptyState(
                       icon: Icons.history_toggle_off_rounded,
                       iconSize: 32,
-                      title: '当前会话暂无历史对话轮次可回溯',
-                      actionLabel: '返回对话',
+                      title: context.l10n.rewindEmptyTitle,
+                      actionLabel: context.l10n.rewindBackAction,
                       actionIcon: Icons.arrow_back,
                       onActionPressed: widget.onBack,
                       isCompact: true,
@@ -219,7 +220,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                                     if (isLastTurn) ...[
                                       const SizedBox(width: 6),
                                       Text(
-                                        '(最新时刻)',
+                                        context.l10n.rewindLatestBadge,
                                         style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
@@ -320,8 +321,10 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                   Expanded(
                     child: Text(
                       _selectedCheckpointIndex != null
-                          ? '已选择第 #${checkpoints[_selectedCheckpointIndex!].index} 轮对话'
-                          : '请在上方列表中选择要回退的轮次',
+                          ? context.l10n.rewindSelectedTurn(
+                              checkpoints[_selectedCheckpointIndex!].index,
+                            )
+                          : context.l10n.rewindSelectPrompt,
                       style: TextStyle(
                         fontSize: 12,
                         color: colors.textSecondary,
@@ -343,7 +346,10 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                       ),
                     ),
                     onPressed: widget.onBack,
-                    child: const Text('取消', style: TextStyle(fontSize: 12)),
+                    child: Text(
+                      context.l10n.rewindCancelButton,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
@@ -362,7 +368,10 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                     onPressed: _selectedCheckpointIndex != null
                         ? () => _confirmRewind(checkpoints)
                         : null,
-                    child: const Text('回到此时刻', style: TextStyle(fontSize: 12)),
+                    child: Text(
+                      context.l10n.rewindConfirmButton,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ],
               ),

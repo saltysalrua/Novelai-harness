@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../settings/views/settings_dialog.dart';
@@ -37,7 +38,7 @@ class StudioSidebar extends StatelessWidget {
             context: context,
             tab: StudioSidebarTab.parameters,
             icon: Icons.tune_outlined,
-            label: '参数',
+            label: context.l10n.sidebarTabParameters,
             isSelected: activeTab == StudioSidebarTab.parameters,
           ),
           const SizedBox(height: 6),
@@ -47,7 +48,7 @@ class StudioSidebar extends StatelessWidget {
             context: context,
             tab: StudioSidebarTab.prompts,
             icon: Icons.edit_note_outlined,
-            label: '提示词',
+            label: context.l10n.tabPrompts,
             isSelected: activeTab == StudioSidebarTab.prompts,
           ),
           const SizedBox(height: 6),
@@ -57,7 +58,7 @@ class StudioSidebar extends StatelessWidget {
             context: context,
             tab: StudioSidebarTab.inpaint,
             icon: Icons.auto_fix_high_outlined,
-            label: '修复',
+            label: context.l10n.sidebarTabInpaint,
             isSelected: activeTab == StudioSidebarTab.inpaint,
           ),
           const SizedBox(height: 6),
@@ -67,7 +68,7 @@ class StudioSidebar extends StatelessWidget {
             context: context,
             tab: StudioSidebarTab.library,
             icon: Icons.collections_bookmark_outlined,
-            label: '词库',
+            label: context.l10n.tabLibrary,
             isSelected: activeTab == StudioSidebarTab.library,
           ),
 
@@ -79,8 +80,8 @@ class StudioSidebar extends StatelessWidget {
           _buildActionItem(
             context: context,
             icon: Icons.settings_outlined,
-            label: '设置',
-            tooltip: '全局配置 (API Key / 存储 / LLM)',
+            label: context.l10n.settings,
+            tooltip: context.l10n.sidebarSettingsTooltip,
             onTap: () => SettingsDialog.show(context, viewModel),
           ),
           const SizedBox(height: 10),

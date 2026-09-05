@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_icon_button.dart';
@@ -43,17 +45,19 @@ class WatermarkPadPicker extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('选择图片失败: $e')));
+        ).showSnackBar(
+          SnackBar(content: Text(context.l10n.watermarkPickImageFailed(e.toString()))),
+        );
       }
     }
   }
 
-  String _positionLabel(double x, double y) {
-    if ((x - 0.0).abs() < 0.05 && (y - 0.0).abs() < 0.05) return '左上';
-    if ((x - 1.0).abs() < 0.05 && (y - 0.0).abs() < 0.05) return '右上';
-    if ((x - 0.5).abs() < 0.05 && (y - 0.5).abs() < 0.05) return '居中';
-    if ((x - 0.0).abs() < 0.05 && (y - 1.0).abs() < 0.05) return '左下';
-    if ((x - 1.0).abs() < 0.05 && (y - 1.0).abs() < 0.05) return '右下';
+  String _positionLabel(AppLocalizations l10n, double x, double y) {
+    if ((x - 0.0).abs() < 0.05 && (y - 0.0).abs() < 0.05) return l10n.watermarkPositionTopLeft;
+    if ((x - 1.0).abs() < 0.05 && (y - 0.0).abs() < 0.05) return l10n.watermarkPositionTopRight;
+    if ((x - 0.5).abs() < 0.05 && (y - 0.5).abs() < 0.05) return l10n.watermarkPositionCenter;
+    if ((x - 0.0).abs() < 0.05 && (y - 1.0).abs() < 0.05) return l10n.watermarkPositionBottomLeft;
+    if ((x - 1.0).abs() < 0.05 && (y - 1.0).abs() < 0.05) return l10n.watermarkPositionBottomRight;
     return '${(x * 100).toInt()}%, ${(y * 100).toInt()}%';
   }
 
@@ -61,13 +65,18 @@ class WatermarkPadPicker extends StatelessWidget {
     if (viewModel == null) return;
     final ok = await viewModel!.applySmartWatermarkPosition();
     if (context.mounted) {
-      showWatermarkSnackBar(context, ok ? '已按低信息区域智能选位' : '画板暂无图片，无法智能选位');
+      final l10n = context.l10n;
+      showWatermarkSnackBar(
+        context,
+        ok ? l10n.watermarkSmartPositionApplied : l10n.watermarkSmartPositionNoImage,
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final isEditingOnCanvas = viewModel?.isEditingWatermarkPosition ?? false;
 
     return Container(
@@ -88,7 +97,7 @@ class WatermarkPadPicker extends StatelessWidget {
           Row(
             children: [
               Text(
-                '水印位置',
+                l10n.watermarkPositionTitle,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -98,7 +107,7 @@ class WatermarkPadPicker extends StatelessWidget {
               const SizedBox(width: 6),
               AppIconButton(
                 icon: Icons.auto_awesome,
-                tooltip: '智能选位：分析当前画板图像，把水印放到细节最少的区域',
+                tooltip: l10n.watermarkSmartPositionTooltip,
                 variant: AppIconButtonVariant.ghost,
                 size: 22,
                 iconSize: 13,
@@ -109,7 +118,7 @@ class WatermarkPadPicker extends StatelessWidget {
               const Spacer(),
               // 位置胶囊：点击开启/关闭画板 2D 交互定位
               _WatermarkPositionPill(
-                label: _positionLabel(config.posX, config.posY),
+                label: _positionLabel(l10n, config.posX, config.posY),
                 isSelected: isEditingOnCanvas,
                 onTap: () {
                   if (viewModel != null) {
@@ -123,8 +132,8 @@ class WatermarkPadPicker extends StatelessWidget {
 
           // 3. 智能选位模式 (每次导出时按图像内容自动重选位置)
           AppSettingTile.switchTile(
-            title: '自动选位',
-            subtitle: '每次合成时分析图像，自动放入信息量最低的区域',
+            title: l10n.watermarkAutoPosition,
+            subtitle: l10n.watermarkAutoPositionSubtitle,
             value: config.autoPosition,
             margin: EdgeInsets.zero,
             onChanged: (v) => onChanged(config.copyWith(autoPosition: v)),
@@ -133,8 +142,8 @@ class WatermarkPadPicker extends StatelessWidget {
 
           // 4. 自动对比度
           AppSettingTile.switchTile(
-            title: '自动对比度',
-            subtitle: '按水印下方背景亮度自动加深或提亮，保证可见',
+            title: l10n.watermarkAutoContrast,
+            subtitle: l10n.watermarkAutoContrastSubtitle,
             value: config.autoContrast,
             margin: EdgeInsets.zero,
             onChanged: (v) => onChanged(config.copyWith(autoContrast: v)),
@@ -143,7 +152,7 @@ class WatermarkPadPicker extends StatelessWidget {
 
           // 5. 属性微调滑块 (缩放 / 不透明度 / 边距)
           AppNumberSlider(
-            title: '水印缩放 (%)',
+            title: l10n.watermarkScalePercent,
             value: config.scalePercent,
             min: 1.0,
             max: 50.0,
@@ -152,7 +161,7 @@ class WatermarkPadPicker extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           AppNumberSlider(
-            title: '不透明度 (%)',
+            title: l10n.watermarkOpacityPercent,
             value: config.opacity * 100.0,
             min: 10.0,
             max: 100.0,
@@ -161,7 +170,7 @@ class WatermarkPadPicker extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           AppNumberSlider(
-            title: '边距比例 (%)',
+            title: l10n.watermarkMarginPercent,
             value: config.marginPercent,
             min: 0.0,
             max: 20.0,
@@ -179,6 +188,7 @@ class WatermarkPadPicker extends StatelessWidget {
 
   Widget _buildBlindWatermarkSection(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -198,7 +208,7 @@ class WatermarkPadPicker extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                '盲水印',
+                l10n.watermarkBlindTitle,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -209,14 +219,14 @@ class WatermarkPadPicker extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            '频域隐形水印，肉眼不可见；粘贴图片到元数据弹窗可提取',
+            l10n.watermarkBlindSubtitle,
             style: TextStyle(fontSize: 10, color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
               Text(
-                '启用',
+                l10n.watermarkBlindEnable,
                 style: TextStyle(fontSize: 12, color: colors.textPrimary),
               ),
               const Spacer(),
@@ -238,7 +248,7 @@ class WatermarkPadPicker extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: colors.textPrimary),
               decoration: InputDecoration(
                 isDense: true,
-                hintText: '签名 / 版权信息文本',
+                hintText: l10n.watermarkBlindTextHint,
                 hintStyle: TextStyle(fontSize: 11, color: colors.textSecondary),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 8,
@@ -257,7 +267,7 @@ class WatermarkPadPicker extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             AppNumberSlider.integer(
-              title: '盲水印强度',
+              title: l10n.watermarkBlindStrength,
               value: config.blindStrength,
               min: 1,
               max: 5,
@@ -271,6 +281,7 @@ class WatermarkPadPicker extends StatelessWidget {
 
   Widget _buildImagePickerRow(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     if (config.imageBytes != null && config.imageBytes!.isNotEmpty) {
       return Container(
         padding: const EdgeInsets.all(8),
@@ -298,7 +309,7 @@ class WatermarkPadPicker extends StatelessWidget {
                   Text(
                     config.imagePath != null
                         ? config.imagePath!.split(Platform.pathSeparator).last
-                        : '已加载水印图片',
+                        : l10n.watermarkLoadedImage,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -309,7 +320,7 @@ class WatermarkPadPicker extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '仅在复制/下载时合成生效',
+                    l10n.watermarkEffectiveOnExport,
                     style: TextStyle(fontSize: 10, color: colors.textSecondary),
                   ),
                 ],
@@ -317,14 +328,14 @@ class WatermarkPadPicker extends StatelessWidget {
             ),
             AppIconButton(
               icon: Icons.file_upload_outlined,
-              tooltip: '更换图片',
+              tooltip: l10n.watermarkChangeImageTooltip,
               size: 30,
               iconSize: 18,
               onPressed: () => _pickImage(context),
             ),
             AppIconButton(
               icon: Icons.close_rounded,
-              tooltip: '清除水印图片',
+              tooltip: l10n.watermarkClearImageTooltip,
               size: 30,
               iconSize: 18,
               iconColor: colors.error,
@@ -355,7 +366,7 @@ class WatermarkPadPicker extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              '点击选择本地水印图片 (PNG/JPG)',
+              l10n.watermarkSelectLocalImage,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -396,7 +407,7 @@ class _WatermarkPositionPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Tooltip(
-      message: '在画板上拖动定位水印 (或按 ESC 退出)',
+      message: context.l10n.watermarkPositionPillTooltip,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(4),
@@ -421,7 +432,7 @@ class _WatermarkPositionPill extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Text(
-                '位置: $label',
+                context.l10n.watermarkPositionPillLabel(label),
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,

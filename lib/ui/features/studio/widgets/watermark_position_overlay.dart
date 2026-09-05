@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../view_models/studio_view_model.dart';
 
@@ -66,6 +67,7 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final viewModel = widget.viewModel;
     final config = viewModel.watermarkConfig;
 
@@ -403,8 +405,8 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
                     ),
                     child: Text(
                       _isResizing
-                          ? '缩放: ${currentScale.toStringAsFixed(1)}%'
-                          : '位置: ${(posX * 100).toInt()}%, ${(posY * 100).toInt()}%',
+                          ? l10n.watermarkOverlayScale(currentScale.toStringAsFixed(1))
+                          : l10n.watermarkOverlayPosition((posX * 100).toInt(), (posY * 100).toInt()),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 11,

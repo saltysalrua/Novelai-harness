@@ -20,8 +20,8 @@ mixin _StudioGenerationMixin on _StudioCore {
       _hasUnseenLatest = true;
     }
     _statusMessage = image.isUnsaved
-        ? '生图完成 (未保存，可点击画板右下角保存)'
-        : '生图完成，已保存在 ${image.localFilePath ?? '本地'}';
+        ? vmL10n.vmGenDoneUnsaved
+        : vmL10n.vmGenDoneSavedTo(image.localFilePath ?? vmL10n.vmGenLocalPath);
   }
 
   /// 手动保存当前选中的未保存 (缓存) 图片到本地存储目录。
@@ -36,7 +36,7 @@ mixin _StudioGenerationMixin on _StudioCore {
     await ensureImageLoaded(image);
 
     if (_config.saveDirectory.isEmpty) {
-      _errorMessage = '未设置本地存储目录，请先在设置中配置保存路径。';
+      _errorMessage = vmL10n.vmGenNoSaveDir;
       notifyListeners();
       return false;
     }
@@ -54,18 +54,18 @@ mixin _StudioGenerationMixin on _StudioCore {
         watermarkBytes: _config.watermarkConfig.imageBytes,
       );
       if (saved == null) {
-        _errorMessage = '保存图片失败：未找到图片或存储目录不可写。';
+        _errorMessage = vmL10n.vmGenSaveFailedNoTarget;
         notifyListeners();
         return false;
       }
       if (_selectedImage?.id == saved.id) {
         _selectedImage = saved;
       }
-      _statusMessage = '已保存到 ${saved.localFilePath}';
+      _statusMessage = vmL10n.vmGenSavedTo(saved.localFilePath!);
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = '保存图片失败: $e';
+      _errorMessage = vmL10n.vmGenSaveFailed('$e');
       notifyListeners();
       return false;
     }
@@ -78,7 +78,7 @@ mixin _StudioGenerationMixin on _StudioCore {
     _generationSubscription = null;
     _isGenerating = false;
     _liveProgressController.clear();
-    _statusMessage = '已终止生成';
+    _statusMessage = vmL10n.vmGenAborted;
     notifyListeners();
   }
 
@@ -86,13 +86,13 @@ mixin _StudioGenerationMixin on _StudioCore {
   @override
   Future<void> generateImage() async {
     if (_params.prompt.trim().isEmpty) {
-      _errorMessage = '提示词不能为空，请先在左侧或对话框中输入描述。';
+      _errorMessage = vmL10n.vmGenEmptyPrompt;
       notifyListeners();
       return;
     }
 
     if (_config.novelAiKey.trim().isEmpty) {
-      _errorMessage = '未配置 NovelAI API Key，请点击右上角设置。';
+      _errorMessage = vmL10n.vmGenNoApiKey;
       notifyListeners();
       return;
     }
@@ -114,8 +114,11 @@ mixin _StudioGenerationMixin on _StudioCore {
     _isGenerating = true;
     _liveProgressController.begin(_params.steps, DateTime.now());
     _errorMessage = null;
-    _statusMessage =
-        '正在请求 NovelAI 生图 (${_params.width}x${_params.height}, ${_params.steps}步)...';
+    _statusMessage = vmL10n.vmGenRequesting(
+      _params.width,
+      _params.height,
+      _params.steps,
+    );
     notifyListeners();
 
     if (_config.enableStreamPreview) {
@@ -171,7 +174,7 @@ mixin _StudioGenerationMixin on _StudioCore {
             }
           },
           onError: (e) {
-            _errorMessage = '生图失败: $e';
+            _errorMessage = vmL10n.vmGenFailed('$e');
             _statusMessage = null;
             if (!completer.isCompleted) completer.complete();
           },
@@ -183,7 +186,7 @@ mixin _StudioGenerationMixin on _StudioCore {
 
         await completer.future;
       } catch (e) {
-        _errorMessage = '生图失败: $e';
+        _errorMessage = vmL10n.vmGenFailed('$e');
         _statusMessage = null;
       } finally {
         _generationSubscription = null;
@@ -219,7 +222,7 @@ mixin _StudioGenerationMixin on _StudioCore {
           }
         }
       } catch (e) {
-        _errorMessage = '生图失败: $e';
+        _errorMessage = vmL10n.vmGenFailed('$e');
         _statusMessage = null;
       } finally {
         _isGenerating = false;
@@ -272,13 +275,13 @@ mixin _StudioGenerationMixin on _StudioCore {
   @override
   Future<void> upscaleSelected() async {
     if (_selectedImage == null) {
-      _errorMessage = '当前画板中无图片可供放大。';
+      _errorMessage = vmL10n.vmUpscaleNoImage;
       notifyListeners();
       return;
     }
 
     if (_config.novelAiKey.trim().isEmpty) {
-      _errorMessage = '未配置 NovelAI API Key。';
+      _errorMessage = vmL10n.vmUpscaleNoApiKey;
       notifyListeners();
       return;
     }
@@ -288,7 +291,7 @@ mixin _StudioGenerationMixin on _StudioCore {
 
     _isGenerating = true;
     _errorMessage = null;
-    _statusMessage = '正在执行图像超分放大...';
+    _statusMessage = vmL10n.vmUpscaleRunning;
     notifyListeners();
 
     try {
@@ -311,10 +314,13 @@ mixin _StudioGenerationMixin on _StudioCore {
       );
       _selectedImage = upscaled;
       _statusMessage = upscaled.isUnsaved
-          ? '放大完成 (${upscaled.params.width}x${upscaled.params.height}，未保存)'
-          : '放大完成 (${upscaled.params.width}x${upscaled.params.height})';
+          ? vmL10n.vmUpscaleDoneUnsaved(
+              upscaled.params.width,
+              upscaled.params.height,
+            )
+          : vmL10n.vmUpscaleDone(upscaled.params.width, upscaled.params.height);
     } catch (e) {
-      _errorMessage = '放大失败: $e';
+      _errorMessage = vmL10n.vmUpscaleFailed('$e');
       _statusMessage = null;
     } finally {
       _isGenerating = false;

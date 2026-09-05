@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/main.dart';
+import 'package:novelai_harness/ui/core/locale/app_locale_controller.dart';
 
 void main() {
   testWidgets('NovelAiHarnessApp sidebar navigation and tab switching test', (
@@ -10,6 +12,11 @@ void main() {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+
+    AppLocaleController.instance.syncFromConfig(
+      const AppConfig(localePreference: AppLocalePreference.zh),
+    );
+    addTearDown(AppLocaleController.instance.resetForTest);
 
     await tester.pumpWidget(const NovelAiHarnessApp());
     await tester.pumpAndSettle();
@@ -40,7 +47,7 @@ void main() {
     // 固定词缀面板在页面底部，滚动到可见后再断言
     await tester.drag(find.text('提示词管理'), const Offset(0, -500));
     await tester.pumpAndSettle();
-    expect(find.text('Fixed Affixes'), findsOneWidget);
+    expect(find.text('固定词缀'), findsOneWidget);
     // 验证生成图片和账号卡片仍然常驻显示
     expect(find.widgetWithText(ElevatedButton, '生成图片 (30 Anlas)'), findsOneWidget);
     expect(find.textContaining('未获取账号信息'), findsOneWidget);

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/image_metadata_service.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_floating_dock.dart';
@@ -242,7 +243,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
           dropPosition: boardPos,
         );
         if (mounted) {
-          showCanvasSnackBar(context, '已粘贴图片至大画布');
+          showCanvasSnackBar(context, context.l10n.boardPastedImage);
         }
       }
     } catch (_) {}
@@ -280,7 +281,10 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                   dropPosition: dropPos,
                 );
                 if (context.mounted) {
-                  showCanvasSnackBar(context, '已导入参考图: ${file.name}');
+                  showCanvasSnackBar(
+                    context,
+                    context.l10n.boardImportedReferenceNamed(file.name),
+                  );
                 }
                 break;
               }
@@ -290,7 +294,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
             onAcceptWithDetails: (details) {
               final boardPos = _globalToBoard(details.offset);
               viewModel.addImageNodeToBoard(details.data, position: boardPos);
-              showCanvasSnackBar(context, '已将历史图片添加为大画布参考图');
+              showCanvasSnackBar(context, context.l10n.boardAddedHistoryImage);
             },
             builder: (context, candidateData, rejectedData) {
               final isInternalDragOver = candidateData.isNotEmpty;
@@ -450,8 +454,10 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                       const SizedBox(width: 8),
                                       Text(
                                         isInternalDragOver
-                                            ? '松开鼠标放置参考图'
-                                            : '松开鼠标导入外部参考图',
+                                            ? context.l10n.boardDropInternalHint
+                                            : context
+                                                  .l10n
+                                                  .boardDropExternalHint,
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
@@ -522,9 +528,9 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                 onPressed: () =>
                                     viewModel.setAnnotatingImage(false),
                                 icon: const Icon(Icons.close_rounded, size: 15),
-                                label: const Text(
-                                  '退出批注',
-                                  style: TextStyle(
+                                label: Text(
+                                  context.l10n.boardExitAnnotation,
+                                  style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -545,9 +551,9 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                   Icons.smart_toy_outlined,
                                   size: 15,
                                 ),
-                                label: const Text(
-                                  '发送全部批注到 AI',
-                                  style: TextStyle(
+                                label: Text(
+                                  context.l10n.boardSendAllToAi,
+                                  style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -629,7 +635,9 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
         );
       } else {
         // 落空取消连线，不误断既有连接 (断开请用便签顶栏的断开按钮)
-        if (mounted) showCanvasSnackBar(context, '未命中选区/图钉，已取消连线');
+        if (mounted) {
+          showCanvasSnackBar(context, context.l10n.boardWireMissedTarget);
+        }
       }
       return;
     }
@@ -643,7 +651,9 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
           hit.annotationId,
         );
       } else {
-        if (mounted) showCanvasSnackBar(context, '未命中选区/图钉，已取消连线');
+        if (mounted) {
+          showCanvasSnackBar(context, context.l10n.boardWireMissedTarget);
+        }
       }
     }
   }

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 import 'package:novelai_harness/core/harness/tools/ask_user_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_card.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_rewind_view.dart';
@@ -12,6 +13,15 @@ import 'package:novelai_harness/ui/features/studio/widgets/agent_session_list_vi
 import 'package:novelai_harness/ui/features/studio/widgets/inline_agent_question_card.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
+
+Widget buildTestApp(Widget child) {
+  return MaterialApp(
+    locale: const Locale('zh'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: Scaffold(body: child),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -41,11 +51,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AgentSessionListView(viewModel: viewModel, onBack: () {}),
-          ),
-        ),
+        buildTestApp(AgentSessionListView(viewModel: viewModel, onBack: () {})),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -64,13 +70,11 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SizedBox(
-            width: 400,
-            height: 800,
-            child: AgentRewindView(viewModel: viewModel, onBack: () {}),
-          ),
+      buildTestApp(
+        SizedBox(
+          width: 400,
+          height: 800,
+          child: AgentRewindView(viewModel: viewModel, onBack: () {}),
         ),
       ),
     );
@@ -91,13 +95,11 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SizedBox(
-            height: 800,
-            width: 400,
-            child: AgentChatCard(viewModel: viewModel),
-          ),
+      buildTestApp(
+        SizedBox(
+          height: 800,
+          width: 400,
+          child: AgentChatCard(viewModel: viewModel),
         ),
       ),
     );
@@ -158,15 +160,13 @@ void main() {
       viewModel.setMessagesForTesting(initialMessages);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SizedBox(
-              height: 500,
-              width: 400,
-              child: ListenableBuilder(
-                listenable: viewModel,
-                builder: (context, _) => AgentChatCard(viewModel: viewModel),
-              ),
+        buildTestApp(
+          SizedBox(
+            height: 500,
+            width: 400,
+            child: ListenableBuilder(
+              listenable: viewModel,
+              builder: (context, _) => AgentChatCard(viewModel: viewModel),
             ),
           ),
         ),
@@ -276,9 +276,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: InlineAgentQuestionCard(prompt: prompt)),
-      ),
+      buildTestApp(InlineAgentQuestionCard(prompt: prompt)),
     );
     await tester.pump();
 
@@ -325,9 +323,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: InlineAgentQuestionCard(prompt: prompt)),
-      ),
+      buildTestApp(InlineAgentQuestionCard(prompt: prompt)),
     );
     await tester.pump();
 

@@ -5,14 +5,12 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/harness/types.dart';
 
 /// 账单统计周期
+/// 账单统计周期 (纯结构化枚举，UI 文案由 l10n billPeriod* 词条接管)
 enum BillPeriod {
-  today('今天'),
-  last7d('近 7 天'),
-  last30d('近 30 天'),
-  all('全部');
-
-  final String label;
-  const BillPeriod(this.label);
+  today,
+  last7d,
+  last30d,
+  all;
 }
 
 /// 单个模型的用量汇总行

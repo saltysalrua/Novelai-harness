@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/services/usage_ledger_service.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_empty_state.dart';
@@ -30,9 +32,17 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
     return rate == null ? '-' : '${(rate * 100).toStringAsFixed(1)}%';
   }
 
+  String _periodLabel(AppLocalizations l10n, BillPeriod period) => switch (period) {
+    BillPeriod.today => l10n.billPeriodToday,
+    BillPeriod.last7d => l10n.billPeriodLast7Days,
+    BillPeriod.last30d => l10n.billPeriodLast30Days,
+    BillPeriod.all => l10n.billPeriodAll,
+  };
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final summary = widget.viewModel.buildBillSummary(_billPeriod);
 
     return SingleChildScrollView(
@@ -40,7 +50,7 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionHeader(title: 'Usage Bill'),
+          AppSectionHeader(title: l10n.settingsSectionUsageBill),
 
           // 周期切换胶囊组
           Padding(
@@ -50,7 +60,10 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
                 AppSegmentedPillBar<BillPeriod>(
                   items: [
                     for (final period in BillPeriod.values)
-                      AppSegmentedItem(value: period, label: period.label),
+                      AppSegmentedItem(
+                        value: period,
+                        label: _periodLabel(l10n, period),
+                      ),
                   ],
                   selectedValue: _billPeriod,
                   onValueChanged: (period) =>
@@ -58,7 +71,10 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
                 ),
                 const Spacer(),
                 Text(
-                  '${summary.requests} 次请求 · 总计 ${UsageLedgerService.formatTokens(summary.usage.total)} tokens',
+                  l10n.billSummaryRequestsAndTokens(
+                    summary.requests,
+                    UsageLedgerService.formatTokens(summary.usage.total),
+                  ),
                   style: TextStyle(fontSize: 12, color: colors.textMuted),
                 ),
               ],
@@ -67,9 +83,9 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
 
           // 账单表格
           if (summary.models.isEmpty)
-            const AppEmptyState(
+            AppEmptyState(
               icon: Icons.receipt_long_rounded,
-              title: '该周期内暂无用量记录',
+              title: l10n.billEmptyRecords,
               isCompact: true,
             )
           else
@@ -82,6 +98,7 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
   /// 账单表格 (对齐 pi-bill 的列: Model / Reqs / Input / Output / Cache R / Total)
   Widget _buildBillTable(BillSummary summary) {
     final colors = context.colors;
+    final l10n = context.l10n;
 
     TextStyle headerStyle() => TextStyle(
       fontSize: 11,
@@ -140,7 +157,15 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
         },
         children: [
           buildRow(
-            const ['模型', '请求数', '输入', '输出', '缓存读', '命中率', '总计'],
+            [
+              l10n.billTableHeaderModel,
+              l10n.billTableHeaderRequests,
+              l10n.billTableHeaderInput,
+              l10n.billTableHeaderOutput,
+              l10n.billTableHeaderCacheRead,
+              l10n.billTableHeaderHitRate,
+              l10n.billTableHeaderTotal,
+            ],
             style: headerStyle,
             background: colors.mutedBackground,
           ),
@@ -156,7 +181,7 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
             ]),
           buildRow(
             [
-              'Total',
+              l10n.billTableTotalRow,
               summary.requests.toString(),
               fmt(summary.usage.input),
               fmt(summary.usage.output),

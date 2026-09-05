@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/image_lightbox.dart';
 
 void main() {
@@ -211,4 +212,37 @@ void main() {
     expect(worldCenterX, closeTo(400.0, 0.1));
     expect(worldCenterY, closeTo(300.0, 0.1));
   });
+
+  testWidgets(
+    'ImageLightboxDialog renders localized close tooltip in en and zh',
+    (tester) async {
+      // English
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ImageLightboxDialog(bytes: testImage.uint8Bytes),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Close full size view'), findsOneWidget);
+
+      // Chinese
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ImageLightboxDialog(bytes: testImage.uint8Bytes),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('关闭大图展示'), findsOneWidget);
+    },
+  );
 }

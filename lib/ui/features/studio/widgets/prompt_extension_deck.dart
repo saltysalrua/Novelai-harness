@@ -6,9 +6,18 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/context_l10n.dart';
 import '../view_models/studio_view_model.dart';
 import 'character_card_item.dart';
 import 'fixed_affixes_panel.dart';
+
+String _genderLabel(AppLocalizations l10n, NaiCharacterGender gender) =>
+    switch (gender) {
+      NaiCharacterGender.female => l10n.charPromptGenderFemale,
+      NaiCharacterGender.male => l10n.charPromptGenderMale,
+      NaiCharacterGender.other => l10n.charPromptGenderOther,
+    };
 
 /// 提示词扩展甲板：将多角色提示词 (Character Prompts) 与固定词缀 (Fixed Affixes)
 /// 合并为同一个支持左右手势滑动与点击切换的一体化卡片容器。
@@ -60,6 +69,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final viewModel = widget.viewModel;
     final params = viewModel.params;
     final characters = params.characterPrompts;
@@ -100,7 +110,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
               children: [
                 Expanded(
                   child: _DeckSegmentTab(
-                    label: 'Character Prompts',
+                    label: l10n.charPromptDeckTabCharacter,
                     badge: characters.isNotEmpty
                         ? '${characters.length}/$limit'
                         : null,
@@ -111,8 +121,8 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
                 const SizedBox(width: 4),
                 Expanded(
                   child: _DeckSegmentTab(
-                    label: 'Fixed Affixes',
-                    badge: isAffixesEnabled ? '已启用' : null,
+                    label: l10n.charPromptDeckTabAffixes,
+                    badge: isAffixesEnabled ? l10n.charPromptEnabled : null,
                     badgeIsActive: isAffixesEnabled,
                     isActive: _activeTabIndex == 1,
                     onTap: () => _switchTab(1),
@@ -134,11 +144,13 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
                     supported: supported,
                     isFull: isFull,
                     params: params,
+                    l10n: l10n,
                   )
                 : _buildFixedAffixesToolbar(
                     viewModel: viewModel,
                     isAffixesEnabled: isAffixesEnabled,
                     params: params,
+                    l10n: l10n,
                   ),
           ),
 
@@ -165,7 +177,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
             child: KeyedSubtree(
               key: ValueKey<int>(_activeTabIndex),
               child: _activeTabIndex == 0
-                  ? _buildCharacterPromptsContent(viewModel)
+                  ? _buildCharacterPromptsContent(viewModel, l10n)
                   : _buildFixedAffixesContent(viewModel),
             ),
           ),
@@ -181,6 +193,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     required bool supported,
     required bool isFull,
     required NaiGenerationParams params,
+    required AppLocalizations l10n,
   }) {
     return KeyedSubtree(
       key: const ValueKey('char_toolbar'),
@@ -192,15 +205,15 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
         children: [
           if (characters.isNotEmpty) ...[
             AppSegmentedPillBar<bool>(
-              items: const [
+              items: [
                 AppSegmentedItem(
                   value: true,
-                  label: 'AI 自动',
+                  label: l10n.charPromptPositionAi,
                   icon: Icons.auto_awesome_rounded,
                 ),
                 AppSegmentedItem(
                   value: false,
-                  label: '自定义',
+                  label: l10n.charPromptPositionCustom,
                   icon: Icons.open_with_rounded,
                 ),
               ],
@@ -220,7 +233,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
             ),
           ] else
             Text(
-              '独立角色物理隔离',
+              l10n.charPromptIsolationHint,
               style: TextStyle(fontSize: 12, color: context.colors.textMuted),
             ),
           _buildAddCharacterButtons(viewModel, supported, isFull),
@@ -259,6 +272,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     required StudioViewModel viewModel,
     required bool isAffixesEnabled,
     required NaiGenerationParams params,
+    required AppLocalizations l10n,
   }) {
     return KeyedSubtree(
       key: const ValueKey('affix_toolbar'),
@@ -269,7 +283,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text(
-            '全局固定前置与后置词缀',
+            l10n.promptsAffixesHint,
             style: TextStyle(fontSize: 12, color: context.colors.textMuted),
           ),
           _AffixToggleSwitch(
@@ -283,7 +297,10 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
   }
 
   /// 角色提示词内容视图
-  Widget _buildCharacterPromptsContent(StudioViewModel viewModel) {
+  Widget _buildCharacterPromptsContent(
+    StudioViewModel viewModel,
+    AppLocalizations l10n,
+  ) {
     final colors = context.colors;
     final params = viewModel.params;
     final characters = params.characterPrompts;
@@ -294,7 +311,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
       return AppCard(
         padding: const EdgeInsets.all(12),
         child: Text(
-          '当前模型不支持角色提示词 (仅 V4 及以上模型生效)，下方配置将保留但不会参与生成。',
+          l10n.charPromptUnsupportedModel,
           style: TextStyle(
             fontSize: 12,
             color: colors.warning.withValues(alpha: 0.9),
@@ -304,12 +321,12 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     }
 
     if (characters.isEmpty) {
-      return const AppCard(
-        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      return AppCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         child: AppEmptyState(
           icon: Icons.people_outline_rounded,
-          title: '暂无独立角色提示词',
-          description: '点击右上角「女 / 男 / 其他」预设按钮即可开启多角色防串色隔离生图',
+          title: l10n.charPromptEmptyTitle,
+          description: l10n.charPromptEmptyDescription,
           isCompact: true,
           iconSize: 28,
         ),
@@ -420,8 +437,11 @@ class _CanvasEditDeckButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Tooltip(
-      message: isCanvasEditing ? '退出画板位置编辑' : '在中间画板编辑角色位置',
+      message: isCanvasEditing
+          ? l10n.charPromptExitCanvasEditTooltip
+          : l10n.charPromptEnterCanvasEditTooltip,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -445,7 +465,9 @@ class _CanvasEditDeckButton extends StatelessWidget {
               ),
               const SizedBox(width: 3.5),
               Text(
-                isCanvasEditing ? '编辑中' : '画板编辑',
+                isCanvasEditing
+                    ? l10n.charPromptCanvasEditing
+                    : l10n.charPromptCanvasEdit,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: isCanvasEditing
@@ -483,16 +505,17 @@ class _AddGenderDeckButton extends StatelessWidget {
     NaiCharacterGender.other => Icons.transgender_rounded,
   };
 
-  String get _tooltip => switch (gender) {
-    NaiCharacterGender.female => '添加女角色 (初始提示词 girl)',
-    NaiCharacterGender.male => '添加男角色 (初始提示词 boy)',
-    NaiCharacterGender.other => '添加其他角色 (初始提示词留空)',
+  String _tooltip(AppLocalizations l10n) => switch (gender) {
+    NaiCharacterGender.female => l10n.charPromptAddFemaleTooltip,
+    NaiCharacterGender.male => l10n.charPromptAddMaleTooltip,
+    NaiCharacterGender.other => l10n.charPromptAddOtherTooltip,
   };
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Tooltip(
-      message: _tooltip,
+      message: _tooltip(l10n),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -509,7 +532,7 @@ class _AddGenderDeckButton extends StatelessWidget {
               Icon(_icon, size: 13, color: _color),
               const SizedBox(width: 4),
               Text(
-                gender.label,
+                _genderLabel(l10n, gender),
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -532,6 +555,7 @@ class _AddCharacterLimitChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
@@ -545,7 +569,7 @@ class _AddCharacterLimitChip extends StatelessWidget {
           Icon(Icons.person_add_alt_rounded, size: 13, color: colors.textMuted),
           const SizedBox(width: 4),
           Text(
-            '已达上限',
+            l10n.charPromptLimitReached,
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -568,11 +592,12 @@ class _AffixToggleSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          isEnabled ? '已启用' : '已停用',
+          isEnabled ? l10n.charPromptEnabled : l10n.charPromptDisabled,
           style: TextStyle(
             fontSize: 12,
             color: isEnabled ? colors.primary : colors.textMuted,

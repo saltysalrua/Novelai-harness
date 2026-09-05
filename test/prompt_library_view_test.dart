@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/views/studio_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/character_card_item.dart';
@@ -43,8 +44,11 @@ void main() {
     } catch (_) {}
   });
 
-  Widget buildTestApp(Widget child) {
+  Widget buildTestApp(Widget child, [Locale locale = const Locale('zh')]) {
     return MaterialApp(
+      locale: locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: ThemeData.light(),
       home: Scaffold(body: child),
     );
@@ -286,7 +290,13 @@ void main() {
       });
 
       await tester.pumpWidget(
-        MaterialApp(theme: ThemeData.light(), home: const StudioView()),
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: ThemeData.light(),
+          home: const StudioView(),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -311,6 +321,64 @@ void main() {
 
       // 再次呈现参数/提示词工作台
       expect(find.text('参数设置'), findsOneWidget);
+    });
+  });
+
+  group('Bilingual i18n Tests (en)', () {
+    testWidgets(
+      'PromptComboEditDialog renders English strings when locale is en',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        await tester.pumpWidget(
+          buildTestApp(
+            PromptComboEditDialog(viewModel: viewModel),
+            const Locale('en'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Negative Prompt'), findsOneWidget);
+        expect(find.text('Character category only'), findsOneWidget);
+        expect(find.text('Set Preview Image'), findsOneWidget);
+        expect(find.text('Choose Local Image'), findsOneWidget);
+        expect(find.text('Use Current Canvas Image'), findsOneWidget);
+        expect(find.text('New Prompt Combo'), findsOneWidget);
+        expect(find.text('Title'), findsOneWidget);
+        expect(find.text('Fill from Workbench'), findsOneWidget);
+        expect(find.text('Cancel'), findsOneWidget);
+        expect(find.text('Create Prompt Combo'), findsOneWidget);
+      },
+    );
+
+    testWidgets('PromptLibraryView renders English strings when locale is en', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        buildTestApp(
+          PromptLibraryView(viewModel: viewModel),
+          const Locale('en'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Library'), findsWidgets);
+      expect(find.text('New Prompt Combo'), findsOneWidget);
+      expect(find.text('Categories'), findsOneWidget);
+      expect(find.text('Apply to Workbench'), findsWidgets);
+      expect(find.text('+ Character'), findsWidgets);
     });
   });
 }

@@ -30,7 +30,9 @@ mixin _StudioSessionsMixin on _StudioCore {
           _setupHarnessAndTools();
         }
       }
-      _statusMessage = '已切换会话: ${snapshot.sessionTitle ?? sessionId}';
+      _statusMessage = vmL10n.vmSessionSwitched(
+        snapshot.sessionTitle ?? sessionId,
+      );
     } else {
       _harness.setMessages([]);
       _sessionModelUsage = {};
@@ -51,7 +53,7 @@ mixin _StudioSessionsMixin on _StudioCore {
     _harness.setMessages([]);
     _sessionModelUsage = {};
     _paramJournal.reset(_params);
-    _statusMessage = '已创建新会话';
+    _statusMessage = vmL10n.vmSessionCreated;
     await refreshSessions();
     notifyListeners();
   }
@@ -70,7 +72,7 @@ mixin _StudioSessionsMixin on _StudioCore {
     } else {
       await refreshSessions();
     }
-    _statusMessage = '会话已删除';
+    _statusMessage = vmL10n.vmSessionDeleted;
     notifyListeners();
   }
 
@@ -114,8 +116,8 @@ mixin _StudioSessionsMixin on _StudioCore {
       }
       _recomputeSessionUsage();
       _statusMessage = paramsRewound
-          ? '已回到历史时刻，后续对话与参数修改已撤回'
-          : '已回到历史时刻，后续对话与修改已撤回';
+          ? vmL10n.vmRewindChatAndParams
+          : vmL10n.vmRewindChatOnly;
       await refreshSessions();
       notifyListeners();
     }

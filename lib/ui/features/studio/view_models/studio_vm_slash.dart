@@ -10,13 +10,13 @@ mixin _StudioSlashMixin on _StudioCore {
 
     switch (cmd) {
       case '/help':
-        _harness.addInfoMessage(buildSlashHelpText());
+        _harness.addInfoMessage(buildSlashHelpText(vmL10n));
         notifyListeners();
         break;
 
       case '/params':
         _harness.addInfoMessage(
-          buildStudioParamsReport(_params, title: '工作台当前生图参数：'),
+          buildStudioParamsReport(_params, title: vmL10n.vmSlashParamsTitle),
         );
         notifyListeners();
         break;
@@ -26,7 +26,9 @@ mixin _StudioSlashMixin on _StudioCore {
           final listStr = presets
               .map((p) => '• ${p.name} (${p.id})')
               .join('\n');
-          _harness.addInfoMessage('可用预设列表：\n$listStr\n用法: /preset <预设名称或ID>');
+          _harness.addInfoMessage(
+            '${vmL10n.slashPresetListIntro}\n$listStr\n${vmL10n.slashPresetUsage}',
+          );
         } else {
           final query = args.toLowerCase();
           final matches = presets
@@ -37,7 +39,7 @@ mixin _StudioSlashMixin on _StudioCore {
               )
               .toList();
           if (matches.isEmpty) {
-            _harness.addInfoMessage('未找到预设 "$args"，输入 /preset 查看可用预设。');
+            _harness.addInfoMessage(vmL10n.slashPresetNotFound(args));
           } else {
             selectPreset(matches.first);
           }
@@ -50,15 +52,21 @@ mixin _StudioSlashMixin on _StudioCore {
           final listStr = availableSkills
               .map((s) => '• ${s.id}: ${s.name}')
               .join('\n');
-          _harness.addInfoMessage('可用技能列表：\n$listStr\n用法: /skill <技能名称或ID>');
+          _harness.addInfoMessage(
+            '${vmL10n.slashSkillListIntro}\n$listStr\n${vmL10n.slashSkillUsage}',
+          );
         } else {
           final skill = _skillRegistry.get(args);
           if (skill != null) {
             _harness.addInfoMessage(
-              '【Skill 已载入】${skill.name}\n${skill.description}\n\n${skill.systemPrompt}',
+              vmL10n.slashSkillLoaded(
+                skill.name,
+                skill.description,
+                skill.systemPrompt,
+              ),
             );
           } else {
-            _harness.addInfoMessage('未找到技能 "$args"，输入 /skill 查看可用技能。');
+            _harness.addInfoMessage(vmL10n.slashSkillNotFound(args));
           }
         }
         notifyListeners();
@@ -67,26 +75,29 @@ mixin _StudioSlashMixin on _StudioCore {
       case '/compact':
         {
           if (_harness.provider == null) {
-            _harness.addInfoMessage('未配置 LLM 提供商，无法压缩上下文。');
+            _harness.addInfoMessage(vmL10n.slashCompactNoProvider);
             notifyListeners();
             break;
           }
           if (_harness.messages.isEmpty) {
-            _harness.addInfoMessage('当前对话为空，无需压缩上下文。');
+            _harness.addInfoMessage(vmL10n.slashCompactEmpty);
             notifyListeners();
             break;
           }
-          _statusMessage = '正在压缩对话上下文...';
+          _statusMessage = vmL10n.slashCompactRunning;
           notifyListeners();
           final evt = await _harness.compactContext(force: true);
           if (evt == null) {
             _statusMessage = null;
-            _harness.addInfoMessage('上下文没有可压缩的内容 (需要至少两轮对话)，或摘要生成失败。');
+            _harness.addInfoMessage(vmL10n.slashCompactNothing);
           } else {
             _statusMessage = null;
             _harness.addInfoMessage(
-              '上下文压缩完成 (${evt.tokensBefore} → ${evt.tokensAfter} tokens)。'
-              '更早的消息已替换为以下摘要，原始消息仍保留在对话流与会话记录中：\n\n${evt.summary}',
+              vmL10n.slashCompactDone(
+                evt.tokensBefore,
+                evt.tokensAfter,
+                evt.summary,
+              ),
             );
           }
           notifyListeners();
@@ -96,7 +107,9 @@ mixin _StudioSlashMixin on _StudioCore {
         {
           await createNewSession(title: args.isEmpty ? null : args);
           _harness.addInfoMessage(
-            args.isEmpty ? '已创建新会话，开始新的对话吧。' : '已创建新会话: $args',
+            args.isEmpty
+                ? vmL10n.slashNewNoTitle
+                : vmL10n.slashNewWithTitle(args),
           );
           notifyListeners();
         }
@@ -115,7 +128,7 @@ mixin _StudioSlashMixin on _StudioCore {
             }
           }
           if (lastUserIdx <= 0) {
-            _harness.addInfoMessage('没有可撤销的上一轮对话 (首轮之前的消息不存在)。');
+            _harness.addInfoMessage(vmL10n.slashUndoNothing);
             notifyListeners();
             break;
           }
@@ -126,16 +139,16 @@ mixin _StudioSlashMixin on _StudioCore {
       case '/rename':
         {
           if (args.isEmpty) {
-            _harness.addInfoMessage('用法: /rename <新标题>');
+            _harness.addInfoMessage(vmL10n.slashRenameUsage);
             notifyListeners();
             break;
           }
           final sid = currentSessionId;
           if (sid == null) {
-            _harness.addInfoMessage('当前没有活跃会话，无法重命名。');
+            _harness.addInfoMessage(vmL10n.slashRenameNoSession);
           } else {
             await renameSession(sid, args);
-            _harness.addInfoMessage('会话已重命名为 "$args"');
+            _harness.addInfoMessage(vmL10n.slashRenamed(args));
           }
           notifyListeners();
         }
@@ -145,25 +158,27 @@ mixin _StudioSlashMixin on _StudioCore {
           await refreshSessions();
           final list = sessions;
           if (list.isEmpty) {
-            _harness.addInfoMessage('暂无已保存的会话。');
+            _harness.addInfoMessage(vmL10n.slashSessionsEmpty);
           } else {
-            final buffer = StringBuffer('已保存的会话 (共 ${list.length} 个，按最近使用排序)：');
+            final buffer = StringBuffer(
+              vmL10n.slashSessionsHeader(list.length),
+            );
             final shown = list.take(12).toList();
             for (var i = 0; i < shown.length; i++) {
               final s = shown[i];
-              final marker = s.isActive ? ' [当前]' : '';
+              final marker = s.isActive ? vmL10n.slashSessionCurrentMarker : '';
               final time = s.lastModified
                   .toIso8601String()
                   .replaceAll('T', ' ')
                   .split('.')
                   .first;
               buffer.writeln(
-                '\n${i + 1}. ${s.title}$marker (${s.messageCount} 条消息, $time)',
+                '\n${i + 1}. ${s.title}$marker (${vmL10n.slashSessionMsgCount(s.messageCount)}, $time)',
               );
             }
             if (list.length > shown.length) {
               buffer.writeln(
-                '\n…… 其余 ${list.length - shown.length} 个会话请打开会话管理视图查看。',
+                '\n${vmL10n.slashSessionsMore(list.length - shown.length)}',
               );
             }
             _harness.addInfoMessage(buffer.toString().trim());
@@ -184,23 +199,24 @@ mixin _StudioSlashMixin on _StudioCore {
         if (_accountInfo != null) {
           final info = _accountInfo!;
           final quotaLine = info.v5QuotaExhausted
-              ? '\n• V5 体力配额已透支，生图将按正常价消耗 Anlas'
+              ? '\n${vmL10n.slashAccountQuotaExhausted}'
               : '';
           _harness.addInfoMessage(
-            '''NovelAI 账号状态：
-• 订阅等级: ${info.tierName}
-• V5 专属体力池: ${info.staminaPercent.toStringAsFixed(1)}%
-• 可用 Anlas: ${info.totalAnlas} (赠送: ${info.fixedAnlas}, 购买: ${info.purchasedAnlas})$quotaLine''',
+            '${vmL10n.slashAccountTitle}\n'
+            '${vmL10n.slashAccountTier(info.tierName)}\n'
+            '${vmL10n.slashAccountStamina(info.staminaPercent.toStringAsFixed(1))}\n'
+            '${vmL10n.slashAccountAnlas(info.totalAnlas, info.fixedAnlas, info.purchasedAnlas)}'
+            '$quotaLine',
           );
         } else {
-          _harness.addInfoMessage('查询账号信息失败，请检查 API Key 设置。');
+          _harness.addInfoMessage(vmL10n.slashAccountFailed);
         }
         notifyListeners();
         break;
 
       case '/tag':
         if (args.isEmpty) {
-          _harness.addInfoMessage('用法: /tag <关键词> (例如: /tag silver)');
+          _harness.addInfoMessage(vmL10n.slashTagUsage);
           notifyListeners();
           return;
         }
@@ -209,26 +225,26 @@ mixin _StudioSlashMixin on _StudioCore {
           query: args,
         );
         if (tags.isEmpty) {
-          _harness.addInfoMessage('未找到与 "$args" 相关的标签。');
+          _harness.addInfoMessage(vmL10n.slashTagNotFound(args));
         } else {
           final listStr = tags
               .take(8)
               .map((t) => '• ${t.tag} (${t.count})')
               .join('\n');
-          _harness.addInfoMessage('标签联想建议 ("$args"):\n$listStr');
+          _harness.addInfoMessage(vmL10n.slashTagSuggestions(args, listStr));
         }
         notifyListeners();
         break;
 
       case '/upscale':
         await upscaleSelected();
-        _harness.addInfoMessage('已执行超分放大');
+        _harness.addInfoMessage(vmL10n.slashUpscaleDone);
         notifyListeners();
         break;
 
       case '/nai':
         if (args.isEmpty) {
-          _harness.addInfoMessage('用法: /nai <提示词>');
+          _harness.addInfoMessage(vmL10n.slashNaiUsage);
           notifyListeners();
           return;
         }
@@ -250,14 +266,19 @@ mixin _StudioSlashMixin on _StudioCore {
         // 生图失败时不误报完成 (此时 _selectedImage 仍是旧图)
         if (_errorMessage == null && _selectedImage != null) {
           _harness.addInfoMessage(
-            '插画已生成: ${_selectedImage!.localFilePath ?? '完成'}\n尺寸: ${parsed.width}x${parsed.height}, 种子: ${_selectedImage!.seed}',
+            vmL10n.slashNaiDone(
+              _selectedImage!.localFilePath ?? vmL10n.slashNaiDoneFallback,
+              parsed.width,
+              parsed.height,
+              _selectedImage!.seed,
+            ),
           );
         }
         notifyListeners();
         break;
 
       default:
-        _harness.addInfoMessage('未知指令 "$cmd"，输入 /help 查看可用指令。');
+        _harness.addInfoMessage(vmL10n.slashUnknown(cmd));
         notifyListeners();
     }
   }

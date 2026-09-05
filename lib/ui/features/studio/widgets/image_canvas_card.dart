@@ -2,6 +2,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/services/image_metadata_service.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_drop_target_overlay.dart';
 import '../view_models/studio_view_model.dart';
@@ -71,7 +72,10 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
         fileName: fileName,
       );
       if (mounted) {
-        showCanvasSnackBar(context, '已导入参考图: $fileName');
+        showCanvasSnackBar(
+          context,
+          context.l10n.canvasImportedReference(fileName),
+        );
       }
     }
   }
@@ -184,7 +188,7 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
               // 2. 外部拖入高亮指示层
               AppDropTargetOverlay(
                 isDragging: _isDraggingOver,
-                title: '松开鼠标导入图片 (自动识别生成元数据)',
+                title: context.l10n.canvasDropTargetTitle,
               ),
 
               // 3. 角色位置编辑模式下的悬浮浮动操作层

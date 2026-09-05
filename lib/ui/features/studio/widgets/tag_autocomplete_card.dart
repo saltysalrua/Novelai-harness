@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/tag_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import 'tag_suggestion_tile.dart';
@@ -113,6 +114,7 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -237,7 +239,7 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                                         ),
                                         const SizedBox(width: 3),
                                         Text(
-                                          '词库',
+                                          l10n.tabLibrary,
                                           style: TextStyle(
                                             fontSize: 10,
                                             fontWeight: FontWeight.w600,
@@ -253,7 +255,7 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                                   ),
                                 if (item.matchedAlias != null)
                                   Text(
-                                    '别名: ${item.matchedAlias}',
+                                    l10n.tagAcAlias(item.matchedAlias!),
                                     style: TextStyle(
                                       fontSize: 10,
                                       color: colors.textMuted,

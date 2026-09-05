@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
@@ -234,6 +236,7 @@ class _PromptsPageState extends State<PromptsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final viewModel = widget.viewModel;
 
     // 同步设置项：标签分类着色开关 (设置弹窗保存后 viewModel 通知重建)
@@ -250,9 +253,15 @@ class _PromptsPageState extends State<PromptsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const PageHeader(title: '提示词管理', subtitle: '正向提示词、负面排除词与全局固定词缀'),
+        PageHeader(
+          title: l10n.promptsPageTitle,
+          subtitle: l10n.promptsPageSubtitle,
+        ),
         const SizedBox(height: 16),
-        if (_isTabbedMode) _buildTabbedSection() else _buildStackedSection(),
+        if (_isTabbedMode)
+          _buildTabbedSection(l10n)
+        else
+          _buildStackedSection(l10n),
 
         // 提示词扩展甲板：多角色提示词 ↔ 固定词缀左右滑动切换
         const SizedBox(height: 18),
@@ -266,7 +275,7 @@ class _PromptsPageState extends State<PromptsPage> {
   }
 
   /// 垂直堆叠模式：Prompt 卡与 Undesired Content 卡上下排列
-  Widget _buildStackedSection() {
+  Widget _buildStackedSection(AppLocalizations l10n) {
     final viewModel = widget.viewModel;
     final params = viewModel.params;
 
@@ -290,8 +299,7 @@ class _PromptsPageState extends State<PromptsPage> {
         PromptEditorCard(
           controller: _promptController,
           onChanged: _updatePrompt,
-          hintText:
-              '输入核心提示词或自然语言散文描述，如: 1girl, solo, silver hair, masterpiece...',
+          hintText: l10n.promptsCorePromptHint,
           minLines: 4,
           maxLines: 10,
           initialHeight: viewModel.promptHeightStacked,
@@ -327,7 +335,7 @@ class _PromptsPageState extends State<PromptsPage> {
                 const SizedBox(width: 6),
                 AppIconButton(
                   icon: Icons.splitscreen_rounded,
-                  tooltip: '切换为标签页模式',
+                  tooltip: l10n.promptsSwitchToTabbedMode,
                   size: 26,
                   iconSize: 15,
                   radius: 6,
@@ -348,7 +356,7 @@ class _PromptsPageState extends State<PromptsPage> {
         PromptEditorCard(
           controller: _negativeController,
           onChanged: _updateNegative,
-          hintText: '输入自定义排除词，如: bad hands, blurry, extra limbs...',
+          hintText: l10n.promptsCustomUndesiredHint,
           minLines: 3,
           maxLines: 8,
           initialHeight: viewModel.negativePromptHeightStacked,
@@ -368,7 +376,7 @@ class _PromptsPageState extends State<PromptsPage> {
   }
 
   /// 标签页模式：Prompt 与 Undesired Content 胶囊切换，单卡高空间输入
-  Widget _buildTabbedSection() {
+  Widget _buildTabbedSection(AppLocalizations l10n) {
     final viewModel = widget.viewModel;
     final params = viewModel.params;
     final activeTab = _activeTab == 1 ? 1 : 0;
@@ -414,7 +422,7 @@ class _PromptsPageState extends State<PromptsPage> {
                 const SizedBox(width: 4),
                 AppIconButton(
                   icon: Icons.view_agenda_outlined,
-                  tooltip: '切换为垂直并排模式',
+                  tooltip: l10n.promptsSwitchToStackedMode,
                   size: 26,
                   iconSize: 15,
                   radius: 6,
@@ -433,7 +441,7 @@ class _PromptsPageState extends State<PromptsPage> {
           PromptEditorCard(
             controller: _promptController,
             onChanged: _updatePrompt,
-            hintText: '输入核心提示词或自然语言散文描述，如: 1girl, solo, silver hair...',
+            hintText: l10n.promptsTabbedPromptHint,
             minLines: 8,
             maxLines: 16,
             initialHeight: viewModel.promptHeightTabbed,
@@ -453,7 +461,7 @@ class _PromptsPageState extends State<PromptsPage> {
           PromptEditorCard(
             controller: _negativeController,
             onChanged: _updateNegative,
-            hintText: '排除不需要的特征与缺陷，如: lowres, bad anatomy, bad hands...',
+            hintText: l10n.promptsTabbedUndesiredHint,
             minLines: 8,
             maxLines: 16,
             initialHeight: viewModel.negativePromptHeightTabbed,

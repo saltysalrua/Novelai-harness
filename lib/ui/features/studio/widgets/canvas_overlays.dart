@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_colors_extension.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
@@ -43,6 +44,7 @@ class CanvasParamBadges extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -67,10 +69,13 @@ class CanvasParamBadges extends StatelessWidget {
         // 种子徽章 (点击可直接复制，非导入参考图时展示)
         if (!image.isImportedReference) ...[
           Tooltip(
-            message: '点击复制随机种子',
+            message: l10n.canvasCopySeedTooltip,
             child: InkWell(
-              onTap: () =>
-                  copyTextWithSnackBar(context, '${image.seed}', '已复制种子到剪贴板'),
+              onTap: () => copyTextWithSnackBar(
+                context,
+                '${image.seed}',
+                l10n.canvasCopiedSeed,
+              ),
               borderRadius: BorderRadius.circular(AppRadius.md),
               child: Container(
                 height: 38,
@@ -104,7 +109,7 @@ class CanvasParamBadges extends StatelessWidget {
         // 批注快捷按键
         if (viewModel != null)
           Tooltip(
-            message: '进入画板批注模式 (圈选/锚点/整图)',
+            message: l10n.canvasEnterAnnotationTooltip,
             child: InkWell(
               onTap: () =>
                   viewModel!.setAnnotatingImage(true, targetImageId: image.id),
@@ -127,8 +132,10 @@ class CanvasParamBadges extends StatelessWidget {
                     const SizedBox(width: 5),
                     Text(
                       image.annotations.isEmpty
-                          ? '批注'
-                          : '批注 (${image.annotations.length})',
+                          ? l10n.canvasAnnotate
+                          : l10n.canvasAnnotateWithCount(
+                              image.annotations.length,
+                            ),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -154,8 +161,9 @@ class CanvasSaveButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Tooltip(
-      message: '保存当前图片到本地存储目录 (按导出设置处理元数据与水印)',
+      message: l10n.canvasSaveButtonTooltip,
       child: InkWell(
         onTap: () async {
           final ok = await viewModel.saveCurrentImageToDisk();
@@ -163,8 +171,10 @@ class CanvasSaveButton extends StatelessWidget {
           showCanvasSnackBar(
             context,
             ok
-                ? '已保存: ${viewModel.selectedImage?.localFilePath ?? ''}'
-                : (viewModel.errorMessage ?? '保存失败，请检查存储目录设置'),
+                ? l10n.canvasSavedImage(
+                    viewModel.selectedImage?.localFilePath ?? '',
+                  )
+                : (viewModel.errorMessage ?? l10n.canvasSaveFailed),
           );
         },
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -178,7 +188,7 @@ class CanvasSaveButton extends StatelessWidget {
               Icon(Icons.save_rounded, size: 17, color: colors.primary),
               const SizedBox(width: 6),
               Text(
-                '保存图片',
+                l10n.canvasSaveImage,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -247,7 +257,7 @@ class UnseenLatestBanner extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '已生成新图片 · 点击查看最新',
+                context.l10n.canvasUnseenLatestBanner,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -284,7 +294,7 @@ class HistoryToggleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: '展开历史记录',
+      message: context.l10n.canvasOpenHistoryTooltip,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -309,10 +319,11 @@ class CanvasEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const AppEmptyState(
+    final l10n = context.l10n;
+    return AppEmptyState(
       icon: Icons.palette_outlined,
-      title: '画板暂无图像',
-      description: '可在左侧配置参数后生成图片，历史记录将以垂直图像流展示',
+      title: l10n.canvasEmptyTitle,
+      description: l10n.canvasEmptyDescription,
       iconSize: 54,
     );
   }

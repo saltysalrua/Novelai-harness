@@ -6,6 +6,7 @@ import 'package:pasteboard/pasteboard.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
@@ -62,8 +63,9 @@ Future<void> copyImageToClipboard(
     success = false;
   }
   if (!context.mounted) return;
-  final label = raw ? '已复制原图像到剪贴板' : '已复制图像到剪贴板';
-  showCanvasSnackBar(context, success ? label : '复制图像失败');
+  final l10n = context.l10n;
+  final label = raw ? l10n.canvasCopiedRawImage : l10n.canvasCopiedImage;
+  showCanvasSnackBar(context, success ? label : l10n.canvasCopyImageFailed);
 }
 
 /// 弹出文件选择器导入外部参考图到大画布 (画板、批注画布、批注历史条共用)
@@ -88,7 +90,10 @@ Future<void> pickAndImportReferenceImage(
     dropPosition: dropPosition,
   );
   if (context.mounted) {
-    showCanvasSnackBar(context, '已导入参考图: ${file.name}');
+    showCanvasSnackBar(
+      context,
+      context.l10n.canvasImportedReference(file.name),
+    );
   }
 }
 
@@ -105,6 +110,7 @@ void showImageContextMenu(
 
   final isGenerating = viewModel.isGenerating;
   final showCopyRaw = viewModel.stripMetadata || viewModel.enableWatermark;
+  final l10n = context.l10n;
 
   showStudioContextMenu(
     context,
@@ -113,81 +119,81 @@ void showImageContextMenu(
       ContextMenuItem(
         icon: Icons.edit_note_rounded,
         label: image.annotations.isEmpty
-            ? '添加批注'
-            : '查看批注 (${image.annotations.length})',
+            ? l10n.canvasActionAddAnnotation
+            : l10n.canvasActionViewAnnotation(image.annotations.length),
         onTap: () =>
             viewModel.setAnnotatingImage(true, targetImageId: image.id),
       ),
       ContextMenuItem(
         icon: Icons.auto_fix_high_outlined,
-        label: '发送到修复',
+        label: l10n.canvasActionSendToInpaint,
         onTap: () => viewModel.sendImageToInpaint(image),
       ),
       const ContextMenuDivider(),
       ContextMenuItem(
         icon: Icons.zoom_in_rounded,
-        label: '超分放大',
+        label: l10n.canvasActionUpscale,
         onTap: isGenerating ? null : () => viewModel.upscaleSelected(),
       ),
       const ContextMenuDivider(),
       ContextMenuItem(
         icon: Icons.content_copy_rounded,
-        label: '复制图像',
+        label: l10n.canvasActionCopyImage,
         onTap: () =>
             copyImageToClipboard(context, viewModel, image, raw: false),
       ),
       if (showCopyRaw)
         ContextMenuItem(
           icon: Icons.image_outlined,
-          label: '复制原图像',
+          label: l10n.canvasActionCopyRawImage,
           onTap: () =>
               copyImageToClipboard(context, viewModel, image, raw: true),
         ),
       ContextMenuItem(
         icon: Icons.copy_rounded,
-        label: '复制提示词',
+        label: l10n.canvasActionCopyPrompt,
         onTap: () => copyTextWithSnackBar(
           context,
           image.params.finalPrompt,
-          '已复制提示词到剪贴板',
+          l10n.canvasCopiedPrompt,
         ),
       ),
       ContextMenuItem(
         icon: Icons.sync_rounded,
-        label: '复用参数',
+        label: l10n.canvasActionReuseParams,
         onTap: () {
           viewModel.updateParams(image.params);
-          showCanvasSnackBar(context, '已应用该图参数至左侧面板');
+          showCanvasSnackBar(context, l10n.canvasAppliedParams);
         },
       ),
       const ContextMenuDivider(),
       ContextMenuItem(
         icon: Icons.fullscreen_rounded,
-        label: '查看大图',
+        label: l10n.canvasActionViewLightbox,
         onTap: () => showImageLightbox(context, image),
       ),
       const ContextMenuDivider(),
       ContextMenuItem(
         icon: Icons.delete_outline_rounded,
-        label: '从历史记录删除',
+        label: l10n.canvasActionDeleteFromHistory,
         isDestructive: true,
         onTap: () async {
           await viewModel.deleteImageFromHistory(image.id);
           if (context.mounted) {
-            showCanvasSnackBar(context, '已从历史记录删除图片');
+            showCanvasSnackBar(context, l10n.canvasDeletedFromHistory);
           }
         },
       ),
       ContextMenuItem(
         icon: Icons.delete_sweep_outlined,
-        label: '清空历史记录',
+        label: l10n.canvasActionClearHistory,
         isDestructive: true,
         onTap: () async {
           final ok = await _confirmClearHistory(context, viewModel);
           if (ok != true) return;
           await viewModel.clearImageHistory();
           if (context.mounted) {
-            showCanvasSnackBar(context, '已清空历史记录');
+            showCanvasSnackBar(context, l10n.canvasClearedHistory);
           }
         },
       ),
@@ -200,14 +206,15 @@ Future<bool?> _confirmClearHistory(
   BuildContext context,
   StudioViewModel viewModel,
 ) {
+  final l10n = context.l10n;
   return showAppConfirmDialog(
     context,
-    title: '清空历史记录',
+    title: l10n.canvasActionClearHistory,
     message: viewModel.autoSaveImages
-        ? '确定要清空画板历史中的 ${viewModel.gallery.length} 张图片吗？仅清空界面记录，本地已保存的图片文件会保留，此操作无法撤销。'
-        : '确定要清空历史中的 ${viewModel.gallery.length} 张图片吗？缓存中未保存的图片会被删除，已手动保存到存储目录的文件会保留，此操作无法撤销。',
-    confirmLabel: '清空',
-    cancelLabel: '取消',
+        ? l10n.canvasClearHistoryAutoSaveMessage(viewModel.gallery.length)
+        : l10n.canvasClearHistoryManualSaveMessage(viewModel.gallery.length),
+    confirmLabel: l10n.clear,
+    cancelLabel: l10n.cancel,
     isDestructive: true,
   );
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -29,6 +30,7 @@ class ModelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
 
     return AppCard(
       isSelected: isSelected,
@@ -76,7 +78,7 @@ class ModelCard extends StatelessWidget {
                 icon: Icons.settings_outlined,
                 size: 28,
                 iconSize: 15,
-                tooltip: '模型设置',
+                tooltip: l10n.settingsModelSettings,
                 onPressed: () => onEdit(model),
               ),
               if (onDelete != null)
@@ -84,7 +86,7 @@ class ModelCard extends StatelessWidget {
                   icon: Icons.close_rounded,
                   size: 28,
                   iconSize: 15,
-                  tooltip: '删除模型',
+                  tooltip: l10n.settingsDeleteModel,
                   onPressed: onDelete,
                 ),
             ],
@@ -111,29 +113,31 @@ class ModelCard extends StatelessWidget {
               runSpacing: 4,
               children: [
                 if (model.supportsThinking)
-                  const AppBadge(
+                  AppBadge(
                     icon: Icons.psychology_outlined,
-                    label: '思考',
+                    label: l10n.settingsModelBadgeThinking,
                     variant: AppBadgeVariant.primary,
                     fontSize: 10,
                   ),
                 if (model.isMultimodal)
-                  const AppBadge(
+                  AppBadge(
                     icon: Icons.visibility_outlined,
-                    label: '多模态',
+                    label: l10n.settingsModelBadgeMultimodal,
                     variant: AppBadgeVariant.success,
                     fontSize: 10,
                   ),
                 if (model.imageOutput)
-                  const AppBadge(
+                  AppBadge(
                     icon: Icons.auto_awesome,
-                    label: '绘图',
+                    label: l10n.settingsModelBadgeImageOutput,
                     variant: AppBadgeVariant.warning,
                     fontSize: 10,
                   ),
                 AppBadge(
                   icon: Icons.straighten_outlined,
-                  label: '${_formatTokens(model.contextWindow)} 上下文',
+                  label: l10n.settingsModelBadgeContext(
+                    _formatTokens(model.contextWindow),
+                  ),
                   variant: AppBadgeVariant.neutral,
                   fontSize: 10,
                 ),

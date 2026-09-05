@@ -6,6 +6,27 @@ import 'dart:typed_data';
 import 'image_annotation.dart';
 import 'nai_generation_params.dart';
 
+/// 历史图片来源结构化标记 (纯枚举，展示文案由 UI 层本地化映射)。
+///
+/// 用于历史缩略图角标与导出角标等 UI 标识位，取代旧 historyBadgeLabel
+/// 直接携带中文字符串的做法 (阶段 4C 数据层文案解耦)。
+enum NaiImageProvenance {
+  /// 未保存的缓存图片
+  unsaved,
+
+  /// 官方超分放大产物
+  upscaled,
+
+  /// 局部修复 / 焦点特写产物
+  inpainted,
+
+  /// AI 整图编辑产物
+  aiEdited,
+
+  /// 外部导入的参考图
+  imported,
+}
+
 /// 生成结果单张图片数据与元信息 (含批注与参考图标记)
 class NaiGeneratedImage {
   final String id;
@@ -52,13 +73,14 @@ class NaiGeneratedImage {
     this.isUnsaved = false,
   });
 
-  /// 历史缩略图角标文案：未保存 > 超分图 > 修复图 > AI 编辑图 > 导入图 优先级，普通生成图返回 null
-  String? get historyBadgeLabel {
-    if (isUnsaved) return '未保存';
-    if (isUpscaled) return '放大';
-    if (isInpainted) return '修复';
-    if (isAiEdited) return 'AI 编辑';
-    if (isImportedReference) return '导入';
+  /// 历史缩略图角标来源：未保存 > 超分图 > 修复图 > AI 编辑图 > 导入图 优先级，普通生成图返回 null。
+  /// 纯结构化标记，角标文案由 UI 层本地化 (model_label_l10n.dart)。
+  NaiImageProvenance? get provenance {
+    if (isUnsaved) return NaiImageProvenance.unsaved;
+    if (isUpscaled) return NaiImageProvenance.upscaled;
+    if (isInpainted) return NaiImageProvenance.inpainted;
+    if (isAiEdited) return NaiImageProvenance.aiEdited;
+    if (isImportedReference) return NaiImageProvenance.imported;
     return null;
   }
 

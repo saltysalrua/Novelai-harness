@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../core/context_l10n.dart';
+import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -87,14 +89,15 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   }
 
   Future<void> _handleExport() async {
+    final l10n = context.l10n;
     try {
       final jsonStr = await widget.viewModel.exportPromptLibraryJson();
       await Clipboard.setData(ClipboardData(text: jsonStr));
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已复制词库 JSON 数据到剪贴板，可粘贴备份或分享'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(l10n.libraryExportCopied),
+          duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -102,7 +105,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('导出失败: $e'),
+          content: Text(l10n.libraryExportFailed(e.toString())),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -110,11 +113,12 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   }
 
   Future<void> _handleImport() async {
+    final l10n = context.l10n;
     final controller = TextEditingController();
     final result = await AppDialogScaffold.show<bool>(
       context: context,
       builder: (ctx) => AppDialogScaffold(
-        title: '导入词库 JSON',
+        title: l10n.libraryImportDialogTitle,
         width: 480,
         body: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -123,7 +127,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '请粘贴导出的词库 JSON 文本：',
+                l10n.libraryImportPrompt,
                 style: TextStyle(fontSize: 12, color: ctx.colors.textSecondary),
               ),
               const SizedBox(height: 8),
@@ -166,11 +170,11 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('导入'),
+            child: Text(l10n.import),
           ),
         ],
       ),
@@ -184,7 +188,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('成功导入 $count 个新词组合条目'),
+            content: Text(l10n.libraryImportSuccess(count)),
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
@@ -193,7 +197,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('导入失败，请检查 JSON 格式: $e'),
+            content: Text(l10n.libraryImportFailed(e.toString())),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -206,6 +210,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     bool replace = false,
     bool asCharacter = false,
   }) {
+    final l10n = context.l10n;
     widget.viewModel.applyPromptCombo(
       combo,
       replace: replace,
@@ -214,13 +219,13 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
 
     String message;
     if (asCharacter) {
-      message = '已添加角色卡片: ${combo.title}';
+      message = l10n.libraryApplyAsCharacter(combo.title);
     } else if (replace) {
-      message = '已替换工作台提示词: ${combo.title}';
+      message = l10n.libraryApplyReplace(combo.title);
     } else {
       message = combo.isCharacter && combo.negativePrompt.isNotEmpty
-          ? '已追加正负提示词: ${combo.title}'
-          : '已追加主提示词: ${combo.title}';
+          ? l10n.libraryApplyAppendBoth(combo.title)
+          : l10n.libraryApplyAppendPrompt(combo.title);
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -229,7 +234,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         duration: const Duration(milliseconds: 1200),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
-          label: '返回工作台',
+          label: l10n.libraryReturnToWorkbench,
           textColor: Colors.white,
           onPressed: () {
             widget.onClose?.call();
@@ -240,12 +245,13 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   }
 
   Future<void> _confirmDelete(PromptComboEntry combo) async {
+    final l10n = context.l10n;
     final ok = await showAppConfirmDialog(
       context,
-      title: '删除词组合',
-      message: '确定要删除词组合「${combo.title}」吗？此操作无法撤销。',
-      confirmLabel: '删除',
-      cancelLabel: '取消',
+      title: l10n.libraryDeleteDialogTitle,
+      message: l10n.libraryDeleteDialogMessage(combo.title),
+      confirmLabel: l10n.delete,
+      cancelLabel: l10n.cancel,
       isDestructive: true,
     );
 
@@ -254,7 +260,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('已删除词组合: ${combo.title}'),
+          content: Text(l10n.libraryDeletedCombo(combo.title)),
           duration: const Duration(seconds: 1),
           behavior: SnackBarBehavior.floating,
         ),
@@ -316,6 +322,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
 
   Widget _buildTopBar(BuildContext context, int totalCount) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Container(
       color: colors.cardBackground,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -329,7 +336,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
           ),
           const SizedBox(width: 8),
           Text(
-            '词库',
+            l10n.tabLibrary,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -352,7 +359,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               constraints: const BoxConstraints(maxWidth: 360),
               child: AppSearchField(
                 controller: _searchController,
-                hintText: '搜索词组合名称、提示词、标签...',
+                hintText: l10n.librarySearchHint,
                 debounceDuration: const Duration(milliseconds: 150),
                 onChanged: (val) {
                   final q = val.trim();
@@ -371,7 +378,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
 
           // 导入/导出
           PopupMenuButton<String>(
-            tooltip: '数据管理',
+            tooltip: l10n.libraryDataManagement,
             onSelected: (val) {
               if (val == 'export') _handleExport();
               if (val == 'import') _handleImport();
@@ -387,7 +394,10 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                       color: colors.textPrimary,
                     ),
                     const SizedBox(width: 8),
-                    const Text('导出词库 (JSON)', style: TextStyle(fontSize: 12)),
+                    Text(
+                      l10n.libraryExportJson,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ],
                 ),
               ),
@@ -401,7 +411,10 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                       color: colors.textPrimary,
                     ),
                     const SizedBox(width: 8),
-                    const Text('导入词库 (JSON)', style: TextStyle(fontSize: 12)),
+                    Text(
+                      l10n.libraryImportJson,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ],
                 ),
               ),
@@ -419,7 +432,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                   Icon(Icons.more_horiz, size: 16, color: colors.textSecondary),
                   const SizedBox(width: 4),
                   Text(
-                    '管理',
+                    l10n.libraryManageButton,
                     style: TextStyle(fontSize: 12, color: colors.textPrimary),
                   ),
                 ],
@@ -435,9 +448,9 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               PromptComboEditDialog.show(context, viewModel: widget.viewModel);
             },
             icon: const Icon(Icons.add, size: 16),
-            label: const Text(
-              '新建词组合',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            label: Text(
+              l10n.libraryNewCombo,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: colors.primary,
@@ -473,6 +486,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     List<PromptComboEntry> allEntries,
   ) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Container(
       color: colors.cardBackground,
       child: Column(
@@ -488,18 +502,22 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                   color: colors.textSecondary,
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  '标签分类',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textSecondary,
-                    letterSpacing: 0.5,
+                Expanded(
+                  child: Text(
+                    l10n.libraryCategorySidebarTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textSecondary,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 6),
                 Text(
-                  '${allEntries.length} 条',
+                  l10n.libraryEntriesCount(allEntries.length),
                   style: TextStyle(fontSize: 11, color: colors.textSecondary),
                 ),
               ],
@@ -520,7 +538,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 2),
                   child: AppNavTile(
-                    title: cat,
+                    title: comboCategoryLabelOf(l10n, cat),
                     icon: icon,
                     badgeCount: count,
                     isSelected: isSelected,
@@ -580,13 +598,18 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   }
 
   Widget _buildEmptyState(BuildContext context, bool isCompletelyEmpty) {
+    final l10n = context.l10n;
     return AppEmptyState(
       icon: Icons.collections_bookmark_outlined,
-      title: isCompletelyEmpty ? '词库暂无条目' : '没有匹配的词组合',
+      title: isCompletelyEmpty
+          ? l10n.libraryEmptyTitle
+          : l10n.libraryNoMatchingTitle,
       description: isCompletelyEmpty
-          ? '点击右上角「新建词组合」创建您的第一个专属提示词组合'
-          : '请尝试更换搜索词或分类筛选条件',
-      actionLabel: isCompletelyEmpty ? '新建词组合' : '重置筛选条件',
+          ? l10n.libraryEmptyDescription
+          : l10n.libraryNoMatchingDescription,
+      actionLabel: isCompletelyEmpty
+          ? l10n.libraryNewCombo
+          : l10n.libraryResetFilter,
       actionIcon: isCompletelyEmpty ? Icons.add : Icons.refresh,
       onActionPressed: () {
         if (isCompletelyEmpty) {

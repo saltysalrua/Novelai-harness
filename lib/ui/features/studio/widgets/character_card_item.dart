@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -84,7 +85,7 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
     final character = widget.character;
     final title = character.name.trim().isNotEmpty
         ? character.name.trim()
-        : '角色 ${widget.index + 1}';
+        : context.l10n.charPromptDefaultName(widget.index + 1);
     PromptComboEditDialog.show(
       context,
       viewModel: widget.viewModel,
@@ -148,6 +149,7 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     // 同步设置项：标签分类着色开关 (设置弹窗保存后 viewModel 通知重建)
     final showCategoryColors = widget.viewModel.config.showTagCategoryColors;
     _promptController.setHighlightOptions(categoryColors: showCategoryColors);
@@ -224,7 +226,7 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
-                            hintText: '角色名称 (可选)',
+                            hintText: l10n.charPromptNameHint,
                             hintStyle: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.normal,
@@ -242,7 +244,7 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                       const SizedBox(width: 4),
                       AppIconButton(
                         icon: Icons.bookmark_add_outlined,
-                        tooltip: '保存角色到词库',
+                        tooltip: l10n.charPromptSaveToLibraryTooltip,
                         variant: AppIconButtonVariant.ghost,
                         size: 26,
                         iconSize: 15,
@@ -252,7 +254,7 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                       const SizedBox(width: 2),
                       AppIconButton(
                         icon: Icons.close_rounded,
-                        tooltip: '删除该角色',
+                        tooltip: l10n.charPromptDeleteTooltip,
                         variant: AppIconButtonVariant.ghost,
                         size: 26,
                         iconSize: 15,
@@ -274,7 +276,9 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                         icon: character.enabled
                             ? Icons.visibility_rounded
                             : Icons.visibility_off_rounded,
-                        label: character.enabled ? '启用' : '停用',
+                        label: character.enabled
+                            ? l10n.charPromptEnable
+                            : l10n.charPromptDisable,
                         onTap: () => _update(
                           character.copyWith(enabled: !character.enabled),
                         ),
@@ -302,13 +306,13 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
             ResizableTextField(
               controller: _promptController,
               onChanged: (value) => _update(character.copyWith(prompt: value)),
-              hintText: '角色正向提示词，如: 1girl, silver hair, twintails, smile...',
+              hintText: l10n.charPromptPromptHint,
               defaultHeight: _defaultPromptHeight,
               initialHeight: viewModel.characterPromptHeight,
               onHeightChanged: viewModel.updateCharacterPromptHeight,
               minHeight: 44,
               maxHeight: 400,
-              resizeTooltip: '拖动调整正向提示词高度 (双击重置)',
+              resizeTooltip: l10n.charPromptResizePromptTooltip,
               enableAutocomplete: viewModel.config.enableTagAutocomplete,
               showTranslation: viewModel.config.showTagTranslations,
               style: TextStyle(
@@ -329,13 +333,13 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
               controller: _negativeController,
               onChanged: (value) =>
                   _update(character.copyWith(negativePrompt: value)),
-              hintText: '角色负面提示词 (可选)，如: bad hands, blurry...',
+              hintText: l10n.charPromptNegativePromptHint,
               defaultHeight: _defaultNegativeHeight,
               initialHeight: viewModel.characterNegativePromptHeight,
               onHeightChanged: viewModel.updateCharacterNegativePromptHeight,
               minHeight: 36,
               maxHeight: 300,
-              resizeTooltip: '拖动调整负面提示词高度 (双击重置)',
+              resizeTooltip: l10n.charPromptResizeNegativeTooltip,
               enableAutocomplete: viewModel.config.enableTagAutocomplete,
               showTranslation: viewModel.config.showTagTranslations,
               style: TextStyle(
@@ -380,8 +384,9 @@ class _PositionPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Tooltip(
-      message: '在中间画板编辑角色位置',
+      message: l10n.charPromptEnterCanvasEditTooltip,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.pill),

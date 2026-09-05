@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -15,20 +16,24 @@ class GenerateDock extends StatelessWidget {
 
   const GenerateDock({super.key, required this.viewModel});
 
-  String _buildButtonLabel(int cost) {
+  String _buildButtonLabel(BuildContext context, int cost) {
+    final l10n = context.l10n;
     if (viewModel.isGenerating) {
       if (viewModel.liveTotalSteps > 0 && viewModel.liveCurrentStep > 0) {
-        return '终止生成 (${viewModel.liveCurrentStep}/${viewModel.liveTotalSteps})';
+        return l10n.dockAbortWithSteps(
+          viewModel.liveCurrentStep,
+          viewModel.liveTotalSteps,
+        );
       }
-      return '终止生成';
+      return l10n.abortGeneration;
     }
     if (cost > 0) {
-      return '生成图片 ($cost Anlas)';
+      return l10n.dockGenerateWithCost(cost);
     }
     if (cost < 0) {
-      return '生成图片 (需点数)';
+      return l10n.dockGenerateNeedPoints;
     }
-    return '生成图片';
+    return l10n.generateImage;
   }
 
   Color _buildButtonColor(BuildContext context, int cost) {
@@ -79,7 +84,7 @@ class GenerateDock extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '未获取账号信息 (请检查 API Key)',
+                    context.l10n.dockNoAccountInfo,
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -117,7 +122,7 @@ class GenerateDock extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    'V5 体力',
+                    context.l10n.v5Stamina,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -182,8 +187,12 @@ class GenerateDock extends StatelessWidget {
             label: isInpaintTab
                 ? Text(
                     isAiEditMode
-                        ? (isRepairing ? 'AI 编辑中...' : '开始 AI 编辑')
-                        : (isRepairing ? '修复中...' : '开始修复'),
+                        ? (isRepairing
+                              ? context.l10n.dockAiEditing
+                              : context.l10n.startAiEdit)
+                        : (isRepairing
+                              ? context.l10n.dockInpainting
+                              : context.l10n.startInpaint),
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -193,7 +202,7 @@ class GenerateDock extends StatelessWidget {
                     // 生成中的步数文案仅随实时进度控制器局部刷新
                     listenable: viewModel.liveProgressController,
                     builder: (context, _) => Text(
-                      _buildButtonLabel(estimatedCost),
+                      _buildButtonLabel(context, estimatedCost),
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -228,7 +237,7 @@ class _RefreshButton extends StatelessWidget {
               ),
             )
           : Icon(Icons.refresh, size: 17, color: colors.textSecondary),
-      tooltip: '刷新体力与点数',
+      tooltip: context.l10n.dockRefreshTooltip,
       visualDensity: VisualDensity.compact,
       padding: const EdgeInsets.all(3),
       constraints: const BoxConstraints(),

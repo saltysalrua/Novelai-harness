@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
@@ -25,6 +26,7 @@ class FixedAffixesCardContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final params = viewModel.params;
     final isEnabled = params.applyFixedPrompts;
 
@@ -38,12 +40,8 @@ class FixedAffixesCardContent extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _AffixFieldHeader(badge: 'PREFIX', title: '前置词 (放置于主提示词最前)'),
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: colors.borderSubtle,
-            ),
+            _AffixFieldHeader(badge: 'PREFIX', title: l10n.affixPrefixTitle),
+            Divider(height: 1, thickness: 1, color: colors.borderSubtle),
             ResizableTextField(
               controller: prefixController,
               onChanged: (val) =>
@@ -54,7 +52,7 @@ class FixedAffixesCardContent extends StatelessWidget {
               onHeightChanged: viewModel.updatePrefixPromptHeight,
               minHeight: 44,
               maxHeight: 400,
-              resizeTooltip: '拖动调整前置词高度 (双击重置)',
+              resizeTooltip: l10n.affixResizePrefixTooltip,
               enableAutocomplete: viewModel.config.enableTagAutocomplete,
               showTranslation: viewModel.config.showTagTranslations,
               style: TextStyle(
@@ -68,12 +66,8 @@ class FixedAffixesCardContent extends StatelessWidget {
                 color: colors.textMuted,
               ),
             ),
-            const _AffixFieldHeader(badge: 'SUFFIX', title: '后缀词 (放置于主提示词最后)'),
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: colors.borderSubtle,
-            ),
+            _AffixFieldHeader(badge: 'SUFFIX', title: l10n.affixSuffixTitle),
+            Divider(height: 1, thickness: 1, color: colors.borderSubtle),
             ResizableTextField(
               controller: suffixController,
               onChanged: (val) =>
@@ -84,7 +78,7 @@ class FixedAffixesCardContent extends StatelessWidget {
               onHeightChanged: viewModel.updateSuffixPromptHeight,
               minHeight: 38,
               maxHeight: 300,
-              resizeTooltip: '拖动调整后缀词高度 (双击重置)',
+              resizeTooltip: l10n.affixResizeSuffixTooltip,
               enableAutocomplete: viewModel.config.enableTagAutocomplete,
               showTranslation: viewModel.config.showTagTranslations,
               style: TextStyle(

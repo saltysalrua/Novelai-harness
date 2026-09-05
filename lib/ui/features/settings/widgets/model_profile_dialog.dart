@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 
@@ -111,7 +112,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
   void _save() {
     final id = _idController.text.trim();
     if (id.isEmpty) {
-      setState(() => _idError = '模型 ID 不能为空');
+      setState(() => _idError = context.l10n.settingsModelIdEmptyError);
       return;
     }
 
@@ -150,9 +151,10 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
 
     return AppDialogScaffold(
-      title: widget.isNew ? '添加模型' : '模型设置',
+      title: widget.isNew ? l10n.settingsAddModel : l10n.settingsModelSettings,
       width: 460,
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -160,23 +162,23 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildFieldRow(
-              label: '显示名称',
+              label: l10n.settingsModelDisplayName,
               child: _buildTextField(
                 controller: _nameController,
-                hint: '如 DeepSeek R1',
+                hint: l10n.settingsModelDisplayNameHint,
               ),
             ),
             _buildFieldRow(
-              label: '模型 ID',
+              label: l10n.settingsModelId,
               child: _buildTextField(
                 controller: _idController,
-                hint: '发送给 API 的模型标识',
+                hint: l10n.settingsModelIdHint,
                 errorText: _idError,
                 mono: true,
               ),
             ),
             _buildFieldRow(
-              label: '温度 (Temperature)',
+              label: l10n.settingsModelTemperature,
               child: SizedBox(
                 width: 190,
                 child: Row(
@@ -211,7 +213,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
               ),
             ),
             _buildFieldRow(
-              label: '深度思考 (Reasoning)',
+              label: l10n.settingsModelReasoning,
               child: Switch(
                 value: _reasoning,
                 activeThumbColor: colors.primary,
@@ -225,7 +227,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '思考等级',
+                      l10n.settingsModelThinkingEffort,
                       style: TextStyle(
                         fontSize: 12,
                         color: colors.textSecondary,
@@ -252,7 +254,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
                 ),
               ),
             _buildFieldRow(
-              label: '多模态 (图像输入)',
+              label: l10n.settingsModelMultimodal,
               child: Switch(
                 value: _multimodal,
                 activeThumbColor: colors.primary,
@@ -260,7 +262,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
               ),
             ),
             _buildFieldRow(
-              label: '图像输出 (绘图模型)',
+              label: l10n.settingsModelImageOutput,
               child: Switch(
                 value: _imageOutput,
                 activeThumbColor: colors.primary,
@@ -268,7 +270,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
               ),
             ),
             _buildFieldRow(
-              label: '上下文窗口 (tokens)',
+              label: l10n.settingsModelContextWindow,
               child: _buildTextField(
                 controller: _contextController,
                 hint: '128000',
@@ -278,7 +280,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
               ),
             ),
             _buildFieldRow(
-              label: '最大输出 (tokens)',
+              label: l10n.settingsModelMaxTokens,
               child: _buildTextField(
                 controller: _maxTokensController,
                 hint: '8192',
@@ -296,14 +298,14 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
             onPressed: () =>
                 Navigator.of(context).pop(const ModelProfileResult.deleted()),
             child: Text(
-              '删除模型',
+              l10n.settingsDeleteModel,
               style: TextStyle(color: colors.error, fontSize: 13),
             ),
           ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
-            '取消',
+            l10n.cancel,
             style: TextStyle(color: colors.textSecondary, fontSize: 13),
           ),
         ),
@@ -320,7 +322,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
           ),
           onPressed: _save,
           child: Text(
-            widget.isNew ? '添加' : '保存',
+            widget.isNew ? l10n.settingsAdd : l10n.save,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ),
@@ -330,6 +332,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
 
   Widget _buildLevelChip(ThinkingEffort level, bool selected) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return InkWell(
       onTap: () => _toggleLevel(level),
       borderRadius: BorderRadius.circular(6),
@@ -347,7 +350,12 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
           ),
         ),
         child: Text(
-          level.label,
+          switch (level) {
+            ThinkingEffort.off => l10n.chatThinkingEffortOff,
+            ThinkingEffort.low => l10n.chatThinkingEffortLow,
+            ThinkingEffort.medium => l10n.chatThinkingEffortMedium,
+            ThinkingEffort.high => l10n.chatThinkingEffortHigh,
+          },
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,

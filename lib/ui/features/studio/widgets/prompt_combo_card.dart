@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../core/context_l10n.dart';
+import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -39,7 +41,7 @@ class PromptComboCard extends StatelessWidget {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('已复制「${combo.title}」提示词到剪贴板'),
+        content: Text(context.l10n.libraryCardCopiedPrompt(combo.title)),
         duration: const Duration(milliseconds: 900),
         behavior: SnackBarBehavior.floating,
       ),
@@ -47,36 +49,41 @@ class PromptComboCard extends StatelessWidget {
   }
 
   void _showContextMenu(BuildContext context, Offset position) {
+    final l10n = context.l10n;
     showStudioContextMenu(
       context,
       position: position,
       actions: [
         ContextMenuItem(
           icon: Icons.add_outlined,
-          label: '追加到工作台提示词',
+          label: l10n.libraryMenuAppendToPrompt,
           onTap: () => onApply(false, false),
         ),
         ContextMenuItem(
           icon: Icons.swap_horiz_outlined,
-          label: '替换工作台提示词',
+          label: l10n.libraryMenuReplacePrompt,
           onTap: () => onApply(true, false),
         ),
         if (combo.isCharacter)
           ContextMenuItem(
             icon: Icons.person_add_alt_1_outlined,
-            label: '添加为多角色卡片',
+            label: l10n.libraryMenuAddAsCharacter,
             onTap: () => onApply(false, true),
           ),
         const ContextMenuDivider(),
         ContextMenuItem(
           icon: Icons.copy_outlined,
-          label: '复制提示词',
+          label: l10n.libraryMenuCopyPrompt,
           onTap: () => _copyToClipboard(context),
         ),
-        ContextMenuItem(icon: Icons.edit_outlined, label: '编辑', onTap: onEdit),
+        ContextMenuItem(
+          icon: Icons.edit_outlined,
+          label: l10n.libraryMenuEdit,
+          onTap: onEdit,
+        ),
         ContextMenuItem(
           icon: Icons.delete_outline,
-          label: '删除',
+          label: l10n.delete,
           onTap: onDelete,
         ),
       ],
@@ -122,7 +129,7 @@ class PromptComboCard extends StatelessWidget {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: _buildApplyOverlay(),
+                  child: _buildApplyOverlay(context),
                 ),
               ],
             ),
@@ -198,7 +205,8 @@ class PromptComboCard extends StatelessWidget {
   }
 
   /// 预览图底部半透明渐变应用条：点击即追加到工作台提示词
-  Widget _buildApplyOverlay() {
+  Widget _buildApplyOverlay(BuildContext context) {
+    final l10n = context.l10n;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -220,10 +228,10 @@ class PromptComboCard extends StatelessWidget {
               children: [
                 const Icon(Icons.bolt_outlined, size: 13, color: Colors.white),
                 const SizedBox(width: 5),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    '应用到工作台',
-                    style: TextStyle(
+                    l10n.libraryCardApply,
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -232,27 +240,27 @@ class PromptComboCard extends StatelessWidget {
                 ),
                 if (combo.isCharacter)
                   Tooltip(
-                    message: '添加为工作台多角色卡片',
+                    message: l10n.libraryCardAddAsCharacterTooltip,
                     child: InkWell(
                       onTap: () => onApply(false, true),
                       borderRadius: BorderRadius.circular(4),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
                           horizontal: 4,
                           vertical: 2,
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.person_add_alt_1_outlined,
                               size: 13,
                               color: Colors.white,
                             ),
-                            SizedBox(width: 3),
+                            const SizedBox(width: 3),
                             Text(
-                              '+ 角色',
-                              style: TextStyle(
+                              l10n.libraryCardAddCharacter,
+                              style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
@@ -273,6 +281,7 @@ class PromptComboCard extends StatelessWidget {
 
   Widget _buildBottomBar(BuildContext context, bool isChar) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       color: colors.elevatedBackground,
@@ -280,7 +289,7 @@ class PromptComboCard extends StatelessWidget {
         children: [
           // 醒目的左侧分类胶囊
           AppBadge(
-            label: combo.category,
+            label: comboCategoryLabelOf(l10n, combo.category),
             icon: isChar ? Icons.person_outline : Icons.label_outline,
             variant: isChar ? AppBadgeVariant.error : AppBadgeVariant.neutral,
             shape: AppBadgeShape.rounded,
@@ -293,7 +302,7 @@ class PromptComboCard extends StatelessWidget {
           // 复制按钮
           AppIconButton(
             icon: Icons.copy_outlined,
-            tooltip: '复制提示词',
+            tooltip: l10n.libraryMenuCopyPrompt,
             size: 32,
             iconSize: 17,
             iconColor: colors.textPrimary,
@@ -305,7 +314,7 @@ class PromptComboCard extends StatelessWidget {
           // 编辑按钮
           AppIconButton(
             icon: Icons.edit_outlined,
-            tooltip: '编辑',
+            tooltip: l10n.libraryMenuEdit,
             size: 32,
             iconSize: 17,
             iconColor: colors.primary,
@@ -317,7 +326,7 @@ class PromptComboCard extends StatelessWidget {
           // 删除按钮
           AppIconButton(
             icon: Icons.delete_outline,
-            tooltip: '删除',
+            tooltip: l10n.delete,
             size: 32,
             iconSize: 17,
             iconColor: colors.error,
@@ -332,6 +341,7 @@ class PromptComboCard extends StatelessWidget {
   /// 极简纯净占位图
   Widget _buildPlaceholderBanner(BuildContext context, bool isChar) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Container(
       color: colors.mutedBackground,
       child: Center(
@@ -345,7 +355,7 @@ class PromptComboCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '无预览图',
+              l10n.libraryCardNoPreview,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,

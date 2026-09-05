@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/inpaint_service.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -253,6 +254,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     // 画板自带 VM 响应 (不依赖外层 ListenableBuilder 重建链路)。
     // 全部状态读取必须在 ListenableBuilder 的 builder 内进行——
     // 闭包若捕获外层局部变量，VM 通知后重建时拿到的仍是旧值。
+    final l10n = context.l10n;
     return ListenableBuilder(
       listenable: widget.viewModel,
       builder: (context, _) {
@@ -263,7 +265,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
         if (image == null) {
           return Center(
             child: Text(
-              '生成或选择一张图片后即可开始局部修复',
+              l10n.inpaintOverlayEmptyHint,
               style: TextStyle(
                 fontSize: 13,
                 color: context.colors.textSecondary,
@@ -434,7 +436,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                               ),
                             ),
                             child: Text(
-                              '上下文外延 +${inpaint.contextPadding.round()}px',
+                              l10n.inpaintOverlayContextCrop(
+                                inpaint.contextPadding.round(),
+                              ),
                               style: const TextStyle(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
@@ -537,7 +541,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              '局部修复中...',
+                              l10n.inpaintOverlayInProgress,
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -773,6 +777,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     InpaintParams inpaint,
   ) {
     final colors = context.colors;
+    final l10n = context.l10n;
 
     // AI 整图编辑：整图交给外部绘图模型重绘，蒙版与选区工具无意义，
     // 工具坞降级为模式提示胶囊
@@ -786,7 +791,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
             Icon(Icons.auto_awesome, size: 13, color: colors.primary),
             const SizedBox(width: 5),
             Text(
-              'AI 整图编辑 · 整张图片重绘，无需框选区域',
+              l10n.inpaintOverlayAiEditHint,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -827,9 +832,21 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          toolChip(InpaintTool.rect, Icons.crop_free_rounded, '框选'),
-          toolChip(InpaintTool.brush, Icons.brush_rounded, '画笔'),
-          toolChip(InpaintTool.eraser, Icons.layers_clear_rounded, '橡皮'),
+          toolChip(
+            InpaintTool.rect,
+            Icons.crop_free_rounded,
+            l10n.inpaintToolRect,
+          ),
+          toolChip(
+            InpaintTool.brush,
+            Icons.brush_rounded,
+            l10n.inpaintToolBrush,
+          ),
+          toolChip(
+            InpaintTool.eraser,
+            Icons.layers_clear_rounded,
+            l10n.inpaintToolEraser,
+          ),
           const SizedBox(width: 4),
           if (showBrushSize) ...[
             _BrushSizeSlider(
@@ -840,7 +857,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
           ],
           AppToolChip(
             icon: Icons.delete_sweep_outlined,
-            label: '清除蒙版',
+            label: l10n.inpaintClearMask,
             variant: AppToolChipVariant.tinted,
             fontSize: 11,
             iconSize: 13,
@@ -850,7 +867,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
           ),
           const SizedBox(width: 4),
           AppBadge(
-            label: isFree ? 'Opus 免费' : '需消耗点数',
+            label: isFree ? l10n.opusFree : l10n.inpaintRequiresPoints,
             variant: isFree ? AppBadgeVariant.success : AppBadgeVariant.warning,
           ),
           // 执行修复统一由左侧生成坞的「开始修复」按钮触发，工具坞不再重复入口

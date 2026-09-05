@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/widgets/app_badge.dart';
 import 'package:novelai_harness/ui/core/widgets/app_collapsible_section.dart';
 import 'package:novelai_harness/ui/core/widgets/app_dropdown.dart';
@@ -107,6 +108,9 @@ void main() {
     testWidgets('InpaintPage 成功渲染模式切换、几何卡片与滑块', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: InpaintPage(viewModel: viewModel)),
         ),
       );
@@ -136,6 +140,9 @@ void main() {
     testWidgets('修复画板渲染工具坞；无选区时不再显示默认框', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SizedBox(
               width: 800,
@@ -176,6 +183,9 @@ void main() {
     testWidgets('框选工具：空白处拖拽新建选区，选区内拖拽移动选区', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SizedBox(
               width: 800,
@@ -224,6 +234,9 @@ void main() {
     testWidgets('框选工具：四角手柄拖拽缩放选区期间不更新 ViewModel，手势结束才提交', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SizedBox(
               width: 800,
@@ -269,6 +282,9 @@ void main() {
     testWidgets('画笔工具：自由绘制提交描边，橡皮可擦除', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SizedBox(
               width: 800,
@@ -318,6 +334,9 @@ void main() {
     testWidgets('画笔/橡皮单击即可盖章提交单点描边', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SizedBox(
               width: 800,
@@ -356,6 +375,9 @@ void main() {
     testWidgets('橡皮拖拽不改变外延裁剪框位置 (只做减法)', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SizedBox(
               width: 800,
@@ -395,6 +417,9 @@ void main() {
     testWidgets('四角手柄可拖拽缩放选区 (State 级起点基准)', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SizedBox(
               width: 800,
@@ -458,6 +483,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: InpaintPage(viewModel: viewModel)),
         ),
       );
@@ -486,6 +514,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: InpaintPage(viewModel: viewModel)),
         ),
       );

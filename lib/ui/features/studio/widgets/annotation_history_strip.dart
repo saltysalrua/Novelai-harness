@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -18,6 +19,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
     final gallery = viewModel.gallery;
     final selectedId = viewModel.selectedImage?.id;
     final colors = context.colors;
+    final l10n = context.l10n;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -48,7 +50,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
                         TextSpan(
                           children: [
                             TextSpan(
-                              text: 'History ',
+                              text: l10n.annotHistoryTitle,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -82,9 +84,9 @@ class AnnotationHistoryStrip extends StatelessWidget {
             // 2. 垂直历史缩略图流 (支持 Draggable 拖拽到左侧自由大画布)
             Expanded(
               child: gallery.isEmpty
-                  ? const AppEmptyState(
+                  ? AppEmptyState(
                       icon: Icons.photo_library_outlined,
-                      title: '无图片',
+                      title: l10n.annotHistoryEmpty,
                       isCompact: true,
                     )
                   : ListView.separated(
@@ -211,7 +213,10 @@ class AnnotationHistoryStrip extends StatelessWidget {
                           child: GestureDetector(
                             onTap: () {
                               viewModel.addImageNodeToBoard(item);
-                              showCanvasSnackBar(context, '已将历史图片添加为大画布参考图');
+                              showCanvasSnackBar(
+                                context,
+                                l10n.annotHistoryAddedAsReference,
+                              );
                             },
                             child: thumbnailWidget,
                           ),
@@ -229,7 +234,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: Tooltip(
-                  message: '导入本地图片为参考图',
+                  message: l10n.annotHistoryImportTooltip,
                   child: InkWell(
                     onTap: () =>
                         pickAndImportReferenceImage(context, viewModel),
@@ -251,7 +256,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '导入图片',
+                            l10n.annotHistoryImportImage,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,

@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart' show GestureBinding, PointerScrollEvent;
 import 'package:flutter/material.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../view_models/studio_view_model.dart';
@@ -107,7 +108,11 @@ CharacterChipDisplay resolveCharacterChipDisplay(
   }
 
   String label = character.name.trim();
-  if (label.isEmpty || RegExp(r'^角色 \d+$').hasMatch(label)) {
+  if (label.isEmpty ||
+      RegExp(
+        r'^(?:角色|Character)\s*\d+$',
+        caseSensitive: false,
+      ).hasMatch(label)) {
     if (tags.isNotEmpty) {
       label = tags.first;
       if (genderIcon != null && tags.length > 1) {
@@ -133,6 +138,7 @@ class CanvasPositionFloatingControls extends StatelessWidget {
 
   Widget _buildWatermarkFloatingControls(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Stack(
       children: [
         // 右下角：完成编辑微胶囊
@@ -161,14 +167,18 @@ class CanvasPositionFloatingControls extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.check_rounded, size: 16, color: Colors.white),
-                    SizedBox(width: 6),
+                    const Icon(
+                      Icons.check_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
                     Text(
-                      '完成编辑',
-                      style: TextStyle(
+                      l10n.posControlsDoneEditing,
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
@@ -187,6 +197,7 @@ class CanvasPositionFloatingControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     if (viewModel.isEditingWatermarkPosition) {
       return _buildWatermarkFloatingControls(context);
     }
@@ -260,14 +271,18 @@ class CanvasPositionFloatingControls extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.check_rounded, size: 16, color: Colors.white),
-                    SizedBox(width: 6),
+                    const Icon(
+                      Icons.check_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
                     Text(
-                      '完成编辑',
-                      style: TextStyle(
+                      l10n.posControlsDoneEditing,
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,

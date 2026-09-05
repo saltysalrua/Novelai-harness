@@ -515,10 +515,7 @@ void main() {
       }
     });
 
-    test('NaiCharacterGender label and fromName', () {
-      expect(NaiCharacterGender.female.label, '女');
-      expect(NaiCharacterGender.male.label, '男');
-      expect(NaiCharacterGender.other.label, '其他');
+    test('NaiCharacterGender fromName parsing', () {
       expect(NaiCharacterGender.fromName('female'), NaiCharacterGender.female);
       expect(NaiCharacterGender.fromName('male'), NaiCharacterGender.male);
       expect(NaiCharacterGender.fromName('other'), NaiCharacterGender.other);

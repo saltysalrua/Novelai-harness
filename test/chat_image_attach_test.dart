@@ -10,8 +10,16 @@ import 'package:novelai_harness/core/harness/session_recorder.dart';
 import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/data/services/session_log_service.dart';
+import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_messages.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/chat_image_attachment.dart';
+
+Widget _buildTestApp(Widget child) => MaterialApp(
+  locale: const Locale('zh'),
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: AppLocalizations.supportedLocales,
+  home: Scaffold(body: child),
+);
 
 /// 1x1 透明 PNG
 const String _tinyPngBase64 =
@@ -278,15 +286,13 @@ void main() {
   group('用户消息图片渲染', () {
     testWidgets('UserMessageRow 渲染文本与图片缩略图', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AgentChatMessageItem(
-              message: AgentMessage(
-                id: 'u1',
-                role: AgentRole.user,
-                content: '看这张图',
-                images: const [AgentMessageImage(base64: _tinyPngBase64)],
-              ),
+        _buildTestApp(
+          AgentChatMessageItem(
+            message: AgentMessage(
+              id: 'u1',
+              role: AgentRole.user,
+              content: '看这张图',
+              images: const [AgentMessageImage(base64: _tinyPngBase64)],
             ),
           ),
         ),
@@ -378,17 +384,15 @@ void main() {
   group('工具结果图片渲染', () {
     testWidgets('ToolResultBlock 以 AspectRatio 预留图片高度', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: AgentChatMessageItem(
-                message: AgentMessage(
-                  id: 't1',
-                  role: AgentRole.tool,
-                  toolName: 'view_canvas_image',
-                  content: '已查看画板图片',
-                  imageBase64: _tinyPngBase64,
-                ),
+        _buildTestApp(
+          SingleChildScrollView(
+            child: AgentChatMessageItem(
+              message: AgentMessage(
+                id: 't1',
+                role: AgentRole.tool,
+                toolName: 'view_canvas_image',
+                content: '已查看画板图片',
+                imageBase64: _tinyPngBase64,
               ),
             ),
           ),

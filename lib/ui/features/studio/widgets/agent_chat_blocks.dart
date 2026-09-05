@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 
@@ -128,7 +129,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
           Icon(Icons.psychology_outlined, size: 14, color: colors.textMuted),
           const SizedBox(width: 4),
           Text(
-            '思考过程',
+            context.l10n.chatThinkingProcess,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,

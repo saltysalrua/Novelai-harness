@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
+import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
@@ -359,7 +360,7 @@ class AgentChatCardState extends State<AgentChatCard> {
           ),
           IconButton(
             icon: Icon(Icons.forum_outlined, size: 16, color: colors.textMuted),
-            tooltip: '会话管理',
+            tooltip: context.l10n.chatSessionManagementTooltip,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
             onPressed: () {
