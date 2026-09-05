@@ -241,11 +241,7 @@ class ModelsSettingsDraft {
 }
 
 /// 模型网格排序方式
-enum _ModelSortMode {
-  defaultOrder,
-  nameAsc,
-  nameDesc;
-}
+enum _ModelSortMode { defaultOrder, nameAsc, nameDesc }
 
 /// Models 页：多供应商管理、端点配置与模型卡片网格
 ///
@@ -890,8 +886,7 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
                       _ModelSortMode.defaultOrder =>
                         l10n.settingsModelSortDefault,
                       _ModelSortMode.nameAsc => l10n.settingsModelSortNameAsc,
-                      _ModelSortMode.nameDesc =>
-                        l10n.settingsModelSortNameDesc,
+                      _ModelSortMode.nameDesc => l10n.settingsModelSortNameDesc,
                     },
                   ),
                 )

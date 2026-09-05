@@ -5,7 +5,13 @@ import '../../../../data/services/watermark_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_copyable_box.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_image_detail_layout.dart';
+import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_collapsible_section.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_key_value_row.dart';
@@ -34,9 +40,8 @@ class MetadataReaderDialog extends StatefulWidget {
     String? fileName,
     required StudioViewModel viewModel,
   }) {
-    return showDialog<void>(
+    return AppDialogScaffold.show<void>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.65),
       builder: (ctx) => MetadataReaderDialog(
         metadata: metadata,
         imageBytes: imageBytes,
@@ -153,79 +158,97 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
     final meta = widget.metadata;
     final l10n = context.l10n;
 
+    final screenSize = MediaQuery.sizeOf(context);
+    final details = _buildDetails(context, meta);
     return AppDialogScaffold(
-      title: widget.fileName ?? l10n.metadataDialogTitle,
-      width: 720,
-      maxHeight: 760,
+      title: l10n.metadataDialogTitle,
+      subtitle: widget.fileName,
+      width: widget.imageBytes == null ? 760 : 1440,
+      height: (screenSize.height - 64).clamp(0.0, 1040.0),
+      maxHeight: screenSize.height - 48,
       actions: _buildBottomActionButtons(context, meta),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 来源软件胶囊
-            if (meta.software.isNotEmpty) ...[
-              AppBadge(label: meta.software, variant: AppBadgeVariant.primary),
-              const SizedBox(height: 14),
-            ],
-
-            // 图片缩略图预览与基础摘要
-            if (widget.imageBytes != null) ...[
-              _buildImagePreviewRow(context, meta),
-              const SizedBox(height: 16),
-            ],
-
-            // 正向提示词
-            if (meta.prompt.isNotEmpty) ...[
-              _buildNotionSection(
-                context: context,
-                title: l10n.metadataPromptTitle,
-                icon: Icons.text_fields_rounded,
-                content: meta.prompt,
-                onCopy: () => _copyText(meta.prompt, l10n.metadataCopiedPrompt),
+      body: widget.imageBytes == null
+          ? details
+          : AppImageDetailLayout(
+              image: MemoryImage(widget.imageBytes!),
+              placeholder: AppEmptyState(
+                icon: Icons.broken_image_outlined,
+                title: l10n.libraryCardNoPreview,
+                isCompact: true,
               ),
-              const SizedBox(height: 14),
-            ],
+              previewFooter: _buildImageActions(context),
+              details: details,
+            ),
+    );
+  }
 
-            // 负向提示词
-            if (meta.negativePrompt.isNotEmpty) ...[
-              _buildNotionSection(
-                context: context,
-                title: l10n.metadataNegativePromptTitle,
-                icon: Icons.remove_circle_outline_rounded,
-                content: meta.negativePrompt,
-                onCopy: () => _copyText(
-                  meta.negativePrompt,
-                  l10n.metadataCopiedNegativePrompt,
-                ),
-              ),
-              const SizedBox(height: 14),
-            ],
-
-            // 多角色提示词 (若存在)
-            if (meta.characterPrompts.isNotEmpty) ...[
-              _buildCharacterPromptsSection(context, meta),
-              const SizedBox(height: 14),
-            ],
-
-            // 生成参数网格
-            _buildParametersGrid(context, meta),
-            const SizedBox(height: 16),
-
-            // 原始 JSON 折叠面板
-            if (meta.rawJson.isNotEmpty) ...[
-              _buildRawJsonCollapsible(context, meta.rawJson),
-            ],
-
-            // 盲水印提取结果
-            _buildBlindWatermarkSection(context),
+  Widget _buildDetails(BuildContext context, ImageMetadataResult meta) {
+    final l10n = context.l10n;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 来源软件胶囊
+          if (meta.software.isNotEmpty) ...[
+            AppBadge(label: meta.software, variant: AppBadgeVariant.primary),
+            const SizedBox(height: 14),
           ],
-        ),
+
+          // 基础摘要仅在信息区呈现，图片区域不放文字或徽章。
+          _buildImageSummary(context, meta),
+          const SizedBox(height: 16),
+
+          // 正向提示词
+          if (meta.prompt.isNotEmpty) ...[
+            AppCopyableBox(
+              copyLabel: l10n.copy,
+              title: l10n.metadataPromptTitle,
+              icon: Icons.text_fields_rounded,
+              content: meta.prompt,
+              onCopy: () => _copyText(meta.prompt, l10n.metadataCopiedPrompt),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // 负向提示词
+          if (meta.negativePrompt.isNotEmpty) ...[
+            AppCopyableBox(
+              copyLabel: l10n.copy,
+              title: l10n.metadataNegativePromptTitle,
+              icon: Icons.remove_circle_outline_rounded,
+              content: meta.negativePrompt,
+              onCopy: () => _copyText(
+                meta.negativePrompt,
+                l10n.metadataCopiedNegativePrompt,
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // 多角色提示词 (若存在)
+          if (meta.characterPrompts.isNotEmpty) ...[
+            _buildCharacterPromptsSection(context, meta),
+            const SizedBox(height: 14),
+          ],
+
+          // 生成参数网格
+          _buildParametersGrid(context, meta),
+          const SizedBox(height: 16),
+
+          // 原始 JSON 折叠面板
+          if (meta.rawJson.isNotEmpty) ...[
+            _buildRawJsonCollapsible(context, meta.rawJson),
+          ],
+
+          // 盲水印提取结果
+          _buildBlindWatermarkSection(context),
+        ],
       ),
     );
   }
 
-  Widget _buildImagePreviewRow(BuildContext context, ImageMetadataResult meta) {
+  Widget _buildImageSummary(BuildContext context, ImageMetadataResult meta) {
     final colors = context.colors;
     final l10n = context.l10n;
     final widthStr = meta.width != null
@@ -237,135 +260,27 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
     final modelStr = meta.model ?? l10n.metadataModelUnknown;
     final samplerStr = meta.sampler ?? l10n.metadataSamplerDefault;
 
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.mutedBackground,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: colors.borderDefault),
-      ),
-      child: Row(
+      backgroundColor: colors.mutedBackground,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            child: Image.memory(
-              widget.imageBytes!,
-              width: 64,
-              height: 64,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.metadataDimensions(widthStr, heightStr),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  l10n.metadataModelAndSampler(modelStr, samplerStr),
-                  style: TextStyle(fontSize: 11, color: colors.textSecondary),
-                ),
-                if (meta.seed != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    l10n.metadataSeedLabel('${meta.seed}'),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.textSecondary,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotionSection({
-    required BuildContext context,
-    required String title,
-    required IconData icon,
-    required String content,
-    required VoidCallback onCopy,
-  }) {
-    final colors = context.colors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 14, color: colors.textSecondary),
-                const SizedBox(width: 6),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            InkWell(
-              onTap: onCopy,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: colors.primaryTint,
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.copy_rounded, size: 12, color: colors.primary),
-                    const SizedBox(width: 4),
-                    Text(
-                      context.l10n.copy,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: colors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.mutedBackground,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            border: Border.all(color: colors.borderDefault),
-          ),
-          child: SelectableText(
-            content,
+          Text(
+            l10n.metadataDimensions(widthStr, heightStr),
             style: TextStyle(
-              fontSize: 12,
-              height: 1.45,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            l10n.metadataModelAndSampler(modelStr, samplerStr),
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
+        ],
+      ),
     );
   }
 
@@ -378,38 +293,16 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(
-              Icons.people_alt_outlined,
-              size: 14,
-              color: colors.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              l10n.metadataCharacterPromptsTitle,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
+        AppSectionHeader(title: l10n.metadataCharacterPromptsTitle),
         ...List.generate(meta.characterPrompts.length, (idx) {
           final prompt = meta.characterPrompts[idx];
           final neg = idx < meta.characterNegativePrompts.length
               ? meta.characterNegativePrompts[idx]
               : '';
-          return Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colors.mutedBackground,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              border: Border.all(color: colors.borderDefault),
-            ),
+          return AppCard(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            backgroundColor: colors.mutedBackground,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -478,22 +371,10 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.metadataParametersTitle,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
+        AppSectionHeader(title: l10n.metadataParametersTitle),
+        AppCard(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: colors.mutedBackground,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            border: Border.all(color: colors.borderDefault),
-          ),
+          backgroundColor: colors.mutedBackground,
           child: Column(
             children: items.map((item) {
               return AppKeyValueRow(
@@ -540,53 +421,29 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
     );
   }
 
-  List<Widget> _buildBottomActionButtons(
-    BuildContext context,
-    ImageMetadataResult meta,
-  ) {
-    final colors = context.colors;
+  Widget _buildImageActions(BuildContext context) {
     final l10n = context.l10n;
-    return [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        style: TextButton.styleFrom(foregroundColor: colors.textSecondary),
-        child: Text(l10n.close),
-      ),
-      const SizedBox(width: 8),
-      if (widget.imageBytes != null) ...[
-        OutlinedButton.icon(
-          icon: _blindExtracting
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.visibility_off_outlined, size: 16),
-          label: Text(l10n.metadataExtractBlindWatermark),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.textPrimary,
-            backgroundColor: colors.cardBackground,
-            side: BorderSide(color: colors.borderDefault),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (_blindExtracting)
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
+        AppActionButton(
+          icon: Icons.visibility_off_outlined,
+          label: l10n.metadataExtractBlindWatermark,
           onPressed: _blindExtracting ? null : _extractBlindWatermark,
         ),
-        const SizedBox(width: 8),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.photo_library_outlined, size: 16),
-          label: Text(l10n.metadataImportAsReference),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.textPrimary,
-            backgroundColor: colors.cardBackground,
-            side: BorderSide(color: colors.borderDefault),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
+        AppActionButton(
+          icon: Icons.photo_library_outlined,
+          label: l10n.metadataImportAsReference,
           onPressed: () {
-            widget.viewModel.importReferenceImageFromBytes(
+            widget.viewModel.board.importReferenceImageFromBytes(
               widget.imageBytes!,
               fileName: widget.fileName,
             );
@@ -596,19 +453,25 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
             );
           },
         ),
-        const SizedBox(width: 8),
       ],
-      ElevatedButton.icon(
-        icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
-        label: Text(l10n.metadataApplyToWorkbench),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.primary,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-        ),
+    );
+  }
+
+  List<Widget> _buildBottomActionButtons(
+    BuildContext context,
+    ImageMetadataResult meta,
+  ) {
+    final l10n = context.l10n;
+    return [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(l10n.close),
+      ),
+      const SizedBox(width: 8),
+      AppActionButton(
+        icon: Icons.auto_fix_high_rounded,
+        label: l10n.metadataApplyToWorkbench,
+        variant: AppActionButtonVariant.primary,
         onPressed: () {
           widget.viewModel.applyMetadataToWorkbench(meta);
           Navigator.of(context).pop();

@@ -319,7 +319,10 @@ void main() {
 
       // 正在输入中 (未闭合 ::)
       const typingText = '1girl, 1.2::silv';
-      final q2 = PromptAstEngine.extractActiveQuery(typingText, typingText.length);
+      final q2 = PromptAstEngine.extractActiveQuery(
+        typingText,
+        typingText.length,
+      );
       expect(q2, isNotNull);
       expect(q2!.query, 'silv');
       expect(q2.syntaxPrefix, '1.2::');
@@ -345,6 +348,70 @@ void main() {
       const text = '1girl, ';
       final q = PromptAstEngine.extractActiveQuery(text, text.length);
       expect(q, isNull);
+    });
+
+    test('replaceEnd stops at current word boundary keeping trailing text', () {
+      // 光标在 h 后面 (偏移 13)，后面还有同段落内的其余单词 blue eyes
+      const text = '1girl, blue hair blue eyes';
+      final q = PromptAstEngine.extractActiveQuery(text, 13);
+
+      expect(q, isNotNull);
+      expect(q!.query, 'blue h');
+      expect(q.replaceStart, 7);
+      // 只替换到当前单词 hair 的词尾，不再吞掉后面的 blue eyes
+      expect(q.replaceEnd, 16);
+      expect(q.coreEnd, 26);
+      expect(q.fullSegmentEnd, 26);
+    });
+
+    test(
+      'replaceEnd consumes whole word when cursor mid-word at segment end',
+      () {
+        // 光标在 h 后面 (偏移 13)，单词剩余部分 air 后面紧跟逗号
+        const text = '1girl, long hair, smile';
+        final q = PromptAstEngine.extractActiveQuery(text, 13);
+
+        expect(q, isNotNull);
+        expect(q!.query, 'long h');
+        expect(q.replaceStart, 7);
+        expect(q.replaceEnd, 16);
+        expect(q.coreEnd, 16);
+      },
+    );
+
+    test('falls back to whole core when cursor at core start', () {
+      const text = '1girl, blue hair';
+      final q = PromptAstEngine.extractActiveQuery(text, 7);
+
+      expect(q, isNotNull);
+      expect(q!.query, 'blue hair');
+      expect(q.replaceStart, 7);
+      expect(q.replaceEnd, 16);
+      expect(q.coreEnd, 16);
+    });
+
+    test('CJK-Latin script transition is a word boundary', () {
+      // 中英混排无空格：光标在 过曝 后，后面紧接英文 high complexity
+      const text = '1girl, 过曝high complexity';
+      final q = PromptAstEngine.extractActiveQuery(text, 9);
+
+      expect(q, isNotNull);
+      expect(q!.query, '过曝');
+      expect(q.replaceStart, 7);
+      // replaceEnd 停在书写体系切换处，不再吞掉后续英文单词 high
+      expect(q.replaceEnd, 9);
+      expect(q.coreEnd, 24);
+    });
+
+    test('Latin-CJK script transition is a word boundary', () {
+      // 反向：光标在英文词 long 后，后面紧接中文
+      const text = '1girl, long过曝效果';
+      final q = PromptAstEngine.extractActiveQuery(text, 11);
+
+      expect(q, isNotNull);
+      expect(q!.query, 'long');
+      expect(q.replaceStart, 7);
+      expect(q.replaceEnd, 11);
     });
   });
 

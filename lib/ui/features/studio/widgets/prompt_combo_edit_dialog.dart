@@ -7,45 +7,15 @@ import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
-import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_image_detail_layout.dart';
+import '../../../core/widgets/app_section_header.dart';
 import '../view_models/studio_view_model.dart';
 
-/// 词组合弹窗统一输入框装饰 (浅灰填写风格，可选强调色)
-///
-/// 弹窗内五个表单字段共用同一套 OutlineInputBorder 视觉，仅 hint、
-/// 内边距与强调色 (负面词字段为珊瑚色) 不同，避免逐字段复制粘贴。
-InputDecoration _comboFieldDecoration(
-  BuildContext context,
-  String hint, {
-  double hintFontSize = 12,
-  EdgeInsetsGeometry contentPadding = const EdgeInsets.symmetric(
-    horizontal: 12,
-    vertical: 8,
-  ),
-  Color? fillColor,
-  Color? accentColor,
-  Color? borderColor,
-}) {
-  final colors = context.colors;
-  OutlineInputBorder outline(Color color, [double width = 1]) =>
-      OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        borderSide: BorderSide(color: color, width: width),
-      );
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: TextStyle(fontSize: hintFontSize, color: colors.textMuted),
-    contentPadding: contentPadding,
-    filled: true,
-    fillColor: fillColor ?? colors.mutedBackground,
-    border: outline(borderColor ?? colors.borderDefault),
-    enabledBorder: outline(borderColor ?? colors.borderDefault),
-    focusedBorder: outline(accentColor ?? colors.primary, 1.5),
-  );
-}
-
-/// 词组合预设新建/编辑弹窗 (占屏 60~80%，左侧贯通预览图，右侧选择器与表单)
+/// 词组合预设新建/编辑弹窗：完整大图与独立表单分区，操作不覆盖图片。
 class PromptComboEditDialog extends StatefulWidget {
   final StudioViewModel viewModel;
   final PromptComboEntry? initialEntry;
@@ -139,6 +109,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
         withData: true,
       );
+      if (!mounted) return;
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
         if (file.bytes != null) {
@@ -148,6 +119,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           });
         } else if (file.path != null) {
           final bytes = await File(file.path!).readAsBytes();
+          if (!mounted) return;
           setState(() {
             _previewBytes = bytes;
             _previewImagePath = file.path;
@@ -347,390 +319,162 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final l10n = context.l10n;
-    final screenSize = MediaQuery.of(context).size;
-    final dialogWidth = (screenSize.width * 0.72).clamp(700.0, 1060.0);
-    final dialogHeight = (screenSize.height * 0.78).clamp(520.0, 800.0);
+    final screenSize = MediaQuery.sizeOf(context);
+    final hasImage = _previewBytes != null || _previewImagePath != null;
+    final ImageProvider<Object>? image = _previewBytes != null
+        ? MemoryImage(_previewBytes!)
+        : _previewImagePath != null
+        ? FileImage(File(_previewImagePath!))
+        : null;
 
     return AppDialogScaffold(
       title: _isEdit
           ? l10n.libraryEditDialogTitleEdit
           : l10n.libraryEditDialogTitleNew,
-      width: dialogWidth,
-      height: dialogHeight,
-      sidebarWidth: 270.0,
-      sidebar: _buildLeftPosterPanel(context),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      width: 1440,
+      height: (screenSize.height - 64).clamp(0.0, 1040.0),
+      maxHeight: screenSize.height - 48,
+      body: AppImageDetailLayout(
+        image: image,
+        placeholder: AppEmptyState(
+          icon: Icons.image_outlined,
+          title: l10n.libraryEditPosterTitle,
+          isCompact: true,
+        ),
+        previewFooter: Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            // 组合名称
-            _buildFieldLabel(
-              context,
-              l10n.libraryEditFieldTitle,
-              isRequired: true,
+            AppActionButton(
+              label: l10n.libraryEditPickLocalImage,
+              icon: Icons.file_upload_outlined,
+              onPressed: _pickLocalImage,
             ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _titleController,
-              style: TextStyle(fontSize: 13, color: colors.textPrimary),
-              decoration: _comboFieldDecoration(
-                context,
-                l10n.libraryEditFieldTitleHint,
-                hintFontSize: 13,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-              ),
+            AppActionButton(
+              label: l10n.libraryEditUseCanvasImage,
+              icon: Icons.image_outlined,
+              onPressed: _useCurrentCanvasImage,
             ),
-            const SizedBox(height: 16),
-
-            // 分类选择器
-            _buildFieldLabel(
-              context,
-              l10n.libraryEditFieldCategory,
-              isRequired: true,
-            ),
-            const SizedBox(height: 6),
-            _buildCategoryDropdown(context),
-            if (_isCustomCategory) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: _customCategoryController,
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
-                decoration: _comboFieldDecoration(
-                  context,
-                  l10n.libraryEditFieldCustomCategoryHint,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                ),
+            if (hasImage)
+              AppActionButton(
+                label: l10n.libraryEditRemovePreviewImage,
+                icon: Icons.delete_outline,
+                onPressed: _clearPreviewImage,
               ),
-            ],
-            const SizedBox(height: 16),
-
-            // 主提示词 (Positive)
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                _buildFieldLabel(
-                  context,
-                  l10n.libraryEditFieldPrompt,
-                  isRequired: true,
-                ),
-                TextButton.icon(
-                  onPressed: _fillFromCurrentWorkspacePrompt,
-                  icon: Icon(Icons.input, size: 13, color: colors.primary),
-                  label: Text(
-                    l10n.libraryEditFillFromPrompt,
-                    style: TextStyle(fontSize: 11, color: colors.primary),
-                  ),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _promptController,
-              maxLines: 4,
-              minLines: 3,
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.textPrimary,
-                height: 1.4,
-              ),
-              decoration: _comboFieldDecoration(
-                context,
-                l10n.libraryEditFieldPromptHint,
-                hintFontSize: 13,
-                contentPadding: const EdgeInsets.all(12),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // 负面提示词 (Negative) — 【只在选择了角色时才出现】
-            if (_isCharacterCategory) ...[
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildFieldLabel(context, l10n.libraryEditFieldNegative),
-                      const SizedBox(width: 6),
-                      AppBadge(
-                        label: l10n.libraryEditCharacterOnlyBadge,
-                        variant: AppBadgeVariant.error,
-                        fontSize: 10,
-                      ),
-                    ],
-                  ),
-                  TextButton.icon(
-                    onPressed: _fillFromCurrentWorkspaceNegative,
-                    icon: Icon(Icons.input, size: 13, color: colors.error),
-                    label: Text(
-                      l10n.libraryEditFillFromNegative,
-                      style: TextStyle(fontSize: 11, color: colors.error),
-                    ),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _negativePromptController,
-                maxLines: 3,
-                minLines: 2,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textPrimary,
-                  height: 1.35,
-                ),
-                decoration: _comboFieldDecoration(
-                  context,
-                  l10n.libraryEditFieldNegativeHint,
-                  contentPadding: const EdgeInsets.all(10),
-                  fillColor: colors.errorSurface,
-                  accentColor: colors.error,
-                  borderColor: colors.error.withValues(alpha: 0.3),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // 检索标签 (Tags)
-            _buildFieldLabel(context, l10n.libraryEditFieldTags),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _tagsController,
-              style: TextStyle(fontSize: 12, color: colors.textPrimary),
-              decoration: _comboFieldDecoration(
-                context,
-                l10n.libraryEditFieldTagsHint,
-              ),
-            ),
           ],
         ),
+        details: _buildForm(context),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(
-            l10n.cancel,
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
-          ),
+          child: Text(l10n.cancel),
         ),
-        const SizedBox(width: 10),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _handleSave,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colors.primary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
+        const SizedBox(width: 8),
+        if (_isSaving) ...[
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          child: _isSaving
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Text(
-                  _isEdit
-                      ? l10n.libraryEditSaveButton
-                      : l10n.libraryEditCreateButton,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+          const SizedBox(width: 8),
+        ],
+        AppActionButton(
+          label: _isEdit
+              ? l10n.libraryEditSaveButton
+              : l10n.libraryEditCreateButton,
+          icon: Icons.check_rounded,
+          variant: AppActionButtonVariant.primary,
+          onPressed: _isSaving ? null : _handleSave,
         ),
       ],
     );
   }
 
-  /// 左侧贯通面板的图片占位符与预览区
-  Widget _buildLeftPosterPanel(BuildContext context) {
-    final colors = context.colors;
+  Widget _buildForm(BuildContext context) {
     final l10n = context.l10n;
-    final hasImage =
-        _previewBytes != null ||
-        (_previewImagePath != null && File(_previewImagePath!).existsSync());
-
-    return Container(
-      color: colors.mutedBackground,
-      child: Stack(
-        fit: StackFit.expand,
+    final colors = context.colors;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 底层图像渲染或纯灰占位
-          if (hasImage)
-            (_previewBytes != null
-                ? Image.memory(
-                    _previewBytes!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) =>
-                        _buildPlaceholderGraphic(context),
-                  )
-                : Image.file(
-                    File(_previewImagePath!),
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) =>
-                        _buildPlaceholderGraphic(context),
-                  ))
-          else
-            _buildPlaceholderGraphic(context),
-
-          // 中央上下显示两个主要按钮
-          Center(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-              decoration: BoxDecoration(
-                color: hasImage
-                    ? Colors.black.withValues(alpha: 0.6)
-                    : colors.cardBackground.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(
-                  color: hasImage
-                      ? Colors.white.withValues(alpha: 0.2)
-                      : colors.borderDefault,
-                ),
-                boxShadow: context.shadowSubtle,
+          AppSectionHeader(title: '${l10n.libraryEditFieldTitle} *'),
+          TextField(
+            controller: _titleController,
+            style: TextStyle(fontSize: 13, color: colors.textPrimary),
+            decoration: InputDecoration(
+              hintText: l10n.libraryEditFieldTitleHint,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppSectionHeader(title: '${l10n.libraryEditFieldCategory} *'),
+          _buildCategoryDropdown(context),
+          if (_isCustomCategory) ...[
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: _customCategoryController,
+              decoration: InputDecoration(
+                hintText: l10n.libraryEditFieldCustomCategoryHint,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!hasImage) ...[
-                    Icon(
-                      Icons.image_outlined,
-                      size: 36,
-                      color: colors.textSecondary,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      l10n.libraryEditPosterTitle,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-
-                  // 上按钮：选择本地图片
-                  ElevatedButton.icon(
-                    onPressed: _pickLocalImage,
-                    icon: const Icon(Icons.file_upload_outlined, size: 15),
-                    label: Text(
-                      l10n.libraryEditPickLocalImage,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: hasImage
-                          ? colors.cardBackground
-                          : colors.primaryTint,
-                      foregroundColor: hasImage
-                          ? colors.textPrimary
-                          : colors.primary,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        side: BorderSide(
-                          color: hasImage
-                              ? Colors.transparent
-                              : colors.primary.withValues(alpha: 0.3),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // 下按钮：使用画板当前图
-                  ElevatedButton.icon(
-                    onPressed: _useCurrentCanvasImage,
-                    icon: const Icon(Icons.image_outlined, size: 15),
-                    label: Text(
-                      l10n.libraryEditUseCanvasImage,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: hasImage
-                          ? colors.cardBackground
-                          : colors.mutedBackground,
-                      foregroundColor: colors.textPrimary,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        side: BorderSide(
-                          color: hasImage
-                              ? Colors.transparent
-                              : colors.borderDefault,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // 若已有图片，显示移除图片按钮
-                  if (hasImage) ...[
-                    const SizedBox(height: 10),
-                    TextButton.icon(
-                      onPressed: _clearPreviewImage,
-                      icon: Icon(
-                        Icons.delete_outline,
-                        size: 14,
-                        color: colors.error,
-                      ),
-                      label: Text(
-                        l10n.libraryEditRemovePreviewImage,
-                        style: TextStyle(fontSize: 12, color: colors.error),
-                      ),
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                      ),
-                    ),
-                  ],
-                ],
+            ),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+          AppSectionHeader(
+            title: '${l10n.libraryEditFieldPrompt} *',
+            trailing: AppActionButton(
+              label: l10n.libraryEditFillFromPrompt,
+              icon: Icons.input_rounded,
+              onPressed: _fillFromCurrentWorkspacePrompt,
+            ),
+          ),
+          TextField(
+            controller: _promptController,
+            minLines: 6,
+            maxLines: 12,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: colors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: l10n.libraryEditFieldPromptHint,
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+          if (_isCharacterCategory) ...[
+            const SizedBox(height: AppSpacing.lg),
+            AppSectionHeader(
+              title: l10n.libraryEditFieldNegative,
+              subtitle: l10n.libraryEditCharacterOnlyBadge,
+              trailing: AppActionButton(
+                label: l10n.libraryEditFillFromNegative,
+                icon: Icons.input_rounded,
+                onPressed: _fillFromCurrentWorkspaceNegative,
               ),
+            ),
+            TextField(
+              controller: _negativePromptController,
+              minLines: 3,
+              maxLines: 8,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: colors.textPrimary,
+              ),
+              decoration: InputDecoration(
+                hintText: l10n.libraryEditFieldNegativeHint,
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+          AppSectionHeader(title: l10n.libraryEditFieldTags),
+          TextField(
+            controller: _tagsController,
+            decoration: InputDecoration(
+              hintText: l10n.libraryEditFieldTagsHint,
             ),
           ),
         ],
@@ -738,97 +482,23 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     );
   }
 
-  Widget _buildPlaceholderGraphic(BuildContext context) {
-    return Container(color: context.colors.mutedBackground);
-  }
-
-  Widget _buildFieldLabel(
-    BuildContext context,
-    String label, {
-    bool isRequired = false,
-  }) {
-    final colors = context.colors;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-        if (isRequired)
-          Text(' *', style: TextStyle(fontSize: 12, color: colors.error)),
-      ],
-    );
-  }
-
-  /// 下拉分类选择器 (取代平铺 Chips)
   Widget _buildCategoryDropdown(BuildContext context) {
-    final colors = context.colors;
     final l10n = context.l10n;
-    final categories = [...PromptComboCategories.defaults, '自定义...'];
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: colors.mutedBackground,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: colors.borderDefault),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _isCustomCategory ? '自定义...' : _selectedCategory,
-          isExpanded: true,
-          icon: Icon(Icons.arrow_drop_down, color: colors.textSecondary),
-          style: TextStyle(fontSize: 13, color: colors.textPrimary),
-          dropdownColor: colors.cardBackground,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          items: categories.map((cat) {
-            final isChar = cat == '角色';
-            return DropdownMenuItem<String>(
-              value: cat,
-              child: Row(
-                children: [
-                  Icon(
-                    isChar
-                        ? Icons.person_outline
-                        : (cat == '自定义...'
-                              ? Icons.edit_outlined
-                              : Icons.label_outline),
-                    size: 15,
-                    color: isChar ? colors.error : colors.textSecondary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    cat == '自定义...'
-                        ? l10n.libraryEditCustomCategoryOption
-                        : comboCategoryLabelOf(l10n, cat),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isChar ? FontWeight.w600 : FontWeight.normal,
-                      color: isChar ? colors.error : colors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-          onChanged: (val) {
-            if (val == null) return;
-            setState(() {
-              if (val == '自定义...') {
-                _isCustomCategory = true;
-              } else {
-                _isCustomCategory = false;
-                _selectedCategory = val;
-              }
-            });
-          },
-        ),
-      ),
+    return AppDropdown<String>.simple(
+      value: _isCustomCategory ? '自定义...' : _selectedCategory,
+      items: [...PromptComboCategories.defaults, '自定义...'],
+      labelOf: (category) => category == '自定义...'
+          ? l10n.libraryEditCustomCategoryOption
+          : comboCategoryLabelOf(l10n, category),
+      iconOf: (category) => category == PromptComboCategories.character
+          ? Icons.person_outline
+          : Icons.label_outline,
+      onChanged: (category) {
+        setState(() {
+          _isCustomCategory = category == '自定义...';
+          if (!_isCustomCategory) _selectedCategory = category;
+        });
+      },
     );
   }
 }

@@ -66,6 +66,8 @@ class CanvasImageNode {
       // 图片来源信息：优先从历史记录按 imageId 解析；
       // 参考图不在历史里时按文件路径 + 元信息从 board_refs 目录重建
       'imageFilePath': image.localFilePath,
+      if (image.originalFilePath != null)
+        'imageOriginalFilePath': image.originalFilePath,
       'imageMeta': {
         'prompt': image.params.prompt,
         'width': image.params.width,

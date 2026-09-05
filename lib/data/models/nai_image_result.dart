@@ -32,7 +32,15 @@ class NaiGeneratedImage {
   final String id;
   final Uint8List bytes;
   final Uint8List? thumbnailBytes;
+
+  /// 正式导出路径；未保存时为缓存路径，不用于选择 UI 原图。
   final String? localFilePath;
+
+  /// 无水印、未脱敏的原图缓存。独立于导出文件，重启后仍用于显示与编辑。
+  final String? originalFilePath;
+
+  /// 旧版历史及外部参考图没有独立缓存时，兼容使用原有路径。
+  String? get displayFilePath => originalFilePath ?? localFilePath;
   final NaiGenerationParams params;
   final DateTime createdAt;
   final int seed;
@@ -61,6 +69,7 @@ class NaiGeneratedImage {
     required this.bytes,
     this.thumbnailBytes,
     this.localFilePath,
+    this.originalFilePath,
     required this.params,
     required this.createdAt,
     required this.seed,
@@ -92,6 +101,7 @@ class NaiGeneratedImage {
     Uint8List? bytes,
     Uint8List? thumbnailBytes,
     String? localFilePath,
+    String? originalFilePath,
     NaiGenerationParams? params,
     DateTime? createdAt,
     int? seed,
@@ -108,6 +118,7 @@ class NaiGeneratedImage {
       bytes: bytes ?? this.bytes,
       thumbnailBytes: thumbnailBytes ?? this.thumbnailBytes,
       localFilePath: localFilePath ?? this.localFilePath,
+      originalFilePath: originalFilePath ?? this.originalFilePath,
       params: params ?? this.params,
       createdAt: createdAt ?? this.createdAt,
       seed: seed ?? this.seed,
@@ -124,6 +135,7 @@ class NaiGeneratedImage {
   Map<String, dynamic> toJson() => {
     'id': id,
     'localFilePath': localFilePath,
+    if (originalFilePath != null) 'originalFilePath': originalFilePath,
     'params': params.toJson(),
     'createdAt': createdAt.toIso8601String(),
     'seed': seed,
@@ -164,6 +176,7 @@ class NaiGeneratedImage {
       bytes: bytes ?? Uint8List(0),
       thumbnailBytes: thumbnailBytes,
       localFilePath: json['localFilePath'] as String?,
+      originalFilePath: json['originalFilePath'] as String?,
       params: NaiGenerationParams.fromJson(paramsJson),
       createdAt: createdAt,
       seed: (json['seed'] as num?)?.toInt() ?? -1,

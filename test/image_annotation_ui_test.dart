@@ -10,20 +10,82 @@ import 'package:novelai_harness/ui/features/studio/widgets/freeform_annotation_b
 
 /// 1x1 纯净有效 PNG 字节数组
 final kTestPngBytes = Uint8List.fromList([
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-  0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-  0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0A,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x63,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
 ]);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('FreeformAnnotationBoard UI Widget Tests', () {
-    testWidgets('renders toolbar, main image card, sticky notes and actions',
-        (tester) async {
+    testWidgets('renders toolbar, main image card, sticky notes and actions', (
+      tester,
+    ) async {
       final repo = NovelAiRepository();
       final vm = StudioViewModel(repository: repo);
 
@@ -50,7 +112,7 @@ void main() {
 
       repo.addImageForTesting(testImage);
       vm.selectImage(testImage);
-      vm.setAnnotatingImage(true);
+      vm.board.setAnnotatingImage(true);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -63,9 +125,7 @@ void main() {
               builder: (context, _) => SizedBox(
                 width: 1000,
                 height: 800,
-                child: FreeformAnnotationBoard(
-                  viewModel: vm,
-                ),
+                child: FreeformAnnotationBoard(viewModel: vm),
               ),
             ),
           ),
@@ -93,13 +153,14 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 150));
 
-      expect(vm.boardData.noteNodes.length, 2);
+      expect(vm.board.boardData.noteNodes.length, 2);
     });
   });
 
   group('AnnotationHistoryStrip UI Widget Tests', () {
-    testWidgets('renders history list with count and thumbnails',
-        (tester) async {
+    testWidgets('renders history list with count and thumbnails', (
+      tester,
+    ) async {
       final repo = NovelAiRepository();
       final vm = StudioViewModel(repository: repo);
 
@@ -124,7 +185,7 @@ void main() {
       repo.addImageForTesting(testImage1);
       repo.addImageForTesting(testImage2);
       vm.selectImage(testImage1);
-      vm.setAnnotatingImage(true);
+      vm.board.setAnnotatingImage(true);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -137,9 +198,7 @@ void main() {
               builder: (context, _) => SizedBox(
                 width: 120,
                 height: 700,
-                child: AnnotationHistoryStrip(
-                  viewModel: vm,
-                ),
+                child: AnnotationHistoryStrip(viewModel: vm),
               ),
             ),
           ),

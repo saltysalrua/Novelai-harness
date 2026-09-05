@@ -16,25 +16,29 @@ import '../../../data/models/tag_models.dart';
 import '../context_l10n.dart';
 
 /// 历史缩略图角标文案 (未保存/放大/修复/AI 编辑/导入)，普通生成图返回 null。
-String? historyBadgeLabelOf(AppLocalizations l10n, NaiImageProvenance? provenance) =>
-    switch (provenance) {
-      null => null,
-      NaiImageProvenance.unsaved => l10n.canvasBadgeUnsaved,
-      NaiImageProvenance.upscaled => l10n.canvasBadgeUpscale,
-      NaiImageProvenance.inpainted => l10n.canvasBadgeInpaint,
-      NaiImageProvenance.aiEdited => l10n.canvasBadgeAiEdit,
-      NaiImageProvenance.imported => l10n.canvasBadgeImported,
-    };
+String? historyBadgeLabelOf(
+  AppLocalizations l10n,
+  NaiImageProvenance? provenance,
+) => switch (provenance) {
+  null => null,
+  NaiImageProvenance.unsaved => l10n.canvasBadgeUnsaved,
+  NaiImageProvenance.upscaled => l10n.canvasBadgeUpscale,
+  NaiImageProvenance.inpainted => l10n.canvasBadgeInpaint,
+  NaiImageProvenance.aiEdited => l10n.canvasBadgeAiEdit,
+  NaiImageProvenance.imported => l10n.canvasBadgeImported,
+};
 
 /// Danbooru 标签分类胶囊文案 (通用/画师/作品/角色/元数据)。
-String tagCategoryLabelOf(AppLocalizations l10n, DanbooruTagCategory category) =>
-    switch (category) {
-      DanbooruTagCategory.general => l10n.tagCatGeneral,
-      DanbooruTagCategory.artist => l10n.tagCatArtist,
-      DanbooruTagCategory.copyright => l10n.tagCatCopyright,
-      DanbooruTagCategory.character => l10n.tagCatCharacter,
-      DanbooruTagCategory.meta => l10n.tagCatMeta,
-    };
+String tagCategoryLabelOf(
+  AppLocalizations l10n,
+  DanbooruTagCategory category,
+) => switch (category) {
+  DanbooruTagCategory.general => l10n.tagCatGeneral,
+  DanbooruTagCategory.artist => l10n.tagCatArtist,
+  DanbooruTagCategory.copyright => l10n.tagCatCopyright,
+  DanbooruTagCategory.character => l10n.tagCatCharacter,
+  DanbooruTagCategory.meta => l10n.tagCatMeta,
+};
 
 /// LLM 接口协议展示名。
 String llmProtocolLabelOf(AppLocalizations l10n, LlmProtocol protocol) =>
@@ -45,17 +49,19 @@ String llmProtocolLabelOf(AppLocalizations l10n, LlmProtocol protocol) =>
     };
 
 /// 思考参数请求格式展示名。
-String thinkingParamFormatLabelOf(AppLocalizations l10n, ThinkingParamFormat format) =>
-    switch (format) {
-      ThinkingParamFormat.auto => l10n.thinkingFormatAuto,
-      ThinkingParamFormat.openai => l10n.thinkingFormatOpenai,
-      ThinkingParamFormat.deepseek => l10n.thinkingFormatDeepseek,
-      ThinkingParamFormat.qwen => l10n.thinkingFormatQwen,
-      ThinkingParamFormat.qwenChatTemplate => l10n.thinkingFormatQwenChatTemplate,
-      ThinkingParamFormat.zai => l10n.thinkingFormatZai,
-      ThinkingParamFormat.openrouter => l10n.thinkingFormatOpenrouter,
-      ThinkingParamFormat.together => l10n.thinkingFormatTogether,
-    };
+String thinkingParamFormatLabelOf(
+  AppLocalizations l10n,
+  ThinkingParamFormat format,
+) => switch (format) {
+  ThinkingParamFormat.auto => l10n.thinkingFormatAuto,
+  ThinkingParamFormat.openai => l10n.thinkingFormatOpenai,
+  ThinkingParamFormat.deepseek => l10n.thinkingFormatDeepseek,
+  ThinkingParamFormat.qwen => l10n.thinkingFormatQwen,
+  ThinkingParamFormat.qwenChatTemplate => l10n.thinkingFormatQwenChatTemplate,
+  ThinkingParamFormat.zai => l10n.thinkingFormatZai,
+  ThinkingParamFormat.openrouter => l10n.thinkingFormatOpenrouter,
+  ThinkingParamFormat.together => l10n.thinkingFormatTogether,
+};
 
 /// 词组合预设分类展示名。
 ///

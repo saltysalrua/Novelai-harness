@@ -22,7 +22,8 @@ class TagCategoryPill extends StatelessWidget {
   Widget build(BuildContext context) {
     // 分类展示文案：l10n 可用时走 UI 扩展层映射，否则回退数据域 zh label
     final l10n = context.maybeL10n;
-    final label = customLabel ??
+    final label =
+        customLabel ??
         (l10n != null ? tagCategoryLabelOf(l10n, category) : category.label);
     // 分类色统一事实源：context.tagCategoryColor (亮暗自适应)，
     // 数据模型固定色字段已在阶段 4C 删除

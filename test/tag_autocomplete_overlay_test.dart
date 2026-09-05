@@ -350,4 +350,164 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
       expect(controller.text.endsWith(', '), isTrue);
     },
   );
+
+  testWidgets('closes unclosed numeric weight head when completing', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: '1.2::lo');
+    controller.selection = const TextSelection.collapsed(
+      offset: 7,
+    ); // 光标在 "lo" 后面 (权重未闭合)
+
+    await tester.pumpWidget(
+      buildTestApp(
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: ResizableTextField(
+            controller: controller,
+            onChanged: (val) {},
+            hintText: '输入提示词...',
+            defaultHeight: 120,
+          ),
+        ),
+      ),
+    );
+
+    final textFieldFinder = find.byType(TextField);
+    await tester.tap(textFieldFinder);
+    await tester.pump();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(find.textContaining('long hair'), findsOneWidget);
+
+    await tester.tap(find.textContaining('long hair'));
+    await tester.pumpAndSettle();
+
+    // 验证：自动补上闭合 ::，避免权重蔓延到提示词末尾
+    expect(controller.text, '1.2::long hair::, ');
+  });
+
+  testWidgets('preserves trailing words in segment when cursor mid-segment', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: '1girl, solo blue eyes');
+    controller.selection = const TextSelection.collapsed(
+      offset: 10,
+    ); // 光标在 "sol" 后面 (段落中还有 blue eyes)
+
+    await tester.pumpWidget(
+      buildTestApp(
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: ResizableTextField(
+            controller: controller,
+            onChanged: (val) {},
+            hintText: '输入提示词...',
+            defaultHeight: 120,
+          ),
+        ),
+      ),
+    );
+
+    final textFieldFinder = find.byType(TextField);
+    await tester.tap(textFieldFinder);
+    await tester.pump();
+    // 点击可能移动光标，重新设定回单词中间
+    controller.selection = const TextSelection.collapsed(offset: 10);
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(find.text('solo'), findsOneWidget);
+
+    await tester.tap(find.text('solo'));
+    await tester.pumpAndSettle();
+
+    // 验证：只替换当前单词 solo，后面的 blue eyes 保留且不追加逗号
+    expect(controller.text, '1girl, solo blue eyes');
+    expect(controller.selection.start, 11);
+  });
+
+  testWidgets(
+    'mixed CJK-Latin segment: completing CJK word keeps following English',
+    (tester) async {
+      // 中英混排无空格：光标在 长发 后，后面紧接英文 blue eyes
+      final controller = TextEditingController(text: '长发blue eyes');
+      controller.selection = const TextSelection.collapsed(offset: 2);
+
+      await tester.pumpWidget(
+        buildTestApp(
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: ResizableTextField(
+              controller: controller,
+              onChanged: (val) {},
+              hintText: '输入提示词...',
+              defaultHeight: 120,
+            ),
+          ),
+        ),
+      );
+
+      final textFieldFinder = find.byType(TextField);
+      await tester.tap(textFieldFinder);
+      await tester.pump();
+      // 点击可能移动光标，重新设定回中文词尾
+      controller.selection = const TextSelection.collapsed(offset: 2);
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+      expect(find.textContaining('long hair'), findsOneWidget);
+
+      await tester.tap(find.textContaining('long hair'));
+      await tester.pumpAndSettle();
+
+      // 验证：只替换中文词 长发，blue eyes 保留且自动补空格分隔
+      expect(controller.text, 'long hair blue eyes');
+      expect(controller.selection.start, 10);
+    },
+  );
+
+  testWidgets('does not trigger completion during IME composing', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+
+    await tester.pumpWidget(
+      buildTestApp(
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: ResizableTextField(
+            controller: controller,
+            onChanged: (val) {},
+            hintText: '输入提示词...',
+            defaultHeight: 120,
+          ),
+        ),
+      ),
+    );
+
+    final textFieldFinder = find.byType(TextField);
+    await tester.tap(textFieldFinder);
+    await tester.pump();
+
+    // 模拟输入法组字阶段：文本处于 composing 区域，不弹补全卡
+    controller.value = const TextEditingValue(
+      text: '长发',
+      selection: TextSelection.collapsed(offset: 2),
+      composing: TextRange(start: 0, end: 2),
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    expect(find.textContaining('long hair'), findsNothing);
+
+    // 组字提交后 (composing 折叠) 正常触发补全
+    controller.value = const TextEditingValue(
+      text: '长发',
+      selection: TextSelection.collapsed(offset: 2),
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    expect(find.textContaining('long hair'), findsOneWidget);
+
+    await tester.tap(find.textContaining('long hair'));
+    await tester.pumpAndSettle();
+
+    expect(controller.text, 'long hair, ');
+  });
 }

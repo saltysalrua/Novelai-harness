@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderEditable;
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -18,6 +20,26 @@ String _genderLabel(AppLocalizations l10n, NaiCharacterGender gender) =>
       NaiCharacterGender.male => l10n.charPromptGenderMale,
       NaiCharacterGender.other => l10n.charPromptGenderOther,
     };
+
+/// 判断指针落点是否命中可编辑文本 (多角色/固定词缀输入框等)
+bool _pointerDownHitsEditableText(PointerDownEvent event) {
+  final result = HitTestResult();
+  WidgetsBinding.instance.hitTestInView(result, event.position, event.viewId);
+  return result.path.any((entry) => entry.target is RenderEditable);
+}
+
+/// 甲板滑动切页专用横向拖拽识别器。
+///
+/// 覆写 [addPointer]：指针落点命中可编辑文本 (RenderEditable) 时直接不加入
+/// 手势竞技场，鼠标在输入框内框选文本完全交给输入框自身处理，
+/// 杜绝「拖选文字被抢成滑动切页」的误触。
+class _DeckSwipeRecognizer extends HorizontalDragGestureRecognizer {
+  @override
+  void addPointer(PointerDownEvent event) {
+    if (_pointerDownHitsEditableText(event)) return;
+    super.addPointer(event);
+  }
+}
 
 /// 提示词扩展甲板：将多角色提示词 (Character Prompts) 与固定词缀 (Fixed Affixes)
 /// 合并为同一个支持左右手势滑动与点击切换的一体化卡片容器。
@@ -66,6 +88,20 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     widget.viewModel.setDeckActiveTab(index);
   }
 
+  /// 横向滑动切页：速度优先，位移回退兼容慢速拖拽
+  void _handleSwipeEnd(DragEndDetails details) {
+    final vx = details.primaryVelocity ?? 0;
+    if ((vx < -80 || _horizontalDragAccumulated < -30) &&
+        _activeTabIndex == 0) {
+      // 向左滑 -> 切换到 Fixed Affixes
+      _switchTab(1);
+    } else if ((vx > 80 || _horizontalDragAccumulated > 30) &&
+        _activeTabIndex == 1) {
+      // 向右滑 -> 切换到 Character Prompts
+      _switchTab(0);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -78,22 +114,24 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     final isFull = viewModel.isCharacterPromptFull;
     final isAffixesEnabled = params.applyFixedPrompts;
 
-    return GestureDetector(
+    return RawGestureDetector(
       key: const ValueKey('deck_swipe_detector'),
       behavior: HitTestBehavior.translucent,
-      onHorizontalDragStart: (_) => _horizontalDragAccumulated = 0,
-      onHorizontalDragUpdate: (d) => _horizontalDragAccumulated += d.delta.dx,
-      onHorizontalDragEnd: (details) {
-        final vx = details.primaryVelocity ?? 0;
-        if ((vx < -80 || _horizontalDragAccumulated < -30) &&
-            _activeTabIndex == 0) {
-          // 向左滑 -> 切换到 Fixed Affixes
-          _switchTab(1);
-        } else if ((vx > 80 || _horizontalDragAccumulated > 30) &&
-            _activeTabIndex == 1) {
-          // 向右滑 -> 切换到 Character Prompts
-          _switchTab(0);
-        }
+      gestures: <Type, GestureRecognizerFactory>{
+        _DeckSwipeRecognizer:
+            GestureRecognizerFactoryWithHandlers<_DeckSwipeRecognizer>(
+              () => _DeckSwipeRecognizer(),
+              (recognizer) {
+                recognizer
+                  ..onStart = (_) {
+                    _horizontalDragAccumulated = 0;
+                  }
+                  ..onUpdate = (d) {
+                    _horizontalDragAccumulated += d.delta.dx;
+                  }
+                  ..onEnd = _handleSwipeEnd;
+              },
+            ),
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

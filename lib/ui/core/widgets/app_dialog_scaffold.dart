@@ -135,6 +135,8 @@ class AppDialogScaffold extends StatelessWidget {
                           children: [
                             Text(
                               title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
@@ -145,6 +147,8 @@ class AppDialogScaffold extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(
                                 subtitle!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: colors.textSecondary,

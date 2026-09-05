@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:novelai_harness/core/harness/tools/ask_user_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
@@ -252,6 +256,123 @@ void main() {
       viewModel.setChatStreamingForTesting(false);
     },
   );
+
+  testWidgets('近期 Markdown 离屏后保留 Element，同 id 内容更新不读旧缓存', (tester) async {
+    final messages = List.generate(
+      60,
+      (i) => AgentMessage(
+        id: 'retained_$i',
+        role: AgentRole.assistant,
+        content: '''**Message $i**
+
+First paragraph
+
+Second paragraph''',
+      ),
+    );
+    messages[1] = AgentMessage(
+      id: 'retained_1',
+      role: AgentRole.tool,
+      content: 'Image preview',
+      imageBase64: base64Encode(
+        img.encodePng(img.Image(width: 160, height: 24)),
+      ),
+    );
+    viewModel.setMessagesForTesting(messages);
+    await tester.pumpWidget(
+      buildTestApp(
+        ListenableBuilder(
+          listenable: viewModel,
+          builder: (context, _) => AgentChatCard(viewModel: viewModel),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position;
+    position.jumpTo(0);
+    await tester.pumpAndSettle();
+    final markdown = find.descendant(
+      of: find.byKey(const ValueKey('retained_0')),
+      matching: find.byType(MarkdownBody),
+    );
+    final element = tester.element(markdown);
+    final image = find.descendant(
+      of: find.byKey(const ValueKey('retained_1')),
+      matching: find.byType(Image),
+    );
+    final imageElement = tester.element(image);
+    final imageHeight = tester.getSize(image).height;
+    position.jumpTo(2500);
+    await tester.pumpAndSettle();
+    expect(element.mounted, isTrue);
+    expect(imageElement.mounted, isTrue);
+    position.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(tester.element(markdown), same(element));
+    expect(tester.element(image), same(imageElement));
+    expect(tester.getSize(image).height, imageHeight);
+    expect(position.pixels, 0);
+
+    viewModel.setMessagesForTesting([
+      messages.first.copyWith(content: 'Updated content'),
+      ...messages.skip(1),
+    ]);
+    await tester.pumpAndSettle();
+    expect(tester.widget<MarkdownBody>(markdown).data, 'Updated content');
+  });
+
+  testWidgets('流式中微小向上滚轮也立即取消底部跟随', (tester) async {
+    viewModel.setMessagesForTesting(
+      List.generate(
+        20,
+        (i) => AgentMessage(
+          id: 'wheel_$i',
+          role: AgentRole.assistant,
+          content: '''Message $i
+
+Paragraph one
+
+Paragraph two''',
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      buildTestApp(
+        ListenableBuilder(
+          listenable: viewModel,
+          builder: (context, _) => AgentChatCard(viewModel: viewModel),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final scrollable = find.byType(Scrollable).first;
+    final position = tester.state<ScrollableState>(scrollable).position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    viewModel.setChatStreamingForTesting(true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final bottom = position.pixels;
+    await tester.sendEventToBinding(
+      PointerScrollEvent(
+        position: tester.getCenter(scrollable),
+        scrollDelta: const Offset(0, -20),
+      ),
+    );
+    viewModel.streamingText.appendContent('Streaming content');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(position.pixels, lessThan(bottom - 10));
+    final afterWheel = position.pixels;
+    viewModel.streamingText.appendContent(' more');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(position.pixels, closeTo(afterWheel, 0.5));
+    viewModel.setChatStreamingForTesting(false);
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('InlineAgentQuestionCard renders and handles user response', (
     WidgetTester tester,

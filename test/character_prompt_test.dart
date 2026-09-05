@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/tools/character_prompt_tools.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
@@ -125,63 +127,137 @@ void main() {
   });
 
   group('Character Prompts Payload Tests', () {
-    test("AI's Choice (default) sends no position params at all", () {
-      const params = NaiGenerationParams(
-        prompt: '2girls, classroom, sunlight',
-        model: NaiModel.v5Full,
-        characterPrompts: [
-          NaiCharacterPrompt(
-            id: 'aaaa0001',
-            name: '左',
-            prompt: 'girl, silver hair',
-            negativePrompt: 'lowres',
-          ),
-          NaiCharacterPrompt(
-            id: 'aaaa0002',
-            name: '右',
-            prompt: 'girl, black hair',
-          ),
-        ],
+    for (final model in NaiModel.values.where((model) => model.isV4OrAbove)) {
+      test(
+        '${model.name}: AI positioning keeps schema in generate/infill/metadata',
+        () {
+          final params = NaiGenerationParams(
+            prompt: '2girls',
+            model: model,
+            characterPrompts: const [
+              NaiCharacterPrompt(
+                id: 'a',
+                name: 'A',
+                prompt: 'girl',
+                negativePrompt: 'lowres',
+                useCustomPosition: true,
+                positionX: 0.1,
+                positionY: 0.9,
+              ),
+              NaiCharacterPrompt(id: 'b', name: 'B', prompt: 'girl'),
+            ],
+          );
+          final payloads = [
+            params.toApiPayload(),
+            params.toApiPayload(streaming: true),
+            params.toInfillApiPayload(
+              sourceBytes: Uint8List(0),
+              maskBytes: Uint8List(0),
+              requestWidth: 832,
+              requestHeight: 1216,
+            ),
+            params.toInfillApiPayload(
+              sourceBytes: Uint8List(0),
+              maskBytes: Uint8List(0),
+              requestWidth: 832,
+              requestHeight: 1216,
+              streaming: true,
+            ),
+          ];
+          final structures = <Map<String, dynamic>>[
+            for (final payload in payloads)
+              payload['parameters'] as Map<String, dynamic>,
+            params.toMetadataComment(seed: 42),
+          ];
+          for (final structure in structures) {
+            final positive = structure['v4_prompt'] as Map<String, dynamic>;
+            expect(positive['use_coords'], isFalse);
+            for (final key in ['v4_prompt', 'v4_negative_prompt']) {
+              final prompt = structure[key] as Map<String, dynamic>;
+              final caption = prompt['caption'] as Map<String, dynamic>;
+              final chars = caption['char_captions'] as List<dynamic>;
+              expect(chars, hasLength(2));
+              for (final entry in chars.cast<Map<String, dynamic>>()) {
+                expect(entry['centers'], [
+                  {'x': 0.5, 'y': 0.5},
+                ]);
+              }
+            }
+            if (structure.containsKey('characterPrompts')) {
+              expect(structure['use_coords'], isFalse);
+              final chars = structure['characterPrompts'] as List<dynamic>;
+              for (final entry in chars.cast<Map<String, dynamic>>()) {
+                expect(entry['center'], {'x': 0.5, 'y': 0.5});
+                expect(entry['enabled'], isTrue);
+              }
+            }
+          }
+        },
       );
+    }
+    test(
+      "AI's Choice disables constraints but keeps required center structures",
+      () {
+        const params = NaiGenerationParams(
+          prompt: '2girls, classroom, sunlight',
+          model: NaiModel.v5Full,
+          characterPrompts: [
+            NaiCharacterPrompt(
+              id: 'aaaa0001',
+              name: '左',
+              prompt: 'girl, silver hair',
+              negativePrompt: 'lowres',
+            ),
+            NaiCharacterPrompt(
+              id: 'aaaa0002',
+              name: '右',
+              prompt: 'girl, black hair',
+            ),
+          ],
+        );
 
-      final payload = params.toApiPayload();
-      final parameters = payload['parameters'] as Map<String, dynamic>;
+        final payload = params.toApiPayload();
+        final parameters = payload['parameters'] as Map<String, dynamic>;
 
-      expect(params.useCoords, isFalse);
-      expect(parameters['use_coords'], isFalse);
-      expect(
-        (parameters['v4_prompt'] as Map<String, dynamic>)['use_coords'],
-        isFalse,
-      );
+        expect(params.useCoords, isFalse);
+        expect(parameters['use_coords'], isFalse);
+        expect(
+          (parameters['v4_prompt'] as Map<String, dynamic>)['use_coords'],
+          isFalse,
+        );
 
-      final characterPrompts = parameters['characterPrompts'] as List<dynamic>;
-      expect(characterPrompts, hasLength(2));
-      final first = characterPrompts[0] as Map<String, dynamic>;
-      expect(first.containsKey('center'), isFalse);
-      expect(first['prompt'], 'girl, silver hair');
-      expect(first['uc'], 'lowres');
-      expect(first['enabled'], isTrue);
+        final characterPrompts =
+            parameters['characterPrompts'] as List<dynamic>;
+        expect(characterPrompts, hasLength(2));
+        final first = characterPrompts[0] as Map<String, dynamic>;
+        expect(first['center'], {'x': 0.5, 'y': 0.5});
+        expect(first['prompt'], 'girl, silver hair');
+        expect(first['uc'], 'lowres');
+        expect(first['enabled'], isTrue);
 
-      final v4Prompt = parameters['v4_prompt'] as Map<String, dynamic>;
-      final caption = v4Prompt['caption'] as Map<String, dynamic>;
-      expect(caption['base_caption'], params.effectivePrompt);
-      final charCaptions = caption['char_captions'] as List<dynamic>;
-      expect(charCaptions, hasLength(2));
-      final secondCaption = charCaptions[1] as Map<String, dynamic>;
-      expect(secondCaption['char_caption'], 'girl, black hair');
-      expect(secondCaption.containsKey('centers'), isFalse);
+        final v4Prompt = parameters['v4_prompt'] as Map<String, dynamic>;
+        final caption = v4Prompt['caption'] as Map<String, dynamic>;
+        expect(caption['base_caption'], params.effectivePrompt);
+        final charCaptions = caption['char_captions'] as List<dynamic>;
+        expect(charCaptions, hasLength(2));
+        final secondCaption = charCaptions[1] as Map<String, dynamic>;
+        expect(secondCaption['char_caption'], 'girl, black hair');
+        expect(secondCaption['centers'], [
+          {'x': 0.5, 'y': 0.5},
+        ]);
 
-      final v4Negative =
-          parameters['v4_negative_prompt'] as Map<String, dynamic>;
-      final negativeCaption = v4Negative['caption'] as Map<String, dynamic>;
-      final negativeCharCaptions =
-          negativeCaption['char_captions'] as List<dynamic>;
-      expect(negativeCharCaptions, hasLength(2));
-      expect(
-        (negativeCharCaptions[1] as Map<String, dynamic>)['char_caption'],
-        '',
-      );
-    });
+        final v4Negative =
+            parameters['v4_negative_prompt'] as Map<String, dynamic>;
+        final negativeCaption = v4Negative['caption'] as Map<String, dynamic>;
+        final negativeCharCaptions =
+            negativeCaption['char_captions'] as List<dynamic>;
+        expect(negativeCharCaptions, hasLength(2));
+        expect(
+          (negativeCharCaptions[1] as Map<String, dynamic>)['char_caption'],
+          '',
+        );
+      },
+    );
 
     test(
       'custom mode on V5 sends continuous decimal centers for every enabled character',

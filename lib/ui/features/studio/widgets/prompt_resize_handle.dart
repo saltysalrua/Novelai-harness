@@ -11,12 +11,14 @@ import 'tag_autocomplete_overlay.dart';
 class PromptResizeHandle extends StatelessWidget {
   final ValueChanged<double> onDelta;
   final VoidCallback? onReset;
+  final VoidCallback? onDragEnd;
   final String? tooltip;
 
   const PromptResizeHandle({
     super.key,
     required this.onDelta,
     this.onReset,
+    this.onDragEnd,
     this.tooltip,
   });
 
@@ -26,6 +28,7 @@ class PromptResizeHandle extends StatelessWidget {
       axis: Axis.vertical,
       onDelta: onDelta,
       onReset: onReset,
+      onDragEnd: onDragEnd,
       tooltip: tooltip ?? context.maybeL10n?.promptResizeTooltip ?? '',
       hitThickness: 12.0,
       initialHandleSize: 28.0,
@@ -53,7 +56,7 @@ class ResizableTextField extends StatefulWidget {
   /// 初始高度 (持久化加载的高度，若为 null 则使用 defaultHeight)
   final double? initialHeight;
 
-  /// 高度变化回调 (拖拽手柄或双击重置时触发，供外层持久化)
+  /// 高度提交回调 (拖拽结束或双击重置时触发，供外层持久化)
   final ValueChanged<double>? onHeightChanged;
 
   /// 最小与最大高度限制
@@ -103,16 +106,19 @@ class ResizableTextField extends StatefulWidget {
 }
 
 class _ResizableTextFieldState extends State<ResizableTextField> {
-  late double _height;
+  late final ValueNotifier<double> _height;
+  double? _pendingHeight;
   late FocusNode _focusNode;
   bool _internalFocusNode = false;
 
   @override
   void initState() {
     super.initState();
-    _height = (widget.initialHeight ?? widget.defaultHeight).clamp(
-      widget.minHeight,
-      widget.maxHeight,
+    _height = ValueNotifier(
+      (widget.initialHeight ?? widget.defaultHeight).clamp(
+        widget.minHeight,
+        widget.maxHeight,
+      ),
     );
     if (widget.focusNode != null) {
       _focusNode = widget.focusNode!;
@@ -127,10 +133,18 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
     super.didUpdateWidget(oldWidget);
     if (widget.initialHeight != null &&
         widget.initialHeight != oldWidget.initialHeight) {
-      _height = widget.initialHeight!.clamp(widget.minHeight, widget.maxHeight);
+      _pendingHeight = null;
+      _height.value = widget.initialHeight!.clamp(
+        widget.minHeight,
+        widget.maxHeight,
+      );
     } else if (oldWidget.defaultHeight != widget.defaultHeight &&
         widget.initialHeight == null) {
-      _height = widget.defaultHeight.clamp(widget.minHeight, widget.maxHeight);
+      _pendingHeight = null;
+      _height.value = widget.defaultHeight.clamp(
+        widget.minHeight,
+        widget.maxHeight,
+      );
     }
     if (oldWidget.focusNode != widget.focusNode) {
       if (_internalFocusNode) {
@@ -148,6 +162,7 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
 
   @override
   void dispose() {
+    _height.dispose();
     if (_internalFocusNode) {
       _focusNode.dispose();
     }
@@ -155,16 +170,20 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
   }
 
   void _applyDelta(double delta) {
-    final newHeight = (_height + delta).clamp(
+    final newHeight = (_height.value + delta).clamp(
       widget.minHeight,
       widget.maxHeight,
     );
-    if ((newHeight - _height).abs() > 0.01) {
-      setState(() {
-        _height = newHeight;
-      });
-      widget.onHeightChanged?.call(_height);
+    if ((newHeight - _height.value).abs() > 0.01) {
+      _height.value = newHeight;
+      _pendingHeight = newHeight;
     }
+  }
+
+  void _commitHeight() {
+    final height = _pendingHeight;
+    _pendingHeight = null;
+    if (height != null) widget.onHeightChanged?.call(height);
   }
 
   void _reset() {
@@ -172,72 +191,68 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
       widget.minHeight,
       widget.maxHeight,
     );
-    if ((target - _height).abs() > 0.01) {
-      setState(() => _height = target);
-      widget.onHeightChanged?.call(_height);
+    if ((target - _height.value).abs() > 0.01) {
+      _height.value = target;
+      _pendingHeight = target;
+      _commitHeight();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget inputField = SizedBox(
-      height: _height,
-      child: Padding(
-        padding: widget.padding,
-        child: CallbackShortcuts(
-          bindings: {
-            const SingleActivator(
-              LogicalKeyboardKey.arrowUp,
-              control: true,
-            ): () => PromptEditActions.adjustWeight(
-              widget.controller,
-              widget.onChanged,
-              up: true,
-            ),
-            const SingleActivator(
-              LogicalKeyboardKey.arrowDown,
-              control: true,
-            ): () => PromptEditActions.adjustWeight(
-              widget.controller,
-              widget.onChanged,
-              up: false,
-            ),
-            const SingleActivator(
-              LogicalKeyboardKey.slash,
-              control: true,
-            ): () => PromptEditActions.toggleDisabled(
-              widget.controller,
-              widget.onChanged,
-            ),
-            const SingleActivator(
-              LogicalKeyboardKey.keyF,
-              control: true,
-              shift: true,
-            ): () => PromptEditActions.formatPrompt(
-              widget.controller,
-              widget.onChanged,
-            ),
-          },
-          child: TextField(
-            controller: widget.controller,
-            focusNode: _focusNode,
-            maxLines: null,
-            expands: true,
-            textAlignVertical: TextAlignVertical.top,
-            style: widget.style,
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: widget.hintText,
-              hintStyle: widget.hintStyle,
-              contentPadding: EdgeInsets.zero,
-              filled: false,
-              hoverColor: Colors.transparent,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-            ),
-            onChanged: widget.onChanged,
+    Widget inputField = Padding(
+      padding: widget.padding,
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(
+            LogicalKeyboardKey.arrowUp,
+            control: true,
+          ): () => PromptEditActions.adjustWeight(
+            widget.controller,
+            widget.onChanged,
+            up: true,
           ),
+          const SingleActivator(
+            LogicalKeyboardKey.arrowDown,
+            control: true,
+          ): () => PromptEditActions.adjustWeight(
+            widget.controller,
+            widget.onChanged,
+            up: false,
+          ),
+          const SingleActivator(LogicalKeyboardKey.slash, control: true): () =>
+              PromptEditActions.toggleDisabled(
+                widget.controller,
+                widget.onChanged,
+              ),
+          const SingleActivator(
+            LogicalKeyboardKey.keyF,
+            control: true,
+            shift: true,
+          ): () => PromptEditActions.formatPrompt(
+            widget.controller,
+            widget.onChanged,
+          ),
+        },
+        child: TextField(
+          controller: widget.controller,
+          focusNode: _focusNode,
+          maxLines: null,
+          expands: true,
+          textAlignVertical: TextAlignVertical.top,
+          style: widget.style,
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: widget.hintText,
+            hintStyle: widget.hintStyle,
+            contentPadding: EdgeInsets.zero,
+            filled: false,
+            hoverColor: Colors.transparent,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+          ),
+          onChanged: widget.onChanged,
         ),
       ),
     );
@@ -256,11 +271,17 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        inputField,
+        ValueListenableBuilder<double>(
+          valueListenable: _height,
+          child: inputField,
+          builder: (context, height, child) =>
+              SizedBox(height: height, child: child),
+        ),
         PromptResizeHandle(
           tooltip: widget.resizeTooltip,
           onDelta: _applyDelta,
           onReset: _reset,
+          onDragEnd: _commitHeight,
         ),
       ],
     );

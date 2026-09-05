@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui' show Locale, Offset, Rect;
 import 'package:flutter/foundation.dart';
 import '../../../../core/harness/agent_harness.dart';
@@ -22,7 +21,6 @@ import '../../../../core/harness/tools/novelai_inpaint_tool.dart';
 import '../../../../core/harness/tools/novelai_tools.dart';
 import '../../../../core/harness/tools/prompt_library_tools.dart';
 import '../../../../core/harness/tools/studio_params_tool.dart';
-import '../../../../core/harness/tools/vision_image_codec.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
@@ -40,10 +38,10 @@ import '../../../../data/services/usage_ledger_service.dart';
 import '../../../../l10n/app_localizations.dart'
     show AppLocalizations, lookupAppLocalizations;
 import 'param_snapshot_journal.dart';
+import 'board/board_controller.dart';
 import 'slash_command_catalog.dart';
 import 'streaming_controllers.dart';
 
-part 'studio_vm_annotations.dart';
 part 'studio_vm_characters.dart';
 part 'studio_vm_chat.dart';
 part 'studio_vm_generation.dart';
@@ -182,20 +180,12 @@ mixin _StudioCore on ChangeNotifier {
   /// 当前选中的角色 ID (用于高亮锚点及左侧卡片)
   String? _selectedCharacterId;
 
-  /// 是否正在画板上批注当前选中的图片
-  bool _isAnnotatingImage = false;
-
-  /// 当前高亮选中的批注 ID
-  String? _activeAnnotationId;
-
-  /// 当前自由大画布上的完整节点与连接数据
-  CanvasBoardData? _boardData;
+  /// 自由大画布领域控制器 (阶段 4D 试点)：annotations 域整域迁出，
+  /// 经 BoardControllerHost 最小接口回调宿主 (决策门 §7 契约)
+  late final BoardController board;
 
   /// 参数持久化防抖计时器
   Timer? _paramSaveDebounceTimer;
-
-  /// 大画布布局持久化防抖计时器 (拖拽/缩放/移动后延迟落盘)
-  Timer? _boardSaveDebounceTimer;
 
   /// 全局配置防抖保存计时器
   Timer? _configSaveDebounceTimer;
@@ -476,20 +466,8 @@ mixin _StudioCore on ChangeNotifier {
   /// 发送对话消息 (支持 Slash 命令行；[images] 为用户图片附件)
   Future<void> sendChatMessage(String text, {List<AgentMessageImage>? images});
 
-  /// 全量替换某张历史图片的批注 (Agent 批注工具统一写入口：仓库持久化 + 画布同步)
-  Future<bool> replaceImageAnnotations(
-    String imageId,
-    List<ImageAnnotation> annotations,
-  );
-
   /// 切换侧边栏激活页签 (修复分部右键发送后跳转用)
   void setActiveSidebarTab(StudioSidebarTab tab);
-
-  /// 是否处于自由大画布批注模式
-  bool get isAnnotatingImage;
-
-  /// 进入/退出自由大画布批注模式
-  void setAnnotatingImage(bool annotating, {String? targetImageId});
 
   /// 历史大图完整字节缓存通知器：避免大图加载逐帧触发 notifyListeners() 全局重建
   final ValueNotifier<Map<String, Uint8List>> imageBytesNotifier =
@@ -545,7 +523,6 @@ class StudioViewModel extends ChangeNotifier
         _StudioCharactersMixin,
         _StudioSlashMixin,
         _StudioLibraryMixin,
-        _StudioAnnotationsMixin,
         _StudioInpaintMixin {
   StudioViewModel({
     ConfigService? configService,
@@ -564,6 +541,11 @@ class StudioViewModel extends ChangeNotifier
       tools: _toolRegistry,
       recorder: _sessionLog,
       initialPreset: BuiltinPresets.v5Architect,
+    );
+    // 大画布领域控制器：宿主回调经 _StudioBoardHost 最小接口接入
+    board = BoardController(
+      host: _StudioBoardHost(this),
+      repository: _repository,
     );
   }
 
@@ -671,12 +653,13 @@ class StudioViewModel extends ChangeNotifier
       }
 
       // 恢复大画布布局 (节点位置尺寸/便利贴/连线/视口)
-      final board = await _repository.loadBoardLayout(
+      final restoredBoard = await _repository.loadBoardLayout(
         saveDir: _config.saveDirectory,
       );
-      if (board != null &&
-          (board.imageNodes.isNotEmpty || board.noteNodes.isNotEmpty)) {
-        _boardData = board;
+      if (restoredBoard != null &&
+          (restoredBoard.imageNodes.isNotEmpty ||
+              restoredBoard.noteNodes.isNotEmpty)) {
+        board.restoreLayout(restoredBoard);
       }
     }
 
@@ -765,7 +748,7 @@ class StudioViewModel extends ChangeNotifier
           newConfig.saveDirectory.isNotEmpty) {
         // 仅停止持久化，不删除已有 image_history.json 与画布布局：
         // 关闭开关就销毁历史索引等于破坏性删除用户数据，重新打开开关后应能继续恢复
-        _boardData = null;
+        board.discardLayout();
       }
     }
 
@@ -881,56 +864,8 @@ class StudioViewModel extends ChangeNotifier
       _hasUnseenLatest = false;
     }
 
-    // 同步大画布节点 (若大画布已加载)
-    final bData = _boardData;
-    if (bData != null) {
-      final hasNode = bData.imageNodes.any((n) => n.image.id == imageId);
-      if (hasNode) {
-        final remainingNodes = <CanvasImageNode>[];
-        for (final node in bData.imageNodes) {
-          if (node.image.id == imageId) {
-            if (node.isMain && _selectedImage != null) {
-              remainingNodes.add(
-                node.copyWith(
-                  image: _selectedImage!,
-                  annotations: _selectedImage!.annotations,
-                ),
-              );
-            }
-            // 非主图节点或无替代图时直接移除
-          } else {
-            remainingNodes.add(node);
-          }
-        }
-
-        final removedNodeIds = bData.imageNodes
-            .where((n) => !remainingNodes.any((rem) => rem.id == n.id))
-            .map((n) => n.id)
-            .toSet();
-
-        final updatedNotes = bData.noteNodes.map((n) {
-          if (removedNodeIds.contains(n.targetImageId)) {
-            return n.copyWith(clearConnection: true);
-          }
-          return n;
-        }).toList();
-
-        final updatedLinks = bData.imageLinks
-            .where(
-              (l) =>
-                  !removedNodeIds.contains(l.sourceImageId) &&
-                  !removedNodeIds.contains(l.targetImageId),
-            )
-            .toList();
-
-        _boardData = bData.copyWith(
-          imageNodes: remainingNodes,
-          noteNodes: updatedNotes,
-          imageLinks: updatedLinks,
-        );
-        _scheduleBoardSave();
-      }
-    }
+    // 同步大画布节点 (若大画布已加载)：主图节点替换为新选中图，其余删除
+    board.pruneHistoryNodes({imageId}, mainReplacement: _selectedImage);
 
     _statusMessage = vmL10n.vmHistoryDeleted;
     notifyListeners();
@@ -953,37 +888,9 @@ class StudioViewModel extends ChangeNotifier
     _hasUnseenLatest = false;
     imageBytesNotifier.value = const {};
 
-    final bData = _boardData;
-    if (bData != null) {
-      final remainingNodes = bData.imageNodes
-          .where((n) => !historyIds.contains(n.image.id))
-          .toList();
-      final removedNodeIds = bData.imageNodes
-          .where((n) => historyIds.contains(n.image.id))
-          .map((n) => n.id)
-          .toSet();
-      if (removedNodeIds.isNotEmpty) {
-        final updatedNotes = bData.noteNodes.map((n) {
-          if (removedNodeIds.contains(n.targetImageId)) {
-            return n.copyWith(clearConnection: true);
-          }
-          return n;
-        }).toList();
-        final updatedLinks = bData.imageLinks
-            .where(
-              (l) =>
-                  !removedNodeIds.contains(l.sourceImageId) &&
-                  !removedNodeIds.contains(l.targetImageId),
-            )
-            .toList();
-        _boardData = bData.copyWith(
-          imageNodes: remainingNodes,
-          noteNodes: updatedNotes,
-          imageLinks: updatedLinks,
-        );
-        _scheduleBoardSave();
-      }
-    }
+    // 同步大画布：移除来自历史的图片节点 (保留外部导入的参考卡片与自由便利贴，
+    // 指向已删节点的连线/便签连接同步解绑)
+    board.pruneHistoryNodes(historyIds);
 
     _statusMessage = vmL10n.vmHistoryCleared;
     notifyListeners();
@@ -1005,9 +912,7 @@ class StudioViewModel extends ChangeNotifier
       if (_isEditingCharacterPositions) {
         _isEditingCharacterPositions = false;
       }
-      if (_isAnnotatingImage) {
-        _isAnnotatingImage = false;
-      }
+      board.exitAnnotatingModeQuietly();
     }
     notifyListeners();
   }
@@ -1184,6 +1089,13 @@ class StudioViewModel extends ChangeNotifier
     notifyListeners();
   }
 
+  /// BoardController 宿主回调专用：借用全局广播刷新 UI。
+  /// 独立适配器类不是 ChangeNotifier 子类，不能直接触 protected 的
+  /// notifyListeners，统一经本转发入口。
+  void _notifyFromBoard() {
+    notifyListeners();
+  }
+
   @visibleForTesting
   void setChatStreamingForTesting(bool streaming) {
     _isChatStreaming = streaming;
@@ -1202,10 +1114,59 @@ class StudioViewModel extends ChangeNotifier
     // 瞬态控制器随宿主一起释放
     _streamingText.dispose();
     _liveProgressController.dispose();
-    // 大画布布局：取消防抖并立即落盘一次
-    _boardSaveDebounceTimer?.cancel();
-    unawaited(_flushBoardSave());
+    // 大画布领域控制器：内部取消防抖并立即落盘一次 (对齐旧 dispose 契约)
+    board.dispose();
     unawaited(_sessionLog.flush());
     super.dispose();
   }
+}
+
+/// 大画布领域控制器的宿主适配器 (阶段 4D 试点，决策门 §7 契约)：
+/// 仅暴露 BoardControllerHost 最小接口，不泄漏 StudioViewModel 全貌；
+/// 共享底座 (_selectedImage/_config/字节缓存/全局广播) 经由此层单向供给。
+class _StudioBoardHost implements BoardControllerHost {
+  _StudioBoardHost(this._vm);
+
+  final StudioViewModel _vm;
+
+  @override
+  NaiGeneratedImage? get boardSelectedImage => _vm._selectedImage;
+
+  @override
+  void onBoardSelectedImageChanged(NaiGeneratedImage image) {
+    // 仅回写选中引用 (不加载字节/不广播)，行为对齐旧 annotations 分部直赋值
+    _vm._selectedImage = image;
+  }
+
+  @override
+  Future<Uint8List?> ensureBoardImageLoaded(NaiGeneratedImage image) =>
+      _vm.ensureImageLoaded(image);
+
+  @override
+  Future<void> sendChatMessage(
+    String text, {
+    List<AgentMessageImage>? images,
+  }) => _vm.sendChatMessage(text, images: images);
+
+  @override
+  void exitOtherCanvasEditModes() {
+    if (_vm._isEditingCharacterPositions) {
+      _vm._isEditingCharacterPositions = false;
+    }
+    if (_vm._isEditingWatermarkPosition) {
+      _vm._isEditingWatermarkPosition = false;
+    }
+  }
+
+  @override
+  void onBoardStatus(String message) => _vm._statusMessage = message;
+
+  @override
+  bool get boardImagePersistenceEnabled => _vm._config.enableImagePersistence;
+
+  @override
+  String get boardSaveDirectory => _vm._config.saveDirectory;
+
+  @override
+  void requestGlobalNotify() => _vm._notifyFromBoard();
 }

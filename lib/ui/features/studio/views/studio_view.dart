@@ -67,11 +67,11 @@ class _StudioViewState extends State<StudioView> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
 
     // 当处于批注模式时：
-    if (_viewModel.isAnnotatingImage) {
+    if (_viewModel.board.isAnnotatingImage) {
       if (_isTypingText()) return false;
       if (event.logicalKey == LogicalKeyboardKey.escape) {
         if (event is KeyDownEvent) {
-          _viewModel.setAnnotatingImage(false);
+          _viewModel.board.setAnnotatingImage(false);
         }
         return true;
       }
@@ -120,7 +120,7 @@ class _StudioViewState extends State<StudioView> {
       if (!_isTypingText() &&
           !_viewModel.isEditingCharacterPositions &&
           !_viewModel.isEditingWatermarkPosition &&
-          !_viewModel.isAnnotatingImage) {
+          !_viewModel.board.isAnnotatingImage) {
         if (event is KeyDownEvent) {
           _handleGlobalPaste();
         }
@@ -180,7 +180,7 @@ class _StudioViewState extends State<StudioView> {
             viewModel: _viewModel,
           );
         } else if (mounted) {
-          await _viewModel.importReferenceImageFromBytes(
+          await _viewModel.board.importReferenceImageFromBytes(
             imageBytes,
             fileName: fileName,
           );
@@ -216,8 +216,8 @@ class _StudioViewState extends State<StudioView> {
       return;
     }
 
-    if (_viewModel.isAnnotatingImage) {
-      _viewModel.setAnnotatingImage(false);
+    if (_viewModel.board.isAnnotatingImage) {
+      _viewModel.board.setAnnotatingImage(false);
       return;
     }
 
@@ -345,21 +345,23 @@ class _StudioViewState extends State<StudioView> {
                                 )
                               : ResizableThreeSplitView(
                                   key: ValueKey(
-                                    'split-${_viewModel.isAnnotatingImage}',
+                                    'split-${_viewModel.board.isAnnotatingImage}',
                                   ),
                                   initialLeftWidth: _viewModel.splitLeftWidth,
                                   initialRightWidth:
-                                      _viewModel.isAnnotatingImage
+                                      _viewModel.board.isAnnotatingImage
                                       ? 110.0
                                       : _viewModel.splitRightWidth,
-                                  minRightWidth: _viewModel.isAnnotatingImage
+                                  minRightWidth:
+                                      _viewModel.board.isAnnotatingImage
                                       ? 90.0
                                       : 280.0,
-                                  maxRightWidth: _viewModel.isAnnotatingImage
+                                  maxRightWidth:
+                                      _viewModel.board.isAnnotatingImage
                                       ? 160.0
                                       : 560.0,
                                   onWidthsChanged: (left, right) {
-                                    if (!_viewModel.isAnnotatingImage) {
+                                    if (!_viewModel.board.isAnnotatingImage) {
                                       _viewModel.updateSplitWidths(left, right);
                                     }
                                   },
@@ -370,7 +372,7 @@ class _StudioViewState extends State<StudioView> {
                                   centerChild: ImageCanvasCard(
                                     viewModel: _viewModel,
                                   ),
-                                  rightChild: _viewModel.isAnnotatingImage
+                                  rightChild: _viewModel.board.isAnnotatingImage
                                       ? AnnotationHistoryStrip(
                                           viewModel: _viewModel,
                                         )

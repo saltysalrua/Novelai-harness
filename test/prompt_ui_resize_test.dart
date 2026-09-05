@@ -103,54 +103,60 @@ void main() {
       expect(resetBox.size.height, closeTo(initialHeight, 2.0));
     });
 
-    testWidgets('PromptEditorCard respects initialHeight and emits onHeightChanged', (
-      WidgetTester tester,
-    ) async {
-      final controller = TextEditingController(text: '1girl, solo');
-      addTearDown(controller.dispose);
+    testWidgets(
+      'PromptEditorCard respects initialHeight and emits onHeightChanged',
+      (WidgetTester tester) async {
+        final controller = TextEditingController(text: '1girl, solo');
+        addTearDown(controller.dispose);
 
-      double? changedHeight;
+        double? changedHeight;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('zh'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          theme: AppTheme.lightTheme,
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: PromptEditorCard(
-                controller: controller,
-                onChanged: (_) {},
-                hintText: 'Enter prompt',
-                minLines: 4,
-                initialHeight: 180.0,
-                onHeightChanged: (h) => changedHeight = h,
-                tokenEstimate: 5,
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: AppTheme.lightTheme,
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: PromptEditorCard(
+                  controller: controller,
+                  onChanged: (_) {},
+                  hintText: 'Enter prompt',
+                  minLines: 4,
+                  initialHeight: 180.0,
+                  onHeightChanged: (h) => changedHeight = h,
+                  tokenEstimate: 5,
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      final resizableField = tester.renderObject<RenderBox>(find.byType(ResizableTextField));
-      expect(resizableField.size.height, closeTo(192.0, 2.0)); // 180.0 input + 12.0 handle
+        final resizableField = tester.renderObject<RenderBox>(
+          find.byType(ResizableTextField),
+        );
+        expect(
+          resizableField.size.height,
+          closeTo(192.0, 2.0),
+        ); // 180.0 input + 12.0 handle
 
-      final handle = find.byType(PromptResizeHandle);
-      await tester.drag(handle, const Offset(0, 40));
-      await tester.pumpAndSettle();
+        final handle = find.byType(PromptResizeHandle);
+        await tester.drag(handle, const Offset(0, 40));
+        await tester.pumpAndSettle();
 
-      expect(changedHeight, isNotNull);
-      expect(changedHeight!, greaterThan(180.0));
+        expect(changedHeight, isNotNull);
+        expect(changedHeight!, greaterThan(180.0));
 
-      // 双击重置回 defaultHeight (4 * 24 + 20 = 116.0)
-      await tester.tap(handle);
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(handle);
-      await tester.pumpAndSettle();
+        // 双击重置回 defaultHeight (4 * 24 + 20 = 116.0)
+        await tester.tap(handle);
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(handle);
+        await tester.pumpAndSettle();
 
-      expect(changedHeight, closeTo(116.0, 2.0));
-    });
+        expect(changedHeight, closeTo(116.0, 2.0));
+      },
+    );
 
     testWidgets(
       '+0.1 and -0.1 buttons adjust tag weight in x.x::tag:: format',
@@ -304,6 +310,64 @@ void main() {
 
         // 角色徽标数量上限展示
         expect(find.text('1/22'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'PromptExtensionDeck drag from editable text does not switch tabs',
+      (WidgetTester tester) async {
+        final prefixController = TextEditingController(text: '0.7::artist::');
+        final suffixController = TextEditingController(text: 'masterpiece');
+        addTearDown(prefixController.dispose);
+        addTearDown(suffixController.dispose);
+
+        viewModel.addCharacterPrompt();
+        viewModel.updateCharacterPrompt(
+          viewModel.params.characterPrompts.first.copyWith(
+            name: '银发少女',
+            prompt: '1girl, silver hair',
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 350));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: AppTheme.lightTheme,
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: PromptExtensionDeck(
+                  viewModel: viewModel,
+                  prefixController: prefixController,
+                  suffixController: suffixController,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // 在角色提示词输入框内横向拖拽 (模拟鼠标框选文本)：不得切页
+        final editableCenter = tester.getCenter(
+          find.text('1girl, silver hair'),
+        );
+        await tester.dragFrom(editableCenter, const Offset(-150, 0));
+        await tester.pumpAndSettle();
+
+        expect(find.text('银发少女'), findsOneWidget);
+        expect(find.text('PREFIX'), findsNothing);
+
+        // 从分段栏空白处滑动仍可正常切页
+        final swipeDetector = find.byKey(const ValueKey('deck_swipe_detector'));
+        final topLeft = tester.getTopLeft(swipeDetector);
+        await tester.dragFrom(
+          topLeft + const Offset(20, 20),
+          const Offset(-150, 0),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('PREFIX'), findsOneWidget);
       },
     );
   });

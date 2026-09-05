@@ -12,20 +12,41 @@ import 'image_lightbox.dart';
 
 /// 单条对话消息的 Pi 风格平铺渲染入口
 /// (system 隐藏 / user 纯文本 / assistant Markdown / tool 结果块)
-class AgentChatMessageItem extends StatelessWidget {
+class AgentChatMessageItem extends StatefulWidget {
   final AgentMessage message;
 
   /// 思考块全局展开开关 (Ctrl+O)，透传给助手消息的思考块
   final bool thinkingExpanded;
 
+  /// 只保活近期消息，避免长会话无限持有 Markdown 和图片子树。
+  final bool keepAlive;
+
   const AgentChatMessageItem({
     super.key,
     required this.message,
     this.thinkingExpanded = false,
+    this.keepAlive = false,
   });
 
   @override
+  State<AgentChatMessageItem> createState() => _AgentChatMessageItemState();
+}
+
+class _AgentChatMessageItemState extends State<AgentChatMessageItem>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => widget.keepAlive;
+
+  @override
+  void didUpdateWidget(AgentChatMessageItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.keepAlive != widget.keepAlive) updateKeepAlive();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
+    final message = widget.message;
     switch (message.role) {
       case AgentRole.system:
         return const SizedBox.shrink();
@@ -36,7 +57,7 @@ class AgentChatMessageItem extends StatelessWidget {
       case AgentRole.assistant:
         return AssistantMessageItem(
           message: message,
-          thinkingExpanded: thinkingExpanded,
+          thinkingExpanded: widget.thinkingExpanded,
         );
     }
   }

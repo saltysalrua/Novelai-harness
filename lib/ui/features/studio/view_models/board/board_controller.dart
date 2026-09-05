@@ -1,14 +1,112 @@
-part of 'studio_view_model.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:ui' show Offset;
 
-/// 画板图片批注与多参考图自由大画布管理
-mixin _StudioAnnotationsMixin on _StudioCore {
+import 'package:flutter/foundation.dart';
+
+import '../../../../../core/harness/tools/annotation_tools.dart';
+import '../../../../../core/harness/tools/vision_image_codec.dart';
+import '../../../../../core/harness/types.dart';
+import '../../../../../data/models/novelai_models.dart';
+import '../../../../../data/repositories/novelai_repository.dart';
+import '../../../../../data/services/anlas_calculator.dart';
+
+/// 自由大画布领域控制器的宿主回调接口。
+///
+/// 阶段 4D 试点契约 (plans/stage_4d_controller_decision_gate.md §7)：
+/// Controller 不持有 StudioViewModel 全貌，仅经本接口触达宿主。
+/// 其中 [boardSelectedImage] / [onBoardSelectedImageChanged] /
+/// [ensureBoardImageLoaded] / [boardImagePersistenceEnabled] /
+/// [boardSaveDirectory] 属宿主共享底座 (决策门 §8：Controller 不得私有化复制)，
+/// 其余为决策门点名的最小回调三项 (sendChatMessage / onBoardStatus /
+/// requestGlobalNotify) 加跨编辑模式互斥所需的 [exitOtherCanvasEditModes]。
+abstract interface class BoardControllerHost {
+  /// 宿主当前选中的图片 (共享底座只读)
+  NaiGeneratedImage? get boardSelectedImage;
+
+  /// 批注模式需要切换选中图片时回写宿主 (仅回写引用，不加载字节、不广播)
+  void onBoardSelectedImageChanged(NaiGeneratedImage image);
+
+  /// 确保大图字节已载入内存 (走宿主共享字节缓存 imageBytesNotifier)
+  Future<Uint8List?> ensureBoardImageLoaded(NaiGeneratedImage image);
+
+  /// 发送对话消息到 Agent 对话流 (sendAnnotationsToChat 出口)
+  Future<void> sendChatMessage(String text, {List<AgentMessageImage>? images});
+
+  /// 批注模式开启时退出角色位置/水印位置等其他画布编辑模式
+  void exitOtherCanvasEditModes();
+
+  /// 大画布状态消息通道 (宿主侧生成展示；当前预留)
+  void onBoardStatus(String message);
+
+  /// 图片持久化开关 (布局落盘判定)
+  bool get boardImagePersistenceEnabled;
+
+  /// 存储根目录 (布局落盘判定)
+  String get boardSaveDirectory;
+
+  /// 借用宿主全局广播刷新 UI (试点期通知策略，决策门 §4-3 推荐方案)
+  void requestGlobalNotify();
+}
+
+/// 自由大画布领域控制器：图片节点 / 便利贴 / 批注选区 / 连线与布局持久化。
+///
+/// 阶段 4D 批准的唯一拆分试点，整域自 studio_vm_annotations.dart (930 行)
+/// 平移而来，方法签名保持不变；宿主经 [BoardControllerHost] 最小接口交互。
+///
+/// 通知策略：继承 ChangeNotifier 供未来局部监听，但试点期所有状态变更统一
+/// 经 [BoardControllerHost.requestGlobalNotify] 借用宿主广播，自身不直接
+/// notifyListeners (避免 UI 层连锁改造)。
+///
+/// 迟到写入防护：dispose 后所有广播与宿主回调用 [_alive] 卫语句拦截，
+/// 异步链 (await 仓库落盘 / 字节解码) 在恢复执行前必须复查存活状态。
+class BoardController extends ChangeNotifier {
+  BoardController({required this._host, required this._repository});
+
+  final BoardControllerHost _host;
+  final NovelAiRepository _repository;
+
   /// 是否正在画板上批注当前选中的图片
-  @override
+  bool _isAnnotatingImage = false;
+
+  /// 当前高亮选中的批注 ID
+  String? _activeAnnotationId;
+
+  /// 当前自由大画布上的完整节点与连接数据
+  CanvasBoardData? _boardData;
+
+  /// 大画布布局持久化防抖计时器 (拖拽/缩放/移动后延迟落盘)
+  Timer? _boardSaveDebounceTimer;
+
+  /// 迟到写入防护：dispose 后拒绝一切广播与宿主回调
+  bool _alive = true;
+
+  /// 是否正在画板上批注当前选中的图片
   bool get isAnnotatingImage => _isAnnotatingImage;
+
+  /// 当前高亮选中的批注 ID (用于高亮选区与卡片定位)
+  String? get activeAnnotationId => _activeAnnotationId;
+
+  /// 当前大画布完整数据 (无数据时按当前选中/历史首图懒初始化)
+  CanvasBoardData get boardData {
+    if (_boardData == null) {
+      _initBoardData();
+    }
+    return _boardData!;
+  }
+
+  // ------------------------- 宿主交互封装 -------------------------
+
+  /// 借用宿主全局广播 (dispose 后静默丢弃，保护已释放宿主)
+  void _broadcast() {
+    if (!_alive) return;
+    _host.requestGlobalNotify();
+  }
 
   /// 当前大画布布局防抖落盘 (仅图片持久化开启时生效)
   void _scheduleBoardSave() {
-    if (!_config.enableImagePersistence || _config.saveDirectory.isEmpty) {
+    if (!_host.boardImagePersistenceEnabled ||
+        _host.boardSaveDirectory.isEmpty) {
       return;
     }
     _boardSaveDebounceTimer?.cancel();
@@ -23,54 +121,103 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     if (bData == null) return;
     await _repository.saveBoardLayout(
       bData,
-      saveDir: _config.saveDirectory,
-      enabled: _config.enableImagePersistence,
+      saveDir: _host.boardSaveDirectory,
+      enabled: _host.boardImagePersistenceEnabled,
     );
   }
 
-  /// 记录大画布视口矩阵 (InteractiveViewer 平移/缩放，仅更新数据并防抖落盘，
-  /// 不触发 notifyListeners —— 视口由画板自身控制)
-  void updateBoardViewport(double scale, double tx, double ty) {
+  // ------------------------- 生命周期 -------------------------
+
+  @override
+  void dispose() {
+    _alive = false;
+    // 大画布布局：取消防抖并立即落盘一次 (契约保持与旧宿主 dispose 等价)
+    _boardSaveDebounceTimer?.cancel();
+    unawaited(_flushBoardSave());
+    super.dispose();
+  }
+
+  /// 宿主启动时注入持久化恢复的画布布局 (init 流程)
+  void restoreLayout(CanvasBoardData data) {
+    _boardData = data;
+  }
+
+  /// 宿主关闭图片持久化时丢弃内存布局 (不删除磁盘文件，重开开关后可再恢复)
+  void discardLayout() {
+    _boardData = null;
+  }
+
+  /// 其他画布编辑模式 (水印位置编辑等) 开启时静默退出批注模式：
+  /// 仅置位不广播，由调用方统一 notify (行为对齐旧内联赋值路径)
+  void exitAnnotatingModeQuietly() {
+    _isAnnotatingImage = false;
+  }
+
+  /// 历史图片删除/清空后同步大画布：
+  /// 移除指向已删历史图片的节点 (主图节点可选替换为新选中图)、
+  /// 解绑指向已删节点的便签连接与参考图连线。
+  void pruneHistoryNodes(
+    Set<String> historyImageIds, {
+    NaiGeneratedImage? mainReplacement,
+  }) {
     final bData = _boardData;
     if (bData == null) return;
-    if (bData.viewScale == scale && bData.viewTx == tx && bData.viewTy == ty) {
-      return;
+    final hasMatch = bData.imageNodes.any(
+      (n) => historyImageIds.contains(n.image.id),
+    );
+    if (!hasMatch) return;
+
+    final remainingNodes = <CanvasImageNode>[];
+    for (final node in bData.imageNodes) {
+      if (historyImageIds.contains(node.image.id)) {
+        if (node.isMain && mainReplacement != null) {
+          remainingNodes.add(
+            node.copyWith(
+              image: mainReplacement,
+              annotations: mainReplacement.annotations,
+            ),
+          );
+        }
+        // 非主图节点或无替代图时直接移除
+      } else {
+        remainingNodes.add(node);
+      }
     }
-    _boardData = bData.copyWith(viewScale: scale, viewTx: tx, viewTy: ty);
+
+    final removedNodeIds = bData.imageNodes
+        .where((n) => !remainingNodes.any((rem) => rem.id == n.id))
+        .map((n) => n.id)
+        .toSet();
+
+    final updatedNotes = bData.noteNodes.map((n) {
+      if (removedNodeIds.contains(n.targetImageId)) {
+        return n.copyWith(clearConnection: true);
+      }
+      return n;
+    }).toList();
+
+    final updatedLinks = bData.imageLinks
+        .where(
+          (l) =>
+              !removedNodeIds.contains(l.sourceImageId) &&
+              !removedNodeIds.contains(l.targetImageId),
+        )
+        .toList();
+
+    _boardData = bData.copyWith(
+      imageNodes: remainingNodes,
+      noteNodes: updatedNotes,
+      imageLinks: updatedLinks,
+    );
     _scheduleBoardSave();
   }
 
-  /// 当前高亮选中的批注 ID
-  String? get activeAnnotationId => _activeAnnotationId;
+  // ------------------------- 批注模式 -------------------------
 
-  /// 当前大画布完整数据
-  CanvasBoardData get boardData {
-    if (_boardData == null) {
-      _initBoardData();
-    }
-    return _boardData!;
-  }
-
-  /// 当前选中图片或主图的批注列表
-  List<ImageAnnotation> get currentImageAnnotations {
-    final bData = _boardData;
-    if (bData != null) {
-      final mainNode =
-          bData.imageNodes.where((n) => n.isMain).firstOrNull ??
-          bData.imageNodes.firstOrNull;
-      if (mainNode != null) {
-        return mainNode.annotations;
-      }
-    }
-    final img = _selectedImage;
-    if (img == null) return const [];
-    return img.annotations;
-  }
-
-  /// 初始化或重置大画布数据
+  /// 初始化或重置大画布数据 (依据宿主选中图或历史首图)
   void _initBoardData() {
     final mainImg =
-        _selectedImage ??
+        _host.boardSelectedImage ??
         (_repository.history.isNotEmpty ? _repository.history.first : null);
 
     final imageNodes = <CanvasImageNode>[];
@@ -126,7 +273,6 @@ mixin _StudioAnnotationsMixin on _StudioCore {
   ///
   /// 退出时保留大画布数据，下次进入原样恢复；仅当画布不存在或
   /// 目标主图发生变化时才重建，避免清空用户手工摆放的布局。
-  @override
   void setAnnotatingImage(bool annotating, {String? targetImageId}) {
     NaiGeneratedImage? target;
     if (targetImageId != null) {
@@ -134,7 +280,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
           .where((img) => img.id == targetImageId)
           .firstOrNull;
       if (target != null) {
-        _selectedImage = target;
+        _host.onBoardSelectedImageChanged(target);
       }
     }
     if (_isAnnotatingImage == annotating && targetImageId == null) return;
@@ -142,17 +288,9 @@ mixin _StudioAnnotationsMixin on _StudioCore {
 
     // 退出角色与水印位置编辑模式，避免双编辑模式冲突
     if (annotating) {
-      if (_isEditingCharacterPositions) {
-        _isEditingCharacterPositions = false;
-      }
-      if (_isEditingWatermarkPosition) {
-        _isEditingWatermarkPosition = false;
-      }
-    }
-
-    if (annotating) {
+      _host.exitOtherCanvasEditModes();
       final bData = _boardData;
-      final mainImg = target ?? _selectedImage;
+      final mainImg = target ?? _host.boardSelectedImage;
       final currentMainId = bData?.imageNodes
           .where((n) => n.isMain)
           .firstOrNull
@@ -167,14 +305,26 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       // 保留画布数据供下次进入恢复，仅清理选中高亮
       _activeAnnotationId = null;
     }
-    notifyListeners();
+    _broadcast();
+  }
+
+  /// 记录大画布视口矩阵 (InteractiveViewer 平移/缩放，仅更新数据并防抖落盘，
+  /// 不触发广播 —— 视口由画板自身控制)
+  void updateBoardViewport(double scale, double tx, double ty) {
+    final bData = _boardData;
+    if (bData == null) return;
+    if (bData.viewScale == scale && bData.viewTx == tx && bData.viewTy == ty) {
+      return;
+    }
+    _boardData = bData.copyWith(viewScale: scale, viewTx: tx, viewTy: ty);
+    _scheduleBoardSave();
   }
 
   /// 选中指定批注 (用于高亮选区与卡片定位)
   void selectAnnotationId(String? id) {
     if (_activeAnnotationId == id) return;
     _activeAnnotationId = id;
-    notifyListeners();
+    _broadcast();
   }
 
   // ==================== 大画布节点与便利贴 CRUD ====================
@@ -213,7 +363,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     );
 
     _boardData = curData.copyWith(imageNodes: [...curData.imageNodes, newNode]);
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
   }
 
@@ -230,7 +380,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     }).toList();
 
     _boardData = _boardData!.copyWith(imageNodes: updated);
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
   }
 
@@ -245,7 +395,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     }).toList();
 
     _boardData = _boardData!.copyWith(imageNodes: updated);
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
   }
 
@@ -273,7 +423,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       noteNodes: updatedNotes,
       imageLinks: updatedLinks,
     );
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
   }
 
@@ -323,7 +473,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
 
     // 先同步刷新 UI (避免选区/图钉松手时闪回旧位置)，再落盘
     _activeAnnotationId = annotation.id;
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
 
     // 同步到持久化仓库 (若为主图)
@@ -331,9 +481,10 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       await _repository.updateImageAnnotations(
         imageId: targetNode!.image.id,
         annotations: targetNode!.annotations,
-        saveDir: _config.saveDirectory,
-        enablePersistence: _config.enableImagePersistence,
+        saveDir: _host.boardSaveDirectory,
+        enablePersistence: _host.boardImagePersistenceEnabled,
       );
+      if (!_alive) return;
     }
   }
 
@@ -360,7 +511,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     _boardData = _boardData!.copyWith(imageNodes: updatedNodes);
 
     // 先同步刷新 UI (避免选区/图钉拖拽结束时闪回旧位置)，再落盘
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
 
     // 同步到持久化仓库 (若为主图)
@@ -368,9 +519,10 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       await _repository.updateImageAnnotations(
         imageId: targetNode!.image.id,
         annotations: targetNode!.annotations,
-        saveDir: _config.saveDirectory,
-        enablePersistence: _config.enableImagePersistence,
+        saveDir: _host.boardSaveDirectory,
+        enablePersistence: _host.boardImagePersistenceEnabled,
       );
+      if (!_alive) return;
     }
   }
 
@@ -420,7 +572,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     }
 
     // 先同步刷新 UI，再落盘
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
 
     // 同步到持久化仓库 (若为主图)
@@ -428,9 +580,10 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       await _repository.updateImageAnnotations(
         imageId: targetNode!.image.id,
         annotations: targetNode!.annotations,
-        saveDir: _config.saveDirectory,
-        enablePersistence: _config.enableImagePersistence,
+        saveDir: _host.boardSaveDirectory,
+        enablePersistence: _host.boardImagePersistenceEnabled,
       );
+      if (!_alive) return;
     }
   }
 
@@ -460,7 +613,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     _boardData = _boardData!.copyWith(
       noteNodes: [..._boardData!.noteNodes, newNote],
     );
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
   }
 
@@ -513,7 +666,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       }
     }
 
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
   }
 
@@ -524,7 +677,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
         .where((node) => node.id != noteId)
         .toList();
     _boardData = _boardData!.copyWith(noteNodes: updated);
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
   }
 
@@ -576,7 +729,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
           ];
 
     _boardData = _boardData!.copyWith(imageLinks: updated);
-    notifyListeners();
+    _broadcast();
     _scheduleBoardSave();
   }
 
@@ -595,7 +748,6 @@ mixin _StudioAnnotationsMixin on _StudioCore {
 
   /// 全量替换某张历史图片的批注：仓库持久化 + 大画布节点同步 + 选图引用刷新。
   /// Agent 的 add/update/remove/clear 批注工具都经由这一个入口写入。
-  @override
   Future<bool> replaceImageAnnotations(
     String imageId,
     List<ImageAnnotation> annotations,
@@ -606,9 +758,10 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     await _repository.updateImageAnnotations(
       imageId: imageId,
       annotations: annotations,
-      saveDir: _config.saveDirectory,
-      enablePersistence: _config.enableImagePersistence,
+      saveDir: _host.boardSaveDirectory,
+      enablePersistence: _host.boardImagePersistenceEnabled,
     );
+    if (!_alive) return false;
 
     // 同步大画布上的对应节点 (批注模式打开时即时可见)
     final bData = _boardData;
@@ -652,53 +805,11 @@ mixin _StudioAnnotationsMixin on _StudioCore {
     }
 
     // 刷新选图引用，让普通画板立即反映新批注
-    if (_selectedImage?.id == imageId) {
-      _selectedImage = _repository.history[index];
+    if (_host.boardSelectedImage?.id == imageId) {
+      _host.onBoardSelectedImageChanged(_repository.history[index]);
     }
-    notifyListeners();
+    _broadcast();
     return true;
-  }
-
-  // ==================== 向后兼容单图批注接口 ====================
-
-  Future<void> addAnnotationToSelectedImage(ImageAnnotation annotation) async {
-    final mainNode =
-        boardData.imageNodes.where((n) => n.isMain).firstOrNull ??
-        boardData.imageNodes.firstOrNull;
-    if (mainNode != null) {
-      await addAnnotationToImageNode(mainNode.id, annotation);
-    }
-  }
-
-  Future<void> updateAnnotationInSelectedImage(
-    ImageAnnotation annotation,
-  ) async {
-    final mainNode =
-        boardData.imageNodes.where((n) => n.isMain).firstOrNull ??
-        boardData.imageNodes.firstOrNull;
-    if (mainNode != null) {
-      await updateAnnotationInImageNode(mainNode.id, annotation);
-    }
-  }
-
-  Future<void> removeAnnotationFromSelectedImage(String annotationId) async {
-    final mainNode =
-        boardData.imageNodes.where((n) => n.isMain).firstOrNull ??
-        boardData.imageNodes.firstOrNull;
-    if (mainNode != null) {
-      await removeAnnotationFromImageNode(mainNode.id, annotationId);
-    }
-  }
-
-  Future<void> clearAnnotationsFromSelectedImage() async {
-    final mainNode =
-        boardData.imageNodes.where((n) => n.isMain).firstOrNull ??
-        boardData.imageNodes.firstOrNull;
-    if (mainNode != null) {
-      for (final a in mainNode.annotations) {
-        await removeAnnotationFromImageNode(mainNode.id, a.id);
-      }
-    }
   }
 
   // ==================== 导入外部参考图 ====================
@@ -713,16 +824,17 @@ mixin _StudioAnnotationsMixin on _StudioCore {
   }) async {
     if (bytes.isEmpty) return null;
     final dims = await AnlasCalculator.decodeImageDimensions(bytes);
+    if (!_alive) return null;
     final refId = 'ref-${DateTime.now().millisecondsSinceEpoch}';
 
     // 参考图字节落盘 board_refs 目录 (仅画布使用，不进生图历史)
     final ext = fileName != null && fileName.contains('.')
         ? fileName.substring(fileName.lastIndexOf('.'))
         : '.png';
-    final refFilePath = _config.enableImagePersistence
+    final refFilePath = _host.boardImagePersistenceEnabled
         ? _repository.writeBoardReferenceImage(
             bytes,
-            saveDir: _config.saveDirectory,
+            saveDir: _host.boardSaveDirectory,
             imageId: refId,
             ext: ext,
           )
@@ -749,15 +861,10 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       // 主图仍为当前选中/最新生成图 (无历史时画布仅含参考卡片)，
       // 导入的外部图只作为纯参考卡片落位
       _isAnnotatingImage = true;
-      if (_isEditingCharacterPositions) {
-        _isEditingCharacterPositions = false;
-      }
-      if (_isEditingWatermarkPosition) {
-        _isEditingWatermarkPosition = false;
-      }
+      _host.exitOtherCanvasEditModes();
       final bData = _boardData;
       final mainImg =
-          _selectedImage ??
+          _host.boardSelectedImage ??
           (_repository.history.isNotEmpty ? _repository.history.first : null);
       final currentMainId = bData?.imageNodes
           .where((n) => n.isMain)
@@ -771,7 +878,7 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       }
       addImageNodeToBoard(refImage, position: dropPosition);
     }
-    notifyListeners();
+    _broadcast();
     return refImage;
   }
 
@@ -873,7 +980,9 @@ mixin _StudioAnnotationsMixin on _StudioCore {
         bData.imageNodes.firstOrNull;
     if (mainNode != null) {
       final mainBytes =
-          await ensureImageLoaded(mainNode.image) ?? mainNode.image.uint8Bytes;
+          await _host.ensureBoardImageLoaded(mainNode.image) ??
+          mainNode.image.uint8Bytes;
+      if (!_alive) return;
       try {
         final renderRes = await renderImageWithAnnotationOverlay(
           mainBytes,
@@ -908,7 +1017,9 @@ mixin _StudioAnnotationsMixin on _StudioCore {
       if (refNode == null) continue;
       linkedRefIds.add(link.sourceImageId);
       final refBytes =
-          await ensureImageLoaded(refNode.image) ?? refNode.image.uint8Bytes;
+          await _host.ensureBoardImageLoaded(refNode.image) ??
+          refNode.image.uint8Bytes;
+      if (!_alive) return;
       final payload = await compressVisionImage(refBytes);
       messageImages.add(
         AgentMessageImage(
@@ -920,9 +1031,9 @@ mixin _StudioAnnotationsMixin on _StudioCore {
 
     // 退出批注模式并发送对话
     _isAnnotatingImage = false;
-    notifyListeners();
+    _broadcast();
 
-    await sendChatMessage(
+    await _host.sendChatMessage(
       buffer.toString(),
       images: messageImages.isNotEmpty ? messageImages : null,
     );

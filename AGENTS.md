@@ -122,7 +122,6 @@ dart run tool/gates.dart  # 统一门禁入口：跨进程互斥锁串行化 (�
 ## 联动规范
 
 - **架构与模块索引**：详细架构设计、数据流时序与完整文件清单参考 [**ARCHITECTURE.md**](ARCHITECTURE.md)。
-- **架构演进与优化规划**：全景性能治理、通用原子组件沉淀、UI 统一及 i18n/全局主题四阶段实施规划与当前进度详见 [**plans/architecture_and_performance_optimization_plan.md**](plans/architecture_and_performance_optimization_plan.md)。
 - **视觉设计规范**：全局调色板、阴影与组件风格参考 `lib/ui/core/theme/app_theme.dart`。
 - **多 Agent 协作**：Orca 编排的模式判定、命令骨架与 Worker 契约详见上方「多 Agent 协作规范 (Orca)」章节；具体 CLI 语法以 `orca skills get orca-cli` / `orca skills get orchestration` 动态检索为准。
 - **本地个人偏好**：支持在项目根目录创建 `AGENTS.local.md`（已加入 `.gitignore`），用于自定义回复语言、代码注释风格与个人交互偏好。

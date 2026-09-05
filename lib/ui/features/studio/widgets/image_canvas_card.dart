@@ -67,7 +67,7 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
         viewModel: widget.viewModel,
       );
     } else if (mounted) {
-      await widget.viewModel.importReferenceImageFromBytes(
+      await widget.viewModel.board.importReferenceImageFromBytes(
         bytes,
         fileName: fileName,
       );
@@ -88,7 +88,7 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
     final isEditingPositions =
         viewModel.isEditingCharacterPositions ||
         viewModel.isEditingWatermarkPosition;
-    final isAnnotating = viewModel.isAnnotatingImage;
+    final isAnnotating = viewModel.board.isAnnotatingImage;
     final isInpaintTab =
         viewModel.activeSidebarTab == StudioSidebarTab.inpaint &&
         !isEditingPositions;

@@ -8,12 +8,73 @@ import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model
 import 'package:novelai_harness/ui/features/studio/widgets/image_canvas_actions.dart';
 
 final kTestPngBytes = Uint8List.fromList([
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-  0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-  0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0A,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x63,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
 ]);
 
 NaiGeneratedImage _image(String id, {String prompt = 'p'}) => NaiGeneratedImage(
@@ -42,9 +103,9 @@ void main() {
       vm.selectImage(mainImg);
 
       // 进入批注模式并放置一张不属于历史的外部参考卡片
-      vm.setAnnotatingImage(true);
-      vm.addImageNodeToBoard(externalRef);
-      expect(vm.boardData.imageNodes.length, equals(2));
+      vm.board.setAnnotatingImage(true);
+      vm.board.addImageNodeToBoard(externalRef);
+      expect(vm.board.boardData.imageNodes.length, equals(2));
 
       await vm.clearImageHistory();
 
@@ -54,9 +115,9 @@ void main() {
       expect(vm.statusMessage, equals('已清空历史记录'));
 
       // 大画布仅保留外部参考卡片，历史图节点 (含主图) 全部移除
-      expect(vm.boardData.imageNodes.length, equals(1));
-      expect(vm.boardData.imageNodes.first.image.id, equals('ref-ext'));
-      expect(vm.boardData.imageNodes.first.isMain, isFalse);
+      expect(vm.board.boardData.imageNodes.length, equals(1));
+      expect(vm.board.boardData.imageNodes.first.image.id, equals('ref-ext'));
+      expect(vm.board.boardData.imageNodes.first.isMain, isFalse);
     });
 
     test('is a no-op when history is already empty', () async {
@@ -70,8 +131,9 @@ void main() {
   });
 
   group('clear history context menu Tests', () {
-    testWidgets('clears all history after confirmation and cancels safely',
-        (tester) async {
+    testWidgets('clears all history after confirmation and cancels safely', (
+      tester,
+    ) async {
       final repo = NovelAiRepository();
       final vm = StudioViewModel(repository: repo);
 
@@ -134,57 +196,64 @@ void main() {
   });
 
   group('importReferenceImageFromBytes Tests', () {
-    test('imported image lands as reference card, never as main image',
-        () async {
-      final repo = NovelAiRepository();
-      final vm = StudioViewModel(repository: repo);
+    test(
+      'imported image lands as reference card, never as main image',
+      () async {
+        final repo = NovelAiRepository();
+        final vm = StudioViewModel(repository: repo);
 
-      final current = _image('current-main');
-      repo.addImageForTesting(current);
-      vm.selectImage(current);
+        final current = _image('current-main');
+        repo.addImageForTesting(current);
+        vm.selectImage(current);
 
-      final imported = await vm.importReferenceImageFromBytes(
-        kTestPngBytes,
-        fileName: 'external.png',
-      );
+        final imported = await vm.board.importReferenceImageFromBytes(
+          kTestPngBytes,
+          fileName: 'external.png',
+        );
 
-      expect(imported, isNotNull);
-      expect(vm.isAnnotatingImage, isTrue);
+        expect(imported, isNotNull);
+        expect(vm.board.isAnnotatingImage, isTrue);
 
-      // 选中图不被劫持：仍是原来的当前图
-      expect(vm.selectedImage?.id, equals('current-main'));
+        // 选中图不被劫持：仍是原来的当前图
+        expect(vm.selectedImage?.id, equals('current-main'));
 
-      // 主图位仍是当前生成图，导入图只是参考卡片
-      final mainNode = vm.boardData.imageNodes
-          .where((n) => n.isMain)
-          .firstOrNull;
-      expect(mainNode?.image.id, equals('current-main'));
-      final refNode = vm.boardData.imageNodes
-          .where((n) => n.image.id == imported!.id)
-          .firstOrNull;
-      expect(refNode, isNotNull);
-      expect(refNode!.isMain, isFalse);
+        // 主图位仍是当前生成图，导入图只是参考卡片
+        final mainNode = vm.board.boardData.imageNodes
+            .where((n) => n.isMain)
+            .firstOrNull;
+        expect(mainNode?.image.id, equals('current-main'));
+        final refNode = vm.board.boardData.imageNodes
+            .where((n) => n.image.id == imported!.id)
+            .firstOrNull;
+        expect(refNode, isNotNull);
+        expect(refNode!.isMain, isFalse);
 
-      // 导入图不进入生图历史
-      expect(vm.gallery.length, equals(1));
-    });
+        // 导入图不进入生图历史
+        expect(vm.gallery.length, equals(1));
+      },
+    );
 
-    test('import with empty gallery creates board with only the reference card',
-        () async {
-      final repo = NovelAiRepository();
-      final vm = StudioViewModel(repository: repo);
+    test(
+      'import with empty gallery creates board with only the reference card',
+      () async {
+        final repo = NovelAiRepository();
+        final vm = StudioViewModel(repository: repo);
 
-      final imported = await vm.importReferenceImageFromBytes(
-        kTestPngBytes,
-        fileName: 'external.png',
-      );
+        final imported = await vm.board.importReferenceImageFromBytes(
+          kTestPngBytes,
+          fileName: 'external.png',
+        );
 
-      expect(imported, isNotNull);
-      expect(vm.isAnnotatingImage, isTrue);
-      expect(vm.selectedImage, isNull);
-      expect(vm.boardData.imageNodes.length, equals(1));
-      expect(vm.boardData.imageNodes.first.image.id, equals(imported!.id));
-      expect(vm.boardData.imageNodes.first.isMain, isFalse);
-    });
+        expect(imported, isNotNull);
+        expect(vm.board.isAnnotatingImage, isTrue);
+        expect(vm.selectedImage, isNull);
+        expect(vm.board.boardData.imageNodes.length, equals(1));
+        expect(
+          vm.board.boardData.imageNodes.first.image.id,
+          equals(imported!.id),
+        );
+        expect(vm.board.boardData.imageNodes.first.isMain, isFalse);
+      },
+    );
   });
 }

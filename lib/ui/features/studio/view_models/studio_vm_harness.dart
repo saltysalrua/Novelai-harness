@@ -178,8 +178,8 @@ mixin _StudioHarnessMixin on _StudioCore {
             _config.activeLlmProvider.activeModel.isMultimodal,
       ),
     );
-    // Agent 批注增删改查四件套工具：写入口统一走 replaceImageAnnotations
-    // (抽象签名在 _StudioCore，实现于 _StudioAnnotationsMixin，同步仓库持久化与大画布)
+    // Agent 批注增删改查四件套工具：写入口统一走 board.replaceImageAnnotations
+    // (阶段4D 试点：BoardController 域内方法，同步仓库持久化与大画布)
     _toolRegistry.register(
       ViewImageAnnotationsTool(
         getHistory: () => _repository.history,
@@ -190,25 +190,25 @@ mixin _StudioHarnessMixin on _StudioCore {
     _toolRegistry.register(
       AddImageAnnotationTool(
         getHistory: () => _repository.history,
-        writeAnnotations: replaceImageAnnotations,
+        writeAnnotations: board.replaceImageAnnotations,
       ),
     );
     _toolRegistry.register(
       UpdateImageAnnotationTool(
         getHistory: () => _repository.history,
-        writeAnnotations: replaceImageAnnotations,
+        writeAnnotations: board.replaceImageAnnotations,
       ),
     );
     _toolRegistry.register(
       RemoveImageAnnotationTool(
         getHistory: () => _repository.history,
-        writeAnnotations: replaceImageAnnotations,
+        writeAnnotations: board.replaceImageAnnotations,
       ),
     );
     _toolRegistry.register(
       ClearImageAnnotationsTool(
         getHistory: () => _repository.history,
-        writeAnnotations: replaceImageAnnotations,
+        writeAnnotations: board.replaceImageAnnotations,
       ),
     );
     _toolRegistry.register(

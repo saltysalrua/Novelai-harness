@@ -84,7 +84,7 @@ Future<void> pickAndImportReferenceImage(
   final bytes = file.bytes;
   if (bytes == null || bytes.isEmpty) return;
 
-  await viewModel.importReferenceImageFromBytes(
+  await viewModel.board.importReferenceImageFromBytes(
     bytes,
     fileName: file.name,
     dropPosition: dropPosition,
@@ -122,7 +122,7 @@ void showImageContextMenu(
             ? l10n.canvasActionAddAnnotation
             : l10n.canvasActionViewAnnotation(image.annotations.length),
         onTap: () =>
-            viewModel.setAnnotatingImage(true, targetImageId: image.id),
+            viewModel.board.setAnnotatingImage(true, targetImageId: image.id),
       ),
       ContextMenuItem(
         icon: Icons.auto_fix_high_outlined,

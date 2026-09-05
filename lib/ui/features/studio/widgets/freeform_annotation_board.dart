@@ -14,6 +14,7 @@ import 'board_note_card.dart';
 import 'board_toolbar.dart';
 import 'board_wire_painter.dart';
 import 'image_canvas_actions.dart';
+import 'metadata_reader_dialog.dart';
 
 /// 画布中心基准点 (6000x6000 视口高性能画板)
 const double kBoardCanvasSize = 6000.0;
@@ -28,7 +29,7 @@ const double kBoardMaxScale = 3.0;
 /// 交互模型：
 /// - 空白区域左键拖拽直接漫游 (无需切换工具)；中键/右键/按住空格同样漫游
 /// - 图片卡/便签卡自身可拖拽移动与删除，选区图钉可拉出连线
-/// - 滚轮以光标为不动点缩放；Ctrl+V 粘贴图片；拖入文件导入参考图
+/// - 滚轮以光标为不动点缩放；Ctrl+V 粘贴图片 (携带元数据时优先弹窗检查)；拖入文件导入参考图
 class FreeformAnnotationBoard extends StatefulWidget {
   final StudioViewModel viewModel;
 
@@ -80,7 +81,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   /// 把当前视口矩阵 (缩放/平移) 同步给 ViewModel 用于恢复布局
   void _syncViewport() {
     final m = _transformController.value;
-    widget.viewModel.updateBoardViewport(
+    widget.viewModel.board.updateBoardViewport(
       m.storage[0],
       m.storage[12],
       m.storage[13],
@@ -89,7 +90,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
 
   /// 首帧定位：保存过视口则原样还原，否则居中到内容包围盒
   void _applyInitialViewport(Size viewSize) {
-    final bData = widget.viewModel.boardData;
+    final bData = widget.viewModel.board.boardData;
     if (bData.hasSavedViewport) {
       _transformController.value = Matrix4.identity()
         ..storage[0] = bData.viewScale
@@ -115,7 +116,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   }
 
   bool _handleGlobalKey(KeyEvent event) {
-    if (!mounted || !widget.viewModel.isAnnotatingImage) return false;
+    if (!mounted || !widget.viewModel.board.isAnnotatingImage) return false;
     // 空格漫游与 Ctrl+V 粘贴仅在非文本输入状态下接管
     if (_isTypingText()) return false;
     if (event.logicalKey == LogicalKeyboardKey.space) {
@@ -136,9 +137,9 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
     if (event is KeyDownEvent &&
         (event.logicalKey == LogicalKeyboardKey.delete ||
             event.logicalKey == LogicalKeyboardKey.backspace)) {
-      final activeId = widget.viewModel.activeAnnotationId;
+      final activeId = widget.viewModel.board.activeAnnotationId;
       if (activeId != null) {
-        widget.viewModel.removeAnnotationById(activeId);
+        widget.viewModel.board.removeAnnotationById(activeId);
         return true;
       }
     }
@@ -187,7 +188,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
 
   void _centerViewport(Size viewSize) {
     if (viewSize.width <= 0 || viewSize.height <= 0) return;
-    final bData = widget.viewModel.boardData;
+    final bData = widget.viewModel.board.boardData;
     double minX = kBoardCenterOrigin;
     double minY = kBoardCenterOrigin;
     double maxX = kBoardCenterOrigin + 360;
@@ -235,16 +236,32 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
     try {
       final (imageBytes, fileName) =
           await ImageMetadataService.readClipboardImageAsync();
-      if (imageBytes != null && imageBytes.isNotEmpty) {
-        final boardPos = _localToBoard(_lastPointerLocal);
-        await widget.viewModel.importReferenceImageFromBytes(
-          imageBytes,
-          fileName: fileName,
-          dropPosition: boardPos,
+      if (imageBytes == null || imageBytes.isEmpty) return;
+
+      // 与工作台全局 Ctrl+V 行为对齐：携带 NovelAI 元数据则优先弹窗检查，
+      // 而不是直接落成画板参考图节点
+      final metadata = await ImageMetadataService.parseMetadataAsync(
+        imageBytes,
+      );
+      if (metadata != null && metadata.hasData && mounted) {
+        await MetadataReaderDialog.show(
+          context,
+          metadata: metadata,
+          imageBytes: imageBytes,
+          fileName: fileName ?? context.l10n.studioClipboardImageDefaultName,
+          viewModel: widget.viewModel,
         );
-        if (mounted) {
-          showCanvasSnackBar(context, context.l10n.boardPastedImage);
-        }
+        return;
+      }
+
+      final boardPos = _localToBoard(_lastPointerLocal);
+      await widget.viewModel.board.importReferenceImageFromBytes(
+        imageBytes,
+        fileName: fileName,
+        dropPosition: boardPos,
+      );
+      if (mounted) {
+        showCanvasSnackBar(context, context.l10n.boardPastedImage);
       }
     } catch (_) {}
   }
@@ -252,7 +269,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   @override
   Widget build(BuildContext context) {
     final viewModel = widget.viewModel;
-    final boardData = viewModel.boardData;
+    final boardData = viewModel.board.boardData;
     final colors = context.colors;
 
     return LayoutBuilder(
@@ -275,7 +292,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
             for (final file in details.files) {
               final bytes = await file.readAsBytes();
               if (bytes.isNotEmpty) {
-                await viewModel.importReferenceImageFromBytes(
+                await viewModel.board.importReferenceImageFromBytes(
                   bytes,
                   fileName: file.name,
                   dropPosition: dropPos,
@@ -293,7 +310,10 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
           child: DragTarget<NaiGeneratedImage>(
             onAcceptWithDetails: (details) {
               final boardPos = _globalToBoard(details.offset);
-              viewModel.addImageNodeToBoard(details.data, position: boardPos);
+              viewModel.board.addImageNodeToBoard(
+                details.data,
+                position: boardPos,
+              );
               showCanvasSnackBar(context, context.l10n.boardAddedHistoryImage);
             },
             builder: (context, candidateData, rejectedData) {
@@ -360,8 +380,8 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                   Positioned.fill(
                                     child: GestureDetector(
                                       behavior: HitTestBehavior.opaque,
-                                      onTap: () =>
-                                          viewModel.selectAnnotationId(null),
+                                      onTap: () => viewModel.board
+                                          .selectAnnotationId(null),
                                       onPanUpdate: (details) {
                                         if (_wireDrag.value != null) return;
                                         final currentMatrix =
@@ -501,7 +521,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                   constraints.maxHeight / 2 - 50,
                                 ),
                               );
-                              viewModel.addNoteNode(position: pos);
+                              viewModel.board.addNoteNode(position: pos);
                             },
                             onImportImage: () => pickAndImportReferenceImage(
                               context,
@@ -526,7 +546,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                             children: [
                               TextButton.icon(
                                 onPressed: () =>
-                                    viewModel.setAnnotatingImage(false),
+                                    viewModel.board.setAnnotatingImage(false),
                                 icon: const Icon(Icons.close_rounded, size: 15),
                                 label: Text(
                                   context.l10n.boardExitAnnotation,
@@ -546,7 +566,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                               const SizedBox(width: 6),
                               ElevatedButton.icon(
                                 onPressed: () =>
-                                    viewModel.sendAnnotationsToChat(),
+                                    viewModel.board.sendAnnotationsToChat(),
                                 icon: const Icon(
                                   Icons.smart_toy_outlined,
                                   size: 15,
@@ -628,7 +648,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
 
     if (drag.noteId != null) {
       if (hit != null) {
-        viewModel.connectNoteToAnnotation(
+        viewModel.board.connectNoteToAnnotation(
           drag.noteId!,
           hit.imageId,
           hit.annotationId,
@@ -645,7 +665,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
     if (drag.imageId != null) {
       if (hit != null) {
         // 参考图连线到选区/锚点：重复拖到同一目标即断开 (toggle)，支持一对多
-        viewModel.toggleImageLinkToAnnotation(
+        viewModel.board.toggleImageLinkToAnnotation(
           drag.imageId!,
           hit.imageId,
           hit.annotationId,
@@ -660,7 +680,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
 
   /// 连线落点命中测试：优先命中小目标 (图钉锚点)，再命中选框选区
   _WireDropTarget? _findWireDropAnnotation(Offset boardPos) {
-    final bData = widget.viewModel.boardData;
+    final bData = widget.viewModel.board.boardData;
     final live = _liveOverlays.value;
     for (var i = bData.imageNodes.length - 1; i >= 0; i--) {
       final imgNode = bData.imageNodes[i];

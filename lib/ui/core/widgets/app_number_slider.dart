@@ -19,6 +19,8 @@ class AppNumberSlider extends StatefulWidget {
   final int fractionDigits;
   final double? step;
   final String? unit;
+
+  /// 输入提交或滑块手势结束时回调；拖动预览仅更新组件内部状态。
   final ValueChanged<double> onChanged;
 
   const AppNumberSlider({
@@ -64,6 +66,7 @@ class AppNumberSlider extends StatefulWidget {
 class _AppNumberSliderState extends State<AppNumberSlider> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
+  double? _dragValue;
 
   String _format(double v) => v.toStringAsFixed(widget.fractionDigits);
 
@@ -85,7 +88,11 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
   @override
   void didUpdateWidget(AppNumberSlider oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value) {
+    if (oldWidget.value != widget.value ||
+        oldWidget.min != widget.min ||
+        oldWidget.max != widget.max) {
+      // 外部更新优先，避免迟到的拖动提交覆盖模型切换或 Agent 修改。
+      _dragValue = null;
       final parsed = double.tryParse(_controller.text);
       if (parsed != widget.value) {
         _controller.text = _format(widget.value);
@@ -120,7 +127,7 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
             .toStringAsFixed(widget.fractionDigits),
       );
       _controller.text = _format(clamped);
-      widget.onChanged(clamped);
+      if (clamped != widget.value) widget.onChanged(clamped);
     } else {
       _controller.text = _format(widget.value);
     }
@@ -231,7 +238,7 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
                 ),
                 child: Slider(
                   value: _snapToStep(
-                    widget.value,
+                    _dragValue ?? widget.value,
                   ).clamp(widget.min, widget.max),
                   min: widget.min,
                   max: widget.max,
@@ -243,8 +250,16 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
                     final rounded = double.parse(
                       snapped.toStringAsFixed(widget.fractionDigits),
                     );
+                    if (_dragValue == rounded) return;
+                    setState(() => _dragValue = rounded);
                     _controller.text = _format(rounded);
-                    widget.onChanged(rounded);
+                  },
+                  onChangeEnd: (_) {
+                    final value = _dragValue;
+                    setState(() => _dragValue = null);
+                    if (value != null && value != widget.value) {
+                      widget.onChanged(value);
+                    }
                   },
                 ),
               ),

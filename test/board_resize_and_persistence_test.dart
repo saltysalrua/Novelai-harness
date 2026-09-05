@@ -106,7 +106,7 @@ Future<StudioViewModel> _pumpBoard(WidgetTester tester) async {
   final img = _makeImage('img-main');
   repo.addImageForTesting(img);
   vm.selectImage(img);
-  vm.setAnnotatingImage(true);
+  vm.board.setAnnotatingImage(true);
 
   await tester.pumpWidget(
     MaterialApp(
@@ -136,7 +136,7 @@ void main() {
   group('大画布卡片缩放交互', () {
     testWidgets('图片卡片右下角手柄拖拽可调尺寸', (tester) async {
       final vm = await _pumpBoard(tester);
-      final node = vm.boardData.imageNodes.first;
+      final node = vm.board.boardData.imageNodes.first;
       expect(node.width, closeTo(328.4, 1.0));
       expect(node.height, 480.0);
 
@@ -151,7 +151,7 @@ void main() {
       await gesture.up();
       await tester.pump();
 
-      final resized = vm.boardData.imageNodes.first;
+      final resized = vm.board.boardData.imageNodes.first;
       expect(resized.width, closeTo(node.width + 60, 2.0));
       expect(resized.height, closeTo(node.height + 30, 2.0));
     });
@@ -161,8 +161,8 @@ void main() {
 
       await tester.tap(find.text('+ 便利贴'));
       await tester.pump();
-      expect(vm.boardData.noteNodes, hasLength(1));
-      final note = vm.boardData.noteNodes.single;
+      expect(vm.board.boardData.noteNodes, hasLength(1));
+      final note = vm.board.boardData.noteNodes.single;
       expect(note.width, 220.0);
       expect(note.height, 132.0);
 
@@ -176,7 +176,7 @@ void main() {
       await gesture.up();
       await tester.pump();
 
-      final resized = vm.boardData.noteNodes.single;
+      final resized = vm.board.boardData.noteNodes.single;
       expect(resized.width, closeTo(280.0, 2.0));
       expect(resized.height, closeTo(162.0, 2.0));
     });
@@ -184,8 +184,8 @@ void main() {
     testWidgets('选中态矩形选区四角手柄拖拽可缩放', (tester) async {
       final vm = await _pumpBoard(tester);
 
-      await vm.addAnnotationToImageNode(
-        vm.boardData.imageNodes.first.id,
+      await vm.board.addAnnotationToImageNode(
+        vm.board.boardData.imageNodes.first.id,
         ImageAnnotation.rect(
           normalizedRect: const Rect.fromLTWH(0.25, 0.25, 0.5, 0.4),
           colorIndex: 0,
@@ -205,7 +205,7 @@ void main() {
       await gesture.up();
       await tester.pump();
 
-      final rect = vm.boardData.imageNodes.first.annotations.first.rect!;
+      final rect = vm.board.boardData.imageNodes.first.annotations.first.rect!;
       // 左上角向左上拖拽：left/top 变小，宽高变大
       expect(rect.left, lessThan(0.24));
       expect(rect.top, lessThan(0.24));
@@ -218,8 +218,8 @@ void main() {
     testWidgets('未选中的选区不显示缩放手柄，点击选区后出现', (tester) async {
       final vm = await _pumpBoard(tester);
 
-      await vm.addAnnotationToImageNode(
-        vm.boardData.imageNodes.first.id,
+      await vm.board.addAnnotationToImageNode(
+        vm.board.boardData.imageNodes.first.id,
         ImageAnnotation.rect(
           normalizedRect: const Rect.fromLTWH(0.25, 0.25, 0.5, 0.4),
           colorIndex: 0,
@@ -229,7 +229,7 @@ void main() {
       expect(find.byTooltip('拖拽调节选区大小'), findsNWidgets(4));
 
       // 取消选中后手柄消失
-      vm.selectAnnotationId(null);
+      vm.board.selectAnnotationId(null);
       await tester.pump();
       expect(find.byTooltip('拖拽调节选区大小'), findsNothing);
     });
@@ -391,10 +391,10 @@ void main() {
       final img = _makeImage('img-main');
       repo.addImageForTesting(img);
       vm.selectImage(img);
-      vm.setAnnotatingImage(true);
+      vm.board.setAnnotatingImage(true);
 
-      final nodeId = vm.boardData.imageNodes.first.id;
-      await vm.addAnnotationToImageNode(
+      final nodeId = vm.board.boardData.imageNodes.first.id;
+      await vm.board.addAnnotationToImageNode(
         nodeId,
         ImageAnnotation.rect(
           id: 'ann-1',
@@ -402,7 +402,7 @@ void main() {
           colorIndex: 0,
         ),
       );
-      await vm.addAnnotationToImageNode(
+      await vm.board.addAnnotationToImageNode(
         nodeId,
         ImageAnnotation.rect(
           id: 'ann-2',
@@ -412,17 +412,17 @@ void main() {
         ),
       );
 
-      expect(vm.boardData.noteNodes, hasLength(2));
-      expect(vm.boardData.noteNodes.every((n) => n.isConnected), isTrue);
+      expect(vm.board.boardData.noteNodes, hasLength(2));
+      expect(vm.board.boardData.noteNodes.every((n) => n.isConnected), isTrue);
 
       // Agent 工具把批注列表替换为只剩 ann-1
-      final ann1 = vm.boardData.imageNodes.first.annotations
+      final ann1 = vm.board.boardData.imageNodes.first.annotations
           .where((a) => a.id == 'ann-1')
           .first;
-      final ok = await vm.replaceImageAnnotations('img-main', [ann1]);
+      final ok = await vm.board.replaceImageAnnotations('img-main', [ann1]);
       expect(ok, isTrue);
 
-      final notes = vm.boardData.noteNodes;
+      final notes = vm.board.boardData.noteNodes;
       expect(notes, hasLength(2));
       final note1 = notes.where((n) => n.targetAnnotationId == 'ann-1').first;
       final note2 = notes.where((n) => n.id == 'note-ann-2').first;
@@ -442,14 +442,14 @@ void main() {
       final img = _makeImage('img-main');
       repo.addImageForTesting(img);
       vm.selectImage(img);
-      vm.setAnnotatingImage(true);
+      vm.board.setAnnotatingImage(true);
 
-      expect(vm.boardData.hasSavedViewport, isFalse);
-      vm.updateBoardViewport(1.4, 250.0, -80.0);
-      expect(vm.boardData.hasSavedViewport, isTrue);
-      expect(vm.boardData.viewScale, 1.4);
-      expect(vm.boardData.viewTx, 250.0);
-      expect(vm.boardData.viewTy, -80.0);
+      expect(vm.board.boardData.hasSavedViewport, isFalse);
+      vm.board.updateBoardViewport(1.4, 250.0, -80.0);
+      expect(vm.board.boardData.hasSavedViewport, isTrue);
+      expect(vm.board.boardData.viewScale, 1.4);
+      expect(vm.board.boardData.viewTx, 250.0);
+      expect(vm.board.boardData.viewTy, -80.0);
     });
   });
 }

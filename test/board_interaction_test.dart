@@ -106,7 +106,7 @@ Future<StudioViewModel> _pumpBoard(WidgetTester tester) async {
   final img = _makeImage('img-main');
   repo.addImageForTesting(img);
   vm.selectImage(img);
-  vm.setAnnotatingImage(true);
+  vm.board.setAnnotatingImage(true);
 
   await tester.pumpWidget(
     MaterialApp(
@@ -162,7 +162,7 @@ void main() {
 
     testWidgets('拖拽图片卡片顶栏可移动卡片', (tester) async {
       final vm = await _pumpBoard(tester);
-      final before = vm.boardData.imageNodes.first.offset;
+      final before = vm.board.boardData.imageNodes.first.offset;
 
       // 分步拖拽：首步必须超过 kPanSlop(36px) 才能赢得手势竞技场
       final headerCenter = tester.getCenter(find.text('主图 (当前生成图)'));
@@ -172,7 +172,7 @@ void main() {
       await gesture.up();
       await tester.pump();
 
-      final after = vm.boardData.imageNodes.first.offset;
+      final after = vm.board.boardData.imageNodes.first.offset;
       expect(after.dx - before.dx, inInclusiveRange(10, 50));
       expect(after.dy - before.dy, inInclusiveRange(10, 30));
     });
@@ -187,7 +187,7 @@ void main() {
       await gesture.up();
       await tester.pump();
 
-      final annotations = vm.boardData.imageNodes.first.annotations;
+      final annotations = vm.board.boardData.imageNodes.first.annotations;
       expect(annotations.length, 1);
       expect(annotations.first.type, AnnotationType.rect);
       expect(annotations.first.rect, isNotNull);
@@ -200,7 +200,7 @@ void main() {
 
       await tester.tap(find.text('+ 便利贴'));
       await tester.pump();
-      expect(vm.boardData.noteNodes.length, 1);
+      expect(vm.board.boardData.noteNodes.length, 1);
       expect(find.byType(BoardNoteCard), findsOneWidget);
 
       final deleteIcon = find.descendant(
@@ -210,28 +210,28 @@ void main() {
       await tester.tap(deleteIcon);
       await tester.pump();
 
-      expect(vm.boardData.noteNodes, isEmpty);
+      expect(vm.board.boardData.noteNodes, isEmpty);
     });
 
     testWidgets('便利贴端口拉出连线可连接选区，落空不误断连接', (tester) async {
       final vm = await _pumpBoard(tester);
 
       // 在主图上添加一个选区批注 (自动生成一张相连便签)
-      await vm.addAnnotationToImageNode(
-        vm.boardData.imageNodes.first.id,
+      await vm.board.addAnnotationToImageNode(
+        vm.board.boardData.imageNodes.first.id,
         ImageAnnotation.rect(
           normalizedRect: const Rect.fromLTWH(0.25, 0.25, 0.5, 0.4),
           colorIndex: 0,
         ),
       );
       await tester.pump();
-      final annId = vm.boardData.imageNodes.first.annotations.first.id;
-      expect(vm.boardData.noteNodes, hasLength(1));
+      final annId = vm.board.boardData.imageNodes.first.annotations.first.id;
+      expect(vm.board.boardData.noteNodes, hasLength(1));
 
       // 先断开连接，再通过拖线重新接上
-      vm.disconnectNote(vm.boardData.noteNodes.single.id);
+      vm.board.disconnectNote(vm.board.boardData.noteNodes.single.id);
       await tester.pump();
-      expect(vm.boardData.noteNodes.single.isConnected, isFalse);
+      expect(vm.board.boardData.noteNodes.single.isConnected, isFalse);
 
       // 便签左侧端口位于便签左缘中部
       final noteTopLeft = tester.getTopLeft(find.byType(BoardNoteCard));
@@ -239,7 +239,7 @@ void main() {
 
       // 选区中心在图片卡主体内 (顶部有 28px 顶栏)
       final imgTopLeft = tester.getTopLeft(find.byType(BoardImageCard));
-      final imgNode = vm.boardData.imageNodes.first;
+      final imgNode = vm.board.boardData.imageNodes.first;
       final annCenter =
           imgTopLeft +
           const Offset(0, 28) +
@@ -251,9 +251,9 @@ void main() {
       await gesture.up();
       await tester.pump();
 
-      final connected = vm.boardData.noteNodes.single;
+      final connected = vm.board.boardData.noteNodes.single;
       expect(connected.isConnected, isTrue);
-      expect(connected.targetImageId, vm.boardData.imageNodes.first.id);
+      expect(connected.targetImageId, vm.board.boardData.imageNodes.first.id);
       expect(connected.targetAnnotationId, annId);
 
       // 再拉一次到画布空白处：本次连线取消，既有连接不被误断
@@ -263,25 +263,25 @@ void main() {
       await gesture2.up();
       await tester.pump();
 
-      expect(vm.boardData.noteNodes.single.isConnected, isTrue);
+      expect(vm.board.boardData.noteNodes.single.isConnected, isTrue);
     });
 
     testWidgets('参考图连线到主图选区：一对多 + 重复拖线断开 + 参考图不可建批注', (tester) async {
       final vm = await _pumpBoard(tester);
 
       // 在主图上添加一个选区批注 (自动生成相连便签)
-      await vm.addAnnotationToImageNode(
-        vm.boardData.imageNodes.first.id,
+      await vm.board.addAnnotationToImageNode(
+        vm.board.boardData.imageNodes.first.id,
         ImageAnnotation.rect(
           normalizedRect: const Rect.fromLTWH(0.25, 0.25, 0.5, 0.4),
           colorIndex: 0,
         ),
       );
       await tester.pump();
-      final annId = vm.boardData.imageNodes.first.annotations.first.id;
+      final annId = vm.board.boardData.imageNodes.first.annotations.first.id;
 
       // 添加参考图卡片 (放在主图右侧空白处，测试视口 800x600 内可见)
-      vm.addImageNodeToBoard(
+      vm.board.addImageNodeToBoard(
         _makeImage('img-ref'),
         position: const Offset(3334, 3290),
       );
@@ -298,11 +298,11 @@ void main() {
       await gestureBody.moveBy(const Offset(20, 10));
       await gestureBody.up();
       await tester.pump();
-      expect(vm.boardData.imageNodes.last.annotations, isEmpty);
+      expect(vm.board.boardData.imageNodes.last.annotations, isEmpty);
 
       // 从参考图端口拉线到主图选区 → 建立参考图连线
       final mainTopLeft = tester.getTopLeft(find.byType(BoardImageCard).first);
-      final imgNode = vm.boardData.imageNodes.first;
+      final imgNode = vm.board.boardData.imageNodes.first;
       final annCenter =
           mainTopLeft +
           const Offset(0, 28) +
@@ -315,14 +315,14 @@ void main() {
       await g1.up();
       await tester.pump();
 
-      expect(vm.boardData.imageLinks, hasLength(1));
-      final link = vm.boardData.imageLinks.single;
-      expect(link.sourceImageId, vm.boardData.imageNodes.last.id);
-      expect(link.targetImageId, vm.boardData.imageNodes.first.id);
+      expect(vm.board.boardData.imageLinks, hasLength(1));
+      final link = vm.board.boardData.imageLinks.single;
+      expect(link.sourceImageId, vm.board.boardData.imageNodes.last.id);
+      expect(link.targetImageId, vm.board.boardData.imageNodes.first.id);
       expect(link.targetAnnotationId, annId);
 
       // 第二张便利贴也连到同一选区 → 一个选区一对多
-      vm.addNoteNode(text: '一对多', position: const Offset(2774, 3290));
+      vm.board.addNoteNode(text: '一对多', position: const Offset(2774, 3290));
       await tester.pump();
       final note2Port =
           tester.getTopLeft(find.byType(BoardNoteCard).at(1)) +
@@ -334,7 +334,7 @@ void main() {
       await g2.up();
       await tester.pump();
 
-      final connectedNotes = vm.boardData.noteNodes
+      final connectedNotes = vm.board.boardData.noteNodes
           .where((n) => n.targetAnnotationId == annId)
           .toList();
       expect(connectedNotes, hasLength(2));
@@ -346,54 +346,54 @@ void main() {
       await g3.up();
       await tester.pump();
 
-      expect(vm.boardData.imageLinks, isEmpty);
+      expect(vm.board.boardData.imageLinks, isEmpty);
     });
 
     testWidgets('选区可删除：✕ 按钮与 Delete 快捷键', (tester) async {
       final vm = await _pumpBoard(tester);
 
-      await vm.addAnnotationToImageNode(
-        vm.boardData.imageNodes.first.id,
+      await vm.board.addAnnotationToImageNode(
+        vm.board.boardData.imageNodes.first.id,
         ImageAnnotation.rect(
           normalizedRect: const Rect.fromLTWH(0.25, 0.25, 0.3, 0.3),
           colorIndex: 0,
         ),
       );
       await tester.pump();
-      expect(vm.boardData.imageNodes.first.annotations, hasLength(1));
+      expect(vm.board.boardData.imageNodes.first.annotations, hasLength(1));
 
       // 添加后即为选中态，选区右上角出现删除按钮
       expect(find.byTooltip('删除选区'), findsOneWidget);
       await tester.tap(find.byTooltip('删除选区'));
       await tester.pump();
-      expect(vm.boardData.imageNodes.first.annotations, isEmpty);
+      expect(vm.board.boardData.imageNodes.first.annotations, isEmpty);
       // 关联便签自动解绑
-      expect(vm.boardData.noteNodes.single.isConnected, isFalse);
+      expect(vm.board.boardData.noteNodes.single.isConnected, isFalse);
 
       // Delete 键路径：再建一个锚点批注后按 Delete 删除
-      await vm.addAnnotationToImageNode(
-        vm.boardData.imageNodes.first.id,
+      await vm.board.addAnnotationToImageNode(
+        vm.board.boardData.imageNodes.first.id,
         ImageAnnotation.point(
           normalizedPoint: const Offset(0.5, 0.5),
           colorIndex: 1,
         ),
       );
       await tester.pump();
-      expect(vm.boardData.imageNodes.first.annotations, hasLength(1));
+      expect(vm.board.boardData.imageNodes.first.annotations, hasLength(1));
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.delete);
       await tester.pump();
-      expect(vm.boardData.imageNodes.first.annotations, isEmpty);
+      expect(vm.board.boardData.imageNodes.first.annotations, isEmpty);
     });
 
     testWidgets('参考图卡片可删除，主图卡片没有删除键', (tester) async {
       final vm = await _pumpBoard(tester);
-      vm.addImageNodeToBoard(
+      vm.board.addImageNodeToBoard(
         _makeImage('img-ref'),
         position: const Offset(2800, 3200),
       );
       await tester.pump();
-      expect(vm.boardData.imageNodes.length, 2);
+      expect(vm.board.boardData.imageNodes.length, 2);
 
       // 主图卡片不展示删除键
       final mainCard = find.ancestor(
@@ -421,8 +421,8 @@ void main() {
       );
       await tester.pump();
 
-      expect(vm.boardData.imageNodes.length, 1);
-      expect(vm.boardData.imageNodes.first.isMain, isTrue);
+      expect(vm.board.boardData.imageNodes.length, 1);
+      expect(vm.board.boardData.imageNodes.first.isMain, isTrue);
     });
   });
 
@@ -437,20 +437,20 @@ void main() {
       repo.addImageForTesting(img2);
 
       vm.selectImage(img1);
-      vm.setAnnotatingImage(true);
-      vm.addNoteNode(text: '保留我');
-      expect(vm.boardData.noteNodes.length, 1);
+      vm.board.setAnnotatingImage(true);
+      vm.board.addNoteNode(text: '保留我');
+      expect(vm.board.boardData.noteNodes.length, 1);
 
       // 退出后重进：布局原样恢复
-      vm.setAnnotatingImage(false);
-      vm.setAnnotatingImage(true);
-      expect(vm.boardData.noteNodes.map((n) => n.text), contains('保留我'));
+      vm.board.setAnnotatingImage(false);
+      vm.board.setAnnotatingImage(true);
+      expect(vm.board.boardData.noteNodes.map((n) => n.text), contains('保留我'));
 
       // 从右键菜单进入另一张图片的批注：画布重建，主图切换
-      vm.setAnnotatingImage(true, targetImageId: 'img-b');
-      expect(vm.boardData.noteNodes, isEmpty);
-      expect(vm.boardData.imageNodes.first.image.id, 'img-b');
-      expect(vm.boardData.imageNodes.first.isMain, isTrue);
+      vm.board.setAnnotatingImage(true, targetImageId: 'img-b');
+      expect(vm.board.boardData.noteNodes, isEmpty);
+      expect(vm.board.boardData.imageNodes.first.image.id, 'img-b');
+      expect(vm.board.boardData.imageNodes.first.isMain, isTrue);
     });
 
     test('批注模式下选图不再重置画布布局', () {
@@ -463,14 +463,17 @@ void main() {
       repo.addImageForTesting(img2);
 
       vm.selectImage(img1);
-      vm.setAnnotatingImage(true);
-      final nodeBefore = vm.boardData.imageNodes.first;
-      vm.addNoteNode(text: '布局锚点');
+      vm.board.setAnnotatingImage(true);
+      final nodeBefore = vm.board.boardData.imageNodes.first;
+      vm.board.addNoteNode(text: '布局锚点');
 
       // 批注模式下点击历史缩略图选图：画布不重置
       vm.selectImage(img2);
-      expect(identical(vm.boardData.imageNodes.first, nodeBefore), isTrue);
-      expect(vm.boardData.noteNodes.map((n) => n.text), contains('布局锚点'));
+      expect(
+        identical(vm.board.boardData.imageNodes.first, nodeBefore),
+        isTrue,
+      );
+      expect(vm.board.boardData.noteNodes.map((n) => n.text), contains('布局锚点'));
     });
   });
 }

@@ -5,6 +5,7 @@ import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
+import 'package:novelai_harness/ui/core/widgets/app_action_button.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/views/studio_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/character_card_item.dart';
@@ -72,6 +73,8 @@ void main() {
         // 打开分类下拉框并选择“风格”
         final dropdown = find.byType(DropdownButton<String>);
         expect(dropdown, findsOneWidget);
+        // 窄窗口为上下分区，表单独立滚动，先滚动到分类控件。
+        await tester.ensureVisible(dropdown);
         await tester.tap(dropdown);
         await tester.pumpAndSettle();
 
@@ -84,7 +87,8 @@ void main() {
         expect(find.text('仅角色分类可用'), findsNothing);
 
         // 重新切回“角色”
-        await tester.tap(find.byType(DropdownButton<String>));
+        await tester.ensureVisible(dropdown);
+        await tester.tap(dropdown);
         await tester.pumpAndSettle();
 
         final charItem = find.text('角色').last;
@@ -259,7 +263,7 @@ void main() {
         );
 
         // 点击保存并在 runAsync 中等待 I/O 完成
-        final submitBtn = find.widgetWithText(ElevatedButton, '创建词组合');
+        final submitBtn = find.widgetWithText(AppActionButton, '创建词组合');
         expect(submitBtn, findsOneWidget);
         await tester.runAsync(() async {
           await tester.tap(submitBtn);
@@ -349,7 +353,7 @@ void main() {
         expect(find.text('Choose Local Image'), findsOneWidget);
         expect(find.text('Use Current Canvas Image'), findsOneWidget);
         expect(find.text('New Prompt Combo'), findsOneWidget);
-        expect(find.text('Title'), findsOneWidget);
+        expect(find.text('Title *'), findsOneWidget);
         expect(find.text('Fill from Workbench'), findsOneWidget);
         expect(find.text('Cancel'), findsOneWidget);
         expect(find.text('Create Prompt Combo'), findsOneWidget);

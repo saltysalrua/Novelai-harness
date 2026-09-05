@@ -37,12 +37,17 @@ class AgentChatCardState extends State<AgentChatCard> {
   _AgentCardView _currentView = _AgentCardView.chat;
   DateTime? _lastEscPressTime;
 
-  /// 消息 Widget 缓存 (key = messageId|thinkingExpanded)：
+  /// 消息 Widget 缓存 (key = messageId)：
   /// 消息一旦定稿不可变，滚动回视口时复用同一 Widget 实例，
-  /// Element 检测到 identical 直接跳过重建，避免 Markdown 反复解析造成的掉帧。
-  final Map<String, Widget> _messageWidgetCache = {};
+  /// 配合近期消息 Element 保活，避免 Markdown 离屏后重新解析。
+  final Map<String, AgentChatMessageItem> _messageWidgetCache = {};
 
-  /// 缓存上限 (超过后整体消空，防长会话内存无限增长)
+  static const int _maxKeptAliveMessages = 120;
+  String? _renderedSessionId;
+  int _followEpoch = 0;
+  bool _followSuspended = false;
+
+  /// Widget 配置缓存上限，逐条淘汰，避免清空整批缓存造成重建尖峰。
   static const int _maxCachedMessages = 600;
 
   @override
@@ -53,30 +58,13 @@ class AgentChatCardState extends State<AgentChatCard> {
     super.dispose();
   }
 
-  @override
-  void didUpdateWidget(AgentChatCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 思考块展开开关切换后旧缓存失效，整体重建
-    if (widget.viewModel.isThinkingExpanded !=
-        oldWidget.viewModel.isThinkingExpanded) {
-      _messageWidgetCache.clear();
-    }
-    // 切换会话或 ask_user 提问弹出时滚动到底部
-    if (widget.viewModel.currentSessionId !=
-            oldWidget.viewModel.currentSessionId ||
-        (widget.viewModel.activeQuestionPrompt != null &&
-            oldWidget.viewModel.activeQuestionPrompt !=
-                widget.viewModel.activeQuestionPrompt)) {
-      if (widget.viewModel.currentSessionId !=
-          oldWidget.viewModel.currentSessionId) {
-        _messageWidgetCache.clear();
-      }
-      _scrollToBottom(animate: false);
-    }
-  }
-
   void _scrollToBottom({bool animate = true}) {
-    _scrollToBottomAfterFrames(animate: animate, remainingFrames: 3);
+    _followSuspended = false;
+    _scrollToBottomAfterFrames(
+      animate: animate,
+      remainingFrames: 3,
+      epoch: ++_followEpoch,
+    );
   }
 
   /// 呖后跳到底部。SliverList 的 maxScrollExtent 是估算值，新内容
@@ -85,9 +73,15 @@ class AgentChatCardState extends State<AgentChatCard> {
   void _scrollToBottomAfterFrames({
     required bool animate,
     required int remainingFrames,
+    required int epoch,
   }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
+      if (!mounted ||
+          epoch != _followEpoch ||
+          _currentView != _AgentCardView.chat ||
+          !_scrollController.hasClients) {
+        return;
+      }
       final pos = _scrollController.position;
       if (pos.pixels < pos.maxScrollExtent) {
         if (animate) {
@@ -105,6 +99,7 @@ class AgentChatCardState extends State<AgentChatCard> {
           _scrollToBottomAfterFrames(
             animate: animate,
             remainingFrames: remainingFrames - 1,
+            epoch: epoch,
           );
         }
       }
@@ -119,7 +114,7 @@ class AgentChatCardState extends State<AgentChatCard> {
   /// - 若用户向上滚动翻看历史 (距底部 > 32px)，则保持在原地不打扰，绝不强拉。
   ///   跟随跳转后链式校验最多 3 帧，兑底 maxScrollExtent 估算延迟结算。
   void _autoScrollOnStream() {
-    if (!widget.viewModel.isChatStreaming) return;
+    if (_followSuspended || !widget.viewModel.isChatStreaming) return;
     if (!_scrollController.hasClients) return;
     // 估算 maxScrollExtent 结算滞后一到两帧，"跳到底"后可能仍差几十像素，
     // 臂时阈值放宽到 64px；链内用户上翻判定仍按 32px 严格把关
@@ -128,14 +123,17 @@ class AgentChatCardState extends State<AgentChatCard> {
 
     // 臂定时记录基准：后续帧里像素显著低于它即为用户主动上翻
     _lastFollowTarget = _scrollController.position.pixels;
-    _followStreamBottom(remainingFrames: 4);
+    _followStreamBottom(remainingFrames: 4, epoch: ++_followEpoch);
   }
 
   /// 流式底部跟随的链式校验：双向夹到 maxScrollExtent
   /// (既补上晚结算的增量，也纠正跳到过高估算值后的回落)
-  void _followStreamBottom({required int remainingFrames}) {
+  void _followStreamBottom({required int remainingFrames, required int epoch}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
+          epoch != _followEpoch ||
+          _currentView != _AgentCardView.chat ||
+          _followSuspended ||
           !widget.viewModel.isChatStreaming ||
           !_scrollController.hasClients) {
         return;
@@ -152,9 +150,35 @@ class AgentChatCardState extends State<AgentChatCard> {
       // 只要还在流式且预算未尽就继续校验：估算可能晚一帧才结算，
       // “本轮无需跳转”不代表下一帧不需要
       if (remainingFrames > 0) {
-        _followStreamBottom(remainingFrames: remainingFrames - 1);
+        _followStreamBottom(remainingFrames: remainingFrames - 1, epoch: epoch);
       }
     });
+  }
+
+  void _pauseFollowing() {
+    _followSuspended = true;
+    _followEpoch++;
+  }
+
+  void _resumeFollowingAtBottom() {
+    if (_scrollController.hasClients &&
+        !_scrollController.position.isScrollingNotifier.value &&
+        _scrollController.position.extentAfter <= 1) {
+      _followSuspended = false;
+    }
+  }
+
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
+      _pauseFollowing();
+    }
+    if (notification is ScrollEndNotification &&
+        notification.metrics.extentAfter <= 1) {
+      _followSuspended = false;
+    }
+    return false;
   }
 
   /// 切换至历史时刻回溯视图 (流式中则先中断)
@@ -190,6 +214,13 @@ class AgentChatCardState extends State<AgentChatCard> {
 
   @override
   Widget build(BuildContext context) {
+    // ViewModel 就地变更，不能比较 oldWidget.viewModel（它是同一个实例）。
+    final sessionId = widget.viewModel.currentSessionId;
+    if (_renderedSessionId != sessionId) {
+      _renderedSessionId = sessionId;
+      _messageWidgetCache.clear();
+      _scrollToBottom(animate: false);
+    }
     switch (_currentView) {
       case _AgentCardView.sessions:
         return AgentSessionListView(
@@ -235,7 +266,18 @@ class AgentChatCardState extends State<AgentChatCard> {
             _buildPresetHeaderBar(),
 
             // 对话消息流展示区域
-            Expanded(child: _buildMessageList()),
+            Expanded(
+              child: Listener(
+                onPointerDown: (_) => _pauseFollowing(),
+                onPointerUp: (_) => _resumeFollowingAtBottom(),
+                onPointerCancel: (_) => _resumeFollowingAtBottom(),
+                onPointerSignal: (_) => _pauseFollowing(),
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _onScrollNotification,
+                  child: _buildMessageList(),
+                ),
+              ),
+            ),
 
             // 底部控制与消息输入区 (单一底栏，高度与左侧生成坞对齐)
             AgentChatInputBar(
@@ -383,16 +425,16 @@ class AgentChatCardState extends State<AgentChatCard> {
     final activePrompt = widget.viewModel.activeQuestionPrompt;
     final thinkingExpanded = widget.viewModel.isThinkingExpanded;
 
-    if (_messageWidgetCache.length > _maxCachedMessages) {
-      _messageWidgetCache.clear();
-    }
+    final liveIds = messages.map((message) => message.id).toSet();
+    _messageWidgetCache.removeWhere((id, _) => !liveIds.contains(id));
 
     return ListView.builder(
+      key: ValueKey(widget.viewModel.currentSessionId),
       controller: _scrollController,
       padding: const EdgeInsets.all(12),
       // 提高预渲染视口，配合 Widget 缓存让快速滚动不逐帧解析 Markdown
       scrollCacheExtent: const ScrollCacheExtent.pixels(600),
-      addAutomaticKeepAlives: false,
+      addAutomaticKeepAlives: true,
       itemCount:
           messages.length +
           (isStreaming ? 1 : 0) +
@@ -420,15 +462,26 @@ class AgentChatCardState extends State<AgentChatCard> {
         }
 
         final message = messages[index];
-        final cacheKey = '${message.id}|$thinkingExpanded';
-        final cached = _messageWidgetCache[cacheKey];
-        if (cached != null) return cached;
+        final keepAlive = index >= messages.length - _maxKeptAliveMessages;
+        final cached = _messageWidgetCache[message.id];
+        if (cached != null &&
+            identical(cached.message, message) &&
+            cached.keepAlive == keepAlive &&
+            cached.thinkingExpanded == thinkingExpanded) {
+          return cached;
+        }
 
         final built = AgentChatMessageItem(
+          key: ValueKey(message.id),
           message: message,
           thinkingExpanded: thinkingExpanded,
+          keepAlive: keepAlive,
         );
-        _messageWidgetCache[cacheKey] = built;
+        if (_messageWidgetCache.length >= _maxCachedMessages &&
+            !_messageWidgetCache.containsKey(message.id)) {
+          _messageWidgetCache.remove(_messageWidgetCache.keys.first);
+        }
+        _messageWidgetCache[message.id] = built;
         return built;
       },
     );

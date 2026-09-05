@@ -35,7 +35,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
           children: [
             // 1. 极简顶栏：History 计数与收起按键 (对齐设计图 History 13 ▶)
             InkWell(
-              onTap: () => viewModel.setAnnotatingImage(false),
+              onTap: () => viewModel.board.setAnnotatingImage(false),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 decoration: BoxDecoration(
@@ -212,7 +212,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
                           ),
                           child: GestureDetector(
                             onTap: () {
-                              viewModel.addImageNodeToBoard(item);
+                              viewModel.board.addImageNodeToBoard(item);
                               showCanvasSnackBar(
                                 context,
                                 l10n.annotHistoryAddedAsReference,

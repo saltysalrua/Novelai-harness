@@ -34,7 +34,7 @@ class NaiGenerationParams {
   /// 多角色提示词列表 (仅 V4+ 模型生效，V5 最多 22 个、V4/V4.5 最多 6 个)
   final List<NaiCharacterPrompt> characterPrompts;
 
-  /// 全局角色位置模式：true = AI 自动布局 (官方 AI's Choice，不发送任何位置参数)，
+  /// 全局角色位置模式：true = AI 自动布局 (官方 AI's Choice，use_coords=false)，
   /// false = 自定义定位 (发送 use_coords=true 与各角色 center)
   final bool characterAiPosition;
 
@@ -234,8 +234,8 @@ class NaiGenerationParams {
 
     if (isV4OrAbove) {
       // 多角色隔离: characterPrompts + v4_prompt 的 char_captions (仅启用角色)。
-      // 官方 AI's Choice (characterAiPosition=true) 不发送任何位置参数；
-      // 自定义定位时发送 use_coords=true 与各角色 center——手动指定过的角色
+      // AI's Choice 用 use_coords=false 关闭位置约束，但仍保留协议必需的
+      // center/centers 结构；自定义定位时 use_coords=true，手动指定过的角色
       // 用其坐标，未指定的按启用顺序自动布局；V4/V4.5 官方限制 5x5 网格，
       // 坐标量化到 1/4 步长，V5 为自由连续小数坐标。
       final parts = _buildCharacterPayloadParts();
@@ -518,36 +518,30 @@ class NaiGenerationParams {
     final characterPromptEntries = <Map<String, dynamic>>[];
     for (var i = 0; i < enabledCharacters.length; i++) {
       final character = enabledCharacters[i];
-      if (useCoords) {
-        final raw = character.resolveCenter(i, enabledCharacters.length);
-        final center = (x: quantize(raw.x), y: quantize(raw.y));
-        charCaptions.add({
-          'centers': [
-            {'x': center.x, 'y': center.y},
-          ],
-          'char_caption': character.prompt,
-        });
-        negativeCharCaptions.add({
-          'centers': [
-            {'x': center.x, 'y': center.y},
-          ],
-          'char_caption': character.negativePrompt,
-        });
-        characterPromptEntries.add({
-          'center': {'x': center.x, 'y': center.y},
-          'prompt': character.prompt,
-          'uc': character.negativePrompt,
-          'enabled': true,
-        });
-      } else {
-        charCaptions.add({'char_caption': character.prompt});
-        negativeCharCaptions.add({'char_caption': character.negativePrompt});
-        characterPromptEntries.add({
-          'prompt': character.prompt,
-          'uc': character.negativePrompt,
-          'enabled': true,
-        });
-      }
+      // 与本地 Aaalice 参考一致，AI 选择也必须提供完整角色结构。
+      // 此时中心只是占位，不使用用户留存的自定义位置，约束由 use_coords 关闭。
+      final raw = useCoords
+          ? character.resolveCenter(i, enabledCharacters.length)
+          : const (x: 0.5, y: 0.5);
+      final center = (x: quantize(raw.x), y: quantize(raw.y));
+      charCaptions.add({
+        'centers': [
+          {'x': center.x, 'y': center.y},
+        ],
+        'char_caption': character.prompt,
+      });
+      negativeCharCaptions.add({
+        'centers': [
+          {'x': center.x, 'y': center.y},
+        ],
+        'char_caption': character.negativePrompt,
+      });
+      characterPromptEntries.add({
+        'center': {'x': center.x, 'y': center.y},
+        'prompt': character.prompt,
+        'uc': character.negativePrompt,
+        'enabled': true,
+      });
     }
     return _NaiCharacterPayloadParts(
       charCaptions: charCaptions,

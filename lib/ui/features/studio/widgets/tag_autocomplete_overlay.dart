@@ -9,6 +9,9 @@ import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../core/widgets/overlay_anchor.dart';
 import 'tag_autocomplete_card.dart';
 
+bool _isSpaceChar(String c) =>
+    c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u3000';
+
 /// 标签自动补全悬浮锚点组件
 ///
 /// 挂载在任何提示词输入框周围，监听光标与文本变化，智能在右侧图片栏左侧边缘弹出浮动补全建议卡片。
@@ -109,6 +112,12 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
 
   void _onTextChanged() {
     if (!widget.enabled || !widget.focusNode.hasFocus) {
+      _hideOverlay();
+      return;
+    }
+
+    // 输入法组字过程中不触发补全 (拼音/候选阶段不弹卡、不干扰)
+    if (widget.controller.value.composing.isValid) {
       _hideOverlay();
       return;
     }
@@ -361,17 +370,38 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
 
     final replaceStart = queryData?.replaceStart ?? _replaceStart;
     final replaceEnd = queryData?.replaceEnd ?? _replaceEnd;
+    final coreEnd = queryData?.coreEnd ?? replaceEnd;
     final fullSegmentEnd = queryData?.fullSegmentEnd ?? _fullSegmentEnd;
+    final syntaxPrefix = queryData?.syntaxPrefix ?? '';
+    final syntaxSuffix = queryData?.syntaxSuffix ?? '';
+
+    // 数值权重头未闭合 (如 1.2::silv)：补全时自动补上闭合 ::，
+    // 否则权重会一直蔓延到提示词末尾
+    final hasUnclosedWeightHead =
+        syntaxPrefix.endsWith('::') && !syntaxSuffix.contains('::');
+    final insertTag = hasUnclosedWeightHead ? '$tag::' : tag;
 
     // 核心标签替换 (保留外部的括号或数值权重结构)
     final clampedStart = replaceStart.clamp(0, text.length);
     final clampedEnd = replaceEnd.clamp(clampedStart, text.length);
+    final clampedCoreEnd = coreEnd.clamp(clampedStart, text.length);
+    // 中英混排补全：替换词与后续文本在书写体系边界相接时补一个空格
+    // (如 `过曝|high` -> `overexposure high`，避免粘连成 `overexposurehigh`)
+    final needsSpaceAfter =
+        clampedEnd < clampedCoreEnd &&
+        clampedEnd < text.length &&
+        !_isSpaceChar(text[clampedEnd]);
+    final separator = needsSpaceAfter ? ' ' : '';
     final beforeCore = text.substring(0, clampedStart);
     final afterCore = text.substring(clampedEnd);
-    final coreReplaced = '$beforeCore$tag$afterCore';
+    final coreReplaced = '$beforeCore$insertTag$separator$afterCore';
+
+    // 替换是否吞掉了整个核心 (决定逗号追加与光标落点)；
+    // 光标在核心中间时只替换了当前单词，不额外追加逗号
+    final consumedWholeCore = clampedEnd >= clampedCoreEnd;
 
     // 计算替换后的 segment 结束位置 (即闭合括号/:: 之后)
-    final delta = tag.length - (clampedEnd - clampedStart);
+    final delta = insertTag.length - (clampedEnd - clampedStart);
     final clampedFullEnd = fullSegmentEnd.clamp(clampedEnd, text.length);
     final newFullSegmentEnd = (clampedFullEnd + delta).clamp(
       0,
@@ -380,7 +410,8 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
 
     // 检查闭合符号外部后面是否已有逗号
     final textAfterSegment = coreReplaced.substring(newFullSegmentEnd);
-    final needsComma = !textAfterSegment.trimLeft().startsWith(',');
+    final needsComma =
+        consumedWholeCore && !textAfterSegment.trimLeft().startsWith(',');
 
     String finalText;
     int newCursorPos;
@@ -393,6 +424,10 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
       final cursor = beforeTail.length + 2;
       finalText = textWithComma;
       newCursorPos = cursor;
+    } else if (!consumedWholeCore) {
+      // 光标在核心中间：只替换了当前单词，光标落在补全词 (及其后置空格) 之后
+      finalText = coreReplaced;
+      newCursorPos = clampedStart + insertTag.length + separator.length;
     } else {
       // 后面已有逗号：若有语法包裹，光标跳到闭合符号之后；若是普通标签，光标在标签后
       finalText = coreReplaced;
@@ -415,6 +450,11 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (_overlayEntry == null || _suggestions.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    // 输入法组字期间按键交给输入法 (候选导航/确认)，避免抢占回车与方向键
+    if (widget.controller.value.composing.isValid) {
       return KeyEventResult.ignored;
     }
 

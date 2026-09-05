@@ -21,6 +21,16 @@ class PromptAstEngine {
     return b;
   }
 
+  /// 是否为 CJK 书写体系字符 (汉字/假名/谚文/全角符号)
+  /// 中英混排时书写体系切换处视为单词边界 (如 `过曝high` → `过曝 | high`)
+  static bool _isCjkScript(String c) {
+    final r = c.runes.first;
+    return (r >= 0x2E80 && r <= 0x9FFF) || // CJK 部首/假名/汉字
+        (r >= 0xAC00 && r <= 0xD7AF) || // 谚文音节
+        (r >= 0xF900 && r <= 0xFAFF) || // CJK 兼容表意
+        (r >= 0xFF00 && r <= 0xFFEF); // 全角形式
+  }
+
   /// 解析整段文本为 `NaiPromptToken` 列表
   static List<NaiPromptToken> parsePromptTokens(
     String text, {
@@ -276,17 +286,21 @@ class PromptAstEngine {
   /// - `1girl, {1gi|}` -> query: `1gi`, replaceStart: 8, replaceEnd: 11, syntaxPrefix: '{', syntaxSuffix: '}', fullSegmentEnd: 12
   /// - `1.2::silv|::` -> query: `silv`, replaceStart: 5, replaceEnd: 9, syntaxPrefix: '1.2::', syntaxSuffix: '::', fullSegmentEnd: 11
   /// - `(masterpiece:1.2)` -> query: `masterpiece`, replaceStart: 1, replaceEnd: 12, syntaxPrefix: '(', syntaxSuffix: ':1.2)', fullSegmentEnd: 17
+  ///
+  /// 替换终点只延伸到光标所在单词的边界 (下一个空格、CJK↔拉丁书写体系切换处或核心末尾)，
+  /// 不会吞掉光标之后直到分隔符的其余文本：
+  /// - `blue h|air blue eyes` -> replaceEnd 停在 `hair` 词尾，`blue eyes` 保留
+  /// - `过曝|high complexity` -> replaceEnd 停在 `过曝` 词尾，`high complexity` 保留
   static ({
     String query,
     int replaceStart,
     int replaceEnd,
+    int coreEnd,
     String syntaxPrefix,
     String syntaxSuffix,
     int fullSegmentEnd,
-  })? extractActiveQuery(
-    String text,
-    int cursorOffset,
-  ) {
+  })?
+  extractActiveQuery(String text, int cursorOffset) {
     if (text.isEmpty || cursorOffset < 0 || cursorOffset > text.length) {
       return null;
     }
@@ -329,8 +343,9 @@ class PromptAstEngine {
       final currentChunk = text.substring(curStart, curEnd);
 
       // 3.1 NAI 官方数值权重前缀 (如 1.2::, -0.5::)
-      final weightPrefixMatch =
-          RegExp(r'^-?\d+(?:\.\d+)?::').firstMatch(currentChunk);
+      final weightPrefixMatch = RegExp(
+        r'^-?\d+(?:\.\d+)?::',
+      ).firstMatch(currentChunk);
       if (weightPrefixMatch != null) {
         final len = weightPrefixMatch.group(0)!.length;
         curStart += len;
@@ -360,8 +375,9 @@ class PromptAstEngine {
       }
 
       // 3.4 SD 冒号权重后缀 (如 :1.2, :1.2))
-      final sdWeightMatch =
-          RegExp(r':-?\d+(?:\.\d+)?\)?$').firstMatch(currentChunk);
+      final sdWeightMatch = RegExp(
+        r':-?\d+(?:\.\d+)?\)?$',
+      ).firstMatch(currentChunk);
       if (sdWeightMatch != null && sdWeightMatch.start > 0) {
         curEnd = curStart + sdWeightMatch.start;
         changed = true;
@@ -401,18 +417,35 @@ class PromptAstEngine {
     var query = text.substring(coreStart, queryEnd).trim();
 
     // 若光标在词首或 query 为空，则以整个核心词为 query
+    var wholeCoreAsQuery = false;
     if (query.isEmpty) {
       query = wholeCore.trim();
+      wholeCoreAsQuery = true;
     }
 
     if (query.isEmpty) {
       return null;
     }
 
+    // 替换终点：默认到核心末尾；光标位于核心内部时只延伸到当前单词边界
+    // (下一个空格、CJK↔拉丁书写体系切换处或核心末尾)，
+    // 避免吞掉光标之后属于后续内容的文本 (如 `过曝|high complexity` 只替换 `过曝`)
+    var replaceEnd = coreEnd;
+    if (!wholeCoreAsQuery && queryEnd < coreEnd) {
+      replaceEnd = queryEnd;
+      while (replaceEnd < coreEnd) {
+        final ch = text[replaceEnd];
+        if (_isSpace(ch)) break;
+        if (_isCjkScript(ch) != _isCjkScript(text[replaceEnd - 1])) break;
+        replaceEnd++;
+      }
+    }
+
     return (
       query: query,
       replaceStart: coreStart,
-      replaceEnd: coreEnd,
+      replaceEnd: replaceEnd,
+      coreEnd: coreEnd,
       syntaxPrefix: syntaxPrefix,
       syntaxSuffix: syntaxSuffix,
       fullSegmentEnd: tokenEnd,

@@ -243,8 +243,8 @@ mixin _StudioInpaintMixin on _StudioCore {
       clearMaskBounds: true,
     );
     useAnnotationAsInpaintRect(annotation);
-    if (isAnnotatingImage) {
-      setAnnotatingImage(false);
+    if (board.isAnnotatingImage) {
+      board.setAnnotatingImage(false);
     }
     setActiveSidebarTab(StudioSidebarTab.inpaint);
   }

@@ -111,8 +111,10 @@ class CanvasParamBadges extends StatelessWidget {
           Tooltip(
             message: l10n.canvasEnterAnnotationTooltip,
             child: InkWell(
-              onTap: () =>
-                  viewModel!.setAnnotatingImage(true, targetImageId: image.id),
+              onTap: () => viewModel!.board.setAnnotatingImage(
+                true,
+                targetImageId: image.id,
+              ),
               borderRadius: BorderRadius.circular(AppRadius.md),
               child: Container(
                 height: 38,

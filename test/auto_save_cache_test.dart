@@ -209,7 +209,7 @@ void main() {
   });
 
   group('saveUnsavedImageToDisk 手动保存', () {
-    test('落盘到存储目录、删除缓存文件并更新历史条目', () async {
+    test('落盘到存储目录、保留原图缓存并更新历史条目', () async {
       final cacheDir = Directory(p.join(saveDir.path, 'cache'))
         ..createSync(recursive: true);
       final cacheFile = File(p.join(cacheDir.path, 'cache_0.png'))
@@ -235,10 +235,11 @@ void main() {
       expect(saved, isNotNull);
       expect(saved!.isUnsaved, isFalse);
       expect(saved.localFilePath, isNotNull);
-      // 保存文件在存储目录根，缓存文件已删除
+      // 保存文件在存储目录根，缓存文件继续供 UI 读取
       expect(p.dirname(saved.localFilePath!), equals(saveDir.path));
       expect(File(saved.localFilePath!).existsSync(), isTrue);
-      expect(cacheFile.existsSync(), isFalse);
+      expect(cacheFile.existsSync(), isTrue);
+      expect(saved.originalFilePath, cacheFile.path);
       // 历史条目同步更新
       expect(repo.history.first.isUnsaved, isFalse);
       // 重复保存直接返回不再写文件
@@ -429,7 +430,8 @@ void main() {
       expect(vm.selectedImage!.isUnsaved, isFalse);
       expect(vm.selectedImage!.localFilePath, isNotNull);
       expect(File(vm.selectedImage!.localFilePath!).existsSync(), isTrue);
-      expect(cacheFile.existsSync(), isFalse);
+      expect(cacheFile.existsSync(), isTrue);
+      expect(vm.selectedImage!.originalFilePath, cacheFile.path);
       expect(vm.statusMessage, contains('已保存到'));
 
       vm.dispose();

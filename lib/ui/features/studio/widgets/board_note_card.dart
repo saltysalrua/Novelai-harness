@@ -178,7 +178,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                                 variant: AppIconButtonVariant.ghost,
                                 iconColor: colors.textMuted,
                                 onPressed: () =>
-                                    viewModel.disconnectNote(note.id),
+                                    viewModel.board.disconnectNote(note.id),
                               ),
                             const SizedBox(width: 4),
                             AppIconButton(
@@ -189,7 +189,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                               variant: AppIconButtonVariant.ghost,
                               iconColor: colors.textMuted,
                               onPressed: () =>
-                                  viewModel.removeNoteNode(note.id),
+                                  viewModel.board.removeNoteNode(note.id),
                             ),
                           ],
                         ),
@@ -222,7 +222,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                             border: InputBorder.none,
                           ),
                           onChanged: (val) {
-                            viewModel.updateNoteNode(note.id, text: val);
+                            viewModel.board.updateNoteNode(note.id, text: val);
                           },
                         ),
                       ),
@@ -310,7 +310,10 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
     _noteDragStart = null;
     final finalPos = _liveNoteOffset;
     if (finalPos != null) {
-      widget.viewModel.updateNoteNode(widget.noteNode.id, offset: finalPos);
+      widget.viewModel.board.updateNoteNode(
+        widget.noteNode.id,
+        offset: finalPos,
+      );
     }
     setState(() => _liveNoteOffset = null);
     widget.live.clearNodeOffset(widget.noteNode.id);
@@ -322,7 +325,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
     _noteResizeAccumDelta = null;
     final finalSize = _liveNoteSize;
     if (finalSize != null) {
-      widget.viewModel.updateNoteNode(
+      widget.viewModel.board.updateNoteNode(
         widget.noteNode.id,
         width: finalSize.width,
         height: finalSize.height,

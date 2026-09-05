@@ -79,7 +79,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
     final imgNode = widget.imageNode;
     final viewModel = widget.viewModel;
     final annotations = imgNode.annotations;
-    final activeId = viewModel.activeAnnotationId;
+    final activeId = viewModel.board.activeAnnotationId;
     final cardPos = _liveCardOffset ?? imgNode.offset;
     final cardSize = _liveCardSize ?? Size(imgNode.width, imgNode.height);
     final isMain = imgNode.isMain;
@@ -174,7 +174,8 @@ class _BoardImageCardState extends State<BoardImageCard> {
                       iconSize: 14,
                       variant: AppIconButtonVariant.ghost,
                       iconColor: Colors.white70,
-                      onPressed: () => viewModel.removeImageNode(imgNode.id),
+                      onPressed: () =>
+                          viewModel.board.removeImageNode(imgNode.id),
                     ),
                 ],
               ),
@@ -294,7 +295,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                                     colorIndex:
                                         nextIdx % kAnnotationPalette.length,
                                   );
-                                  viewModel.addAnnotationToImageNode(
+                                  viewModel.board.addAnnotationToImageNode(
                                     imgNode.id,
                                     newAnn,
                                   );
@@ -318,7 +319,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                                 normalizedPoint: norm,
                                 colorIndex: nextIdx % kAnnotationPalette.length,
                               );
-                              viewModel.addAnnotationToImageNode(
+                              viewModel.board.addAnnotationToImageNode(
                                 imgNode.id,
                                 newAnn,
                               );
@@ -381,7 +382,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
     _cardDragStart = null;
     final finalPos = _liveCardOffset;
     if (finalPos != null) {
-      widget.viewModel.moveImageNode(widget.imageNode.id, finalPos);
+      widget.viewModel.board.moveImageNode(widget.imageNode.id, finalPos);
     }
     setState(() => _liveCardOffset = null);
     widget.live.clearNodeOffset(widget.imageNode.id);
@@ -422,7 +423,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
     _resizeAccumDelta = null;
     final finalSize = _liveCardSize;
     if (finalSize != null) {
-      widget.viewModel.resizeImageNode(
+      widget.viewModel.board.resizeImageNode(
         widget.imageNode.id,
         finalSize.width,
         finalSize.height,
@@ -486,7 +487,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
           children: [
             // 选框本体：点击选中 + 拖拽移动选区 + 右键发送到修复
             GestureDetector(
-              onTap: () => widget.viewModel.selectAnnotationId(ann.id),
+              onTap: () => widget.viewModel.board.selectAnnotationId(ann.id),
               onSecondaryTapUp: (details) => showStudioContextMenu(
                 context,
                 position: details.globalPosition,
@@ -502,7 +503,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                 ],
               ),
               onPanStart: (details) {
-                widget.viewModel.selectAnnotationId(ann.id);
+                widget.viewModel.board.selectAnnotationId(ann.id);
                 setState(() {
                   _draggingAnnotationId = ann.id;
                   _liveRect = ann.rect;
@@ -537,7 +538,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                 number: index + 1,
                 color: color,
                 isActive: isActive,
-                onTap: () => widget.viewModel.selectAnnotationId(ann.id),
+                onTap: () => widget.viewModel.board.selectAnnotationId(ann.id),
               ),
             ),
 
@@ -548,7 +549,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                 top: 4,
                 child: _AnnotationDeleteChip(
                   tooltip: context.l10n.boardAnnotationDeleteRect,
-                  onDelete: () => widget.viewModel
+                  onDelete: () => widget.viewModel.board
                       .removeAnnotationFromImageNode(imgNode.id, ann.id),
                 ),
               ),
@@ -583,7 +584,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
               top: 0,
               child: GestureDetector(
                 onPanStart: (_) {
-                  widget.viewModel.selectAnnotationId(ann.id);
+                  widget.viewModel.board.selectAnnotationId(ann.id);
                   setState(() {
                     _draggingAnnotationId = ann.id;
                     _livePoint = ann.point;
@@ -606,7 +607,8 @@ class _BoardImageCardState extends State<BoardImageCard> {
                   number: index + 1,
                   color: color,
                   isActive: isActive,
-                  onTap: () => widget.viewModel.selectAnnotationId(ann.id),
+                  onTap: () =>
+                      widget.viewModel.board.selectAnnotationId(ann.id),
                 ),
               ),
             ),
@@ -619,7 +621,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                 child: _AnnotationDeleteChip(
                   tooltip: context.l10n.boardAnnotationDeletePoint,
                   onDelete: () =>
-                      widget.viewModel.removeAnnotationFromImageNode(
+                      widget.viewModel.board.removeAnnotationFromImageNode(
                         widget.imageNode.id,
                         ann.id,
                       ),
@@ -648,7 +650,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
     widget.live.clearAnnotation(ann.id);
 
     if (changed) {
-      widget.viewModel.updateAnnotationInImageNode(
+      widget.viewModel.board.updateAnnotationInImageNode(
         widget.imageNode.id,
         ann.copyWith(rect: rect, point: point),
       );
@@ -687,7 +689,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
     return positioned(
       GestureDetector(
         onPanStart: (_) {
-          widget.viewModel.selectAnnotationId(ann.id);
+          widget.viewModel.board.selectAnnotationId(ann.id);
           setState(() {
             _draggingAnnotationId = ann.id;
             _liveRect = ann.rect;

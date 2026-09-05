@@ -76,3 +76,6 @@ output/
 
 # spec-workflow tool artifacts
 .spec-workflow/
+
+# local archives (untracked working docs & tool artifacts)
+/ARCHIVES/

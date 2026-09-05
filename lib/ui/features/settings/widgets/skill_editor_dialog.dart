@@ -153,41 +153,46 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
         ),
       ),
       actions: [
-        Row(
-          children: [
-            AppActionButton(
-              label: l10n.skillCopySkillMd,
-              icon: Icons.copy_rounded,
-              onPressed: () {
-                _syncToRaw();
-                Clipboard.setData(ClipboardData(text: _rawMdController.text));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.skillCopySuccess),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(l10n.cancel, style: TextStyle(color: colors.textSecondary)),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+        Expanded(
+          child: Row(
+            children: [
+              AppActionButton(
+                label: l10n.skillCopySkillMd,
+                icon: Icons.copy_rounded,
+                onPressed: () {
+                  _syncToRaw();
+                  Clipboard.setData(ClipboardData(text: _rawMdController.text));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.skillCopySuccess),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  l10n.cancel,
+                  style: TextStyle(color: colors.textSecondary),
                 ),
               ),
-              onPressed: _save,
-              child: Text(l10n.skillSave),
-            ),
-          ],
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                onPressed: _save,
+                child: Text(l10n.skillSave),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -247,7 +252,9 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                     TextField(
                       controller: _nameController,
                       style: const TextStyle(fontSize: 12),
-                      decoration: _fieldDecoration(hint: l10n.skillFieldNameHint),
+                      decoration: _fieldDecoration(
+                        hint: l10n.skillFieldNameHint,
+                      ),
                     ),
                   ],
                 ),
