@@ -19,6 +19,11 @@ class ParameterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      ParametersPage(viewModel: viewModel),
+      PromptsPage(viewModel: viewModel),
+      InpaintPage(viewModel: viewModel),
+    ];
     final pageIndex = switch (activeTab) {
       StudioSidebarTab.parameters => 0,
       StudioSidebarTab.prompts => 1,
@@ -37,9 +42,12 @@ class ParameterCard extends StatelessWidget {
               child: IndexedStack(
                 index: pageIndex,
                 children: [
-                  ParametersPage(viewModel: viewModel),
-                  PromptsPage(viewModel: viewModel),
-                  InpaintPage(viewModel: viewModel),
+                  // 隐藏页保留编辑状态，但不继续播放动画；页面之间隔离重绘。
+                  for (var index = 0; index < pages.length; index++)
+                    TickerMode(
+                      enabled: index == pageIndex,
+                      child: RepaintBoundary(child: pages[index]),
+                    ),
                 ],
               ),
             ),

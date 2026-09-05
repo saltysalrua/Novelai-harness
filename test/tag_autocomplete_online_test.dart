@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -61,6 +62,79 @@ blue_eyes\t1762765\t蓝眼\tblueeyes,light_blue_eyes
     // FakeAsync 环境无法处理真实 Isolate 回投，检索退回主线程同步扫描
     TagDictionaryService.backgroundSearchEnabled = false;
     await TagDictionaryService.instance.ensureLoaded(rawTsvContent: sampleTsv);
+  });
+
+  testWidgets('失焦取消在线防抖，快速切页不继续发起旧查询', (tester) async {
+    var requests = 0;
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    final service = DanbooruSearchService.forTesting(
+      client: MockClient((request) async {
+        requests++;
+        return http.Response('{"results":[]}', 200);
+      }),
+    );
+    await pumpAnchor(
+      tester,
+      controller: controller,
+      focusNode: focusNode,
+      service: service,
+    );
+    await tester.enterText(find.byType(TextField), '白色水手服');
+    await tester.pump(const Duration(milliseconds: 100));
+    focusNode.unfocus();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(requests, 0);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+    focusNode.dispose();
+  });
+
+  testWidgets('清空后重输同词，旧请求结果不能抢先弹出', (tester) async {
+    final responses = <Completer<http.Response>>[];
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    final service = DanbooruSearchService.forTesting(
+      client: MockClient((request) {
+        final response = Completer<http.Response>();
+        responses.add(response);
+        return response.future;
+      }),
+    );
+    await pumpAnchor(
+      tester,
+      controller: controller,
+      focusNode: focusNode,
+      service: service,
+    );
+    Future<void> search() async {
+      await tester.enterText(find.byType(TextField), '白色水手服');
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    await search();
+    await tester.enterText(find.byType(TextField), '');
+    await search();
+    expect(responses, hasLength(2));
+    http.Response result(String tag) => http.Response(
+      jsonEncode({
+        'results': [
+          {'tag': tag, 'category': 'General'},
+        ],
+      }),
+      200,
+    );
+    responses.first.complete(result('stale_result'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('stale result'), findsNothing);
+    responses.last.complete(result('current_result'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('current result'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+    focusNode.dispose();
   });
 
   testWidgets('中文查询离线无结果时由在线语义搜索补齐', (tester) async {

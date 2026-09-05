@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/main.dart';
 import 'package:novelai_harness/ui/core/locale/app_locale_controller.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/parameters_page.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/prompts_page.dart';
 
 void main() {
   testWidgets('NovelAiHarnessApp sidebar navigation and tab switching test', (
@@ -34,13 +36,25 @@ void main() {
     expect(find.text('参数设置'), findsOneWidget);
     expect(find.text('模型'), findsOneWidget);
     expect(find.text('画板暂无图像'), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, '生成图片 (30 Anlas)'), findsOneWidget);
+    expect(
+      find.widgetWithText(ElevatedButton, '生成图片 (30 Anlas)'),
+      findsOneWidget,
+    );
     expect(find.textContaining('未获取账号信息'), findsOneWidget);
+
+    final promptPage = find.byType(PromptsPage, skipOffstage: false);
+    final parameterPage = find.byType(ParametersPage, skipOffstage: false);
+    final promptState = tester.state(promptPage);
+    expect(TickerMode.valuesOf(tester.element(parameterPage)).enabled, isTrue);
+    expect(TickerMode.valuesOf(tester.element(promptPage)).enabled, isFalse);
 
     // 3. 点击切换至提示词页
     await tester.tap(find.text('提示词'));
     await tester.pumpAndSettle();
 
+    expect(TickerMode.valuesOf(tester.element(parameterPage)).enabled, isFalse);
+    expect(TickerMode.valuesOf(tester.element(promptPage)).enabled, isTrue);
+    expect(tester.state(promptPage), same(promptState));
     expect(find.text('提示词管理'), findsOneWidget);
     expect(find.text('Prompt'), findsOneWidget);
     expect(find.text('Undesired Content'), findsOneWidget);
@@ -49,7 +63,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('固定词缀'), findsOneWidget);
     // 验证生成图片和账号卡片仍然常驻显示
-    expect(find.widgetWithText(ElevatedButton, '生成图片 (30 Anlas)'), findsOneWidget);
+    expect(
+      find.widgetWithText(ElevatedButton, '生成图片 (30 Anlas)'),
+      findsOneWidget,
+    );
     expect(find.textContaining('未获取账号信息'), findsOneWidget);
 
     // 4. 点击设置按钮弹出全局配置弹窗
@@ -82,4 +99,3 @@ void main() {
     expect(find.byTooltip('会话管理'), findsOneWidget);
   });
 }
-

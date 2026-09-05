@@ -177,6 +177,9 @@ class AppDropdown<T> extends StatelessWidget {
           ),
           selectedItemBuilder: (context) {
             return effectiveItems.map((item) {
+              // DropdownButton 使用 IndexedStack 保留收起态条目；只需为
+              // 当前值构建内容，避免大量模型选项参与隐藏布局与文字排版。
+              if (item.value != value) return const SizedBox.shrink();
               return Row(
                 children: [
                   if (item.icon != null) ...[

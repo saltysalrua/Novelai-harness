@@ -58,6 +58,13 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
   double _cachedCaretY = 0.0;
 
   Timer? _debounceTimer;
+  int _searchEpoch = 0;
+
+  bool _isCurrentSearch(int epoch) =>
+      mounted &&
+      widget.enabled &&
+      widget.focusNode.hasFocus &&
+      epoch == _searchEpoch;
 
   @override
   void initState() {
@@ -76,6 +83,12 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
     if (oldWidget.focusNode != widget.focusNode) {
       oldWidget.focusNode.removeListener(_onFocusChanged);
       widget.focusNode.addListener(_onFocusChanged);
+    }
+    if (oldWidget.controller != widget.controller ||
+        oldWidget.focusNode != widget.focusNode ||
+        oldWidget.searchService != widget.searchService ||
+        oldWidget.enabled != widget.enabled) {
+      _hideOverlay();
     }
     if (oldWidget.showTranslation != widget.showTranslation &&
         _overlayEntry != null) {
@@ -97,10 +110,13 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
       // 获得焦点时，等待一帧光标就绪后立即触发自动补全检查
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && widget.focusNode.hasFocus) {
+          _activeQuery = '';
           _onTextChanged();
         }
       });
     } else {
+      _debounceTimer?.cancel();
+      _searchEpoch++;
       // 延迟 120ms 检查失焦，避免鼠标点击建议项瞬间被隐藏阻断
       Future.delayed(const Duration(milliseconds: 120), () {
         if (mounted && !widget.focusNode.hasFocus && _overlayEntry != null) {
@@ -141,26 +157,27 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
     _fullSegmentEnd = queryData.fullSegmentEnd;
     _cachedCaretY = _getCaretLocalY();
 
-    if (q == _activeQuery && _overlayEntry != null) {
+    if (q == _activeQuery) {
       _overlayEntry?.markNeedsBuild();
       return;
     }
 
     _activeQuery = q;
+    final epoch = ++_searchEpoch;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 80), () {
-      _searchAndShow(q);
+      _searchAndShow(q, epoch);
     });
   }
 
-  Future<void> _searchAndShow(String query) async {
-    if (!mounted || !widget.focusNode.hasFocus) return;
+  Future<void> _searchAndShow(String query, int epoch) async {
+    if (!_isCurrentSearch(epoch)) return;
     final onlineService =
         widget.searchService ?? DanbooruSearchService.instance;
 
     // 1) 离线词库立即可用：前缀/别名/中文释义匹配
     final offline = await TagDictionaryService.instance.search(query, limit: 8);
-    if (!mounted || _activeQuery != query) return;
+    if (!_isCurrentSearch(epoch)) return;
 
     // 2) 判断是否需要在线语义增强 (DanbooruSearch HF Space，10~30s 慢路径)：
     //    - 中文查询：语义搜词能把模糊描述映射到标准标签，是主增强场景
@@ -178,17 +195,13 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
       // 无离线结果但在线检索中：先收起旧查询的悬浮卡，
       // 避免旧建议在 10~30s 的慢路径期间悬挂不更新
       _dismissOverlayOnly();
-      setState(() {
-        _suggestions = const [];
-        _selectedIndex = 0;
-        _isKeyboardNavigating = false;
-      });
+      _suggestions = const [];
+      _selectedIndex = 0;
+      _isKeyboardNavigating = false;
     } else {
-      setState(() {
-        _suggestions = List.of(offline);
-        _selectedIndex = 0;
-        _isKeyboardNavigating = false;
-      });
+      _suggestions = List.of(offline);
+      _selectedIndex = 0;
+      _isKeyboardNavigating = false;
       _showOverlay();
     }
 
@@ -197,7 +210,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
     // 在线慢路径防抖：等用户停止输入 400ms 再发请求，
     // 避免连续击键时每个中间态都打一发 10~30s 的语义检索
     await Future<void>.delayed(const Duration(milliseconds: 400));
-    if (!mounted || _activeQuery != query) return;
+    if (!_isCurrentSearch(epoch)) return;
 
     // 3) 在线语义搜索：结果到达后与离线合并去重 (在线优先)
     try {
@@ -206,7 +219,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
         limit: 8,
         useSegmentation: false,
       );
-      if (!mounted || _activeQuery != query) return;
+      if (!_isCurrentSearch(epoch)) return;
 
       if (online.isEmpty) {
         if (_suggestions.isEmpty) _hideOverlay();
@@ -221,15 +234,13 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
         if (seen.add(s.tag.toLowerCase())) merged.add(s);
       }
 
-      setState(() {
-        _suggestions = merged.take(12).toList();
-        _selectedIndex = 0;
-        _isKeyboardNavigating = false;
-      });
+      _suggestions = merged.take(12).toList();
+      _selectedIndex = 0;
+      _isKeyboardNavigating = false;
       _showOverlay();
     } catch (_) {
-      // 在线服务不可用：保留离线结果，静默降级
-      if (_suggestions.isEmpty) _hideOverlay();
+      // 旧请求失败不能清除新查询的结果。
+      if (_isCurrentSearch(epoch) && _suggestions.isEmpty) _hideOverlay();
     }
   }
 
@@ -243,8 +254,9 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
   }
 
   void _hideOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    _debounceTimer?.cancel();
+    _searchEpoch++;
+    _dismissOverlayOnly();
     _activeQuery = '';
   }
 
@@ -252,6 +264,7 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
   /// 结果落地后由 [show] 路径重新弹出，且不干扰 _activeQuery 过期校验)
   void _dismissOverlayOnly() {
     _overlayEntry?.remove();
+    _overlayEntry?.dispose();
     _overlayEntry = null;
   }
 
@@ -335,22 +348,22 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
                 : Alignment.bottomLeft,
             followerAnchor: Alignment.topLeft,
             offset: placeOnRight ? Offset(12, caretY) : Offset(0, caretY + 24),
-            child: TagAutocompleteCard(
-              suggestions: _suggestions,
-              selectedIndex: _selectedIndex,
-              query: _activeQuery,
-              showTranslation: widget.showTranslation,
-              isKeyboardNavigated: _isKeyboardNavigating,
-              onSelect: _applySuggestion,
-              onHover: (idx) {
-                if (_selectedIndex != idx) {
-                  setState(() {
+            child: RepaintBoundary(
+              child: TagAutocompleteCard(
+                suggestions: _suggestions,
+                selectedIndex: _selectedIndex,
+                query: _activeQuery,
+                showTranslation: widget.showTranslation,
+                isKeyboardNavigated: _isKeyboardNavigating,
+                onSelect: _applySuggestion,
+                onHover: (idx) {
+                  if (_selectedIndex != idx) {
                     _selectedIndex = idx;
                     _isKeyboardNavigating = false;
-                  });
-                  _overlayEntry?.markNeedsBuild();
-                }
-              },
+                    _overlayEntry?.markNeedsBuild();
+                  }
+                },
+              ),
             ),
           ),
         );
@@ -462,10 +475,8 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
       // 下方向键：有边界阻尼 (到底停止，不循环)
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
         if (_selectedIndex < _suggestions.length - 1) {
-          setState(() {
-            _selectedIndex++;
-            _isKeyboardNavigating = true;
-          });
+          _selectedIndex++;
+          _isKeyboardNavigating = true;
           _overlayEntry?.markNeedsBuild();
         }
         return KeyEventResult.handled;
@@ -473,10 +484,8 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
       // 上方向键：有边界阻尼 (到头停止，不循环)
       else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
         if (_selectedIndex > 0) {
-          setState(() {
-            _selectedIndex--;
-            _isKeyboardNavigating = true;
-          });
+          _selectedIndex--;
+          _isKeyboardNavigating = true;
           _overlayEntry?.markNeedsBuild();
         }
         return KeyEventResult.handled;
