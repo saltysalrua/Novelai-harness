@@ -79,3 +79,6 @@ output/
 
 # local archives (untracked working docs & tool artifacts)
 /ARCHIVES/
+
+# Personal terminal themes (not project files)
+/themes/
