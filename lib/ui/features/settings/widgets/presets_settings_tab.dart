@@ -4,9 +4,17 @@ import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../../data/services/config_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_section_header.dart';
+import '../../../core/widgets/app_setting_tile.dart';
 import '../../studio/view_models/studio_view_model.dart';
-import 'settings_shared.dart';
 import 'skill_card.dart';
 import 'skill_editor_dialog.dart';
 import 'tool_card.dart';
@@ -221,9 +229,9 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
   }
 
   Future<void> _openNewSkillDialog() async {
-    final result = await showSettingsDialog<Skill>(
-      context,
-      (ctx) => const SkillEditorDialog(),
+    final result = await AppDialogScaffold.show<Skill>(
+      context: context,
+      builder: (ctx) => const SkillEditorDialog(),
     );
     if (result != null && mounted) {
       await widget.viewModel.saveCustomSkill(result);
@@ -232,9 +240,9 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
   }
 
   Future<void> _openImportSkillDialog() async {
-    final result = await showSettingsDialog<Skill>(
-      context,
-      (ctx) => const SkillEditorDialog(isImportMode: true),
+    final result = await AppDialogScaffold.show<Skill>(
+      context: context,
+      builder: (ctx) => const SkillEditorDialog(isImportMode: true),
     );
     if (result != null && mounted) {
       await widget.viewModel.saveCustomSkill(result);
@@ -243,9 +251,9 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
   }
 
   Future<void> _openEditSkillDialog(Skill skill) async {
-    final result = await showSettingsDialog<Skill>(
-      context,
-      (ctx) => SkillEditorDialog(skill: skill),
+    final result = await AppDialogScaffold.show<Skill>(
+      context: context,
+      builder: (ctx) => SkillEditorDialog(skill: skill),
     );
     if (result != null && mounted) {
       await widget.viewModel.saveCustomSkill(result);
@@ -269,9 +277,9 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
   }
 
   Future<void> _openNewToolDialog() async {
-    final result = await showSettingsDialog<CustomAgentTool>(
-      context,
-      (ctx) => const ToolEditorDialog(),
+    final result = await AppDialogScaffold.show<CustomAgentTool>(
+      context: context,
+      builder: (ctx) => const ToolEditorDialog(),
     );
     if (result != null && mounted) {
       await widget.viewModel.saveCustomTool(result);
@@ -280,16 +288,17 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
   }
 
   void _openInspectToolSchemaDialog(AgentTool tool) {
-    showSettingsDialog(
-      context,
-      (ctx) => ToolEditorDialog(tool: tool, isReadOnlySchemaView: true),
+    AppDialogScaffold.show(
+      context: context,
+      builder: (ctx) =>
+          ToolEditorDialog(tool: tool, isReadOnlySchemaView: true),
     );
   }
 
   Future<void> _openEditToolDialog(CustomAgentTool tool) async {
-    final result = await showSettingsDialog<CustomAgentTool>(
-      context,
-      (ctx) => ToolEditorDialog(tool: tool),
+    final result = await AppDialogScaffold.show<CustomAgentTool>(
+      context: context,
+      builder: (ctx) => ToolEditorDialog(tool: tool),
     );
     if (result != null && mounted) {
       await widget.viewModel.saveCustomTool(result);
@@ -304,6 +313,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final currentPreset = _draft.currentPreset;
     final isSelectedActive = currentPreset.id == _draft.activePresetId;
 
@@ -316,67 +326,34 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. 顶部总选择与管理坞
-          const SettingsGroupTitle('Preset Selection'),
-          SettingsCard(
+          const AppSectionHeader(title: 'Preset Selection'),
+          AppSettingTile(
             title: '当前预设',
             subtitle: '选择要配置的 Agent 预设（系统提示词、可用技能、工具与参数权限）',
             control: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SettingsIdDropdown(
+                AppDropdown<String>(
                   value: _draft.selectedPresetId,
+                  width: 210,
                   items: _draft.presets
                       .map(
-                        (p) => DropdownMenuItem<String>(
+                        (p) => AppDropdownItem(
                           value: p.id,
-                          child: Row(
-                            children: [
-                              Text(
-                                p.name,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.textPrimary,
-                                ),
-                              ),
-                              if (p.id == _draft.activePresetId) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 5,
-                                    vertical: 1.5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.notionBlue,
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                  child: const Text(
-                                    '当前默认',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                          label: p.name,
+                          trailing: p.id == _draft.activePresetId
+                              ? const AppBadge(label: '当前默认', fontSize: 9)
+                              : null,
                         ),
                       )
                       .toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _draft.switchPreset(val));
-                    }
-                  },
+                  onChanged: (val) => setState(() => _draft.switchPreset(val)),
                 ),
                 const SizedBox(width: 8),
 
                 // 设为默认按钮
                 if (!isSelectedActive)
-                  SettingsActionButton(
-                    icon: null,
+                  AppActionButton(
                     label: '设为当前默认',
                     onPressed: () => setState(
                       () => _draft.setActivePreset(currentPreset.id),
@@ -384,7 +361,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   ),
 
                 const SizedBox(width: 6),
-                SettingsActionButton(
+                AppActionButton(
                   icon: Icons.add_rounded,
                   label: '新建',
                   onPressed: () => setState(
@@ -396,7 +373,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                SettingsActionButton(
+                AppActionButton(
                   icon: Icons.copy_rounded,
                   label: '复制',
                   iconSize: 14,
@@ -407,12 +384,11 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                 // 删除按钮 (多于1个且非内置时可删)
                 if (_draft.presets.length > 1 && !currentPreset.isBuiltin) ...[
                   const SizedBox(width: 4),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      size: 18,
-                      color: Colors.redAccent,
-                    ),
+                  AppIconButton(
+                    icon: Icons.delete_outline_rounded,
+                    iconSize: 18,
+                    variant: AppIconButtonVariant.ghost,
+                    iconColor: colors.error,
                     tooltip: '删除此预设',
                     onPressed: () =>
                         setState(() => _draft.deletePreset(currentPreset.id)),
@@ -425,30 +401,26 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           const SizedBox(height: 14),
 
           // 2. 预设基础信息与系统提示词
-          const SettingsGroupTitle('Preset Profile & System Prompt'),
+          const AppSectionHeader(title: 'Preset Profile & System Prompt'),
           if (currentPreset.isBuiltin) ...[
             Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: AppTheme.stone.withValues(alpha: 0.08),
+                color: colors.mutedBackground,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppTheme.border),
+                border: Border.all(color: colors.borderDefault),
               ),
-              child: const Text(
+              child: Text(
                 '内置预设为出厂定义，每次启动以代码为准自动刷新，不支持直接修改。需要定制请先点击「复制」生成副本。',
-                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                style: TextStyle(fontSize: 11, color: colors.textSecondary),
               ),
             ),
           ],
-          Container(
+          AppCard(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppTheme.pureWhite,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.border),
-            ),
+            radius: AppRadius.md,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -476,12 +448,12 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   '系统提示词 (System Prompt - 作为对话首要根基指令)',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
+                    color: colors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -490,24 +462,11 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   maxLines: 6,
                   readOnly: currentPreset.isBuiltin,
                   style: const TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 12,
                     fontFamily: 'monospace',
                     height: 1.4,
                   ),
-                  decoration: InputDecoration(
-                    hintText: '输入 AI 助手的核心人设与工作流指引...',
-                    filled: true,
-                    fillColor: AppTheme.paperWarmth,
-                    hoverColor: AppTheme.paperWarmth,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: const BorderSide(color: AppTheme.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: const BorderSide(color: AppTheme.border),
-                    ),
-                  ),
+                  decoration: _fieldDecoration(hint: '输入 AI 助手的核心人设与工作流指引...'),
                 ),
               ],
             ),
@@ -516,27 +475,24 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           const SizedBox(height: 16),
 
           // 3. 可用 Skill 库 (Pi 标准按需加载小卡片组)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const SettingsGroupTitle('Available Skills'),
-              Row(
-                children: [
-                  SettingsActionButton(
-                    icon: Icons.file_upload_outlined,
-                    label: '导入 SKILL.md',
-                    iconSize: 14,
-                    onPressed: _openImportSkillDialog,
-                  ),
-                  const SizedBox(width: 6),
-                  SettingsActionButton(
-                    icon: Icons.add_rounded,
-                    label: '新建 Skill',
-                    onPressed: _openNewSkillDialog,
-                  ),
-                ],
-              ),
-            ],
+          AppSectionHeader(
+            title: 'Available Skills',
+            trailing: Row(
+              children: [
+                AppActionButton(
+                  icon: Icons.file_upload_outlined,
+                  label: '导入 SKILL.md',
+                  iconSize: 14,
+                  onPressed: _openImportSkillDialog,
+                ),
+                const SizedBox(width: 6),
+                AppActionButton(
+                  icon: Icons.add_rounded,
+                  label: '新建 Skill',
+                  onPressed: _openNewSkillDialog,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -566,16 +522,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           const SizedBox(height: 18),
 
           // 4. 开放工具库 (Enabled Tools 小卡片组)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const SettingsGroupTitle('Enabled Tools'),
-              SettingsActionButton(
-                icon: Icons.add_rounded,
-                label: '新建自定义工具',
-                onPressed: _openNewToolDialog,
-              ),
-            ],
+          AppSectionHeader(
+            title: 'Enabled Tools',
+            trailing: AppActionButton(
+              icon: Icons.add_rounded,
+              label: '新建自定义工具',
+              onPressed: _openNewToolDialog,
+            ),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -603,15 +556,15 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           const SizedBox(height: 18),
 
           // 5. 生图参数控制权限 (Modifiable Parameters)
-          const SettingsGroupTitle('Modifiable Parameters'),
+          const AppSectionHeader(title: 'Modifiable Parameters'),
           const SizedBox(height: 10),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppTheme.pureWhite,
+              color: colors.cardBackground,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.border),
+              border: Border.all(color: colors.borderDefault),
             ),
             child: Wrap(
               spacing: 8,
@@ -623,28 +576,26 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   label: Text(
                     label,
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 12,
                       fontWeight: isAllowed
                           ? FontWeight.w600
                           : FontWeight.normal,
-                      color: isAllowed
-                          ? AppTheme.notionBlue
-                          : AppTheme.textPrimary,
+                      color: isAllowed ? colors.primary : colors.textPrimary,
                     ),
                   ),
                   selected: isAllowed,
                   onSelected: currentPreset.isBuiltin
                       ? null
                       : (val) => setState(() => _draft.toggleParam(key, val)),
-                  backgroundColor: AppTheme.surfaceVariant,
-                  selectedColor: AppTheme.notionBlue.withValues(alpha: 0.12),
-                  checkmarkColor: AppTheme.notionBlue,
+                  backgroundColor: colors.mutedBackground,
+                  selectedColor: colors.primary.withValues(alpha: 0.12),
+                  checkmarkColor: colors.primary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(6),
                     side: BorderSide(
                       color: isAllowed
-                          ? AppTheme.notionBlue.withValues(alpha: 0.5)
-                          : AppTheme.border,
+                          ? colors.primary.withValues(alpha: 0.5)
+                          : colors.borderDefault,
                     ),
                   ),
                 );
@@ -663,15 +614,16 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     required String hintText,
     bool readOnly = false,
   }) {
+    final colors = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
+            color: colors.textPrimary,
           ),
         ),
         const SizedBox(height: 6),
@@ -679,23 +631,28 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           controller: controller,
           readOnly: readOnly,
           style: const TextStyle(fontSize: 12),
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: hintText,
-            filled: true,
-            fillColor: AppTheme.paperWarmth,
-            hoverColor: AppTheme.paperWarmth,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: AppTheme.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: AppTheme.border),
-            ),
-          ),
+          decoration: _fieldDecoration(hint: hintText),
         ),
       ],
+    );
+  }
+
+  InputDecoration _fieldDecoration({required String hint}) {
+    final colors = context.colors;
+    return InputDecoration(
+      isDense: true,
+      hintText: hint,
+      filled: true,
+      fillColor: colors.mutedBackground,
+      hoverColor: colors.mutedBackground,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: BorderSide(color: colors.borderDefault),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: BorderSide(color: colors.borderDefault),
+      ),
     );
   }
 }

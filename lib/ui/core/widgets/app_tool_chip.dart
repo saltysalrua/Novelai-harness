@@ -17,7 +17,6 @@ enum AppToolChipVariant {
 /// - `board_toolbar.dart:104-135` (`BoardToolbarItem`，选中态蓝底白字)
 /// - `inpaint_canvas_overlay.dart:794-798` (`_DockChip` 与 `toolChip` 模式切换)
 /// - `prompt_edit_actions.dart:45-75` (提示词编辑辅助微型操作钮)
-/// - `pill_widgets.dart:127-160` (`ToggleChip` 胶囊开关)
 ///
 /// 核心职责：
 /// 统一画板工具栏、修图工具坞及操作面板内单选/动作小按钮的尺寸规范 (图标 14~16px，文字 12px)、
@@ -81,21 +80,29 @@ class _AppToolChipState extends State<AppToolChip> {
     final isEnabled = widget.onTap != null;
 
     final Color bgColor = switch (widget.variant) {
-      AppToolChipVariant.filled => isSelected
-          ? colors.primary
-          : (_isHovered && isEnabled ? colors.borderSubtle : Colors.transparent),
-      AppToolChipVariant.tinted => isSelected
-          ? colors.primaryTint
-          : (_isHovered && isEnabled ? colors.borderSubtle : Colors.transparent),
+      AppToolChipVariant.filled =>
+        isSelected
+            ? colors.primary
+            : (_isHovered && isEnabled
+                  ? colors.borderSubtle
+                  : Colors.transparent),
+      AppToolChipVariant.tinted =>
+        isSelected
+            ? colors.primaryTint
+            : (_isHovered && isEnabled
+                  ? colors.borderSubtle
+                  : Colors.transparent),
     };
 
     final Color fgColor = switch (widget.variant) {
-      AppToolChipVariant.filled => isSelected
-          ? Colors.white
-          : (isEnabled ? colors.textPrimary : colors.textMuted),
-      AppToolChipVariant.tinted => isSelected
-          ? colors.primary
-          : (isEnabled ? colors.textPrimary : colors.textMuted),
+      AppToolChipVariant.filled =>
+        isSelected
+            ? Colors.white
+            : (isEnabled ? colors.textPrimary : colors.textMuted),
+      AppToolChipVariant.tinted =>
+        isSelected
+            ? colors.primary
+            : (isEnabled ? colors.textPrimary : colors.textMuted),
     };
 
     Widget content = Container(

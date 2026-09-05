@@ -52,12 +52,16 @@ Map<String, Uint8List> _generateThumbnailsIsolate(
       final int targetHeight;
       if (decoded.width >= decoded.height) {
         targetWidth = 240;
-        targetHeight =
-            (240 * decoded.height / decoded.width).round().clamp(1, 240);
+        targetHeight = (240 * decoded.height / decoded.width).round().clamp(
+          1,
+          240,
+        );
       } else {
         targetHeight = 240;
-        targetWidth =
-            (240 * decoded.width / decoded.height).round().clamp(1, 240);
+        targetWidth = (240 * decoded.width / decoded.height).round().clamp(
+          1,
+          240,
+        );
       }
 
       final resized = img.copyResize(

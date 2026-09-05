@@ -1,4 +1,3 @@
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,7 +5,8 @@ import 'package:pasteboard/pasteboard.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/usage_ledger_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import 'chat_image_attachment.dart';
 import 'slash_command_overlay.dart';
 import '../view_models/studio_view_model.dart';
@@ -129,12 +129,16 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       widget.viewModel.config.activeLlmProvider.activeModel.isMultimodal;
 
   void _showNotice(String message) {
+    final colors = context.colors;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(message, style: const TextStyle(fontSize: 12.5)),
-          backgroundColor: AppTheme.charcoal,
+          content: Text(
+            message,
+            style: TextStyle(fontSize: 13, color: colors.cardBackground),
+          ),
+          backgroundColor: colors.textPrimary,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
         ),
@@ -397,6 +401,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final isStreaming = widget.viewModel.isChatStreaming;
     final activeProvider = widget.viewModel.config.activeLlmProvider;
     final activeModel = activeProvider.activeModel;
@@ -404,9 +409,9 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: const BoxDecoration(
-        color: AppTheme.pureWhite,
-        border: Border(top: BorderSide(color: AppTheme.border)),
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        border: Border(top: BorderSide(color: colors.borderDefault)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -450,45 +455,39 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                           focusNode: _inputFocusNode,
                           minLines: 1,
                           maxLines: 4,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            color: AppTheme.textPrimary,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: colors.textPrimary,
                           ),
                           decoration: InputDecoration(
                             hintText: '输入绘画构思，或输入 /nai <词> 快速生图...',
-                            hintStyle: const TextStyle(
+                            hintStyle: TextStyle(
                               fontSize: 13,
-                              color: AppTheme.textMuted,
+                              color: colors.textMuted,
                             ),
-                            fillColor: AppTheme.paperWarmth,
-                            hoverColor: AppTheme.paperWarmth,
+                            fillColor: colors.canvasBackground,
+                            hoverColor: colors.canvasBackground,
                             filled: true,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 12,
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppTheme.radiusButton,
-                              ),
-                              borderSide: const BorderSide(
-                                color: AppTheme.border,
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              borderSide: BorderSide(
+                                color: colors.borderDefault,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppTheme.radiusButton,
-                              ),
-                              borderSide: const BorderSide(
-                                color: AppTheme.border,
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              borderSide: BorderSide(
+                                color: colors.borderDefault,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppTheme.radiusButton,
-                              ),
-                              borderSide: const BorderSide(
-                                color: AppTheme.notionBlue,
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              borderSide: BorderSide(
+                                color: colors.primary,
                                 width: 1.5,
                               ),
                             ),
@@ -503,18 +502,16 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                 AspectRatio(
                   aspectRatio: 1.0,
                   child: Material(
-                    color: AppTheme.pureWhite,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                    color: colors.cardBackground,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     child: InkWell(
                       onTap: _pickImageFiles,
-                      borderRadius: BorderRadius.circular(
-                        AppTheme.radiusButton,
-                      ),
-                      child: const Center(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      child: Center(
                         child: Icon(
                           Icons.attach_file_rounded,
                           size: 17,
-                          color: AppTheme.textSecondary,
+                          color: colors.textSecondary,
                         ),
                       ),
                     ),
@@ -525,14 +522,12 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                   aspectRatio: 1.0,
                   child: Material(
                     color: isStreaming
-                        ? AppTheme.stone.withValues(alpha: 0.5)
-                        : AppTheme.notionBlue,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                        ? colors.textMuted.withValues(alpha: 0.5)
+                        : colors.primary,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     child: InkWell(
                       onTap: isStreaming ? null : _handleSend,
-                      borderRadius: BorderRadius.circular(
-                        AppTheme.radiusButton,
-                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                       child: Center(
                         child: isStreaming
                             ? const SizedBox(
@@ -568,6 +563,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     LlmModelConfig activeModel,
     ThinkingEffort currentEffort,
   ) {
+    final colors = context.colors;
     final models = activeProvider.models;
     final currentModelId = models.any((m) => m.id == activeModel.id)
         ? activeModel.id
@@ -577,9 +573,9 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-        border: Border.all(color: AppTheme.border),
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: colors.borderDefault),
       ),
       child: Row(
         children: [
@@ -588,9 +584,9 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
             child: Tooltip(
               message: _buildSessionUsageTooltip(),
               waitDuration: const Duration(milliseconds: 400),
-              textStyle: const TextStyle(
+              textStyle: TextStyle(
                 fontSize: 11,
-                color: AppTheme.textPrimary,
+                color: colors.textPrimary,
                 height: 1.5,
               ),
               child: DropdownButtonHideUnderline(
@@ -598,21 +594,21 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                   value: currentModelId,
                   isDense: true,
                   isExpanded: true,
-                  dropdownColor: AppTheme.pureWhite,
-                  icon: const Icon(
+                  dropdownColor: colors.cardBackground,
+                  icon: Icon(
                     Icons.arrow_drop_down_rounded,
                     size: 18,
-                    color: AppTheme.textSecondary,
+                    color: colors.textSecondary,
                   ),
                   selectedItemBuilder: (context) {
                     return models.map((m) {
                       return Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.smart_toy_outlined,
-                            size: 14.5,
-                            color: AppTheme.stone,
+                            size: 15,
+                            color: colors.textMuted,
                           ),
                           const SizedBox(width: 5),
                           Flexible(
@@ -620,27 +616,27 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                               m.name,
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
-                                color: AppTheme.textPrimary,
+                                color: colors.textPrimary,
                               ),
                             ),
                           ),
                           if (m.isMultimodal) ...[
                             const SizedBox(width: 4),
-                            const Icon(
+                            Icon(
                               Icons.visibility_outlined,
-                              size: 12.5,
-                              color: AppTheme.success,
+                              size: 13,
+                              color: colors.success,
                             ),
                           ],
                           if (m.supportsThinking) ...[
                             const SizedBox(width: 4),
-                            const Icon(
+                            Icon(
                               Icons.psychology_outlined,
-                              size: 12.5,
-                              color: AppTheme.notionBlue,
+                              size: 13,
+                              color: colors.primary,
                             ),
                           ],
                         ],
@@ -657,10 +653,10 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                         waitDuration: const Duration(milliseconds: 500),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.smart_toy_outlined,
-                              size: 14.5,
-                              color: AppTheme.stone,
+                              size: 15,
+                              color: colors.textMuted,
                             ),
                             const SizedBox(width: 6),
                             Expanded(
@@ -668,27 +664,27 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                                 m.name,
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
+                                style: TextStyle(
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w500,
-                                  color: AppTheme.textPrimary,
+                                  color: colors.textPrimary,
                                 ),
                               ),
                             ),
                             if (m.isMultimodal) ...[
                               const SizedBox(width: 4),
-                              const Icon(
+                              Icon(
                                 Icons.visibility_outlined,
-                                size: 12.5,
-                                color: AppTheme.success,
+                                size: 13,
+                                color: colors.success,
                               ),
                             ],
                             if (m.supportsThinking) ...[
                               const SizedBox(width: 4),
-                              const Icon(
+                              Icon(
                                 Icons.psychology_outlined,
-                                size: 12.5,
-                                color: AppTheme.notionBlue,
+                                size: 13,
+                                color: colors.primary,
                               ),
                             ],
                           ],
@@ -712,7 +708,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
               width: 1,
               height: 18,
               margin: const EdgeInsets.symmetric(horizontal: 6),
-              color: AppTheme.border,
+              color: colors.borderDefault,
             ),
             _buildInlineThinkingButtons(activeModel, currentEffort),
           ],
@@ -738,18 +734,18 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
+        Icon(
           Icons.psychology_outlined,
-          size: 13.5,
-          color: AppTheme.notionBlue,
+          size: 14,
+          color: context.colors.primary,
         ),
         const SizedBox(width: 4),
-        const Text(
+        Text(
           '思考:',
           style: TextStyle(
-            fontSize: 11.5,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
+            color: context.colors.textPrimary,
           ),
         ),
         const SizedBox(width: 3),
@@ -757,13 +753,13 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           final isSelected = currentEffort == effort;
           return InkWell(
             onTap: () => widget.viewModel.setThinkingEffort(effort),
-            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 1.5),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               decoration: BoxDecoration(
-                color: isSelected ? AppTheme.notionBlue : Colors.transparent,
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                color: isSelected ? context.colors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
               child: Text(
                 effort == ThinkingEffort.off
@@ -776,7 +772,9 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? Colors.white : AppTheme.textSecondary,
+                  color: isSelected
+                      ? Colors.white
+                      : context.colors.textSecondary,
                 ),
               ),
             ),

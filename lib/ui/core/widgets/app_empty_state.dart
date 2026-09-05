@@ -64,16 +64,21 @@ class AppEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final effectiveIconSize = iconSize ?? (isCompact ? 28.0 : 44.0);
-    final effectivePadding = padding ??
+    final effectivePadding =
+        padding ??
         (isCompact
             ? const EdgeInsets.symmetric(horizontal: 16, vertical: 20)
             : const EdgeInsets.symmetric(horizontal: 24, vertical: 36));
 
     Widget? actionWidget = action;
-    if (actionWidget == null && actionLabel != null && onActionPressed != null) {
+    if (actionWidget == null &&
+        actionLabel != null &&
+        onActionPressed != null) {
       actionWidget = OutlinedButton.icon(
         onPressed: onActionPressed,
-        icon: actionIcon != null ? Icon(actionIcon, size: 14) : const SizedBox.shrink(),
+        icon: actionIcon != null
+            ? Icon(actionIcon, size: 14)
+            : const SizedBox.shrink(),
         label: Text(actionLabel!),
         style: OutlinedButton.styleFrom(
           foregroundColor: colors.textPrimary,
@@ -104,7 +109,7 @@ class AppEmptyState extends StatelessWidget {
               title,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: isCompact ? 13.0 : 14.5,
+                fontSize: isCompact ? 13 : 15,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),

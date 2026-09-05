@@ -37,6 +37,17 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
   final Color errorSurface;
   final Color info;
 
+  /// 破坏性操作身份色 (右键菜单删除项等危险动作；亮暗同值，区别于 error 错误横幅)
+  final Color coral;
+
+  // --- Danbooru 标签分类语义色 ---
+  // UI 分类色统一事实源：富文本高亮 / 分类胶囊等一律经此取色，
+  // 禁止各组件自建分类色板 (general 分类不设字段，直接复用 textPrimary)。
+  final Color tagArtist;
+  final Color tagCharacter;
+  final Color tagCopyright;
+  final Color tagMeta;
+
   const AppColorsExtension({
     required this.canvasBackground,
     required this.cardBackground,
@@ -59,6 +70,11 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     required this.error,
     required this.errorSurface,
     required this.info,
+    required this.coral,
+    required this.tagArtist,
+    required this.tagCharacter,
+    required this.tagCopyright,
+    required this.tagMeta,
   });
 
   /// 亮色调色板 (Notion 暖纸本工作台)
@@ -84,6 +100,12 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     error: Color(0xFFDB3737),
     errorSurface: Color(0xFFFDEEED),
     info: Color(0xFF0075DE),
+    coral: Color(0xFFF64932),
+    // 标签分类色 (亮色：沿用既有富文本色板，零视觉回归)
+    tagArtist: Color(0xFF7B1FA2),
+    tagCharacter: Color(0xFF1B5E20),
+    tagCopyright: Color(0xFFC2185B),
+    tagMeta: Color(0xFFE65100),
   );
 
   /// 深色调色板 (Notion Minimal Dark)
@@ -109,6 +131,12 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     error: Color(0xFFF85149),
     errorSurface: Color(0xFF331515),
     info: Color(0xFF58A6FF),
+    coral: Color(0xFFF64932),
+    // 标签分类色 (暗色：整体提亮到 Material 300 档，保证深底可读)
+    tagArtist: Color(0xFFBA68C8),
+    tagCharacter: Color(0xFF81C784),
+    tagCopyright: Color(0xFFF06292),
+    tagMeta: Color(0xFFFFB74D),
   );
 
   @override
@@ -134,6 +162,11 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     Color? error,
     Color? errorSurface,
     Color? info,
+    Color? coral,
+    Color? tagArtist,
+    Color? tagCharacter,
+    Color? tagCopyright,
+    Color? tagMeta,
   }) {
     return AppColorsExtension(
       canvasBackground: canvasBackground ?? this.canvasBackground,
@@ -157,6 +190,11 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
       error: error ?? this.error,
       errorSurface: errorSurface ?? this.errorSurface,
       info: info ?? this.info,
+      coral: coral ?? this.coral,
+      tagArtist: tagArtist ?? this.tagArtist,
+      tagCharacter: tagCharacter ?? this.tagCharacter,
+      tagCopyright: tagCopyright ?? this.tagCopyright,
+      tagMeta: tagMeta ?? this.tagMeta,
     );
   }
 
@@ -167,10 +205,17 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
   ) {
     if (other is! AppColorsExtension) return this;
     return AppColorsExtension(
-      canvasBackground: Color.lerp(canvasBackground, other.canvasBackground, t)!,
+      canvasBackground: Color.lerp(
+        canvasBackground,
+        other.canvasBackground,
+        t,
+      )!,
       cardBackground: Color.lerp(cardBackground, other.cardBackground, t)!,
-      elevatedBackground:
-          Color.lerp(elevatedBackground, other.elevatedBackground, t)!,
+      elevatedBackground: Color.lerp(
+        elevatedBackground,
+        other.elevatedBackground,
+        t,
+      )!,
       mutedBackground: Color.lerp(mutedBackground, other.mutedBackground, t)!,
       borderSubtle: Color.lerp(borderSubtle, other.borderSubtle, t)!,
       borderDefault: Color.lerp(borderDefault, other.borderDefault, t)!,
@@ -189,6 +234,11 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
       error: Color.lerp(error, other.error, t)!,
       errorSurface: Color.lerp(errorSurface, other.errorSurface, t)!,
       info: Color.lerp(info, other.info, t)!,
+      coral: Color.lerp(coral, other.coral, t)!,
+      tagArtist: Color.lerp(tagArtist, other.tagArtist, t)!,
+      tagCharacter: Color.lerp(tagCharacter, other.tagCharacter, t)!,
+      tagCopyright: Color.lerp(tagCopyright, other.tagCopyright, t)!,
+      tagMeta: Color.lerp(tagMeta, other.tagMeta, t)!,
     );
   }
 }

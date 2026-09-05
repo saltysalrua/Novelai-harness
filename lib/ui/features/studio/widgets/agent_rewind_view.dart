@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../view_models/chat_checkpoints.dart';
 import '../view_models/studio_view_model.dart';
 
@@ -61,6 +65,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final checkpoints = _extractCheckpoints();
 
     return Focus(
@@ -75,6 +80,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
       },
       child: Card(
         margin: EdgeInsets.zero,
+        color: colors.cardBackground,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -82,54 +88,36 @@ class _AgentRewindViewState extends State<AgentRewindView> {
             Container(
               height: 48,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: const BoxDecoration(
-                color: AppTheme.pureWhite,
-                border: Border(bottom: BorderSide(color: AppTheme.border)),
+              decoration: BoxDecoration(
+                color: colors.cardBackground,
+                border: Border(bottom: BorderSide(color: colors.borderDefault)),
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                  AppIconButton(
+                    icon: Icons.arrow_back_rounded,
                     tooltip: '返回对话 (ESC)',
-                    color: AppTheme.textPrimary,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                    visualDensity: VisualDensity.compact,
+                    size: 28,
+                    variant: AppIconButtonVariant.ghost,
                     onPressed: widget.onBack,
                   ),
                   const SizedBox(width: 4),
-                  const Icon(
-                    Icons.history_rounded,
-                    size: 15,
-                    color: AppTheme.notionBlue,
-                  ),
+                  Icon(Icons.history_rounded, size: 15, color: colors.primary),
                   const SizedBox(width: 6),
-                  const Text(
+                  Text(
                     '回溯历史时刻',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.stone.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                    ),
-                    child: const Text(
-                      'ESC 退出',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textMuted,
-                      ),
-                    ),
+                  const AppBadge(
+                    label: 'ESC 退出',
+                    variant: AppBadgeVariant.neutral,
+                    shape: AppBadgeShape.pill,
+                    fontSize: 10,
                   ),
                 ],
               ),
@@ -140,24 +128,24 @@ class _AgentRewindViewState extends State<AgentRewindView> {
               margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: AppTheme.paperWarmth,
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                border: Border.all(color: AppTheme.border),
+                color: colors.canvasBackground,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: colors.borderDefault),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(
                     Icons.info_outline_rounded,
                     size: 13,
-                    color: AppTheme.textSecondary,
+                    color: colors.textSecondary,
                   ),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       '选择要回退到的对话时刻。确认后将撤销此时刻之后的所有修改与对话记录。',
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.textSecondary,
+                        color: colors.textSecondary,
                         height: 1.3,
                       ),
                     ),
@@ -169,42 +157,14 @@ class _AgentRewindViewState extends State<AgentRewindView> {
             // 轮次列表区域
             Expanded(
               child: checkpoints.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.history_toggle_off_rounded,
-                            size: 32,
-                            color: AppTheme.stone,
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            '当前会话暂无历史对话轮次可回溯',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textMuted,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            icon: const Icon(Icons.arrow_back, size: 14),
-                            label: const Text(
-                              '返回对话',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppTheme.radiusButton,
-                                ),
-                              ),
-                            ),
-                            onPressed: widget.onBack,
-                          ),
-                        ],
-                      ),
+                  ? AppEmptyState(
+                      icon: Icons.history_toggle_off_rounded,
+                      iconSize: 32,
+                      title: '当前会话暂无历史对话轮次可回溯',
+                      actionLabel: '返回对话',
+                      actionIcon: Icons.arrow_back,
+                      onActionPressed: widget.onBack,
+                      isCompact: true,
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
@@ -223,22 +183,18 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                             setState(() => _selectedCheckpointIndex = index);
                             _confirmRewind(checkpoints);
                           },
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusCard,
-                          ),
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
                           child: Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? AppTheme.skyTint.withValues(alpha: 0.5)
-                                  : AppTheme.pureWhite,
-                              borderRadius: BorderRadius.circular(
-                                AppTheme.radiusCard,
-                              ),
+                                  ? colors.primaryTint.withValues(alpha: 0.5)
+                                  : colors.cardBackground,
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
                               border: Border.all(
                                 color: isSelected
-                                    ? AppTheme.notionBlue
-                                    : AppTheme.border,
+                                    ? colors.primary
+                                    : colors.borderDefault,
                                 width: isSelected ? 1.5 : 1,
                               ),
                             ),
@@ -247,49 +203,36 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                               children: [
                                 Row(
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 1.5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? AppTheme.notionBlue
-                                            : AppTheme.stone.withValues(
-                                                alpha: 0.15,
-                                              ),
-                                        borderRadius: BorderRadius.circular(
-                                          AppTheme.radiusPill,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        '#${cp.index}',
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : AppTheme.textSecondary,
-                                        ),
-                                      ),
+                                    AppBadge.pill(
+                                      label: '#${cp.index}',
+                                      variant: isSelected
+                                          ? AppBadgeVariant.primary
+                                          : AppBadgeVariant.neutral,
+                                      customBackgroundColor: isSelected
+                                          ? colors.primary
+                                          : null,
+                                      customForegroundColor: isSelected
+                                          ? Colors.white
+                                          : null,
+                                      fontSize: 11,
                                     ),
                                     if (isLastTurn) ...[
                                       const SizedBox(width: 6),
-                                      const Text(
+                                      Text(
                                         '(最新时刻)',
                                         style: TextStyle(
-                                          fontSize: 10.5,
+                                          fontSize: 11,
                                           fontWeight: FontWeight.w600,
-                                          color: AppTheme.success,
+                                          color: colors.success,
                                         ),
                                       ),
                                     ],
                                     const Spacer(),
                                     Text(
                                       _formatTime(cp.userMessage.createdAt),
-                                      style: const TextStyle(
-                                        fontSize: 10.5,
-                                        color: AppTheme.textMuted,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: colors.textMuted,
                                       ),
                                     ),
                                   ],
@@ -300,12 +243,12 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 1.5),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 1.5),
                                       child: Icon(
                                         Icons.keyboard_arrow_right,
                                         size: 13,
-                                        color: AppTheme.notionBlue,
+                                        color: colors.primary,
                                       ),
                                     ),
                                     const SizedBox(width: 3),
@@ -314,10 +257,10 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                                         cp.userMessage.content,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
-                                          color: AppTheme.textPrimary,
+                                          color: colors.textPrimary,
                                         ),
                                       ),
                                     ),
@@ -335,9 +278,9 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                                     cp.assistantMessage!.content,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 11,
-                                      color: AppTheme.textSecondary,
+                                      color: colors.textSecondary,
                                     ),
                                   ),
                                 ],
@@ -348,28 +291,11 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                                   Wrap(
                                     spacing: 4,
                                     children: cp.toolMessages.map((t) {
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 5,
-                                          vertical: 1,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.paperWarmth,
-                                          borderRadius: BorderRadius.circular(
-                                            3,
-                                          ),
-                                          border: Border.all(
-                                            color: AppTheme.border,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          t.toolName ?? 'tool',
-                                          style: const TextStyle(
-                                            fontSize: 9.5,
-                                            fontFamily: 'monospace',
-                                            color: AppTheme.textMuted,
-                                          ),
-                                        ),
+                                      return AppBadge(
+                                        label: t.toolName ?? 'tool',
+                                        variant: AppBadgeVariant.neutral,
+                                        shape: AppBadgeShape.rounded,
+                                        fontSize: 10,
                                       );
                                     }).toList(),
                                   ),
@@ -385,9 +311,9 @@ class _AgentRewindViewState extends State<AgentRewindView> {
             // 底部操作坞
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: const BoxDecoration(
-                color: AppTheme.paperWarmth,
-                border: Border(top: BorderSide(color: AppTheme.border)),
+              decoration: BoxDecoration(
+                color: colors.canvasBackground,
+                border: Border(top: BorderSide(color: colors.borderDefault)),
               ),
               child: Row(
                 children: [
@@ -396,9 +322,9 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                       _selectedCheckpointIndex != null
                           ? '已选择第 #${checkpoints[_selectedCheckpointIndex!].index} 轮对话'
                           : '请在上方列表中选择要回退的轮次',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: AppTheme.textSecondary,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -410,10 +336,10 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                         vertical: 8,
                       ),
                       visualDensity: VisualDensity.compact,
+                      side: BorderSide(color: colors.borderDefault),
+                      foregroundColor: colors.textPrimary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusButton,
-                        ),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
                     ),
                     onPressed: widget.onBack,
@@ -422,7 +348,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                   const SizedBox(width: 8),
                   FilledButton(
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.notionBlue,
+                      backgroundColor: colors.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
@@ -430,9 +356,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                       ),
                       visualDensity: VisualDensity.compact,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusButton,
-                        ),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
                     ),
                     onPressed: _selectedCheckpointIndex != null

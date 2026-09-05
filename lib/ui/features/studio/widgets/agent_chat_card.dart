@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../view_models/studio_view_model.dart';
 import 'agent_chat_input_bar.dart';
@@ -248,6 +249,7 @@ class AgentChatCardState extends State<AgentChatCard> {
 
   /// 顶部预设切换栏 + 会话管理入口
   Widget _buildPresetHeaderBar() {
+    final colors = context.colors;
     final currentPreset = widget.viewModel.currentPreset;
     final presets = widget.viewModel.presets;
     final currentPresetId = presets.any((p) => p.id == currentPreset.id)
@@ -257,9 +259,9 @@ class AgentChatCardState extends State<AgentChatCard> {
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        color: AppTheme.pureWhite,
-        border: Border(bottom: BorderSide(color: AppTheme.border)),
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        border: Border(bottom: BorderSide(color: colors.borderDefault)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -269,19 +271,19 @@ class AgentChatCardState extends State<AgentChatCard> {
             height: 32,
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
-              color: AppTheme.pureWhite,
-              borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-              border: Border.all(color: AppTheme.border),
+              color: colors.cardBackground,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: colors.borderDefault),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: currentPresetId,
                 isDense: true,
-                dropdownColor: AppTheme.pureWhite,
-                icon: const Icon(
+                dropdownColor: colors.cardBackground,
+                icon: Icon(
                   Icons.arrow_drop_down_rounded,
                   size: 18,
-                  color: AppTheme.textSecondary,
+                  color: colors.textSecondary,
                 ),
                 borderRadius: BorderRadius.circular(8),
                 menuMaxHeight: 400.0,
@@ -290,18 +292,18 @@ class AgentChatCardState extends State<AgentChatCard> {
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.psychology_outlined,
-                          size: 14.5,
-                          color: AppTheme.notionBlue,
+                          size: 15,
+                          color: colors.primary,
                         ),
                         const SizedBox(width: 6),
                         Text(
                           preset.name,
-                          style: const TextStyle(
-                            fontSize: 12.5,
+                          style: TextStyle(
+                            fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: AppTheme.textPrimary,
+                            color: colors.textPrimary,
                           ),
                         ),
                       ],
@@ -319,10 +321,10 @@ class AgentChatCardState extends State<AgentChatCard> {
                         children: [
                           Icon(
                             Icons.psychology_outlined,
-                            size: 14.5,
+                            size: 15,
                             color: isSelected
-                                ? AppTheme.notionBlue
-                                : AppTheme.stone,
+                                ? colors.primary
+                                : colors.textMuted,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -331,13 +333,13 @@ class AgentChatCardState extends State<AgentChatCard> {
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                               style: TextStyle(
-                                fontSize: 12.5,
+                                fontSize: 13,
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.w500,
                                 color: isSelected
-                                    ? AppTheme.notionBlue
-                                    : AppTheme.textPrimary,
+                                    ? colors.primary
+                                    : colors.textPrimary,
                               ),
                             ),
                           ),
@@ -356,11 +358,7 @@ class AgentChatCardState extends State<AgentChatCard> {
             ),
           ),
           IconButton(
-            icon: const Icon(
-              Icons.forum_outlined,
-              size: 16,
-              color: AppTheme.textMuted,
-            ),
+            icon: Icon(Icons.forum_outlined, size: 16, color: colors.textMuted),
             tooltip: '会话管理',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),

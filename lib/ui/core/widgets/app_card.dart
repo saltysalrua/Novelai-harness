@@ -95,7 +95,10 @@ class _AppCardState extends State<AppCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final isInteractive = widget.onTap != null || widget.onSecondaryTap != null || widget.onSecondaryTapDown != null;
+    final isInteractive =
+        widget.onTap != null ||
+        widget.onSecondaryTap != null ||
+        widget.onSecondaryTapDown != null;
 
     final bgColor = widget.isSelected
         ? (widget.selectedBackgroundColor ?? colors.cardBackground)
@@ -104,14 +107,19 @@ class _AppCardState extends State<AppCard> {
     final resolvedBorderColor = widget.isSelected
         ? (widget.selectedBorderColor ?? colors.primary)
         : (_isHovered && isInteractive
-            ? colors.borderHover
-            : (widget.borderColor ?? colors.borderDefault));
+              ? colors.borderHover
+              : (widget.borderColor ?? colors.borderDefault));
 
-    final resolvedBorderWidth = widget.isSelected ? widget.selectedBorderWidth : widget.borderWidth;
+    final resolvedBorderWidth = widget.isSelected
+        ? widget.selectedBorderWidth
+        : widget.borderWidth;
 
     List<BoxShadow>? shadows;
     if (widget.isSelected) {
-      shadows = AppShadows.subtle(colors.primary, brightness: context.themeBrightness);
+      shadows = AppShadows.subtle(
+        colors.primary,
+        brightness: context.themeBrightness,
+      );
     } else if (widget.elevated || (_isHovered && isInteractive)) {
       shadows = context.shadowSubtle;
     }

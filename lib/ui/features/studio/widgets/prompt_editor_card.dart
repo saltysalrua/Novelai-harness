@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_progress_bar.dart';
 import 'prompt_edit_actions.dart';
 import 'prompt_resize_handle.dart';
-import 'studio_shared.dart';
 import 'tag_browser_dialog.dart';
 
 /// 只读灰色标签数据 (PREFIX / SUFFIX / QUALITY / BG / UC 预设词展示)
@@ -104,13 +107,9 @@ class PromptEditorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        border: Border.all(color: AppTheme.border),
-      ),
-      clipBehavior: Clip.antiAlias,
+    final colors = context.colors;
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -128,15 +127,15 @@ class PromptEditorCard extends StatelessWidget {
             enableAutocomplete: enableAutocomplete,
             showTranslation: showTranslation,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            style: const TextStyle(
-              fontSize: 13.5,
+            style: TextStyle(
+              fontSize: 14,
               height: 1.48,
-              color: AppTheme.textPrimary,
+              color: colors.textPrimary,
             ),
-            hintStyle: const TextStyle(
+            hintStyle: TextStyle(
               fontSize: 13,
               height: 1.48,
-              color: AppTheme.textMuted,
+              color: colors.textMuted,
             ),
           ),
           if (footerTags.isNotEmpty) _TagPanel(tags: footerTags, atTop: false),
@@ -203,7 +202,10 @@ class PromptEditorCard extends StatelessWidget {
                 ],
               ),
             ),
-          TokenProgressBar(tokens: tokenEstimate, tokenLimit: tokenLimit),
+          AppProgressBar(
+            value: (tokenEstimate / tokenLimit).clamp(0.0, 1.0),
+            height: 3,
+          ),
         ],
       ),
     );
@@ -226,32 +228,33 @@ class _QuickActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Tooltip(
       message: tooltip,
       waitDuration: const Duration(milliseconds: 400),
       child: Material(
-        color: AppTheme.paperWarmth,
-        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        color: colors.canvasBackground,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-          hoverColor: AppTheme.notionBlue.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          hoverColor: colors.primary.withValues(alpha: 0.1),
           child: Container(
             height: 24,
             padding: const EdgeInsets.symmetric(horizontal: 6),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              border: Border.all(color: AppTheme.borderSubtle),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+              border: Border.all(color: colors.borderSubtle),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: icon != null
-                ? Icon(icon, size: 13, color: AppTheme.textSecondary)
+                ? Icon(icon, size: 13, color: colors.textSecondary)
                 : Text(
                     label ?? '',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
+                      color: colors.textSecondary,
                     ),
                   ),
           ),
@@ -270,13 +273,14 @@ class _TagPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceMuted.withValues(alpha: atTop ? 0.5 : 0.35),
+        color: colors.mutedBackground.withValues(alpha: atTop ? 0.5 : 0.35),
         border: atTop
-            ? const Border(bottom: BorderSide(color: AppTheme.borderSubtle))
-            : const Border(top: BorderSide(color: AppTheme.borderSubtle)),
+            ? Border(bottom: BorderSide(color: colors.borderSubtle))
+            : Border(top: BorderSide(color: colors.borderSubtle)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,32 +303,27 @@ class _TagRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          margin: const EdgeInsets.only(top: 1.5, right: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-          decoration: BoxDecoration(
-            color: AppTheme.borderSubtle,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            tag.label,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textMuted,
-            ),
+        Padding(
+          padding: const EdgeInsets.only(top: 1.5, right: 6),
+          child: AppBadge(
+            label: tag.label,
+            variant: AppBadgeVariant.neutral,
+            shape: AppBadgeShape.rounded,
+            fontSize: 10,
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
           ),
         ),
         Expanded(
           child: Text(
             tag.text,
-            style: const TextStyle(
-              fontSize: 12.5,
+            style: TextStyle(
+              fontSize: 13,
               height: 1.4,
-              color: AppTheme.textMuted,
+              color: colors.textMuted,
             ),
           ),
         ),

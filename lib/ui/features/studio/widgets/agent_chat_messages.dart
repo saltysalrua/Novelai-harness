@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../../../core/harness/types.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import 'agent_chat_blocks.dart';
 import 'chat_image_attachment.dart';
 import 'image_lightbox.dart';
@@ -48,6 +49,7 @@ class UserMessageRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final images = message.images;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -58,22 +60,22 @@ class UserMessageRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 2),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
                 child: Icon(
                   Icons.keyboard_arrow_right,
                   size: 16,
-                  color: AppTheme.notionBlue,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(width: 4),
               Expanded(
                 child: SelectableText(
                   message.content,
-                  style: const TextStyle(
-                    fontSize: 13.5,
+                  style: TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: AppTheme.textPrimary,
+                    color: colors.textPrimary,
                     height: 1.5,
                   ),
                 ),
@@ -91,10 +93,7 @@ class UserMessageRow extends StatelessWidget {
                     ChatImageThumbnail(
                       bytes: img.bytes,
                       size: 72,
-                      onTap: () => showImageLightboxBytes(
-                        context,
-                        img.bytes,
-                      ),
+                      onTap: () => showImageLightboxBytes(context, img.bytes),
                     ),
                 ],
               ),
@@ -137,7 +136,7 @@ class AssistantMessageItem extends StatelessWidget {
               data: message.content,
               selectable: true,
               softLineBreak: true,
-              styleSheet: buildAgentMarkdownStyleSheet(),
+              styleSheet: buildAgentMarkdownStyleSheet(context),
             ),
           ],
           if (message.toolCalls != null)
@@ -156,23 +155,20 @@ class ToolCallBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return CollapsibleTile(
       margin: const EdgeInsets.only(top: 4, bottom: 4),
       header: Row(
         children: [
-          const Icon(
-            Icons.build_circle_outlined,
-            size: 14,
-            color: AppTheme.notionBlue,
-          ),
+          Icon(Icons.build_circle_outlined, size: 14, color: colors.primary),
           const SizedBox(width: 4),
           Text(
             call.name,
-            style: const TextStyle(
-              fontSize: 12.5,
+            style: TextStyle(
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               fontFamily: 'monospace',
-              color: AppTheme.notionBlue,
+              color: colors.primary,
             ),
           ),
           const SizedBox(width: 6),
@@ -181,10 +177,10 @@ class ToolCallBlock extends StatelessWidget {
               summarizeToolArguments(call.arguments),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11.5,
+              style: TextStyle(
+                fontSize: 12,
                 fontFamily: 'monospace',
-                color: AppTheme.textMuted,
+                color: colors.textMuted,
               ),
             ),
           ),
@@ -194,15 +190,15 @@ class ToolCallBlock extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppTheme.paperWarmth,
-          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+          color: colors.canvasBackground,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: SelectableText(
           const JsonEncoder.withIndent('  ').convert(call.arguments),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontFamily: 'monospace',
-            color: AppTheme.textSecondary,
+            color: colors.textSecondary,
             height: 1.45,
           ),
         ),
@@ -219,19 +215,20 @@ class ToolResultBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final lineCount = message.content.isEmpty
         ? 0
         : message.content.split('\n').length;
     final firstLine = message.content.isEmpty
         ? '(无输出)'
         : message.content.split('\n').first.trim();
-    final accent = message.isError ? AppTheme.error : AppTheme.success;
+    final accent = message.isError ? colors.error : colors.success;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.only(left: 8),
-      decoration: const BoxDecoration(
-        border: Border(left: BorderSide(color: AppTheme.border, width: 2)),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: colors.borderDefault, width: 2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,7 +248,7 @@ class ToolResultBlock extends StatelessWidget {
                 Text(
                   message.toolName ?? 'tool',
                   style: TextStyle(
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     fontFamily: 'monospace',
                     color: accent,
@@ -263,10 +260,10 @@ class ToolResultBlock extends StatelessWidget {
                     '$lineCount 行 · $firstLine',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11.5,
+                    style: TextStyle(
+                      fontSize: 12,
                       fontFamily: 'monospace',
-                      color: AppTheme.textMuted,
+                      color: colors.textMuted,
                     ),
                   ),
                 ),
@@ -277,16 +274,16 @@ class ToolResultBlock extends StatelessWidget {
               constraints: const BoxConstraints(maxHeight: 320),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppTheme.paperWarmth,
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                color: colors.canvasBackground,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
               child: SingleChildScrollView(
                 child: SelectableText(
                   message.content,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontFamily: 'monospace',
-                    color: AppTheme.textSecondary,
+                    color: colors.textSecondary,
                     height: 1.45,
                   ),
                 ),
@@ -316,9 +313,7 @@ class ToolResultBlock extends StatelessWidget {
                     child: MouseRegion(
                       cursor: SystemMouseCursors.zoomIn,
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusSmall,
-                        ),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                         child: Image.memory(
                           bytes,
                           fit: BoxFit.contain,
@@ -337,7 +332,7 @@ class ToolResultBlock extends StatelessWidget {
                   }
                   return ColoredBox(
                     // 解码完成前的占位底色，避免预留区白闪一帧
-                    color: AppTheme.paperWarmth,
+                    color: colors.canvasBackground,
                     child: AspectRatio(
                       aspectRatio: probed.width / probed.height,
                       child: image,
@@ -373,6 +368,7 @@ class StreamingMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -384,18 +380,18 @@ class StreamingMessageBubble extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
-                color: AppTheme.pureWhite,
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                border: Border.all(color: AppTheme.border),
+                color: colors.cardBackground,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: colors.borderDefault),
               ),
               child: Row(
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 11,
                     height: 11,
                     child: CircularProgressIndicator(
                       strokeWidth: 1.5,
-                      color: AppTheme.textMuted,
+                      color: colors.textMuted,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -404,9 +400,9 @@ class StreamingMessageBubble extends StatelessWidget {
                       notice!,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: AppTheme.textMuted,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textMuted,
                         height: 1.4,
                       ),
                     ),
@@ -417,24 +413,24 @@ class StreamingMessageBubble extends StatelessWidget {
             const SizedBox(height: 6),
           ],
           if (thoughts.isNotEmpty) ...[
-            const Row(
+            Row(
               children: [
                 SizedBox(
                   width: 11,
                   height: 11,
                   child: CircularProgressIndicator(
                     strokeWidth: 1.5,
-                    color: AppTheme.textMuted,
+                    color: colors.textMuted,
                   ),
                 ),
-                SizedBox(width: 6),
+                const SizedBox(width: 6),
                 Text(
                   '正在思考...',
                   style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     fontStyle: FontStyle.italic,
-                    color: AppTheme.textMuted,
+                    color: colors.textMuted,
                   ),
                 ),
               ],
@@ -444,9 +440,9 @@ class StreamingMessageBubble extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppTheme.pureWhite,
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                border: Border.all(color: AppTheme.border),
+                color: colors.cardBackground,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: colors.borderDefault),
               ),
               child: Text(
                 thoughts,
@@ -454,10 +450,10 @@ class StreamingMessageBubble extends StatelessWidget {
                 overflow: thinkingExpanded
                     ? TextOverflow.visible
                     : TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11.5,
+                style: TextStyle(
+                  fontSize: 12,
                   fontStyle: FontStyle.italic,
-                  color: AppTheme.textMuted,
+                  color: colors.textMuted,
                   height: 1.45,
                 ),
               ),
@@ -468,7 +464,7 @@ class StreamingMessageBubble extends StatelessWidget {
             data: content.isEmpty ? '构思中...' : content,
             selectable: true,
             softLineBreak: true,
-            styleSheet: buildAgentMarkdownStyleSheet(),
+            styleSheet: buildAgentMarkdownStyleSheet(context),
           ),
         ],
       ),
@@ -488,43 +484,44 @@ String summarizeToolArguments(Map<String, dynamic> arguments) {
       .join(' ');
 }
 
-/// Agent 对话流统一的 Markdown 渲染样式表
-MarkdownStyleSheet buildAgentMarkdownStyleSheet() {
-  const baseColor = AppTheme.textPrimary;
+/// Agent 对话流统一的 Markdown 渲染样式表 (主题感知: 亮暗色随当前上下文语义色取值)
+MarkdownStyleSheet buildAgentMarkdownStyleSheet(BuildContext context) {
+  final colors = context.colors;
+  final baseColor = colors.textPrimary;
   return MarkdownStyleSheet(
-    p: const TextStyle(fontSize: 13.5, color: baseColor, height: 1.5),
-    h1: const TextStyle(
+    p: TextStyle(fontSize: 14, color: baseColor, height: 1.5),
+    h1: TextStyle(
       fontSize: 17,
       fontWeight: FontWeight.w700,
       color: baseColor,
       height: 1.4,
     ),
-    h2: const TextStyle(
-      fontSize: 15.5,
+    h2: TextStyle(
+      fontSize: 16,
       fontWeight: FontWeight.w700,
       color: baseColor,
       height: 1.4,
     ),
-    h3: const TextStyle(
+    h3: TextStyle(
       fontSize: 14,
       fontWeight: FontWeight.w600,
       color: baseColor,
       height: 1.4,
     ),
-    h4: const TextStyle(
-      fontSize: 13.5,
+    h4: TextStyle(
+      fontSize: 14,
       fontWeight: FontWeight.w600,
       color: baseColor,
       height: 1.4,
     ),
-    h5: const TextStyle(
+    h5: TextStyle(
       fontSize: 13,
       fontWeight: FontWeight.w600,
       color: baseColor,
       height: 1.4,
     ),
-    h6: const TextStyle(
-      fontSize: 12.5,
+    h6: TextStyle(
+      fontSize: 13,
       fontWeight: FontWeight.w600,
       color: baseColor,
       height: 1.4,
@@ -532,47 +529,45 @@ MarkdownStyleSheet buildAgentMarkdownStyleSheet() {
     em: const TextStyle(fontStyle: FontStyle.italic),
     strong: const TextStyle(fontWeight: FontWeight.w700),
     del: const TextStyle(decoration: TextDecoration.lineThrough),
-    code: const TextStyle(
-      fontSize: 12.5,
+    code: TextStyle(
+      fontSize: 13,
       fontFamily: 'monospace',
       backgroundColor: Colors.transparent,
-      color: AppTheme.notionBlue,
+      color: colors.primary,
     ),
     codeblockDecoration: BoxDecoration(
-      color: AppTheme.pureWhite,
-      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-      border: Border.all(color: AppTheme.border),
+      color: colors.cardBackground,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      border: Border.all(color: colors.borderDefault),
     ),
     codeblockPadding: const EdgeInsets.all(8),
-    blockquote: const TextStyle(
+    blockquote: TextStyle(
       fontSize: 13,
-      color: AppTheme.textSecondary,
+      color: colors.textSecondary,
       height: 1.45,
     ),
     blockquoteDecoration: BoxDecoration(
-      color: AppTheme.pureWhite,
-      border: const Border(
-        left: BorderSide(color: AppTheme.notionBlue, width: 3),
-      ),
+      color: colors.cardBackground,
+      border: Border(left: BorderSide(color: colors.primary, width: 3)),
       borderRadius: BorderRadius.circular(2),
     ),
     blockquotePadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    listBullet: const TextStyle(fontSize: 13.5, color: baseColor),
-    tableBody: const TextStyle(fontSize: 12.5, color: baseColor),
-    tableHead: const TextStyle(
-      fontSize: 12.5,
+    listBullet: TextStyle(fontSize: 14, color: baseColor),
+    tableBody: TextStyle(fontSize: 13, color: baseColor),
+    tableHead: TextStyle(
+      fontSize: 13,
       fontWeight: FontWeight.w600,
       color: baseColor,
     ),
-    tableBorder: TableBorder.all(color: AppTheme.border, width: 1),
+    tableBorder: TableBorder.all(color: colors.borderDefault, width: 1),
     tableCellsPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
     listIndent: 16,
     pPadding: const EdgeInsets.only(bottom: 6),
     h1Padding: const EdgeInsets.only(top: 8, bottom: 4),
     h2Padding: const EdgeInsets.only(top: 8, bottom: 4),
     h3Padding: const EdgeInsets.only(top: 6, bottom: 2),
-    horizontalRuleDecoration: const BoxDecoration(
-      border: Border(top: BorderSide(color: AppTheme.border, width: 1)),
+    horizontalRuleDecoration: BoxDecoration(
+      border: Border(top: BorderSide(color: colors.borderDefault, width: 1)),
     ),
   );
 }

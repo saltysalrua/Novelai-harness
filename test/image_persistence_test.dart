@@ -330,7 +330,8 @@ void main() {
         expect(file1.existsSync(), isFalse);
         expect(file2.existsSync(), isTrue);
 
-        final persistedList = jsonDecode(historyFile.readAsStringSync()) as List;
+        final persistedList =
+            jsonDecode(historyFile.readAsStringSync()) as List;
         expect(persistedList.length, equals(1));
         expect(persistedList.first['id'], equals('img2'));
 
@@ -364,6 +365,11 @@ void main() {
     testWidgets('GeneralSettingsTab renders persistence switch and dropdown', (
       tester,
     ) async {
+      // 设置页新增「主题模式」分组后页面更长，放大测试表面避免
+      // DropdownButton 菜单超出 600px 默认视口 (menuLimits 断言崩溃)
+      await tester.binding.setSurfaceSize(const Size(900, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final draft = GeneralSettingsDraft(
         const AppConfig(enableImagePersistence: true, maxPersistentImages: 50),
       );

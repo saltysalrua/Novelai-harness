@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../data/models/tag_models.dart';
 import 'app_colors_extension.dart';
 import 'app_tokens.dart';
 
@@ -32,4 +33,18 @@ extension ThemeContextX on BuildContext {
   /// 模态弹窗阴影 (亮暗自适应)
   List<BoxShadow> get shadowDialog =>
       AppShadows.dialog(Colors.black, brightness: themeBrightness);
+
+  /// Danbooru 标签分类语义色 (UI 分类色统一事实源)
+  ///
+  /// 富文本高亮、分类胶囊等一律经此映射取色；general 分类回落正文色。
+  Color tagCategoryColor(DanbooruTagCategory category) {
+    final palette = colors;
+    return switch (category) {
+      DanbooruTagCategory.artist => palette.tagArtist,
+      DanbooruTagCategory.character => palette.tagCharacter,
+      DanbooruTagCategory.copyright => palette.tagCopyright,
+      DanbooruTagCategory.meta => palette.tagMeta,
+      DanbooruTagCategory.general => palette.textPrimary,
+    };
+  }
 }

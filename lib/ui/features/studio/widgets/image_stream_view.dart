@@ -2,7 +2,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../view_models/studio_view_model.dart';
 import 'character_position_canvas_view.dart';
 import 'image_canvas_actions.dart';
@@ -237,7 +238,7 @@ class _ImageStreamViewState extends State<ImageStreamView> {
               bottom: bottomPadding,
             ),
             itemCount: totalItemCount,
-            separatorBuilder: (_, _) => Padding(
+            separatorBuilder: (context, _) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Container(
@@ -245,7 +246,7 @@ class _ImageStreamViewState extends State<ImageStreamView> {
                   height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppTheme.stone.withValues(alpha: 0.25),
+                    color: context.colors.textMuted.withValues(alpha: 0.25),
                   ),
                 ),
               ),
@@ -428,8 +429,7 @@ class CanvasGeneratingCard extends StatelessWidget {
     final isSelected = viewModel.isViewingLatest;
     final aspectRatio = imageAspectRatioOf(params);
     // 按实际显示尺寸解码 (预览帧每步全量重解码，全分辨率纹理会拖慢 UI 线程)
-    final displayWidth =
-        maxCardWidth < maxCardHeight * aspectRatio
+    final displayWidth = maxCardWidth < maxCardHeight * aspectRatio
         ? maxCardWidth
         : maxCardHeight * aspectRatio;
     final previewCacheWidth = (displayWidth * 1.5).round().clamp(64, 4096);
@@ -442,7 +442,7 @@ class CanvasGeneratingCard extends StatelessWidget {
             maxWidth: maxCardWidth,
             maxHeight: maxCardHeight,
           ),
-          decoration: _canvasCardDecoration(isSelected),
+          decoration: _canvasCardDecoration(context, isSelected),
           clipBehavior: Clip.antiAlias,
           child: AspectRatio(
             aspectRatio: aspectRatio,
@@ -467,13 +467,13 @@ class CanvasGeneratingCard extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const SizedBox(
+                          SizedBox(
                             width: 24,
                             height: 24,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                AppTheme.notionBlue,
+                                context.colors.primary,
                               ),
                             ),
                           ),
@@ -482,9 +482,9 @@ class CanvasGeneratingCard extends StatelessWidget {
                             const SizedBox(height: 10),
                             Text(
                               '${viewModel.liveCurrentStep} / ${viewModel.liveTotalSteps}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AppTheme.textSecondary,
+                                color: context.colors.textSecondary,
                                 fontFamily: 'monospace',
                                 fontWeight: FontWeight.w600,
                               ),
@@ -536,8 +536,7 @@ class CanvasImageCard extends StatelessWidget {
 
     // 按实际显示尺寸解码：全分辨率纹理 (1216px 级) 在多图滚动时
     // 造成大量纹理内存与光栅化压力
-    final displayWidth =
-        maxCardWidth < maxCardHeight * itemAspect
+    final displayWidth = maxCardWidth < maxCardHeight * itemAspect
         ? maxCardWidth
         : maxCardHeight * itemAspect;
     final dpr = MediaQuery.devicePixelRatioOf(context);
@@ -567,7 +566,7 @@ class CanvasImageCard extends StatelessWidget {
             maxWidth: maxCardWidth,
             maxHeight: maxCardHeight,
           ),
-          decoration: _canvasCardDecoration(isSelected),
+          decoration: _canvasCardDecoration(context, isSelected),
           clipBehavior: Clip.antiAlias,
           child: AspectRatio(
             aspectRatio: imageAspectRatioOf(item.params),
@@ -604,15 +603,15 @@ class CanvasImageCard extends StatelessWidget {
                     }
 
                     return Container(
-                      color: AppTheme.surfaceMuted,
-                      child: const Center(
+                      color: context.colors.mutedBackground,
+                      child: Center(
                         child: SizedBox(
                           width: 24,
                           height: 24,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              AppTheme.notionBlue,
+                              context.colors.primary,
                             ),
                           ),
                         ),
@@ -635,20 +634,25 @@ class CanvasImageCard extends StatelessWidget {
 }
 
 /// 画板流卡片的统一白底选中态装饰
-BoxDecoration _canvasCardDecoration(bool isSelected) => BoxDecoration(
-  color: AppTheme.pureWhite,
-  borderRadius: BorderRadius.circular(8),
-  border: Border.all(
-    color: isSelected ? AppTheme.notionBlue : AppTheme.border,
-    width: 2.0,
-  ),
-  boxShadow: [
-    BoxShadow(
-      color: isSelected
-          ? AppTheme.notionBlue.withValues(alpha: 0.12)
-          : Colors.black.withValues(alpha: 0.05),
-      blurRadius: isSelected ? 20 : 12,
-      offset: const Offset(0, 4),
+BoxDecoration _canvasCardDecoration(BuildContext context, bool isSelected) {
+  final colors = context.colors;
+  return BoxDecoration(
+    color: colors.cardBackground,
+    borderRadius: BorderRadius.circular(AppRadius.md),
+    border: Border.all(
+      color: isSelected ? colors.primary : colors.borderDefault,
+      width: 2.0,
     ),
-  ],
-);
+    boxShadow: [
+      BoxShadow(
+        color: isSelected
+            ? colors.primary.withValues(alpha: 0.12)
+            : (context.isDarkMode
+                  ? Colors.black.withValues(alpha: 0.3)
+                  : Colors.black.withValues(alpha: 0.05)),
+        blurRadius: isSelected ? 20 : 12,
+        offset: const Offset(0, 4),
+      ),
+    ],
+  );
+}

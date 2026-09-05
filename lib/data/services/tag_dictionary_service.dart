@@ -212,8 +212,7 @@ List<TagSuggestion> _scanEntries(
       } else if (tagUnder.startsWith(qUnderscore) ||
           tagSpace.startsWith(qSpace)) {
         score = 1000.0; // 前缀命中
-      } else if (tagUnder.contains(qUnderscore) ||
-          tagSpace.contains(qSpace)) {
+      } else if (tagUnder.contains(qUnderscore) || tagSpace.contains(qSpace)) {
         score = 400.0; // 包含命中
       } else if (zh.contains(rawQ)) {
         score = 300.0; // 包含匹配中文
@@ -236,9 +235,7 @@ List<TagSuggestion> _scanEntries(
 
     if (score > 0) {
       // 叠加基于热度的对数提升分数
-      final popularityBoost = e.count > 0
-          ? (math.log(e.count + 1) * 8.0)
-          : 0.0;
+      final popularityBoost = e.count > 0 ? (math.log(e.count + 1) * 8.0) : 0.0;
       final totalScore = score + popularityBoost;
 
       matches.add(

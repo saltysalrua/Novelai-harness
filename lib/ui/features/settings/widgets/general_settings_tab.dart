@@ -4,7 +4,10 @@ import 'package:intl/intl.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../../data/services/tag_dictionary_update_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_action_button.dart';
+import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_section_header.dart';
+import '../../../core/widgets/app_setting_tile.dart';
 import 'settings_shared.dart';
 
 /// General 页草稿状态 (父级 SettingsDialog 持有，保存时统一聚合)
@@ -13,6 +16,8 @@ class GeneralSettingsDraft {
     : naiKeyController = TextEditingController(text: config.novelAiKey),
       saveDirController = TextEditingController(text: config.saveDirectory),
       opusFreeMode = config.opusFreeMode,
+      themeMode = config.themeMode,
+      uiZoom = config.uiZoom,
       enableStreamPreview = config.enableStreamPreview,
       enableTagAutocomplete = config.enableTagAutocomplete,
       showTagTranslations = config.showTagTranslations,
@@ -25,6 +30,12 @@ class GeneralSettingsDraft {
   final TextEditingController naiKeyController;
   final TextEditingController saveDirController;
   bool opusFreeMode;
+
+  /// 主题模式偏好 (跟随系统/亮色/深色)，保存时由 SettingsDialog 聚合进 AppConfig
+  AppThemeModePreference themeMode;
+
+  /// 全局 UI 缩放 (浏览器式整体缩放)，保存时聚合进 AppConfig
+  double uiZoom;
   bool enableStreamPreview;
   bool enableTagAutocomplete;
   bool showTagTranslations;
@@ -40,7 +51,10 @@ class GeneralSettingsDraft {
   }
 }
 
-/// General 页：NovelAI 服务凭证、本地存储、标签补全与保护开关
+/// General 页：主题模式、NovelAI 服务凭证、本地存储、标签补全与保护开关
+///
+/// 阶段 3 垂直切片：旧 SettingsCard/SettingsDropdown/SettingsActionButton
+/// 全部替换为原子组件 (AppSettingTile + AppDropdown + AppActionButton)。
 class GeneralSettingsTab extends StatefulWidget {
   final GeneralSettingsDraft draft;
 
@@ -117,8 +131,36 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SettingsGroupTitle('NovelAI Service'),
-          SettingsCard(
+          const AppSectionHeader(title: 'Appearance'),
+          AppSettingTile(
+            title: '主题模式',
+            subtitle: '切换亮色/深色工作台外观，深色采用 Notion 极简暗调色板',
+            control: AppDropdown.simple(
+              value: _draft.themeMode,
+              items: AppThemeModePreference.values,
+              labelOf: (mode) => switch (mode) {
+                AppThemeModePreference.system => '跟随系统',
+                AppThemeModePreference.light => '亮色',
+                AppThemeModePreference.dark => '深色',
+              },
+              width: 130,
+              onChanged: (mode) => setState(() => _draft.themeMode = mode),
+            ),
+          ),
+          AppSettingTile(
+            title: '界面缩放',
+            subtitle: '整体缩放工作台界面；快捷键 Ctrl + = / Ctrl + - 步进，Ctrl + 0 重置',
+            control: AppDropdown<double>.simple(
+              value: _draft.uiZoom,
+              items: const [0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75],
+              labelOf: (zoom) => '${(zoom * 100).round()}%',
+              width: 110,
+              onChanged: (zoom) => setState(() => _draft.uiZoom = zoom),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const AppSectionHeader(title: 'NovelAI Service'),
+          AppSettingTile(
             title: 'NovelAI API Key',
             subtitle: '官方 API 凭证 (pst-...)，用于图像生成与体力池同步',
             control: SettingsKeyField(
@@ -126,7 +168,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               hintText: 'pst-...',
             ),
           ),
-          SettingsCard(
+          AppSettingTile(
             title: '本地存储目录',
             subtitle: '生成的高清图像与元数据自动保存至此路径',
             control: Row(
@@ -148,7 +190,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                SettingsActionButton(
+                AppActionButton(
                   icon: Icons.folder_open_rounded,
                   label: '选择',
                   onPressed: _pickDirectory,
@@ -156,68 +198,54 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ],
             ),
           ),
-          SettingsCard(
+          AppSettingTile.switchTile(
             title: '自动保存生成图片',
             subtitle: _draft.autoSaveImages
                 ? '生成图片自动写入本地存储目录 (按导出设置处理元数据与水印)'
                 : '生成图片先存入缓存目录 (无水印)，在画板右下角点击保存按钮手动保存；超出历史上限的缓存图片自动删除',
-            control: Switch(
-              value: _draft.autoSaveImages,
-              activeThumbColor: AppTheme.notionBlue,
-              onChanged: (val) => setState(() => _draft.autoSaveImages = val),
-            ),
+            value: _draft.autoSaveImages,
+            onChanged: (val) => setState(() => _draft.autoSaveImages = val),
           ),
-          SettingsCard(
+          AppSettingTile.switchTile(
             title: '实时生图预览',
             subtitle: '生图过程中接收并实时渲染中间去噪步数预览图 (Stream Preview)',
-            control: Switch(
-              value: _draft.enableStreamPreview,
-              activeThumbColor: AppTheme.notionBlue,
-              onChanged: (val) =>
-                  setState(() => _draft.enableStreamPreview = val),
-            ),
+            value: _draft.enableStreamPreview,
+            onChanged: (val) =>
+                setState(() => _draft.enableStreamPreview = val),
           ),
-          SettingsCard(
+          AppSettingTile.switchTile(
             title: '图片历史持久化',
             subtitle: '应用重启后自动恢复画板历史中的生成图片记录',
-            control: Switch(
-              value: _draft.enableImagePersistence,
-              activeThumbColor: AppTheme.notionBlue,
-              onChanged: (val) =>
-                  setState(() => _draft.enableImagePersistence = val),
-            ),
+            value: _draft.enableImagePersistence,
+            onChanged: (val) =>
+                setState(() => _draft.enableImagePersistence = val),
           ),
           if (_draft.enableImagePersistence)
-            SettingsCard(
+            AppSettingTile(
               title: '可持久化图像上限',
               subtitle: '限制本地画板历史中保留的最大图片数量',
-              control: SettingsDropdown<int>(
+              control: AppDropdown.simple(
                 value:
                     [20, 50, 100, 200, 500].contains(_draft.maxPersistentImages)
                     ? _draft.maxPersistentImages
                     : 50,
                 items: const [20, 50, 100, 200, 500],
-                labelBuilder: (count) => '$count 张',
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _draft.maxPersistentImages = val);
-                  }
-                },
+                labelOf: (count) => '$count 张',
+                width: 110,
+                onChanged: (count) =>
+                    setState(() => _draft.maxPersistentImages = count),
               ),
             ),
           const SizedBox(height: 12),
-          const SettingsGroupTitle('Danbooru Tag Autocomplete'),
-          SettingsCard(
+          const AppSectionHeader(title: 'Danbooru Tag Autocomplete'),
+          AppSettingTile.switchTile(
             title: '标签智能自动补全',
             subtitle: '输入提示词时自动弹出 32万+ Danbooru 词库悬浮联想建议',
-            control: Switch(
-              value: _draft.enableTagAutocomplete,
-              activeThumbColor: AppTheme.notionBlue,
-              onChanged: (val) =>
-                  setState(() => _draft.enableTagAutocomplete = val),
-            ),
+            value: _draft.enableTagAutocomplete,
+            onChanged: (val) =>
+                setState(() => _draft.enableTagAutocomplete = val),
           ),
-          SettingsCard(
+          AppSettingTile(
             title: '词库在线更新',
             subtitle: _dictUpdating
                 ? _dictStatus
@@ -228,52 +256,40 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : SettingsActionButton(
+                : AppActionButton(
                     icon: Icons.cloud_download_rounded,
                     label: '立即更新',
                     onPressed: _updateDictionary,
                   ),
           ),
-          SettingsCard(
+          AppSettingTile.switchTile(
             title: '启动时自动检查更新',
             subtitle: '每日一次后台拉取最新词库 (ffdkj 每日构建，含新标签与中文翻译)',
-            control: Switch(
-              value: _draft.enableTagDictionaryAutoUpdate,
-              activeThumbColor: AppTheme.notionBlue,
-              onChanged: (val) =>
-                  setState(() => _draft.enableTagDictionaryAutoUpdate = val),
-            ),
+            value: _draft.enableTagDictionaryAutoUpdate,
+            onChanged: (val) =>
+                setState(() => _draft.enableTagDictionaryAutoUpdate = val),
           ),
-          SettingsCard(
+          AppSettingTile.switchTile(
             title: '显示标签中文释义',
             subtitle: '在补全候选词列表与灵感库中展示对应的中文翻译释义',
-            control: Switch(
-              value: _draft.showTagTranslations,
-              activeThumbColor: AppTheme.notionBlue,
-              onChanged: (val) =>
-                  setState(() => _draft.showTagTranslations = val),
-            ),
+            value: _draft.showTagTranslations,
+            onChanged: (val) =>
+                setState(() => _draft.showTagTranslations = val),
           ),
-          SettingsCard(
+          AppSettingTile.switchTile(
             title: '标签分类着色高亮',
             subtitle: '在提示词输入框中对画师、角色、作品、通用等标签施加分类色彩高亮',
-            control: Switch(
-              value: _draft.showTagCategoryColors,
-              activeThumbColor: AppTheme.notionBlue,
-              onChanged: (val) =>
-                  setState(() => _draft.showTagCategoryColors = val),
-            ),
+            value: _draft.showTagCategoryColors,
+            onChanged: (val) =>
+                setState(() => _draft.showTagCategoryColors = val),
           ),
           const SizedBox(height: 12),
-          const SettingsGroupTitle('Protection'),
-          SettingsCard(
+          const AppSectionHeader(title: 'Protection'),
+          AppSettingTile.switchTile(
             title: 'Opus 免点数保护',
             subtitle: '自动将默认参数限制在免费区间内 (像素 <= 1048576 且 步数 <= 28)',
-            control: Switch(
-              value: _draft.opusFreeMode,
-              activeThumbColor: AppTheme.notionBlue,
-              onChanged: (val) => setState(() => _draft.opusFreeMode = val),
-            ),
+            value: _draft.opusFreeMode,
+            onChanged: (val) => setState(() => _draft.opusFreeMode = val),
           ),
         ],
       ),

@@ -6,6 +6,7 @@ import '../../../../data/models/tag_models.dart';
 import '../../../../data/services/danbooru_search_service.dart';
 import '../../../../data/services/prompt_ast_engine.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
+import '../../../core/widgets/overlay_anchor.dart';
 import 'tag_autocomplete_card.dart';
 
 /// 标签自动补全悬浮锚点组件
@@ -268,10 +269,13 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
         final caretRect = renderEditable.getLocalRectForCaret(
           TextPosition(offset: offset),
         );
-        final caretGlobal = renderEditable.localToGlobal(caretRect.topLeft);
-        final anchorGlobal = renderBox.localToGlobal(Offset.zero);
-        final localY = caretGlobal.dy - anchorGlobal.dy;
-        return localY.clamp(0.0, renderBox.size.height);
+        // 经 renderBox.globalToLocal 逆变换回输入框局部坐标系：
+        // 直接用两个全局坐标相减会带上 UI 缩放倍率 (zoom≠1 时光标 Y 判定
+        // 被放大 zoom 倍，悬浮卡飞偏)
+        final caretLocal = renderBox.globalToLocal(
+          renderEditable.localToGlobal(caretRect.topLeft),
+        );
+        return caretLocal.dy.clamp(0.0, renderBox.size.height);
       } catch (_) {
         return 0.0;
       }
@@ -288,15 +292,22 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
         double caretY = _cachedCaretY;
 
         if (renderBox != null && renderBox.hasSize) {
-          final globalOffset = renderBox.localToGlobal(Offset.zero);
-          final rightEdge = globalOffset.dx + renderBox.size.width;
+          // 窗口全局坐标 → Overlay 布局坐标 (UI 缩放感知)：
+          // globalOffset 是窗口坐标，而 screenSize 是缩放后逻辑屏幕尺寸，
+          // 直接比较在 zoom≠1 时左右翻转与底部防溢出判定全部失真
+          final anchorInOverlay = globalToOverlayOf(
+            context,
+            renderBox.localToGlobal(Offset.zero),
+            rootOverlay: false,
+          );
+          final rightEdge = anchorInOverlay.dx + renderBox.size.width;
           if (rightEdge + 340 > screenSize.width ||
               renderBox.size.width > screenSize.width * 0.6) {
             placeOnRight = false;
           }
 
           // 屏幕底部防溢出保护：若光标处弹出卡片会超出屏幕底边缘，适度上移
-          final globalCaretY = globalOffset.dy + caretY;
+          final globalCaretY = anchorInOverlay.dy + caretY;
           const estimatedCardHeight = 280.0;
           if (globalCaretY + estimatedCardHeight > screenSize.height - 20) {
             final overflow =
@@ -362,8 +373,10 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
     // 计算替换后的 segment 结束位置 (即闭合括号/:: 之后)
     final delta = tag.length - (clampedEnd - clampedStart);
     final clampedFullEnd = fullSegmentEnd.clamp(clampedEnd, text.length);
-    final newFullSegmentEnd =
-        (clampedFullEnd + delta).clamp(0, coreReplaced.length);
+    final newFullSegmentEnd = (clampedFullEnd + delta).clamp(
+      0,
+      coreReplaced.length,
+    );
 
     // 检查闭合符号外部后面是否已有逗号
     final textAfterSegment = coreReplaced.substring(newFullSegmentEnd);

@@ -64,6 +64,9 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
   /// 单个胶囊的内边距，默认水平 12，垂直 5
   final EdgeInsetsGeometry itemPadding;
 
+  /// 是否均分满宽排布 (每项等宽拉伸，适合两栏对半等对称场景)，默认 false
+  final bool expand;
+
   const AppSegmentedPillBar({
     super.key,
     required this.items,
@@ -73,6 +76,7 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
     this.scrollable = false,
     this.spacing = 6.0,
     this.itemPadding = const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+    this.expand = false,
   });
 
   @override
@@ -81,8 +85,14 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
 
     final children = <Widget>[
       for (int i = 0; i < items.length; i++) ...[
-        if (i > 0) SizedBox(width: spacing),
-        _buildPillItem(context, colors, items[i]),
+        if (i > 0) expand ? SizedBox(width: spacing) : SizedBox(width: spacing),
+        _wrapExpanded(
+          context,
+          colors,
+          items[i],
+          index: i,
+          isLast: i == items.length - 1,
+        ),
       ],
     ];
 
@@ -94,6 +104,24 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
     }
 
     return Row(mainAxisSize: MainAxisSize.min, children: children);
+  }
+
+  /// expand 模式下用 Expanded 均分；间距项只插在非末尾项后
+  Widget _wrapExpanded(
+    BuildContext context,
+    dynamic colors,
+    AppSegmentedItem<T> item, {
+    required int index,
+    required bool isLast,
+  }) {
+    final pill = _buildPillItem(context, colors, item);
+    if (!expand) return pill;
+    return Expanded(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [Expanded(child: pill)],
+      ),
+    );
   }
 
   Widget _buildPillItem(
@@ -139,7 +167,7 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
             Text(
               item.label,
               style: TextStyle(
-                fontSize: 11.5,
+                fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 color: fg,
               ),
@@ -241,26 +269,35 @@ class AppOptionCard<T> extends StatelessWidget {
               Icon(icon, size: 18, color: titleColor),
               const SizedBox(width: 8),
             ],
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                    color: titleColor,
-                  ),
-                ),
-                if (subtitle != null && subtitle!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+            // Flexible 防溢出：字体回退 (测试环境 Ahem 等宽字形) 或超长文案时
+            // 允许文本列收缩换行，而不是把 Row 撑爆
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    subtitle!,
-                    style: TextStyle(fontSize: 10.5, color: subtitleColor),
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                      color: titleColor,
+                    ),
                   ),
+                  if (subtitle != null && subtitle!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
+                      style: TextStyle(fontSize: 11, color: subtitleColor),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ],
         ),

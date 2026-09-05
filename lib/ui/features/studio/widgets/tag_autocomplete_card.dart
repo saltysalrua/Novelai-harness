@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/tag_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import 'tag_suggestion_tile.dart';
 
 /// 自动补全浮动卡片视图 (Notion 极简风格，无多余头部，支持键盘自然平滑可视导航)
@@ -111,13 +112,14 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Material(
       color: Colors.transparent,
       child: Container(
         decoration: BoxDecoration(
-          color: AppTheme.pureWhite,
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-          border: Border.all(color: AppTheme.border),
+          color: colors.cardBackground,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: colors.borderDefault),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.10),
@@ -138,7 +140,7 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
               shrinkWrap: true,
               itemCount: widget.suggestions.length,
               separatorBuilder: (context, index) =>
-                  const Divider(height: 1, color: AppTheme.borderSubtle),
+                  Divider(height: 1, color: colors.borderSubtle),
               itemBuilder: (context, index) {
                 final item = widget.suggestions[index];
                 final isSelected = index == widget.selectedIndex;
@@ -163,7 +165,7 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                           vertical: 6,
                         ),
                         color: isSelected
-                            ? AppTheme.notionBlue.withValues(alpha: 0.08)
+                            ? colors.primary.withValues(alpha: 0.08)
                             : Colors.transparent,
                         child: Row(
                           children: [
@@ -181,6 +183,7 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   _buildHighlightedTag(
+                                    context,
                                     item.tag,
                                     widget.query,
                                     isSelected,
@@ -195,8 +198,8 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: isSelected
-                                              ? AppTheme.notionBlue
-                                              : AppTheme.textSecondary,
+                                              ? colors.primary
+                                              : colors.textSecondary,
                                         ),
                                       ),
                                     ),
@@ -216,28 +219,29 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                                       vertical: 1.5,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFF0EFEB),
+                                      color: colors.mutedBackground,
                                       borderRadius: BorderRadius.circular(4),
                                       border: Border.all(
-                                        color: AppTheme.graphite
-                                            .withValues(alpha: 0.3),
+                                        color: colors.textSecondary.withValues(
+                                          alpha: 0.3,
+                                        ),
                                       ),
                                     ),
-                                    child: const Row(
+                                    child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
                                           Icons.collections_bookmark_outlined,
                                           size: 10,
-                                          color: AppTheme.charcoal,
+                                          color: colors.textPrimary,
                                         ),
-                                        SizedBox(width: 3),
+                                        const SizedBox(width: 3),
                                         Text(
                                           '词库',
                                           style: TextStyle(
-                                            fontSize: 9.5,
+                                            fontSize: 10,
                                             fontWeight: FontWeight.w600,
-                                            color: AppTheme.charcoal,
+                                            color: colors.textPrimary,
                                           ),
                                         ),
                                       ],
@@ -250,9 +254,9 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                                 if (item.matchedAlias != null)
                                   Text(
                                     '别名: ${item.matchedAlias}',
-                                    style: const TextStyle(
-                                      fontSize: 9.5,
-                                      color: AppTheme.textMuted,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: colors.textMuted,
                                     ),
                                   ),
                               ],
@@ -271,7 +275,13 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
     );
   }
 
-  Widget _buildHighlightedTag(String tag, String q, bool isSelected) {
+  Widget _buildHighlightedTag(
+    BuildContext context,
+    String tag,
+    String q,
+    bool isSelected,
+  ) {
+    final colors = context.colors;
     final lowerTag = tag.toLowerCase();
     final lowerQ = q.toLowerCase();
     final matchIndex = lowerTag.indexOf(lowerQ);
@@ -280,9 +290,9 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
       return Text(
         tag,
         style: TextStyle(
-          fontSize: 12.5,
+          fontSize: 13,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-          color: isSelected ? AppTheme.notionBlue : AppTheme.textPrimary,
+          color: isSelected ? colors.primary : colors.textPrimary,
         ),
       );
     }
@@ -294,10 +304,9 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
     return Text.rich(
       TextSpan(
         style: TextStyle(
-          fontSize: 12.5,
-          fontFamily: AppTheme.fontFamily,
+          fontSize: 13,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-          color: isSelected ? AppTheme.notionBlue : AppTheme.textPrimary,
+          color: isSelected ? colors.primary : colors.textPrimary,
         ),
         children: [
           if (before.isNotEmpty) TextSpan(text: before),

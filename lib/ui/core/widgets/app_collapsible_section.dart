@@ -64,11 +64,17 @@ class AppCollapsibleSection extends StatefulWidget {
     this.initiallyExpanded = false,
     this.onExpansionChanged,
     this.isCard = true,
-    this.headerPadding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    this.headerPadding = const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 8,
+    ),
     this.contentPadding = const EdgeInsets.fromLTRB(12, 0, 12, 10),
     this.margin,
     this.radius = AppRadius.md,
-  }) : assert(title != null || headerWidget != null, '必须提供 title 或 headerWidget 其一');
+  }) : assert(
+         title != null || headerWidget != null,
+         '必须提供 title 或 headerWidget 其一',
+       );
 
   @override
   State<AppCollapsibleSection> createState() => _AppCollapsibleSectionState();
@@ -92,13 +98,12 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
       vsync: this,
     );
     _iconTurns = _controller.drive(
-      Tween<double>(begin: 0.0, end: 0.5).chain(
-        CurveTween(curve: Curves.easeInOut),
-      ),
+      Tween<double>(
+        begin: 0.0,
+        end: 0.5,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
     );
-    _heightFactor = _controller.drive(
-      CurveTween(curve: Curves.easeInOut),
-    );
+    _heightFactor = _controller.drive(CurveTween(curve: Curves.easeInOut));
 
     if (_isEffectiveExpanded) {
       _controller.value = 1.0;
@@ -108,7 +113,8 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
   @override
   void didUpdateWidget(covariant AppCollapsibleSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isExpanded != null && widget.isExpanded != oldWidget.isExpanded) {
+    if (widget.isExpanded != null &&
+        widget.isExpanded != oldWidget.isExpanded) {
       if (widget.isExpanded!) {
         _controller.forward();
       } else {
@@ -142,7 +148,8 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    Widget header = widget.headerWidget ??
+    Widget header =
+        widget.headerWidget ??
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -160,10 +167,7 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
               const SizedBox(height: 2),
               Text(
                 widget.subtitle!,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: colors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 12, color: colors.textSecondary),
               ),
             ],
           ],
@@ -205,20 +209,14 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
             child: child,
           );
         },
-        child: Padding(
-          padding: widget.contentPadding,
-          child: widget.child,
-        ),
+        child: Padding(padding: widget.contentPadding, child: widget.child),
       ),
     );
 
     Widget panel = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
-      children: [
-        headerRow,
-        body,
-      ],
+      children: [headerRow, body],
     );
 
     if (widget.isCard) {

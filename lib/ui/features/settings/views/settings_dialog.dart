@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_nav_tile.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import '../widgets/bill_settings_tab.dart';
 import '../widgets/defaults_settings_tab.dart';
@@ -78,6 +79,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
       novelAiKey: _generalDraft.naiKeyController.text.trim(),
       saveDirectory: _generalDraft.saveDirController.text.trim(),
       opusFreeMode: _generalDraft.opusFreeMode,
+      themeMode: _generalDraft.themeMode,
+      uiZoom: _generalDraft.uiZoom,
       enableStreamPreview: _generalDraft.enableStreamPreview,
       enableTagAutocomplete: _generalDraft.enableTagAutocomplete,
       showTagTranslations: _generalDraft.showTagTranslations,
@@ -107,16 +110,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final screenSize = MediaQuery.sizeOf(context);
     final dialogWidth = (screenSize.width * 0.8).clamp(520.0, 1600.0);
     final dialogHeight = (screenSize.height * 0.8).clamp(400.0, 1200.0);
 
     return Dialog(
-      backgroundColor: AppTheme.pureWhite,
+      backgroundColor: colors.cardBackground,
       insetPadding: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppTheme.border),
+        side: BorderSide(color: colors.borderDefault),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -164,24 +168,25 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   /// 左侧导航栏
   Widget _buildSidebar(BuildContext context) {
+    final colors = context.colors;
     return Container(
       width: 200,
-      decoration: const BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        border: Border(right: BorderSide(color: AppTheme.border)),
+      decoration: BoxDecoration(
+        color: colors.elevatedBackground,
+        border: Border(right: BorderSide(color: colors.borderDefault)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 顶部小标题
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 20, 16, 12),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
             child: Text(
               'SETTINGS',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textMuted,
+                color: colors.textMuted,
                 letterSpacing: 0.8,
               ),
             ),
@@ -223,47 +228,20 @@ class _SettingsDialogState extends State<SettingsDialog> {
     required IconData icon,
     required String label,
   }) {
-    final isSelected = _activeTabIndex == index;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      child: InkWell(
+      child: AppNavTile(
+        title: label,
+        icon: icon,
+        isSelected: _activeTabIndex == index,
         onTap: () => setState(() => _activeTabIndex = index),
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppTheme.stone.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isSelected ? AppTheme.textPrimary : AppTheme.stone,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected
-                      ? AppTheme.textPrimary
-                      : AppTheme.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
 
   /// 右侧顶部标头
   Widget _buildContentHeader(BuildContext context) {
+    final colors = context.colors;
     final (title, subtitle) = switch (_activeTabIndex) {
       0 => ('General', '配置 NovelAI 绘图服务凭证、本地存储目录与 Opus 免点保护。'),
       1 => ('Models', '按供应商管理大语言模型服务，在线拉取模型列表并自动匹配 models.dev 能力元数据。'),
@@ -284,30 +262,23 @@ class _SettingsDialogState extends State<SettingsDialog> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: colors.textPrimary,
                     letterSpacing: -0.5,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AppTheme.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 13, color: colors.textSecondary),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(
-              Icons.close_rounded,
-              size: 20,
-              color: AppTheme.stone,
-            ),
+            icon: Icon(Icons.close_rounded, size: 20, color: colors.textMuted),
             tooltip: '关闭',
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -318,25 +289,26 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   /// 底部操作栏
   Widget _buildFooter(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppTheme.border)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: colors.borderDefault)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
+            child: Text(
               '取消',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12.5),
+              style: TextStyle(color: colors.textSecondary, fontSize: 13),
             ),
           ),
           const SizedBox(width: 10),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.notionBlue,
+              backgroundColor: colors.primary,
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
@@ -347,7 +319,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             onPressed: _handleSave,
             child: const Text(
               '保存设置',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
         ],

@@ -2,7 +2,8 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/services/image_metadata_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_drop_target_overlay.dart';
 import '../view_models/studio_view_model.dart';
 import 'canvas_history_sidebar.dart';
 import 'canvas_overlays.dart';
@@ -118,7 +119,7 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
         elevation: 0,
         clipBehavior: Clip.antiAlias,
         child: Container(
-          color: AppTheme.paperWarmth, // Notion 统一暖纸本底色
+          color: context.colors.canvasBackground, // Notion 统一暖纸本底色
           child: Stack(
             children: [
               // 1. 中间核心：上下滑动的垂直图像瀑布流 (单图居中 / 多图平滑瀑布流 / 临时位置占位卡片)
@@ -155,10 +156,10 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                           : 0,
                       curve: Curves.easeInOut,
                       clipBehavior: Clip.antiAlias,
-                      decoration: const BoxDecoration(
-                        color: AppTheme.pureWhite,
+                      decoration: BoxDecoration(
+                        color: context.colors.cardBackground,
                         border: Border(
-                          left: BorderSide(color: AppTheme.border),
+                          left: BorderSide(color: context.colors.borderDefault),
                         ),
                       ),
                       child: OverflowBox(
@@ -181,56 +182,10 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
               ),
 
               // 2. 外部拖入高亮指示层
-              if (_isDraggingOver)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.notionBlue.withValues(alpha: 0.12),
-                      border: Border.all(
-                        color: AppTheme.notionBlue,
-                        width: 2.5,
-                      ),
-                    ),
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.pureWhite,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 12,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.file_download_outlined,
-                              size: 20,
-                              color: AppTheme.notionBlue,
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              '松开鼠标导入图片 (自动识别生成元数据)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              AppDropTargetOverlay(
+                isDragging: _isDraggingOver,
+                title: '松开鼠标导入图片 (自动识别生成元数据)',
+              ),
 
               // 3. 角色位置编辑模式下的悬浮浮动操作层
               if (isEditingPositions)

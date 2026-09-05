@@ -4,7 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../../core/harness/types.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/app_thumbnail_card.dart';
 
 /// 对话图片附件上传上限 (一次最多随消息发送的图片数)
 const int kMaxChatImageAttachments = 4;
@@ -187,24 +188,16 @@ class ChatImageThumbnail extends StatelessWidget {
     final thumbCacheWidth = (size * MediaQuery.devicePixelRatioOf(context))
         .round()
         .clamp(32, 512);
-    Widget thumb = ClipRRect(
-      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-      child: Image.memory(
-        bytes,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
+    Widget thumb = SizedBox(
+      width: size,
+      height: size,
+      child: AppThumbnailCard(
+        imageBytes: bytes,
+        radius: AppRadius.sm,
         cacheWidth: thumbCacheWidth,
+        onTap: onTap,
       ),
     );
-    final tap = onTap;
-    if (tap != null) {
-      thumb = GestureDetector(
-        onTap: tap,
-        child: MouseRegion(cursor: SystemMouseCursors.zoomIn, child: thumb),
-      );
-    }
     final remove = onRemove;
     if (remove == null) return thumb;
 

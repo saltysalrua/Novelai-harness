@@ -9,6 +9,8 @@ import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 // AiEditImageTool 在 part 分部 studio_vm_harness.dart 中注册使用
 import '../../../../core/harness/tools/ai_edit_image_tool.dart';
+import '../../../core/theme/theme_mode_controller.dart';
+import '../../../core/theme/ui_zoom_controller.dart';
 import '../../../../core/harness/tools/annotation_tools.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
 import '../../../../core/harness/tools/canvas_view_tool.dart';
@@ -149,6 +151,9 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 分割线宽度防抖落盘计时器 (拖动过程每帧回调，写盘必须节流)
   Timer? _splitWidthSaveTimer;
+
+  /// UI 缩放防抖落盘计时器 (快捷键连续步进节流)
+  Timer? _uiZoomSaveTimer;
 
   /// 实时生图预览状态 (全部委托 LiveProgressController 局部刷新)
   StreamSubscription<NaiStreamProgress>? _generationSubscription;
@@ -686,6 +691,11 @@ class StudioViewModel extends ChangeNotifier
   Future<void> updateConfig(AppConfig newConfig) async {
     final oldConfig = _config;
     _config = newConfig;
+    // 主题模式即时生效：MaterialApp 根节点监听全局控制器局部刷新，
+    // 200ms 平滑切色，不走 notifyListeners 全局重绘
+    AppThemeModeController.instance.syncFromConfig(newConfig);
+    // UI 缩放同理：根级 ValueListenableBuilder 局部接管，不全局重绘
+    AppUiZoomController.instance.syncFromConfig(newConfig);
     notifyListeners();
     await _configService.saveConfig(newConfig);
 
@@ -1157,6 +1167,7 @@ class StudioViewModel extends ChangeNotifier
     _generationSubscription?.cancel();
     _paramSaveDebounceTimer?.cancel();
     _splitWidthSaveTimer?.cancel();
+    _uiZoomSaveTimer?.cancel();
     _promptHeightsSaveTimer?.cancel();
     _chatDraftSaveTimer?.cancel();
     _chatSubscription?.cancel();

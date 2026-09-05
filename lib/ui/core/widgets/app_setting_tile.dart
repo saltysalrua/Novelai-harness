@@ -4,7 +4,7 @@ import '../theme/theme_context_extensions.dart';
 
 /// 统一设置项/开关卡片组件 (用于设置弹窗与参数高级选项)
 ///
-/// 整合原 SettingsCard 与 SettingsToggleRow，支持开关、按钮、自定义尾部控件
+/// 统一设置项卡片，支持开关、按钮、自定义尾部控件
 /// 以及下方可折叠/常驻扩展内容。
 class AppSettingTile extends StatelessWidget {
   final String title;
@@ -38,12 +38,14 @@ class AppSettingTile extends StatelessWidget {
     required bool value,
     required ValueChanged<bool> onChanged,
     Widget? bottomChild,
+    EdgeInsets? margin,
   }) {
     return AppSettingTile(
       key: key,
       title: title,
       subtitle: subtitle,
       bottomChild: bottomChild,
+      margin: margin,
       onTap: () => onChanged(!value),
       control: Builder(
         builder: (context) {
@@ -147,7 +149,7 @@ class AppSettingTile extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 12,
                           color: colors.textSecondary,
                         ),
                       ),

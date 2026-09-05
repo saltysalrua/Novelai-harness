@@ -76,7 +76,7 @@ class AppDropdown<T> extends StatelessWidget {
     required String Function(T item) labelOf,
     required ValueChanged<T> onChanged,
     IconData Function(T item)? iconOf,
-    Widget Function(T item, bool isSelected)? trailingOf,
+    Widget? Function(T item, bool isSelected)? trailingOf,
     AppDropdownVariant variant = AppDropdownVariant.standard,
     double? width,
     bool isExpanded = true,
@@ -130,13 +130,13 @@ class AppDropdown<T> extends StatelessWidget {
       AppDropdownVariant.standard => (
         38.0,
         AppRadius.md,
-        12.5,
+        13,
         const EdgeInsets.symmetric(horizontal: 10),
       ),
       AppDropdownVariant.pill => (
         28.0,
         AppRadius.pill,
-        11.5,
+        12,
         const EdgeInsets.symmetric(horizontal: 9),
       ),
       AppDropdownVariant.compact => (
@@ -148,7 +148,7 @@ class AppDropdown<T> extends StatelessWidget {
     };
 
     // 胶囊变体按钮较窄，菜单宽度默认 220 防止选项文本被截断
-    // (继承旧 PillDropdown 的 minWidth 195 / maxWidth 300 保护语义)
+    // (minWidth 195 / maxWidth 300 防截断保护语义)
     final double? effectiveMenuWidth =
         menuWidth ?? (variant == AppDropdownVariant.pill ? 220.0 : null);
 

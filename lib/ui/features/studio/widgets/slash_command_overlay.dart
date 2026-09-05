@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_autocomplete_panel.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../view_models/slash_command_catalog.dart';
@@ -114,81 +115,61 @@ class SlashSuggestionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      elevation: 6,
-      shadowColor: Colors.black.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-      clipBehavior: Clip.antiAlias,
-      color: AppTheme.pureWhite,
-      child: Container(
-        constraints: BoxConstraints(maxHeight: rowHeight * maxVisibleRows),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-          border: Border.all(color: AppTheme.border),
-        ),
-        child: ListView.builder(
-          shrinkWrap: true,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          itemCount: suggestions.length,
-          itemExtent: rowHeight,
-          itemBuilder: (context, index) {
-            final suggestion = suggestions[index];
-            final isSelected = index == selectedIndex;
-            return InkWell(
-              onTap: () => onSelected(index),
-              onHover: (_) => onHovered?.call(index),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                color: isSelected
-                    ? AppTheme.notionBlue.withValues(alpha: 0.08)
-                    : Colors.transparent,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 3,
-                      height: 18,
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.notionBlue
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        suggestion.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'monospace',
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 4,
-                      child: Text(
-                        suggestion.description,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
+    final colors = context.colors;
+
+    return AppAutocompletePanel<SlashSuggestion>(
+      items: suggestions,
+      selectedIndex: selectedIndex,
+      maxHeight: rowHeight * maxVisibleRows,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      onSelect: (item) => onSelected(suggestions.indexOf(item)),
+      onHover: onHovered,
+      itemBuilder: (context, suggestion, index, isSelected) {
+        return Container(
+          height: rowHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          color: isSelected
+              ? colors.primary.withValues(alpha: 0.08)
+              : Colors.transparent,
+          child: Row(
+            children: [
+              Container(
+                width: 3,
+                height: 18,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? colors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            );
-          },
-        ),
-      ),
+              Expanded(
+                flex: 3,
+                child: Text(
+                  suggestion.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 4,
+                child: Text(
+                  suggestion.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

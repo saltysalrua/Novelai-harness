@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 
 /// 通用折叠块: 头部行 + 可展开主体 (Pi 风格，默认折叠)
 class CollapsibleTile extends StatefulWidget {
@@ -41,14 +42,15 @@ class _CollapsibleTileState extends State<CollapsibleTile> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final hasBody = widget.body != null;
     final expanded = _effectiveExpanded;
     return Container(
       margin: widget.margin,
       decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-        border: Border.all(color: AppTheme.border),
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: colors.borderDefault),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,7 +58,7 @@ class _CollapsibleTileState extends State<CollapsibleTile> {
           InkWell(
             onTap: hasBody ? _handleToggle : null,
             borderRadius: BorderRadius.vertical(
-              top: Radius.circular(AppTheme.radiusSmall),
+              top: Radius.circular(AppRadius.sm),
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -67,10 +69,10 @@ class _CollapsibleTileState extends State<CollapsibleTile> {
                     AnimatedRotation(
                       turns: expanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 150),
-                      child: const Icon(
+                      child: Icon(
                         Icons.expand_more,
                         size: 14,
-                        color: AppTheme.textMuted,
+                        color: colors.textMuted,
                       ),
                     ),
                 ],
@@ -111,6 +113,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final expanded = _expanded || widget.forceExpanded;
     final preview = widget.thoughts
         .split('\n')
@@ -122,19 +125,15 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
       onToggle: () => setState(() => _expanded = !_expanded),
       header: Row(
         children: [
-          const Icon(
-            Icons.psychology_outlined,
-            size: 14,
-            color: AppTheme.textMuted,
-          ),
+          Icon(Icons.psychology_outlined, size: 14, color: colors.textMuted),
           const SizedBox(width: 4),
-          const Text(
+          Text(
             '思考过程',
             style: TextStyle(
-              fontSize: 11.5,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               fontStyle: FontStyle.italic,
-              color: AppTheme.textMuted,
+              color: colors.textMuted,
             ),
           ),
           if (preview.isNotEmpty) ...[
@@ -144,10 +143,10 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
                 preview,
                 maxLines: 1,
                 overflow: expanded ? null : TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11.5,
+                style: TextStyle(
+                  fontSize: 12,
                   fontStyle: FontStyle.italic,
-                  color: AppTheme.textMuted,
+                  color: colors.textMuted,
                 ),
               ),
             ),
@@ -158,15 +157,15 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
         width: double.infinity,
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppTheme.paperWarmth,
-          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+          color: colors.canvasBackground,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: SelectableText(
           widget.thoughts,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontStyle: FontStyle.italic,
-            color: AppTheme.textMuted,
+            color: colors.textMuted,
             height: 1.45,
           ),
         ),

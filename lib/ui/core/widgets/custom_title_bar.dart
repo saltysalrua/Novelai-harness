@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../../../data/services/window_state_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_context_extensions.dart';
 
 /// 自定义 Notion 风格工作台标题栏 (支持窗口拖动、双击缩放与三键控制)
 class CustomTitleBar extends StatefulWidget implements PreferredSizeWidget {
@@ -102,13 +103,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       height: 38.0,
-      decoration: const BoxDecoration(
-        color: AppTheme.paperWarmth,
-        border: Border(
-          bottom: BorderSide(color: AppTheme.border, width: 1),
-        ),
+      decoration: BoxDecoration(
+        color: colors.canvasBackground,
+        border: Border(bottom: BorderSide(color: colors.borderDefault, width: 1)),
       ),
       child: Row(
         children: [
@@ -119,19 +119,19 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.auto_awesome_rounded,
                     size: 16,
-                    color: AppTheme.primary,
+                    color: colors.primary,
                   ),
                   const SizedBox(width: 8),
-                  const Text(
+                  Text(
                     'NovelAI Harness',
                     style: TextStyle(
                       fontFamily: AppTheme.fontFamily,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+                      color: colors.textPrimary,
                       letterSpacing: -0.2,
                     ),
                   ),
@@ -141,11 +141,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
           ),
 
           // 中间：占据全部剩余空间的窗口拖拽区域（支持双击最大化/向下还原）
-          Expanded(
-            child: _buildDraggableArea(
-              child: const SizedBox.expand(),
-            ),
-          ),
+          Expanded(child: _buildDraggableArea(child: const SizedBox.expand())),
 
           // 右侧：窗口控制三键 (最小化、最大化/向下还原、关闭)
           if (_isDesktop) ...[
@@ -156,7 +152,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
               onPressed: _minimize,
             ),
             _WindowButton(
-              icon: _isMaximized ? Icons.filter_none_rounded : Icons.crop_square_rounded,
+              icon: _isMaximized
+                  ? Icons.filter_none_rounded
+                  : Icons.crop_square_rounded,
               iconSize: _isMaximized ? 11 : 13,
               tooltip: _isMaximized ? '向下还原' : '最大化',
               onPressed: _toggleMaximize,
@@ -211,16 +209,17 @@ class _WindowButtonState extends State<_WindowButton> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     Color backgroundColor = Colors.transparent;
-    Color iconColor = AppTheme.textSecondary;
+    Color iconColor = colors.textSecondary;
 
     if (_isHovered) {
       if (widget.isClose) {
         backgroundColor = const Color(0xFFE81123);
         iconColor = Colors.white;
       } else {
-        backgroundColor = AppTheme.borderHover;
-        iconColor = AppTheme.textPrimary;
+        backgroundColor = colors.borderHover;
+        iconColor = colors.textPrimary;
       }
     }
 
@@ -238,11 +237,7 @@ class _WindowButtonState extends State<_WindowButton> {
             height: 38,
             color: backgroundColor,
             alignment: Alignment.center,
-            child: Icon(
-              widget.icon,
-              size: widget.iconSize,
-              color: iconColor,
-            ),
+            child: Icon(widget.icon, size: widget.iconSize, color: iconColor),
           ),
         ),
       ),

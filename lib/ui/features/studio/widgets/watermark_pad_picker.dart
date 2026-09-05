@@ -2,10 +2,12 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_number_slider.dart';
+import '../../../core/widgets/app_setting_tile.dart';
 import '../view_models/studio_view_model.dart';
-import 'editable_slider.dart';
-import 'studio_shared.dart';
 
 /// 水印设置面板 (Notion 极简风格：侧栏仅展示水印图像、位置胶囊与属性微调，画板联动 2D 交互定位)
 ///
@@ -65,14 +67,15 @@ class WatermarkPadPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final isEditingOnCanvas = viewModel?.isEditingWatermarkPosition ?? false;
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.paperWarmth,
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-        border: Border.all(color: AppTheme.border),
+        color: colors.mutedBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: colors.borderDefault),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,29 +87,24 @@ class WatermarkPadPicker extends StatelessWidget {
           // 2. 位置设置 (手动 2D 画板定位 + 一键智能选位)
           Row(
             children: [
-              const Text(
+              Text(
                 '水印位置',
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.charcoal,
+                  color: colors.textPrimary,
                 ),
               ),
               const SizedBox(width: 6),
-              Tooltip(
-                message: '智能选位：分析当前画板图像，把水印放到细节最少的区域',
-                child: InkWell(
-                  onTap: () => _applySmartPosition(context),
-                  borderRadius: BorderRadius.circular(4),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-                    child: Icon(
-                      Icons.auto_awesome,
-                      size: 13,
-                      color: AppTheme.notionBlue,
-                    ),
-                  ),
-                ),
+              AppIconButton(
+                icon: Icons.auto_awesome,
+                tooltip: '智能选位：分析当前画板图像，把水印放到细节最少的区域',
+                variant: AppIconButtonVariant.ghost,
+                size: 22,
+                iconSize: 13,
+                iconColor: colors.primary,
+                radius: 4,
+                onPressed: () => _applySmartPosition(context),
               ),
               const Spacer(),
               // 位置胶囊：点击开启/关闭画板 2D 交互定位
@@ -124,25 +122,27 @@ class WatermarkPadPicker extends StatelessWidget {
           const SizedBox(height: 10),
 
           // 3. 智能选位模式 (每次导出时按图像内容自动重选位置)
-          SettingsToggleRow(
+          AppSettingTile.switchTile(
             title: '自动选位',
             subtitle: '每次合成时分析图像，自动放入信息量最低的区域',
             value: config.autoPosition,
+            margin: EdgeInsets.zero,
             onChanged: (v) => onChanged(config.copyWith(autoPosition: v)),
           ),
           const SizedBox(height: 8),
 
           // 4. 自动对比度
-          SettingsToggleRow(
+          AppSettingTile.switchTile(
             title: '自动对比度',
             subtitle: '按水印下方背景亮度自动加深或提亮，保证可见',
             value: config.autoContrast,
+            margin: EdgeInsets.zero,
             onChanged: (v) => onChanged(config.copyWith(autoContrast: v)),
           ),
           const SizedBox(height: 12),
 
           // 5. 属性微调滑块 (缩放 / 不透明度 / 边距)
-          EditableSliderDouble(
+          AppNumberSlider(
             title: '水印缩放 (%)',
             value: config.scalePercent,
             min: 1.0,
@@ -151,7 +151,7 @@ class WatermarkPadPicker extends StatelessWidget {
             onChanged: (v) => onChanged(config.copyWith(scalePercent: v)),
           ),
           const SizedBox(height: 6),
-          EditableSliderDouble(
+          AppNumberSlider(
             title: '不透明度 (%)',
             value: config.opacity * 100.0,
             min: 10.0,
@@ -160,7 +160,7 @@ class WatermarkPadPicker extends StatelessWidget {
             onChanged: (v) => onChanged(config.copyWith(opacity: v / 100.0)),
           ),
           const SizedBox(height: 6),
-          EditableSliderDouble(
+          AppNumberSlider(
             title: '边距比例 (%)',
             value: config.marginPercent,
             min: 0.0,
@@ -178,53 +178,54 @@ class WatermarkPadPicker extends StatelessWidget {
   }
 
   Widget _buildBlindWatermarkSection(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-        border: Border.all(color: AppTheme.border),
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: colors.borderDefault),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(
                 Icons.visibility_off_outlined,
                 size: 13,
-                color: AppTheme.graphite,
+                color: colors.textSecondary,
               ),
-              SizedBox(width: 6),
+              const SizedBox(width: 6),
               Text(
                 '盲水印',
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.charcoal,
+                  color: colors.textPrimary,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 2),
-          const Text(
+          Text(
             '频域隐形水印，肉眼不可见；粘贴图片到元数据弹窗可提取',
-            style: TextStyle(fontSize: 10, color: AppTheme.graphite),
+            style: TextStyle(fontSize: 10, color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text(
+              Text(
                 '启用',
-                style: TextStyle(fontSize: 11.5, color: AppTheme.charcoal),
+                style: TextStyle(fontSize: 12, color: colors.textPrimary),
               ),
               const Spacer(),
               Switch(
                 value: config.blindEnabled,
-                activeTrackColor: AppTheme.notionBlue,
+                activeTrackColor: colors.primary,
                 activeThumbColor: Colors.white,
-                inactiveTrackColor: AppTheme.surfaceMuted,
-                inactiveThumbColor: AppTheme.graphite,
+                inactiveTrackColor: colors.mutedBackground,
+                inactiveThumbColor: colors.textMuted,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 onChanged: (v) => onChanged(config.copyWith(blindEnabled: v)),
               ),
@@ -234,28 +235,28 @@ class WatermarkPadPicker extends StatelessWidget {
             const SizedBox(height: 4),
             TextFormField(
               initialValue: config.blindText,
-              style: const TextStyle(fontSize: 12, color: AppTheme.charcoal),
-              decoration: const InputDecoration(
+              style: TextStyle(fontSize: 12, color: colors.textPrimary),
+              decoration: InputDecoration(
                 isDense: true,
                 hintText: '签名 / 版权信息文本',
-                hintStyle: TextStyle(fontSize: 11, color: AppTheme.graphite),
-                contentPadding: EdgeInsets.symmetric(
+                hintStyle: TextStyle(fontSize: 11, color: colors.textSecondary),
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 7,
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(6)),
-                  borderSide: BorderSide(color: AppTheme.border),
+                  borderRadius: const BorderRadius.all(Radius.circular(6)),
+                  borderSide: BorderSide(color: colors.borderDefault),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(6)),
-                  borderSide: BorderSide(color: AppTheme.notionBlue),
+                  borderRadius: const BorderRadius.all(Radius.circular(6)),
+                  borderSide: BorderSide(color: colors.primary),
                 ),
               ),
               onChanged: (v) => onChanged(config.copyWith(blindText: v)),
             ),
             const SizedBox(height: 8),
-            EditableSliderInt(
+            AppNumberSlider.integer(
               title: '盲水印强度',
               value: config.blindStrength,
               min: 1,
@@ -269,13 +270,14 @@ class WatermarkPadPicker extends StatelessWidget {
   }
 
   Widget _buildImagePickerRow(BuildContext context) {
+    final colors = context.colors;
     if (config.imageBytes != null && config.imageBytes!.isNotEmpty) {
       return Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppTheme.pureWhite,
-          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-          border: Border.all(color: AppTheme.border),
+          color: colors.cardBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: colors.borderDefault),
         ),
         child: Row(
           children: [
@@ -297,37 +299,35 @@ class WatermarkPadPicker extends StatelessWidget {
                     config.imagePath != null
                         ? config.imagePath!.split(Platform.pathSeparator).last
                         : '已加载水印图片',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.charcoal,
+                      color: colors.textPrimary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  const Text(
+                  Text(
                     '仅在复制/下载时合成生效',
-                    style: TextStyle(fontSize: 10, color: AppTheme.graphite),
+                    style: TextStyle(fontSize: 10, color: colors.textSecondary),
                   ),
                 ],
               ),
             ),
-            IconButton(
+            AppIconButton(
+              icon: Icons.file_upload_outlined,
               tooltip: '更换图片',
-              icon: const Icon(Icons.file_upload_outlined, size: 18),
-              color: AppTheme.graphite,
-              visualDensity: VisualDensity.compact,
+              size: 30,
+              iconSize: 18,
               onPressed: () => _pickImage(context),
             ),
-            IconButton(
+            AppIconButton(
+              icon: Icons.close_rounded,
               tooltip: '清除水印图片',
-              icon: const Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: AppTheme.coral,
-              ),
-              visualDensity: VisualDensity.compact,
+              size: 30,
+              iconSize: 18,
+              iconColor: colors.error,
               onPressed: () => onChanged(config.copyWith(clearImage: true)),
             ),
           ],
@@ -337,29 +337,29 @@ class WatermarkPadPicker extends StatelessWidget {
 
     return InkWell(
       onTap: () => _pickImage(context),
-      borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
         decoration: BoxDecoration(
-          color: AppTheme.pureWhite,
-          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-          border: Border.all(color: AppTheme.border),
+          color: colors.cardBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: colors.borderDefault),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.add_photo_alternate_outlined,
               size: 18,
-              color: AppTheme.notionBlue,
+              color: colors.primary,
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Text(
               '点击选择本地水印图片 (PNG/JPG)',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: AppTheme.charcoal,
+                color: colors.textPrimary,
               ),
             ),
           ],
@@ -394,6 +394,7 @@ class _WatermarkPositionPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Tooltip(
       message: '在画板上拖动定位水印 (或按 ESC 退出)',
       child: InkWell(
@@ -403,10 +404,10 @@ class _WatermarkPositionPill extends StatelessWidget {
           duration: const Duration(milliseconds: 140),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: isSelected ? AppTheme.notionBlue : AppTheme.pureWhite,
+            color: isSelected ? colors.primary : colors.cardBackground,
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
-              color: isSelected ? AppTheme.notionBlue : AppTheme.border,
+              color: isSelected ? colors.primary : colors.borderDefault,
               width: 1.0,
             ),
           ),
@@ -415,8 +416,8 @@ class _WatermarkPositionPill extends StatelessWidget {
             children: [
               Icon(
                 Icons.open_with_rounded,
-                size: 11.5,
-                color: isSelected ? Colors.white : AppTheme.notionBlue,
+                size: 12,
+                color: isSelected ? Colors.white : colors.primary,
               ),
               const SizedBox(width: 4),
               Text(
@@ -424,7 +425,7 @@ class _WatermarkPositionPill extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : AppTheme.notionBlue,
+                  color: isSelected ? Colors.white : colors.primary,
                 ),
               ),
             ],

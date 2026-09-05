@@ -49,7 +49,7 @@ class AppCopyableBox extends StatefulWidget {
   /// 是否支持文本划选，默认 true
   final bool selectable;
 
-  /// 文本字号，默认 11.5
+  /// 文本字号，默认 12
   final double fontSize;
 
   /// 自定义背景色 (未指定时默认使用 [AppColorsExtension.mutedBackground])
@@ -77,7 +77,7 @@ class AppCopyableBox extends StatefulWidget {
     this.copyLabel = '复制',
     this.showCopyButton = true,
     this.selectable = true,
-    this.fontSize = 11.5,
+    this.fontSize = 12,
     this.backgroundColor,
     this.borderColor,
     this.radius = AppRadius.md,
@@ -230,14 +230,14 @@ class _AppCopyableBoxState extends State<AppCopyableBox> {
                     children: [
                       Icon(
                         _isCopied ? Icons.check_rounded : Icons.copy_rounded,
-                        size: 11.5,
+                        size: 12,
                         color: _isCopied ? colors.success : colors.primary,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         _isCopied ? '已复制' : widget.copyLabel,
                         style: TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: _isCopied ? colors.success : colors.primary,
                         ),

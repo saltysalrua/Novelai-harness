@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../view_models/studio_view_model.dart';
 import 'board_wire_painter.dart';
 
@@ -74,6 +76,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
     final color = note.color;
     final notePos = _liveNoteOffset ?? note.offset;
     final noteSize = _liveNoteSize ?? Size(note.width, note.height);
+    final colors = context.colors;
 
     return Positioned(
       left: notePos.dx,
@@ -86,12 +89,12 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
           Positioned.fill(
             child: Material(
               elevation: 4,
-              borderRadius: BorderRadius.circular(8),
-              color: AppTheme.pureWhite,
-              shadowColor: Colors.black26,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              color: colors.cardBackground,
+              shadowColor: context.isDarkMode ? Colors.black54 : Colors.black26,
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   border: Border.all(
                     color: color.withValues(alpha: 0.6),
                     width: 1.5,
@@ -136,58 +139,55 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                             ),
                             const SizedBox(width: 6),
                             if (note.isConnected)
-                              const Row(
+                              Row(
                                 children: [
                                   Icon(
                                     Icons.link_rounded,
                                     size: 13,
-                                    color: AppTheme.textSecondary,
+                                    color: colors.textSecondary,
                                   ),
-                                  SizedBox(width: 3),
+                                  const SizedBox(width: 3),
                                   Text(
                                     '已连线',
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w600,
-                                      color: AppTheme.textSecondary,
+                                      color: colors.textSecondary,
                                     ),
                                   ),
                                 ],
                               )
                             else
-                              const Text(
+                              Text(
                                 '便签',
                                 style: TextStyle(
-                                  fontSize: 10.5,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w700,
-                                  color: AppTheme.textSecondary,
+                                  color: colors.textSecondary,
                                 ),
                               ),
                             const Spacer(),
                             if (note.isConnected)
-                              Tooltip(
-                                message: '断开连线',
-                                child: GestureDetector(
-                                  onTap: () =>
-                                      viewModel.disconnectNote(note.id),
-                                  child: const Icon(
-                                    Icons.link_off_rounded,
-                                    size: 14,
-                                    color: AppTheme.textMuted,
-                                  ),
-                                ),
+                              AppIconButton(
+                                icon: Icons.link_off_rounded,
+                                tooltip: '断开连线',
+                                size: 20,
+                                iconSize: 14,
+                                variant: AppIconButtonVariant.ghost,
+                                iconColor: colors.textMuted,
+                                onPressed: () =>
+                                    viewModel.disconnectNote(note.id),
                               ),
-                            const SizedBox(width: 6),
-                            Tooltip(
-                              message: '删除便签',
-                              child: GestureDetector(
-                                onTap: () => viewModel.removeNoteNode(note.id),
-                                child: const Icon(
-                                  Icons.close_rounded,
-                                  size: 14,
-                                  color: AppTheme.textMuted,
-                                ),
-                              ),
+                            const SizedBox(width: 4),
+                            AppIconButton(
+                              icon: Icons.close_rounded,
+                              tooltip: '删除便签',
+                              size: 20,
+                              iconSize: 14,
+                              variant: AppIconButtonVariant.ghost,
+                              iconColor: colors.textMuted,
+                              onPressed: () =>
+                                  viewModel.removeNoteNode(note.id),
                             ),
                           ],
                         ),
@@ -204,16 +204,16 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                           minLines: null,
                           expands: true,
                           textAlignVertical: TextAlignVertical.top,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.textPrimary,
+                            color: colors.textPrimary,
                             height: 1.35,
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: '输入修改意见...',
                             hintStyle: TextStyle(
-                              fontSize: 11.5,
-                              color: AppTheme.textMuted,
+                              fontSize: 12,
+                              color: colors.textMuted,
                             ),
                             isDense: true,
                             contentPadding: EdgeInsets.zero,
@@ -249,11 +249,14 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                   width: 12,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: colors.cardBackground,
                     shape: BoxShape.circle,
                     border: Border.all(color: color, width: 2.5),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black26, blurRadius: 3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.26),
+                        blurRadius: 3,
+                      ),
                     ],
                   ),
                 ),

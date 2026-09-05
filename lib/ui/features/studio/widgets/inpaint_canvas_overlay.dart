@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/inpaint_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_floating_dock.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 修复画板：以当前修复底图为中心的独立画布
@@ -199,6 +203,8 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     required bool isEraser,
   }) {
     if (points.isEmpty || radiusPx <= 0) return;
+    // 蒙版画笔 coral 是叠在用户图像上的身份色 (跨亮暗主题不变)，
+    // 不属于主题化 UI 色；橡皮用 clear 混色仅作穿透语义。
     final ui.Color color = isEraser
         ? const ui.Color(0xFF000000)
         : AppTheme.coral.withValues(alpha: 0.42);
@@ -255,10 +261,13 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
         final image = vm.inpaintSourceImage;
 
         if (image == null) {
-          return const Center(
+          return Center(
             child: Text(
               '生成或选择一张图片后即可开始局部修复',
-              style: TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+              style: TextStyle(
+                fontSize: 13,
+                color: context.colors.textSecondary,
+              ),
             ),
           );
         }
@@ -354,15 +363,15 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                         }
 
                         return Container(
-                          color: AppTheme.surfaceMuted,
-                          child: const Center(
+                          color: context.colors.mutedBackground,
+                          child: Center(
                             child: SizedBox(
                               width: 24,
                               height: 24,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppTheme.notionBlue,
+                                  context.colors.primary,
                                 ),
                               ),
                             ),
@@ -388,6 +397,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                           liveBrushRadius: inpaint.brushRadius,
                           dimOutsideRect: isFocus ? cropNormRect : null,
                           selectionRect: displaySelNorm,
+                          selectionColor: context.colors.primary,
                         ),
                       ),
                     ),
@@ -402,7 +412,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                       child: Container(
                         decoration: BoxDecoration(
                           border: Border.all(
-                            color: AppTheme.notionBlue.withValues(alpha: 0.45),
+                            color: context.colors.primary.withValues(
+                              alpha: 0.45,
+                            ),
                             width: 1.2,
                           ),
                           borderRadius: BorderRadius.circular(4),
@@ -414,9 +426,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                               horizontal: 5,
                               vertical: 2,
                             ),
-                            decoration: const BoxDecoration(
-                              color: AppTheme.notionBlue,
-                              borderRadius: BorderRadius.only(
+                            decoration: BoxDecoration(
+                              color: context.colors.primary,
+                              borderRadius: const BorderRadius.only(
                                 topLeft: Radius.circular(3),
                                 bottomRight: Radius.circular(3),
                               ),
@@ -493,7 +505,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                   top: 14,
                   left: 0,
                   right: 0,
-                  child: Center(child: _buildToolDock(vm, inpaint)),
+                  child: Center(child: _buildToolDock(context, vm, inpaint)),
                 ),
 
                 // 8. 执行中状态胶囊
@@ -504,38 +516,32 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                     left: 0,
                     right: 0,
                     child: Center(
-                      child: Container(
+                      child: AppFloatingDock(
+                        radius: 18,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 6,
                         ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.pureWhite,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppTheme.border),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             SizedBox(
                               width: 13,
                               height: 13,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  context.colors.primary,
+                                ),
+                              ),
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
                               '局部修复中...',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.textPrimary,
+                                color: context.colors.textPrimary,
                               ),
                             ),
                           ],
@@ -726,12 +732,13 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
               width: 14,
               height: 14,
               decoration: BoxDecoration(
-                color: AppTheme.pureWhite,
+                // 手柄悬浮在用户图像之上：白底与暗色投影是跨主题身份色
+                color: Colors.white,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: _activeHandleIndex == corner
-                      ? AppTheme.coral
-                      : AppTheme.notionBlue,
+                      ? context.colors.error
+                      : context.colors.primary,
                   width: 2.2,
                 ),
                 boxShadow: const [
@@ -760,35 +767,30 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
   // 工具坞
   // ---------------------------------------------------------------------------
 
-  Widget _buildToolDock(StudioViewModel vm, InpaintParams inpaint) {
+  Widget _buildToolDock(
+    BuildContext context,
+    StudioViewModel vm,
+    InpaintParams inpaint,
+  ) {
+    final colors = context.colors;
+
     // AI 整图编辑：整图交给外部绘图模型重绘，蒙版与选区工具无意义，
     // 工具坞降级为模式提示胶囊
     if (inpaint.mode == InpaintMode.aiEdit) {
-      return Container(
+      return AppFloatingDock(
+        radius: 20,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: AppTheme.pureWhite,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.border),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 10,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome, size: 13, color: AppTheme.notionBlue),
-            SizedBox(width: 5),
+            Icon(Icons.auto_awesome, size: 13, color: colors.primary),
+            const SizedBox(width: 5),
             Text(
               'AI 整图编辑 · 整张图片重绘，无需框选区域',
               style: TextStyle(
-                fontSize: 11.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textSecondary,
+                color: colors.textSecondary,
               ),
             ),
           ],
@@ -802,10 +804,15 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
 
     Widget toolChip(InpaintTool tool, IconData icon, String label) {
       final selected = vm.inpaintTool == tool;
-      return _DockChip(
+      return AppToolChip(
         icon: icon,
         label: label,
-        selected: selected,
+        isSelected: selected,
+        variant: AppToolChipVariant.tinted,
+        fontSize: 11,
+        iconSize: 13,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        radius: 14,
         onTap: () => vm.setInpaintTool(tool),
       );
     }
@@ -814,20 +821,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
         vm.inpaintTool == InpaintTool.brush ||
         vm.inpaintTool == InpaintTool.eraser;
 
-    return Container(
+    return AppFloatingDock(
+      radius: 20,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -842,28 +838,20 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
             ),
             const SizedBox(width: 2),
           ],
-          _DockChip(
+          AppToolChip(
             icon: Icons.delete_sweep_outlined,
             label: '清除蒙版',
+            variant: AppToolChipVariant.tinted,
+            fontSize: 11,
+            iconSize: 13,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            radius: 14,
             onTap: vm.clearInpaintMask,
           ),
           const SizedBox(width: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(
-              color: isFree
-                  ? Colors.green.withValues(alpha: 0.12)
-                  : Colors.orange.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              isFree ? 'Opus 免费' : '需消耗点数',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: isFree ? Colors.green : Colors.orange,
-              ),
-            ),
+          AppBadge(
+            label: isFree ? 'Opus 免费' : '需消耗点数',
+            variant: isFree ? AppBadgeVariant.success : AppBadgeVariant.warning,
           ),
           // 执行修复统一由左侧生成坞的「开始修复」按钮触发，工具坞不再重复入口
         ],
@@ -890,6 +878,7 @@ class _BrushSizeSliderState extends State<_BrushSizeSlider> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final v = _dragValue ?? widget.value.clamp(0.005, 0.25);
     // 限高 28：Material Slider 默认 48px 会把工具坞撑到 ~70px 高，
     // 加剧工具坞遮挡图片的问题
@@ -899,6 +888,9 @@ class _BrushSizeSliderState extends State<_BrushSizeSlider> {
       child: SliderTheme(
         data: SliderThemeData(
           trackHeight: 3,
+          activeTrackColor: colors.primary,
+          inactiveTrackColor: colors.mutedBackground,
+          thumbColor: colors.primary,
           thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
           overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
         ),
@@ -917,57 +909,6 @@ class _BrushSizeSliderState extends State<_BrushSizeSlider> {
   }
 }
 
-/// 工具坞小胶囊按钮
-class _DockChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback? onTap;
-
-  const _DockChip({
-    required this.icon,
-    required this.label,
-    this.selected = false,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppTheme.notionBlue.withValues(alpha: 0.14)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 13,
-              color: selected ? AppTheme.notionBlue : AppTheme.textSecondary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: selected ? AppTheme.notionBlue : AppTheme.textPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// 蒙版可视化绘制器：外延框外压暗环带 + 已提交描边 Picture + 实时描边 + 选区框
 class _InpaintMaskPainter extends CustomPainter {
   final ui.Picture? committedPicture;
@@ -977,6 +918,9 @@ class _InpaintMaskPainter extends CustomPainter {
   final Rect? dimOutsideRect;
   final Rect? selectionRect;
 
+  /// 选区描框主题色 (由当前主题注入)
+  final Color selectionColor;
+
   _InpaintMaskPainter({
     required this.committedPicture,
     required this.liveStroke,
@@ -984,6 +928,7 @@ class _InpaintMaskPainter extends CustomPainter {
     required this.liveBrushRadius,
     required this.dimOutsideRect,
     required this.selectionRect,
+    required this.selectionColor,
   });
 
   @override
@@ -1022,6 +967,7 @@ class _InpaintMaskPainter extends CustomPainter {
         final radius = liveBrushRadius.clamp(0.005, 0.25) * shortSide;
         final Color strokeColor = liveStrokeIsEraser
             ? const Color(0xFF000000)
+            // 同 _paintStrokeOn：画笔 coral 为图像上身份色，不随主题切换
             : AppTheme.coral.withValues(alpha: 0.42);
         final BlendMode strokeBlend = liveStrokeIsEraser
             ? BlendMode.clear
@@ -1076,13 +1022,13 @@ class _InpaintMaskPainter extends CustomPainter {
       canvas.drawRect(
         r,
         Paint()
-          ..color = AppTheme.notionBlue
+          ..color = selectionColor
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       );
       canvas.drawRect(
         r,
-        Paint()..color = AppTheme.notionBlue.withValues(alpha: 0.10),
+        Paint()..color = selectionColor.withValues(alpha: 0.10),
       );
       final tp = TextPainter(
         text: const TextSpan(

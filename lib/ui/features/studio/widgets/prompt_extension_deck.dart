@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../view_models/studio_view_model.dart';
 import 'character_card_item.dart';
@@ -54,6 +59,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final viewModel = widget.viewModel;
     final params = viewModel.params;
     final characters = params.characterPrompts;
@@ -86,9 +92,9 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
           Container(
             padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-              color: AppTheme.surfaceMuted,
-              borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-              border: Border.all(color: AppTheme.borderSubtle),
+              color: colors.mutedBackground,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: colors.borderSubtle),
             ),
             child: Row(
               children: [
@@ -185,9 +191,26 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (characters.isNotEmpty) ...[
-            _PositionModeSegment(
-              isAiPosition: params.characterAiPosition,
-              onChanged: (isAi) => viewModel.setCharacterAiPosition(isAi),
+            AppSegmentedPillBar<bool>(
+              items: const [
+                AppSegmentedItem(
+                  value: true,
+                  label: 'AI 自动',
+                  icon: Icons.auto_awesome_rounded,
+                ),
+                AppSegmentedItem(
+                  value: false,
+                  label: '自定义',
+                  icon: Icons.open_with_rounded,
+                ),
+              ],
+              selectedValue: params.characterAiPosition,
+              variant: AppPillVariant.soft,
+              itemPadding: const EdgeInsets.symmetric(
+                horizontal: 7,
+                vertical: 3.5,
+              ),
+              onValueChanged: (isAi) => viewModel.setCharacterAiPosition(isAi),
             ),
             _CanvasEditDeckButton(
               isCanvasEditing: viewModel.isEditingCharacterPositions,
@@ -196,9 +219,9 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
               ),
             ),
           ] else
-            const Text(
+            Text(
               '独立角色物理隔离',
-              style: TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+              style: TextStyle(fontSize: 12, color: context.colors.textMuted),
             ),
           _buildAddCharacterButtons(viewModel, supported, isFull),
         ],
@@ -245,9 +268,9 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          const Text(
+          Text(
             '全局固定前置与后置词缀',
-            style: TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+            style: TextStyle(fontSize: 12, color: context.colors.textMuted),
           ),
           _AffixToggleSwitch(
             isEnabled: isAffixesEnabled,
@@ -261,60 +284,34 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
 
   /// 角色提示词内容视图
   Widget _buildCharacterPromptsContent(StudioViewModel viewModel) {
+    final colors = context.colors;
     final params = viewModel.params;
     final characters = params.characterPrompts;
     final limit = viewModel.characterPromptLimit;
     final supported = limit > 0;
 
     if (!supported) {
-      return Container(
+      return AppCard(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.pureWhite,
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-          border: Border.all(color: AppTheme.border),
-        ),
         child: Text(
           '当前模型不支持角色提示词 (仅 V4 及以上模型生效)，下方配置将保留但不会参与生成。',
           style: TextStyle(
             fontSize: 12,
-            color: AppTheme.warning.withValues(alpha: 0.9),
+            color: colors.warning.withValues(alpha: 0.9),
           ),
         ),
       );
     }
 
     if (characters.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-        decoration: BoxDecoration(
-          color: AppTheme.pureWhite,
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-          border: Border.all(color: AppTheme.border),
-        ),
-        child: Column(
-          children: [
-            const Icon(
-              Icons.people_outline_rounded,
-              size: 28,
-              color: AppTheme.textMuted,
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              '暂无独立角色提示词',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              '点击右上角「女 / 男 / 其他」预设按钮即可开启多角色防串色隔离生图',
-              style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
-              textAlign: TextAlign.center,
-            ),
-          ],
+      return const AppCard(
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        child: AppEmptyState(
+          icon: Icons.people_outline_rounded,
+          title: '暂无独立角色提示词',
+          description: '点击右上角「女 / 男 / 其他」预设按钮即可开启多角色防串色隔离生图',
+          isCompact: true,
+          iconSize: 28,
         ),
       );
     }
@@ -364,24 +361,17 @@ class _DeckSegmentTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppTheme.radiusButton - 2),
+      borderRadius: BorderRadius.circular(AppRadius.md - 2),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5.5),
         decoration: BoxDecoration(
-          color: isActive ? AppTheme.pureWhite : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppTheme.radiusButton - 2),
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-                ]
-              : null,
+          color: isActive ? colors.cardBackground : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.md - 2),
+          boxShadow: isActive ? context.shadowSubtle : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -395,87 +385,23 @@ class _DeckSegmentTab extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                    color: isActive
-                        ? AppTheme.textPrimary
-                        : AppTheme.textSecondary,
+                    color: isActive ? colors.textPrimary : colors.textSecondary,
                   ),
                 ),
               ),
             ),
             if (badge != null) ...[
               const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4.5,
-                  vertical: 1,
-                ),
-                decoration: BoxDecoration(
-                  color: badgeIsActive
-                      ? AppTheme.skyTint
-                      : AppTheme.surfaceMuted,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  border: Border.all(
-                    color: badgeIsActive
-                        ? AppTheme.notionBlue.withValues(alpha: 0.3)
-                        : AppTheme.borderSubtle,
-                    width: 0.5,
-                  ),
-                ),
-                child: Text(
-                  badge!,
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    color: badgeIsActive
-                        ? AppTheme.notionBlue
-                        : AppTheme.textMuted,
-                  ),
-                ),
+              AppBadge.pill(
+                label: badge!,
+                fontSize: 10,
+                variant: badgeIsActive
+                    ? AppBadgeVariant.primary
+                    : AppBadgeVariant.neutral,
               ),
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// 定位模式双选胶囊 (AI 自动 ↔ 自定义)
-class _PositionModeSegment extends StatelessWidget {
-  final bool isAiPosition;
-  final ValueChanged<bool> onChanged;
-
-  const _PositionModeSegment({
-    required this.isAiPosition,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceMuted,
-        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-        border: Border.all(color: AppTheme.borderSubtle),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _PositionToggleOption(
-            label: 'AI 自动',
-            icon: Icons.auto_awesome_rounded,
-            isActive: isAiPosition,
-            onTap: () => onChanged(true),
-          ),
-          const SizedBox(width: 2),
-          _PositionToggleOption(
-            label: '自定义',
-            icon: Icons.open_with_rounded,
-            isActive: !isAiPosition,
-            onTap: () => onChanged(false),
-          ),
-        ],
       ),
     );
   }
@@ -493,23 +419,20 @@ class _CanvasEditDeckButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Tooltip(
       message: isCanvasEditing ? '退出画板位置编辑' : '在中间画板编辑角色位置',
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: isCanvasEditing
-                ? AppTheme.notionBlue
-                : AppTheme.surfaceMuted,
-            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+            color: isCanvasEditing ? colors.primary : colors.mutedBackground,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             border: Border.all(
-              color: isCanvasEditing
-                  ? AppTheme.notionBlue
-                  : AppTheme.borderSubtle,
+              color: isCanvasEditing ? colors.primary : colors.borderSubtle,
             ),
           ),
           child: Row(
@@ -517,20 +440,18 @@ class _CanvasEditDeckButton extends StatelessWidget {
             children: [
               Icon(
                 Icons.control_camera_rounded,
-                size: 11.5,
-                color: isCanvasEditing ? Colors.white : AppTheme.textSecondary,
+                size: 12,
+                color: isCanvasEditing ? Colors.white : colors.textSecondary,
               ),
               const SizedBox(width: 3.5),
               Text(
                 isCanvasEditing ? '编辑中' : '画板编辑',
                 style: TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 11,
                   fontWeight: isCanvasEditing
                       ? FontWeight.w700
                       : FontWeight.w500,
-                  color: isCanvasEditing
-                      ? Colors.white
-                      : AppTheme.textSecondary,
+                  color: isCanvasEditing ? Colors.white : colors.textSecondary,
                 ),
               ),
             ],
@@ -541,65 +462,9 @@ class _CanvasEditDeckButton extends StatelessWidget {
   }
 }
 
-class _PositionToggleOption extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _PositionToggleOption({
-    required this.label,
-    required this.icon,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-        decoration: BoxDecoration(
-          color: isActive ? AppTheme.pureWhite : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 3,
-                    offset: const Offset(0, 1),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 11.5,
-              color: isActive ? AppTheme.notionBlue : AppTheme.textMuted,
-            ),
-            const SizedBox(width: 3.5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                color: isActive ? AppTheme.notionBlue : AppTheme.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// 添加角色胶囊按钮 (官方三预设：女/男/其他，各带性别色)
+///
+/// 性别专属粉/蓝/紫三色为业务身份色 (跨主题恒定)，非主题语义色，故保留字面值。
 class _AddGenderDeckButton extends StatelessWidget {
   final NaiCharacterGender gender;
   final VoidCallback onTap;
@@ -630,12 +495,12 @@ class _AddGenderDeckButton extends StatelessWidget {
       message: _tooltip,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
             color: _color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             border: Border.all(color: _color.withValues(alpha: 0.45)),
           ),
           child: Row(
@@ -666,28 +531,25 @@ class _AddCharacterLimitChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceMuted,
-        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-        border: Border.all(color: AppTheme.border),
+        color: colors.mutedBackground,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: colors.borderDefault),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.person_add_alt_rounded,
-            size: 12.5,
-            color: AppTheme.textMuted,
-          ),
-          SizedBox(width: 4),
+          Icon(Icons.person_add_alt_rounded, size: 13, color: colors.textMuted),
+          const SizedBox(width: 4),
           Text(
             '已达上限',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textMuted,
+              color: colors.textMuted,
             ),
           ),
         ],
@@ -705,14 +567,15 @@ class _AffixToggleSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           isEnabled ? '已启用' : '已停用',
           style: TextStyle(
-            fontSize: 11.5,
-            color: isEnabled ? AppTheme.notionBlue : AppTheme.textMuted,
+            fontSize: 12,
+            color: isEnabled ? colors.primary : colors.textMuted,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -724,7 +587,7 @@ class _AffixToggleSwitch extends StatelessWidget {
             fit: BoxFit.fill,
             child: Switch(
               value: isEnabled,
-              activeTrackColor: AppTheme.notionBlue,
+              activeTrackColor: colors.primary,
               onChanged: onChanged,
             ),
           ),

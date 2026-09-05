@@ -2,7 +2,15 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/llm_model_fetcher.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
+import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_search_field.dart';
+import '../../../core/widgets/app_section_header.dart';
+import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import 'model_card.dart';
 import 'model_profile_dialog.dart';
@@ -375,54 +383,39 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
 
   /// 头部：供应商选择 / 端点表单 / 拉取操作区 (不含模型网格)
   Widget _buildHeaderSections() {
+    final colors = context.colors;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 1. 供应商切换与管理
-        const SettingsGroupTitle('Provider Selection'),
-        SettingsCard(
+        const AppSectionHeader(title: 'Provider Selection'),
+        AppSettingTile(
           title: '当前供应商',
           subtitle: '选择要配置的 AI 服务商，或添加自定义供应商',
           control: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SettingsIdDropdown(
+              AppDropdown<String>(
                 value: _draft.selectedProviderId,
+                width: 200,
                 items: _draft.providers
-                    .map(
-                      (p) => DropdownMenuItem<String>(
-                        value: p.id,
-                        child: Text(
-                          p.name,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                      ),
-                    )
+                    .map((p) => AppDropdownItem(value: p.id, label: p.name))
                     .toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _draft.switchProvider(val));
-                  }
-                },
+                onChanged: (val) => setState(() => _draft.switchProvider(val)),
               ),
               const SizedBox(width: 8),
-              SettingsActionButton(
+              AppActionButton(
                 icon: Icons.add_rounded,
                 label: '新建',
                 onPressed: () => setState(() => _draft.addNewProvider()),
               ),
               if (_draft.providers.length > 1) ...[
                 const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    size: 18,
-                    color: AppTheme.stone,
-                  ),
+                AppIconButton(
+                  icon: Icons.delete_outline_rounded,
+                  iconSize: 18,
+                  variant: AppIconButtonVariant.ghost,
                   tooltip: '删除当前供应商',
                   onPressed: () =>
                       setState(() => _draft.deleteCurrentProvider()),
@@ -434,8 +427,8 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
 
         const SizedBox(height: 12),
         // 2. 供应商基本信息与端点
-        const SettingsGroupTitle('Provider Profile & Endpoint'),
-        SettingsCard(
+        const AppSectionHeader(title: 'Provider Profile & Endpoint'),
+        AppSettingTile(
           title: '供应商名称',
           subtitle: '在界面与下拉菜单中显示的自定义标识',
           control: SizedBox(
@@ -454,7 +447,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
             ),
           ),
         ),
-        SettingsCard(
+        AppSettingTile(
           title: 'API 接口与协议',
           subtitle: '服务基础 URL 与对应的通讯协议格式',
           control: Row(
@@ -476,46 +469,19 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  color: AppTheme.paperWarmth,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppTheme.border),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<LlmProtocol>(
-                    value: _draft.protocol,
-                    items: LlmProtocol.values
-                        .map(
-                          (protocol) => DropdownMenuItem<LlmProtocol>(
-                            value: protocol,
-                            child: Text(
-                              protocol.label,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: AppTheme.textPrimary,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() => _draft.protocol = val);
-                      }
-                    },
-                    icon: const Icon(
-                      Icons.unfold_more_rounded,
-                      size: 16,
-                      color: AppTheme.stone,
-                    ),
-                    dropdownColor: AppTheme.pureWhite,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+              AppDropdown<LlmProtocol>(
+                value: _draft.protocol,
+                variant: AppDropdownVariant.compact,
+                width: 170,
+                items: LlmProtocol.values
+                    .map(
+                      (protocol) => AppDropdownItem(
+                        value: protocol,
+                        label: protocol.label,
+                      ),
+                    )
+                    .toList(),
+                onChanged: (val) => setState(() => _draft.protocol = val),
               ),
             ],
           ),
@@ -533,25 +499,21 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: AppTheme.paperWarmth,
+                  color: colors.mutedBackground,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppTheme.borderSubtle),
+                  border: Border.all(color: colors.borderSubtle),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.link_rounded,
-                      size: 14,
-                      color: AppTheme.notionBlue,
-                    ),
+                    Icon(Icons.link_rounded, size: 14, color: colors.primary),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         '完整接口地址: $fullEndpoint',
-                        style: const TextStyle(
-                          fontSize: 11.5,
+                        style: TextStyle(
+                          fontSize: 12,
                           fontFamily: 'monospace',
-                          color: AppTheme.textSecondary,
+                          color: colors.textSecondary,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -562,7 +524,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
             },
           ),
         ),
-        SettingsCard(
+        AppSettingTile(
           title: 'LLM API Key',
           subtitle: '访问该供应商所需的身份密钥',
           control: SettingsKeyField(
@@ -571,25 +533,24 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
             width: 260,
           ),
         ),
-        SettingsCard(
+        AppSettingTile(
           title: '思考参数格式',
           subtitle: '不同供应商用不同字段开关思维链，格式不匹配时思考会被静默丢弃；中转站请按其上游格式指定',
-          control: SettingsDropdown<ThinkingParamFormat>(
+          control: AppDropdown<ThinkingParamFormat>(
             value: _draft.thinkingParamFormat,
-            items: ThinkingParamFormat.values,
-            labelBuilder: (f) => f.label,
-            onChanged: (val) {
-              if (val != null) {
-                setState(() => _draft.thinkingParamFormat = val);
-              }
-            },
+            width: 220,
+            items: ThinkingParamFormat.values
+                .map((f) => AppDropdownItem(value: f, label: f.label))
+                .toList(),
+            onChanged: (val) =>
+                setState(() => _draft.thinkingParamFormat = val),
           ),
         ),
 
         const SizedBox(height: 12),
         // 3. 模型列表与在线拉取
-        const SettingsGroupTitle('Models'),
-        SettingsCard(
+        const AppSectionHeader(title: 'Models'),
+        AppSettingTile(
           title: '模型列表',
           subtitle: '点击卡片切换当前模型，设置按钮调整模型参数与能力档案',
           control: Row(
@@ -601,10 +562,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                     ? null
                     : _fetchRemoteModelsOnline,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.surfaceElevated,
-                  foregroundColor: AppTheme.textPrimary,
+                  backgroundColor: colors.cardBackground,
+                  foregroundColor: colors.textPrimary,
                   elevation: 0,
-                  side: const BorderSide(color: AppTheme.border),
+                  side: BorderSide(color: colors.borderDefault),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 8,
@@ -614,18 +575,18 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                   ),
                 ),
                 icon: _draft.isFetchingModels
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 14,
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppTheme.notionBlue,
+                          color: colors.primary,
                         ),
                       )
-                    : const Icon(
+                    : Icon(
                         Icons.cloud_download_outlined,
                         size: 15,
-                        color: AppTheme.notionBlue,
+                        color: colors.primary,
                       ),
                 label: Text(
                   _draft.isFetchingModels ? '拉取中...' : '在线拉取模型',
@@ -636,7 +597,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 ),
               ),
               const SizedBox(width: 6),
-              SettingsActionButton(
+              AppActionButton(
                 icon: Icons.add_rounded,
                 label: '添加模型',
                 iconSize: 14,
@@ -652,8 +613,8 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                   ),
                   decoration: BoxDecoration(
                     color: _draft.isFetchSuccess
-                        ? AppTheme.success.withValues(alpha: 0.1)
-                        : AppTheme.error.withValues(alpha: 0.08),
+                        ? colors.success.withValues(alpha: 0.1)
+                        : colors.error.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
@@ -664,18 +625,18 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                             : Icons.error_outline_rounded,
                         size: 14,
                         color: _draft.isFetchSuccess
-                            ? AppTheme.success
-                            : AppTheme.error,
+                            ? colors.success
+                            : colors.error,
                       ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           _draft.fetchStatusMessage!,
                           style: TextStyle(
-                            fontSize: 11.5,
+                            fontSize: 12,
                             color: _draft.isFetchSuccess
-                                ? AppTheme.success
-                                : AppTheme.error,
+                                ? colors.success
+                                : colors.error,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -687,8 +648,8 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         ),
         const SizedBox(height: 12),
         // 4. AI 整图编辑绘图模型 (独立于对话 LLM 的供应商与模型选择)
-        const SettingsGroupTitle('AI 整图编辑'),
-        SettingsCard(
+        const AppSectionHeader(title: 'AI 整图编辑'),
+        AppSettingTile(
           title: '绘图模型',
           subtitle:
               '修复页「AI 整图编辑」使用的供应商与模型 (仅列出绘图模型)，独立于对话 LLM；需选择具备图像输出能力的模型 (如 nano banana / gpt-image)',
@@ -698,99 +659,62 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
             alignment: WrapAlignment.end,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              SettingsIdDropdown(
+              AppDropdown<String>(
                 value: _draft.imageEditProviderId,
+                width: 200,
                 items: [
-                  const DropdownMenuItem<String>(value: '', child: Text('未配置')),
+                  const AppDropdownItem(value: '', label: '未配置'),
                   ..._draft.providers.map(
-                    (p) => DropdownMenuItem<String>(
-                      value: p.id,
-                      child: Text(
-                        p.name,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                    ),
+                    (p) => AppDropdownItem(value: p.id, label: p.name),
                   ),
                 ],
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _draft.setImageEditProvider(val));
-                  }
-                },
+                onChanged: (val) =>
+                    setState(() => _draft.setImageEditProvider(val)),
               ),
               const SizedBox(width: 8),
-              SettingsIdDropdown(
+              AppDropdown<String>(
                 value: _draft.imageEditModelId,
+                width: 240,
                 items: [
-                  const DropdownMenuItem<String>(
-                    value: '',
-                    child: Text('未选择模型'),
-                  ),
+                  const AppDropdownItem(value: '', label: '未选择模型'),
                   ..._draft.imageEditProviderModels.map(
-                    (m) => DropdownMenuItem<String>(
-                      value: m.id,
-                      child: Text(
-                        m.name,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                    ),
+                    (m) => AppDropdownItem(value: m.id, label: m.name),
                   ),
                   // 防悬挂兜底：当前选中的模型被改掉能力或删除时仍保留下拉项，
-                  // 避免 DropdownButton value 不在 items 里断言
+                  // 避免下拉选中值从条目中消失 (AppDropdown 内部亦有同型兜底)
                   if (_draft.imageEditModelId.isNotEmpty &&
                       !_draft.imageEditProviderModels.any(
                         (m) => m.id == _draft.imageEditModelId,
                       ))
-                    DropdownMenuItem<String>(
+                    AppDropdownItem(
                       value: _draft.imageEditModelId,
-                      child: Text(
-                        '${_draft.imageEditModelId} (未识别为绘图模型)',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
+                      label: '${_draft.imageEditModelId} (未识别为绘图模型)',
                     ),
                 ],
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _draft.setImageEditModel(val));
-                  }
-                },
+                onChanged: (val) =>
+                    setState(() => _draft.setImageEditModel(val)),
               ),
             ],
           ),
           bottomChild: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: AppTheme.paperWarmth,
+              color: colors.mutedBackground,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppTheme.borderSubtle),
+              border: Border.all(color: colors.borderSubtle),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(
                   Icons.info_outline_rounded,
                   size: 14,
-                  color: AppTheme.notionBlue,
+                  color: colors.primary,
                 ),
-                SizedBox(width: 6),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     '整图编辑不消耗 Anlas 点数，计费走绘图模型供应商；未识别到能力的模型可在模型设置中手动开启「图像输出」',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: AppTheme.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                 ),
               ],
@@ -900,6 +824,7 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
 
   /// 搜索 / 排序 / 计数工具条
   Widget _buildToolbar(int visibleCount) {
+    final colors = context.colors;
     final total = widget.provider.models.length;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -907,103 +832,39 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
         children: [
           SizedBox(
             width: 280,
-            height: 36,
-            child: TextField(
+            child: AppSearchField(
               controller: _searchController,
-              style: const TextStyle(fontSize: 12),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: '搜索模型名称或 ID',
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  size: 16,
-                  color: AppTheme.stone,
-                ),
-                suffixIcon: _searchController.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          size: 14,
-                          color: AppTheme.stone,
-                        ),
-                        tooltip: '清空搜索',
-                        onPressed: () => _searchController.clear(),
-                      ),
-                filled: true,
-                fillColor: AppTheme.paperWarmth,
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: AppTheme.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: AppTheme.border),
-                ),
-              ),
+              hintText: '搜索模型名称或 ID',
+              debounceDuration: Duration.zero,
+              onChanged: (_) {},
             ),
           ),
           const SizedBox(width: 8),
-          SettingsDropdown<_ModelSortMode>(
+          AppDropdown<_ModelSortMode>(
             value: _sortMode,
-            items: _ModelSortMode.values,
-            labelBuilder: (m) => m.label,
-            onChanged: (val) {
-              if (val != null) setState(() => _sortMode = val);
-            },
+            variant: AppDropdownVariant.compact,
+            width: 150,
+            items: _ModelSortMode.values
+                .map((m) => AppDropdownItem(value: m, label: m.label))
+                .toList(),
+            onChanged: (val) => setState(() => _sortMode = val),
           ),
           const SizedBox(width: 8),
           // 仅绘图模型过滤 (快速定位图像输出能力的模型)
-          Tooltip(
-            message: '仅显示具备图像输出能力的模型 (如 nano banana / gpt-image)',
-            child: InkWell(
-              onTap: () => setState(() => _imageOnly = !_imageOnly),
-              borderRadius: BorderRadius.circular(6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: _imageOnly
-                      ? AppTheme.notionBlue.withValues(alpha: 0.12)
-                      : AppTheme.paperWarmth,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: _imageOnly
-                        ? AppTheme.notionBlue.withValues(alpha: 0.4)
-                        : AppTheme.border,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.auto_awesome,
-                      size: 13,
-                      color: _imageOnly ? AppTheme.notionBlue : AppTheme.stone,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '仅绘图模型',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: _imageOnly
-                            ? AppTheme.notionBlue
-                            : AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          AppToolChip(
+            icon: Icons.auto_awesome,
+            iconSize: 13,
+            fontSize: 11,
+            label: '仅绘图模型',
+            isSelected: _imageOnly,
+            variant: AppToolChipVariant.tinted,
+            tooltip: '仅显示具备图像输出能力的模型 (如 nano banana / gpt-image)',
+            onTap: () => setState(() => _imageOnly = !_imageOnly),
           ),
           const Spacer(),
           Text(
             '$visibleCount / $total 个模型',
-            style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+            style: TextStyle(fontSize: 12, color: colors.textMuted),
           ),
         ],
       ),
@@ -1017,18 +878,11 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
     // 供应商没有任何模型
     if (models.isEmpty) {
       return SliverToBoxAdapter(
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          decoration: BoxDecoration(
-            color: AppTheme.paperWarmth,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: const Text(
-            '当前供应商暂无模型，点击上方"在线拉取模型"或"添加模型"',
-            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-          ),
+        child: AppEmptyState(
+          icon: Icons.view_in_ar_outlined,
+          title: '当前供应商暂无模型',
+          description: '点击上方"在线拉取模型"或"添加模型"',
+          isCompact: true,
         ),
       );
     }
@@ -1041,21 +895,10 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
         SliverToBoxAdapter(child: _buildToolbar(visible.length)),
         if (visible.isEmpty)
           SliverToBoxAdapter(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-              decoration: BoxDecoration(
-                color: AppTheme.paperWarmth,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.border),
-              ),
-              child: Text(
-                '没有匹配 "${_searchController.text.trim()}" 的模型',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary,
-                ),
-              ),
+            child: AppEmptyState(
+              icon: Icons.search_off_rounded,
+              title: '没有匹配 "${_searchController.text.trim()}" 的模型',
+              isCompact: true,
             ),
           )
         else

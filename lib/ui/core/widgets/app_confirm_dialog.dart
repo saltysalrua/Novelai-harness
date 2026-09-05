@@ -10,7 +10,7 @@ import '../theme/theme_context_extensions.dart';
 /// - `agent_session_list_view.dart:122-164` (_showDeleteConfirmDialog 删除会话弹窗)
 ///
 /// 核心职责：
-/// 彻底消灭全工程手写的 `AlertDialog` 与硬编码珊瑚红 (`AppTheme.coral`)，
+/// 彻底消灭全工程手写的 `AlertDialog` 与硬编码珊瑚红 (统一走语义令牌 `context.colors.coral`)，
 /// 统一 Notion 圆角外框、亮暗自适应背景、破坏性 (珊瑚红/Error) 与标准 (品牌蓝/Primary)
 /// 双模式确认按钮，以及标准取消按钮。
 class AppConfirmDialog extends StatelessWidget {
@@ -80,7 +80,7 @@ class AppConfirmDialog extends StatelessWidget {
           Text(
             message ?? '',
             style: TextStyle(
-              fontSize: 12.5,
+              fontSize: 13,
               color: colors.textSecondary,
               height: 1.45,
             ),

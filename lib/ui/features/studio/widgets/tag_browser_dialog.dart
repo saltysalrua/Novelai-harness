@@ -2,7 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../data/models/tag_models.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_search_field.dart';
 import 'tag_inspiration_presets.dart';
 import 'tag_suggestion_tile.dart';
 
@@ -24,9 +28,8 @@ class TagBrowserDialog extends StatefulWidget {
     required ValueChanged<String> onTagSelected,
     bool showTranslation = true,
   }) {
-    return showDialog(
+    return AppDialogScaffold.show(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.35),
       builder: (ctx) => TagBrowserDialog(
         onTagSelected: onTagSelected,
         showTranslation: showTranslation,
@@ -87,132 +90,50 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: AppTheme.pureWhite,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 600),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 顶部搜索与标题栏
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.style_outlined,
-                    color: AppTheme.notionBlue,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Danbooru 标签灵感库',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: SizedBox(
-                      height: 34,
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: _onSearchChanged,
-                        style: const TextStyle(fontSize: 13),
-                        decoration: InputDecoration(
-                          hintText: '输入英文或中文搜索 14万+ Danbooru 标签...',
-                          hintStyle: const TextStyle(
-                            fontSize: 12.5,
-                            color: AppTheme.textMuted,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            size: 16,
-                            color: AppTheme.textMuted,
-                          ),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 14),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _onSearchChanged('');
-                                  },
-                                )
-                              : null,
-                          filled: true,
-                          fillColor: AppTheme.paperWarmth,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 0,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusButton,
-                            ),
-                            borderSide: const BorderSide(
-                              color: AppTheme.border,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusButton,
-                            ),
-                            borderSide: const BorderSide(
-                              color: AppTheme.border,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusButton,
-                            ),
-                            borderSide: const BorderSide(
-                              color: AppTheme.notionBlue,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      size: 18,
-                      color: AppTheme.textMuted,
-                    ),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1, color: AppTheme.borderSubtle),
+    final colors = context.colors;
 
-            // 主体内容
-            Expanded(
-              child: _isSearching
-                  ? _buildSearchResults()
-                  : _buildPresetBrowser(),
+    return AppDialogScaffold(
+      title: 'Danbooru 标签灵感库',
+      width: 720,
+      height: 600,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 顶部搜索条
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+            child: AppSearchField(
+              controller: _searchController,
+              hintText: '输入英文或中文搜索 14万+ Danbooru 标签...',
+              debounceDuration: const Duration(milliseconds: 120),
+              onChanged: _onSearchChanged,
+              onClear: () {
+                _searchController.clear();
+                _onSearchChanged('');
+              },
             ),
-          ],
-        ),
+          ),
+          Divider(height: 1, color: colors.borderDefault),
+
+          // 主体内容
+          Expanded(
+            child: _isSearching
+                ? _buildSearchResults(context)
+                : _buildPresetBrowser(context),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSearchResults() {
+  Widget _buildSearchResults(BuildContext context) {
+    final colors = context.colors;
     if (_searchResults.isEmpty) {
-      return const Center(
-        child: Text(
-          '未找到匹配标签',
-          style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
-        ),
+      return const AppEmptyState(
+        icon: Icons.search_off_outlined,
+        title: '未找到匹配标签',
+        description: '请尝试输入其他英文或中文关键词检索',
+        isCompact: true,
       );
     }
 
@@ -220,16 +141,18 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       itemCount: _searchResults.length,
       separatorBuilder: (context, index) =>
-          const Divider(height: 1, color: AppTheme.borderSubtle),
+          Divider(height: 1, color: colors.borderDefault),
       itemBuilder: (context, index) {
         final item = _searchResults[index];
         return InkWell(
           onTap: () => _addTag(item.tag),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          hoverColor: colors.primaryTint.withValues(alpha: 0.5),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
             child: Row(
               children: [
-                TagCategoryPill(category: item.category, fontSize: 10.5),
+                TagCategoryPill(category: item.category, fontSize: 11),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -238,10 +161,10 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
                     children: [
                       Text(
                         item.tag,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
+                          color: colors.textPrimary,
                         ),
                       ),
                       if (widget.showTranslation &&
@@ -249,9 +172,9 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
                           item.translation!.isNotEmpty)
                         Text(
                           item.translation!,
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: AppTheme.textSecondary,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.textSecondary,
                           ),
                         ),
                     ],
@@ -259,11 +182,7 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
                 ),
                 TagCountText(formattedCount: item.formattedCount, fontSize: 11),
                 const SizedBox(width: 8),
-                const Icon(
-                  Icons.add_circle_outline,
-                  size: 16,
-                  color: AppTheme.notionBlue,
-                ),
+                Icon(Icons.add_circle_outline, size: 16, color: colors.primary),
               ],
             ),
           ),
@@ -272,16 +191,17 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
     );
   }
 
-  Widget _buildPresetBrowser() {
+  Widget _buildPresetBrowser(BuildContext context) {
+    final colors = context.colors;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // 左侧分类导航
         Container(
           width: 160,
-          decoration: const BoxDecoration(
-            color: AppTheme.paperWarmth,
-            border: Border(right: BorderSide(color: AppTheme.borderSubtle)),
+          decoration: BoxDecoration(
+            color: colors.mutedBackground,
+            border: Border(right: BorderSide(color: colors.borderDefault)),
           ),
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -298,13 +218,12 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
                     vertical: 9,
                   ),
                   decoration: BoxDecoration(
-                    color: isSelected ? AppTheme.pureWhite : Colors.transparent,
+                    color: isSelected
+                        ? colors.cardBackground
+                        : Colors.transparent,
                     border: isSelected
-                        ? const Border(
-                            left: BorderSide(
-                              color: AppTheme.notionBlue,
-                              width: 3,
-                            ),
+                        ? Border(
+                            left: BorderSide(color: colors.primary, width: 3),
                           )
                         : null,
                   ),
@@ -314,20 +233,20 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
                         group.icon,
                         size: 15,
                         color: isSelected
-                            ? AppTheme.notionBlue
-                            : AppTheme.textSecondary,
+                            ? colors.primary
+                            : colors.textSecondary,
                       ),
                       const SizedBox(width: 8),
                       Text(
                         group.title,
                         style: TextStyle(
-                          fontSize: 12.5,
+                          fontSize: 13,
                           fontWeight: isSelected
                               ? FontWeight.w600
                               : FontWeight.w500,
                           color: isSelected
-                              ? AppTheme.notionBlue
-                              : AppTheme.textPrimary,
+                              ? colors.primary
+                              : colors.textPrimary,
                         ),
                       ),
                     ],
@@ -345,10 +264,10 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
             children: [
               Text(
                 kTagInspirationPresets[_activeCategoryIndex].title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
+                  color: colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -386,18 +305,19 @@ class _TagChipItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Material(
-      color: AppTheme.paperWarmth,
-      borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+      color: colors.cardBackground,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-        hoverColor: AppTheme.notionBlue.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        hoverColor: colors.primaryTint.withValues(alpha: 0.6),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            border: Border.all(color: AppTheme.border),
-            borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+            border: Border.all(color: colors.borderDefault),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -408,24 +328,21 @@ class _TagChipItem extends StatelessWidget {
                 children: [
                   Text(
                     tag,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+                      color: colors.textPrimary,
                     ),
                   ),
                   if (zh.isNotEmpty)
                     Text(
                       zh,
-                      style: const TextStyle(
-                        fontSize: 10.5,
-                        color: AppTheme.textMuted,
-                      ),
+                      style: TextStyle(fontSize: 11, color: colors.textMuted),
                     ),
                 ],
               ),
               const SizedBox(width: 6),
-              const Icon(Icons.add, size: 14, color: AppTheme.notionBlue),
+              Icon(Icons.add, size: 14, color: colors.primary),
             ],
           ),
         ),

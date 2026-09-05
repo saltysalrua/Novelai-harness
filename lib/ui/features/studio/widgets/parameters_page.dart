@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_collapsible_section.dart';
+import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_number_slider.dart';
+import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/overlay_anchor.dart';
 import '../view_models/studio_view_model.dart';
-import 'editable_slider.dart';
 import 'resolution_pad_picker.dart';
 import 'studio_shared.dart';
 import 'watermark_pad_picker.dart';
@@ -75,10 +82,13 @@ class _ParametersPageState extends State<ParametersPage> {
             // 1. 模型选择
             const SectionHeader('模型'),
             const SizedBox(height: 8),
-            DropdownField<NaiModel>(
+            AppDropdown<NaiModel>.simple(
               value: params.model,
               items: NaiModel.values,
               labelOf: (m) => m.label,
+              iconOf: (m) => Icons.auto_awesome_outlined,
+              trailingOf: (m, _) =>
+                  m.isV5 ? AppBadge.pill(label: 'V5', fontSize: 10) : null,
               onChanged: viewModel.selectModel,
             ),
             const SizedBox(height: 16),
@@ -95,7 +105,7 @@ class _ParametersPageState extends State<ParametersPage> {
             const SizedBox(height: 18),
 
             // 3. Steps
-            EditableSliderInt(
+            AppNumberSlider.integer(
               title: 'Steps',
               value: params.steps,
               min: 1,
@@ -106,7 +116,7 @@ class _ParametersPageState extends State<ParametersPage> {
             const SizedBox(height: 16),
 
             // 4. Prompt Guidance
-            EditableSliderDouble(
+            AppNumberSlider(
               title: 'Prompt Guidance',
               value: params.scale,
               min: 1.0,
@@ -160,6 +170,7 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final params = widget.viewModel.params;
 
     return Row(
@@ -176,9 +187,9 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                 height: 40,
                 padding: const EdgeInsets.only(left: 10, right: 4),
                 decoration: BoxDecoration(
-                  color: AppTheme.pureWhite,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                  border: Border.all(color: AppTheme.border),
+                  color: colors.cardBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(color: colors.borderDefault),
                 ),
                 child: Row(
                   children: [
@@ -186,17 +197,17 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                       child: TextField(
                         controller: widget.seedController,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontFamily: 'monospace',
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
+                          color: colors.textPrimary,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'Enter a seed',
                           hintStyle: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.textMuted,
+                            color: colors.textMuted,
                             fontWeight: FontWeight.normal,
                           ),
                           contentPadding: EdgeInsets.zero,
@@ -245,23 +256,23 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                           widget.viewModel,
                           _buttonKey,
                         ),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                         child: Container(
                           width: 32,
                           height: 32,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: params.seedMode == NaiSeedMode.fixed
-                                ? AppTheme.paperWarmth
-                                : AppTheme.skyTint,
-                            borderRadius: BorderRadius.circular(4),
+                                ? colors.mutedBackground
+                                : colors.primaryTint,
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
                           child: Icon(
                             _modeIcon(params.seedMode),
                             size: 16,
                             color: params.seedMode == NaiSeedMode.fixed
-                                ? AppTheme.graphite
-                                : AppTheme.notionBlue,
+                                ? colors.textSecondary
+                                : colors.primary,
                           ),
                         ),
                       ),
@@ -280,11 +291,11 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
             children: [
               const SectionHeader('Sampler'),
               const SizedBox(height: 8),
-              DropdownField<NaiSampler>(
+              AppDropdown<NaiSampler>.simple(
                 value: params.sampler,
                 items: NaiSampler.values,
                 labelOf: (s) => s.label,
-                fontSize: 12.5,
+                iconOf: (s) => Icons.tune_rounded,
                 onChanged: (s) =>
                     widget.viewModel.updateParams(params.copyWith(sampler: s)),
               ),
@@ -308,7 +319,11 @@ void _showSeedSettingsMenu(
   final renderBox = buttonKey.currentContext?.findRenderObject() as RenderBox?;
   if (renderBox == null) return;
 
-  final buttonTopLeft = renderBox.localToGlobal(Offset.zero);
+  // 按钮窗口全局坐标 → 根 Overlay 布局坐标 (UI 缩放感知，zoom=1 时恒等)
+  final buttonTopLeft = globalToOverlayPosition(
+    overlay,
+    renderBox.localToGlobal(Offset.zero),
+  );
   final position = Offset(
     buttonTopLeft.dx,
     buttonTopLeft.dy + renderBox.size.height + 4,
@@ -364,6 +379,7 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final screenSize = MediaQuery.sizeOf(context);
     final left = (widget.position.dx + widget.buttonWidth - _menuWidth).clamp(
       8.0,
@@ -417,16 +433,10 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
                       width: _menuWidth,
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppTheme.pureWhite,
+                        color: colors.elevatedBackground,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppTheme.border),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 18,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
+                        border: Border.all(color: colors.borderDefault),
+                        boxShadow: context.shadowElevated,
                       ),
                       child: ListenableBuilder(
                         listenable: widget.viewModel,
@@ -438,17 +448,7 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // 1. 种子模式
-                              const Padding(
-                                padding: EdgeInsets.fromLTRB(6, 4, 6, 6),
-                                child: Text(
-                                  '种子模式',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.textMuted,
-                                  ),
-                                ),
-                              ),
+                              _overlayGroupLabel('种子模式'),
                               _buildModeOption(
                                 mode: NaiSeedMode.random,
                                 icon: Icons.eco_rounded,
@@ -476,55 +476,28 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
                                     params.seedMode == NaiSeedMode.fixed,
                               ),
 
-                              // 分隔线
-                              Container(
-                                height: 1,
-                                color: AppTheme.border,
-                                margin: const EdgeInsets.symmetric(vertical: 6),
-                              ),
+                              _overlayDivider(),
 
                               // 2. 生成控制
-                              const Padding(
-                                padding: EdgeInsets.fromLTRB(6, 2, 6, 6),
-                                child: Text(
-                                  '生成控制',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.textMuted,
+                              _overlayGroupLabel('生成控制'),
+                              AppSegmentedPillBar<NaiSeedTiming>(
+                                items: const [
+                                  AppSegmentedItem(
+                                    value: NaiSeedTiming.before,
+                                    label: '生成前',
                                   ),
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildTimingChip(
-                                      timing: NaiSeedTiming.before,
-                                      title: '生成前',
-                                      isSelected:
-                                          params.seedTiming ==
-                                          NaiSeedTiming.before,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: _buildTimingChip(
-                                      timing: NaiSeedTiming.after,
-                                      title: '生成后',
-                                      isSelected:
-                                          params.seedTiming ==
-                                          NaiSeedTiming.after,
-                                    ),
+                                  AppSegmentedItem(
+                                    value: NaiSeedTiming.after,
+                                    label: '生成后',
                                   ),
                                 ],
+                                selectedValue: params.seedTiming,
+                                variant: AppPillVariant.soft,
+                                expand: true,
+                                onValueChanged: widget.viewModel.setSeedTiming,
                               ),
 
-                              // 分隔线
-                              Container(
-                                height: 1,
-                                color: AppTheme.border,
-                                margin: const EdgeInsets.symmetric(vertical: 6),
-                              ),
+                              _overlayDivider(),
 
                               // 3. 原功能与快捷操作
                               _buildActionRow(
@@ -565,6 +538,28 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
     );
   }
 
+  Widget _overlayGroupLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: context.colors.textMuted,
+        ),
+      ),
+    );
+  }
+
+  Widget _overlayDivider() {
+    return Container(
+      height: 1,
+      color: context.colors.borderSubtle,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+    );
+  }
+
   Widget _buildModeOption({
     required NaiSeedMode mode,
     required IconData icon,
@@ -572,89 +567,15 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
     required String subtitle,
     required bool isSelected,
   }) {
-    return InkWell(
+    return AppOptionCard<NaiSeedMode>(
+      value: mode,
+      isSelected: isSelected,
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      radius: 6,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       onTap: () => widget.viewModel.setSeedMode(mode),
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.skyTint : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? AppTheme.notionBlue : AppTheme.textMuted,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: isSelected
-                          ? AppTheme.notionBlue
-                          : AppTheme.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      color: AppTheme.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              const Icon(
-                Icons.check_rounded,
-                size: 16,
-                color: AppTheme.notionBlue,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimingChip({
-    required NaiSeedTiming timing,
-    required String title,
-    required bool isSelected,
-  }) {
-    return InkWell(
-      onTap: () => widget.viewModel.setSeedTiming(timing),
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        height: 30,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.skyTint : AppTheme.paperWarmth,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isSelected ? AppTheme.notionBlue : AppTheme.border,
-            width: isSelected ? 1.2 : 1.0,
-          ),
-        ),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? AppTheme.notionBlue : AppTheme.textPrimary,
-          ),
-        ),
-      ),
     );
   }
 
@@ -663,6 +584,7 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
     required String title,
     required VoidCallback onTap,
   }) {
+    final colors = context.colors;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
@@ -671,15 +593,15 @@ class _SeedSettingsOverlayState extends State<_SeedSettingsOverlay> {
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(6)),
         child: Row(
           children: [
-            Icon(icon, size: 15, color: AppTheme.notionBlue),
+            Icon(icon, size: 15, color: colors.primary),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
+                  color: colors.textPrimary,
                 ),
               ),
             ),
@@ -698,27 +620,20 @@ class _AdvancedSettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final params = viewModel.params;
     final showKeepOriginal =
         viewModel.stripMetadata || viewModel.enableWatermark;
 
-    return Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        expandedCrossAxisAlignment: CrossAxisAlignment.start,
-        childrenPadding: const EdgeInsets.only(top: 6, bottom: 8),
-        title: const Text(
-          'Advanced Settings',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        initiallyExpanded: false,
+    return AppCollapsibleSection(
+      title: 'Advanced Settings',
+      isCard: false,
+      headerPadding: EdgeInsets.zero,
+      contentPadding: const EdgeInsets.only(top: 6, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          EditableSliderDouble(
+          AppNumberSlider(
             title: 'Prompt Guidance Rescale',
             value: params.cfgRescale,
             min: 0.0,
@@ -730,20 +645,20 @@ class _AdvancedSettingsSection extends StatelessWidget {
           const SizedBox(height: 12),
           const SectionHeader('Noise Schedule'),
           const SizedBox(height: 8),
-          DropdownField<NoiseSchedule>(
+          AppDropdown<NoiseSchedule>.simple(
             value: params.noiseSchedule,
             items: NoiseSchedule.values,
             labelOf: (n) => n.label,
-            fontSize: 12.5,
+            iconOf: (n) => Icons.waves_rounded,
             onChanged: (n) =>
                 viewModel.updateParams(params.copyWith(noiseSchedule: n)),
           ),
           const SizedBox(height: 14),
-          const Divider(height: 1, color: AppTheme.border),
+          Divider(height: 1, color: colors.borderSubtle),
           const SizedBox(height: 12),
 
           // 1. 删除元数据开关
-          SettingsToggleRow(
+          AppSettingTile.switchTile(
             title: '删除元数据',
             subtitle: '导出与复制时抹除所有生成参数与隐写',
             value: viewModel.stripMetadata,
@@ -752,7 +667,7 @@ class _AdvancedSettingsSection extends StatelessWidget {
           const SizedBox(height: 10),
 
           // 2. 添加水印开关
-          SettingsToggleRow(
+          AppSettingTile.switchTile(
             title: '添加水印',
             subtitle: '仅在复制/下载时生效，UI 画板不显示',
             value: viewModel.enableWatermark,
@@ -772,7 +687,7 @@ class _AdvancedSettingsSection extends StatelessWidget {
           // 3. 保持原图像开关 (当开启删除元数据或添加水印之一时展示)
           if (showKeepOriginal) ...[
             const SizedBox(height: 10),
-            SettingsToggleRow(
+            AppSettingTile.switchTile(
               title: '保持原图像',
               subtitle: '生图落盘时额外保存一份纯净原图 (_raw.png)',
               value: viewModel.keepOriginalImage,

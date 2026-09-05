@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_colors_extension.dart';
+import '../theme/theme_context_extensions.dart';
 
 /// 可拖拽三栏自适应分割容器
 class ResizableThreeSplitView extends StatefulWidget {
@@ -63,6 +64,7 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return LayoutBuilder(
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
@@ -72,26 +74,35 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
           return DefaultTabController(
             length: 3,
             child: Scaffold(
-              backgroundColor: AppTheme.background,
+              backgroundColor: colors.canvasBackground,
               appBar: AppBar(
-                backgroundColor: AppTheme.surface,
+                backgroundColor: colors.cardBackground,
                 toolbarHeight: 0,
-                bottom: const TabBar(
-                  tabs: [
+                bottom: TabBar(
+                  tabs: const [
                     Tab(text: '参数设置'),
                     Tab(text: '图片画板'),
                     Tab(text: 'AI 对话'),
                   ],
-                  indicatorColor: AppTheme.primary,
-                  labelColor: AppTheme.textPrimary,
-                  unselectedLabelColor: AppTheme.textSecondary,
+                  indicatorColor: colors.primary,
+                  labelColor: colors.textPrimary,
+                  unselectedLabelColor: colors.textSecondary,
                 ),
               ),
               body: TabBarView(
                 children: [
-                  Padding(padding: const EdgeInsets.all(8.0), child: widget.leftChild),
-                  Padding(padding: const EdgeInsets.all(8.0), child: widget.centerChild),
-                  Padding(padding: const EdgeInsets.all(8.0), child: widget.rightChild),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: widget.leftChild,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: widget.centerChild,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: widget.rightChild,
+                  ),
                 ],
               ),
             ),
@@ -100,31 +111,40 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
 
         // 桌面大屏：三栏自由拖拽分割模式
         // 计算中央区域可用宽度
-        double availableCenter = totalWidth - _leftWidth - _rightWidth - 16; // 16 为两个分割条的宽度
+        double availableCenter =
+            totalWidth - _leftWidth - _rightWidth - 16; // 16 为两个分割条的宽度
         if (availableCenter < widget.minCenterWidth) {
           // 动态按比例压缩左右两栏
           final excess = widget.minCenterWidth - availableCenter;
-          _leftWidth = (_leftWidth - excess / 2).clamp(widget.minLeftWidth, widget.maxLeftWidth);
-          _rightWidth = (_rightWidth - excess / 2).clamp(widget.minRightWidth, widget.maxRightWidth);
-          availableCenter = (totalWidth - _leftWidth - _rightWidth - 16).clamp(0.0, totalWidth);
+          _leftWidth = (_leftWidth - excess / 2).clamp(
+            widget.minLeftWidth,
+            widget.maxLeftWidth,
+          );
+          _rightWidth = (_rightWidth - excess / 2).clamp(
+            widget.minRightWidth,
+            widget.maxRightWidth,
+          );
+          availableCenter = (totalWidth - _leftWidth - _rightWidth - 16).clamp(
+            0.0,
+            totalWidth,
+          );
         }
 
         return Container(
-          color: AppTheme.background,
+          color: colors.canvasBackground,
           padding: const EdgeInsets.all(8),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 1. 左侧面板 (参数设置)
-              SizedBox(
-                width: _leftWidth,
-                child: widget.leftChild,
-              ),
+              SizedBox(width: _leftWidth, child: widget.leftChild),
 
               // 左侧拖拽分割条
               _buildDivider(
+                colors: colors,
                 isDragging: _isDraggingLeft,
-                onHorizontalDragStart: () => setState(() => _isDraggingLeft = true),
+                onHorizontalDragStart: () =>
+                    setState(() => _isDraggingLeft = true),
                 onHorizontalDragEnd: () {
                   setState(() => _isDraggingLeft = false);
                   widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
@@ -133,7 +153,8 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
                   setState(() {
                     _leftWidth = (_leftWidth + delta).clamp(
                       widget.minLeftWidth,
-                      (totalWidth - _rightWidth - widget.minCenterWidth - 16).clamp(widget.minLeftWidth, widget.maxLeftWidth),
+                      (totalWidth - _rightWidth - widget.minCenterWidth - 16)
+                          .clamp(widget.minLeftWidth, widget.maxLeftWidth),
                     );
                   });
                   widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
@@ -141,14 +162,14 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
               ),
 
               // 2. 中间面板 (图片画板)
-              Expanded(
-                child: widget.centerChild,
-              ),
+              Expanded(child: widget.centerChild),
 
               // 右侧拖拽分割条
               _buildDivider(
+                colors: colors,
                 isDragging: _isDraggingRight,
-                onHorizontalDragStart: () => setState(() => _isDraggingRight = true),
+                onHorizontalDragStart: () =>
+                    setState(() => _isDraggingRight = true),
                 onHorizontalDragEnd: () {
                   setState(() => _isDraggingRight = false);
                   widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
@@ -157,7 +178,8 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
                   setState(() {
                     _rightWidth = (_rightWidth - delta).clamp(
                       widget.minRightWidth,
-                      (totalWidth - _leftWidth - widget.minCenterWidth - 16).clamp(widget.minRightWidth, widget.maxRightWidth),
+                      (totalWidth - _leftWidth - widget.minCenterWidth - 16)
+                          .clamp(widget.minRightWidth, widget.maxRightWidth),
                     );
                   });
                   widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
@@ -165,10 +187,7 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
               ),
 
               // 3. 右侧面板 (AI 对话框)
-              SizedBox(
-                width: _rightWidth,
-                child: widget.rightChild,
-              ),
+              SizedBox(width: _rightWidth, child: widget.rightChild),
             ],
           ),
         );
@@ -177,6 +196,7 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
   }
 
   Widget _buildDivider({
+    required AppColorsExtension colors,
     required bool isDragging,
     required VoidCallback onHorizontalDragStart,
     required VoidCallback onHorizontalDragEnd,
@@ -198,7 +218,7 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
             duration: const Duration(milliseconds: 150),
             width: isDragging ? 2 : 0,
             height: double.infinity,
-            color: isDragging ? AppTheme.primary : Colors.transparent,
+            color: isDragging ? colors.primary : Colors.transparent,
           ),
         ),
       ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
 
 /// 内嵌于 Agent 对话流中的交互提问卡片
 class InlineAgentQuestionCard extends StatefulWidget {
@@ -20,8 +22,10 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
   @override
   void initState() {
     super.initState();
-    _selectedIndices =
-        List.generate(widget.prompt.questions.length, (_) => <int>{});
+    _selectedIndices = List.generate(
+      widget.prompt.questions.length,
+      (_) => <int>{},
+    );
     _customControllers = List.generate(
       widget.prompt.questions.length,
       (_) => TextEditingController(),
@@ -52,14 +56,15 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
     final answers = <String>[];
     for (var i = 0; i < widget.prompt.questions.length; i++) {
       final q = widget.prompt.questions[i];
-      final custom = q.allowCustomInput ? _customControllers[i].text.trim() : '';
+      final custom = q.allowCustomInput
+          ? _customControllers[i].text.trim()
+          : '';
       if (custom.isNotEmpty) {
         answers.add(custom);
       } else {
-        final labels = _selectedIndices[i]
-            .map((idx) => q.options[idx].label)
-            .toList()
-          ..sort();
+        final labels =
+            _selectedIndices[i].map((idx) => q.options[idx].label).toList()
+              ..sort();
         answers.add(labels.join('、'));
       }
     }
@@ -68,32 +73,29 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final questions = widget.prompt.questions;
-    final isSingleBinaryConfirm = questions.length == 1 &&
+    final isSingleBinaryConfirm =
+        questions.length == 1 &&
         questions.first.options.length == 2 &&
         !questions.first.allowCustomInput;
 
     final headerText = questions.first.header ?? '向用户提问';
-    final isPaymentHeader = headerText.contains('点数') || headerText.contains('付费');
+    final isPaymentHeader =
+        headerText.contains('点数') || headerText.contains('付费');
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
           color: isPaymentHeader
-              ? AppTheme.warning.withValues(alpha: 0.6)
-              : AppTheme.notionBlue.withValues(alpha: 0.5),
+              ? colors.warning.withValues(alpha: 0.6)
+              : colors.primary.withValues(alpha: 0.5),
           width: 1.2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: context.shadowSubtle,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -103,16 +105,14 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: (isPaymentHeader ? AppTheme.warning : AppTheme.notionBlue)
+              color: (isPaymentHeader ? colors.warning : colors.primary)
                   .withValues(alpha: 0.08),
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppTheme.radiusCard - 1),
+                top: Radius.circular(AppRadius.lg - 1),
               ),
               border: Border(
                 bottom: BorderSide(
-                  color: (isPaymentHeader
-                          ? AppTheme.warning
-                          : AppTheme.notionBlue)
+                  color: (isPaymentHeader ? colors.warning : colors.primary)
                       .withValues(alpha: 0.2),
                 ),
               ),
@@ -124,9 +124,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                       ? Icons.monetization_on_outlined
                       : Icons.help_outline_rounded,
                   size: 16,
-                  color: isPaymentHeader
-                      ? AppTheme.warning
-                      : AppTheme.notionBlue,
+                  color: isPaymentHeader ? colors.warning : colors.primary,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -134,26 +132,14 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: isPaymentHeader
-                        ? AppTheme.warning
-                        : AppTheme.notionBlue,
+                    color: isPaymentHeader ? colors.warning : colors.primary,
                   ),
                 ),
                 const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceVariant,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    '待确认',
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.stone,
-                    ),
-                  ),
+                const AppBadge(
+                  label: '待确认',
+                  variant: AppBadgeVariant.neutral,
+                  fontSize: 11,
                 ),
               ],
             ),
@@ -166,7 +152,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (var i = 0; i < questions.length; i++) ...[
-                  if (i > 0) const Divider(height: 20, color: AppTheme.border),
+                  if (i > 0) Divider(height: 20, color: colors.borderDefault),
                   _buildQuestionItem(i, questions[i], isSingleBinaryConfirm),
                 ],
               ],
@@ -175,7 +161,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
 
           // 底部操作栏 (若是单问题二元直选则不需要额外提交栏，直接在选项按钮完成点击)
           if (!isSingleBinaryConfirm) ...[
-            const Divider(height: 1, color: AppTheme.border),
+            Divider(height: 1, color: colors.borderDefault),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Row(
@@ -184,7 +170,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                   TextButton(
                     onPressed: () => widget.prompt.cancel(),
                     style: TextButton.styleFrom(
-                      foregroundColor: AppTheme.stone,
+                      foregroundColor: colors.textMuted,
                       visualDensity: VisualDensity.compact,
                     ),
                     child: const Text('取消'),
@@ -192,11 +178,11 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                   const SizedBox(width: 8),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.notionBlue,
+                      backgroundColor: colors.primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
                       visualDensity: VisualDensity.compact,
                     ),
@@ -217,15 +203,17 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
     AgentQuestion question,
     bool isSingleBinaryConfirm,
   ) {
+    final colors = context.colors;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           question.question,
-          style: const TextStyle(
-            fontSize: 13.5,
+          style: TextStyle(
+            fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
+            color: colors.textPrimary,
             height: 1.4,
           ),
         ),
@@ -235,7 +223,11 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
         if (isSingleBinaryConfirm)
           Row(
             children: [
-              for (var optIdx = 0; optIdx < question.options.length; optIdx++) ...[
+              for (
+                var optIdx = 0;
+                optIdx < question.options.length;
+                optIdx++
+              ) ...[
                 if (optIdx > 0) const SizedBox(width: 10),
                 Expanded(
                   child: _buildBinaryActionTile(
@@ -257,9 +249,11 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
           // 常规选项列表
           Column(
             children: [
-              for (var optIdx = 0;
-                  optIdx < question.options.length;
-                  optIdx++) ...[
+              for (
+                var optIdx = 0;
+                optIdx < question.options.length;
+                optIdx++
+              ) ...[
                 _buildOptionTile(
                   qIndex,
                   optIdx,
@@ -276,23 +270,30 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
           const SizedBox(height: 8),
           TextField(
             controller: _customControllers[qIndex],
-            style: const TextStyle(fontSize: 13),
+            style: TextStyle(fontSize: 13, color: colors.textPrimary),
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               hintText: '输入自定义回答...',
+              hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
               isDense: true,
               filled: true,
-              fillColor: AppTheme.paperWarmth,
-              hoverColor: AppTheme.paperWarmth,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              fillColor: colors.canvasBackground,
+              hoverColor: colors.canvasBackground,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
-                borderSide: const BorderSide(color: AppTheme.border),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: BorderSide(color: colors.borderDefault),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
-                borderSide: const BorderSide(color: AppTheme.border),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: BorderSide(color: colors.borderDefault),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: BorderSide(color: colors.primary, width: 1.5),
               ),
             ),
           ),
@@ -306,20 +307,20 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
     required bool isPrimary,
     required VoidCallback onTap,
   }) {
+    final colors = context.colors;
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isPrimary
-              ? AppTheme.warning.withValues(alpha: 0.12)
-              : AppTheme.surfaceVariant,
-          borderRadius: BorderRadius.circular(8),
+              ? colors.warning.withValues(alpha: 0.12)
+              : colors.canvasBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-            color: isPrimary
-                ? AppTheme.warning
-                : AppTheme.border,
+            color: isPrimary ? colors.warning : colors.borderDefault,
             width: isPrimary ? 1.4 : 1.0,
           ),
         ),
@@ -329,20 +330,18 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
             Text(
               option.label,
               style: TextStyle(
-                fontSize: 13.5,
+                fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: isPrimary ? AppTheme.warning : AppTheme.textPrimary,
+                color: isPrimary ? colors.warning : colors.textPrimary,
               ),
             ),
-            if (option.description != null && option.description!.isNotEmpty) ...[
+            if (option.description != null &&
+                option.description!.isNotEmpty) ...[
               const SizedBox(height: 3),
               Text(
                 option.description!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: AppTheme.stone,
-                ),
+                style: TextStyle(fontSize: 12, color: colors.textMuted),
               ),
             ],
           ],
@@ -357,6 +356,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
     AgentQuestionOption option,
     bool multiSelect,
   ) {
+    final colors = context.colors;
     final isSelected = _selectedIndices[qIndex].contains(optIdx);
 
     return InkWell(
@@ -375,16 +375,16 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
           _customControllers[qIndex].clear();
         });
       },
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppTheme.notionBlue.withValues(alpha: 0.08)
-              : AppTheme.paperWarmth,
-          borderRadius: BorderRadius.circular(6),
+              ? colors.primary.withValues(alpha: 0.08)
+              : colors.canvasBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-            color: isSelected ? AppTheme.notionBlue : AppTheme.border,
+            color: isSelected ? colors.primary : colors.borderDefault,
             width: isSelected ? 1.2 : 1.0,
           ),
         ),
@@ -393,13 +393,13 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
             Icon(
               multiSelect
                   ? (isSelected
-                      ? Icons.check_box_rounded
-                      : Icons.check_box_outline_blank_rounded)
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded)
                   : (isSelected
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_off_rounded),
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded),
               size: 16,
-              color: isSelected ? AppTheme.notionBlue : AppTheme.stone,
+              color: isSelected ? colors.primary : colors.textMuted,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -410,21 +410,17 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                     option.label,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.normal,
-                      color: isSelected
-                          ? AppTheme.notionBlue
-                          : AppTheme.textPrimary,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: isSelected ? colors.primary : colors.textPrimary,
                     ),
                   ),
                   if (option.description != null &&
                       option.description!.isNotEmpty)
                     Text(
                       option.description!,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: AppTheme.stone,
-                      ),
+                      style: TextStyle(fontSize: 12, color: colors.textMuted),
                     ),
                 ],
               ),

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../view_models/studio_view_model.dart';
-import 'pill_widgets.dart';
 import 'prompt_editor_card.dart';
 import 'prompt_extension_deck.dart';
 import 'rich_prompt_text_controller.dart';
@@ -177,13 +179,13 @@ class _PromptsPageState extends State<PromptsPage> {
     ];
   }
 
-  /// 正向提示词底部工具条：左 Transparent BG (仅 V5 模型)，右 Quality Tags 预设对齐 (自适应防溢出)
+  /// 正向提示词底部工具条：左 Transparent BG (仅 V5 模型)，右 Quality Tags 预设胶囊 (全宽自适应省略)
   Widget _promptToolbar(NaiGenerationParams params) {
     return Row(
       children: [
         if (params.model.isV5) ...[
-          ToggleChip(
-            isActive: params.transparentBg,
+          AppToolChip(
+            isSelected: params.transparentBg,
             icon: params.transparentBg
                 ? Icons.check_rounded
                 : Icons.close_rounded,
@@ -193,36 +195,30 @@ class _PromptsPageState extends State<PromptsPage> {
           const SizedBox(width: 8),
         ],
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            reverse: true,
-            child: PillDropdown<String>(
-              value: _currentQualityPreset(params),
-              items: NovelAiQualityTagsHelper.getAvailablePresets(params.model),
-              labelOf: (p) => 'Quality Tags: $p',
-              onChanged: _applyQualityPreset,
-            ),
+          child: AppDropdown<String>.simple(
+            value: _currentQualityPreset(params),
+            items: NovelAiQualityTagsHelper.getAvailablePresets(params.model),
+            labelOf: (p) => 'Quality Tags: $p',
+            variant: AppDropdownVariant.pill,
+            onChanged: _applyQualityPreset,
           ),
         ),
       ],
     );
   }
 
-  /// 负面提示词底部工具条：UC Preset 下拉 (与正向卡 Quality Tags 严格右对齐，自适应防溢出)
+  /// 负面提示词底部工具条：UC Preset 下拉 (胶囊全宽右对齐，超长标签自动省略)
   Widget _negativeToolbar(NaiGenerationParams params) {
     final presets = NovelAiUndesiredContentHelper.availablePresets;
     return Row(
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            reverse: true,
-            child: PillDropdown<String>(
-              value: presets.contains(_ucPreset) ? _ucPreset : presets.first,
-              items: presets,
-              labelOf: (p) => 'UC Preset: $p',
-              onChanged: _applyUcPreset,
-            ),
+          child: AppDropdown<String>.simple(
+            value: presets.contains(_ucPreset) ? _ucPreset : presets.first,
+            items: presets,
+            labelOf: (p) => 'UC Preset: $p',
+            variant: AppDropdownVariant.pill,
+            onChanged: _applyUcPreset,
           ),
         ),
       ],
@@ -329,10 +325,13 @@ class _PromptsPageState extends State<PromptsPage> {
                     },
                   ),
                 const SizedBox(width: 6),
-                _ModeToggleIcon(
+                AppIconButton(
                   icon: Icons.splitscreen_rounded,
                   tooltip: '切换为标签页模式',
-                  onTap: () {
+                  size: 26,
+                  iconSize: 15,
+                  radius: 6,
+                  onPressed: () {
                     setState(() {
                       _isTabbedMode = true;
                       _activeTab = 1;
@@ -381,27 +380,20 @@ class _PromptsPageState extends State<PromptsPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _TabHeaderPill(
-                  label: 'Prompt',
-                  isActive: isPromptTab,
-                  onTap: () {
-                    setState(() => _activeTab = 0);
-                    viewModel.setPromptActiveTab(0);
-                  },
-                ),
-                const SizedBox(width: 6),
-                _TabHeaderPill(
+            AppSegmentedPillBar<String>(
+              items: const [
+                AppSegmentedItem(value: 'prompt', label: 'Prompt'),
+                AppSegmentedItem(
+                  value: 'undesired',
                   label: 'Undesired Content',
-                  isActive: !isPromptTab,
-                  onTap: () {
-                    setState(() => _activeTab = 1);
-                    viewModel.setPromptActiveTab(1);
-                  },
                 ),
               ],
+              selectedValue: isPromptTab ? 'prompt' : 'undesired',
+              onValueChanged: (v) {
+                final tab = v == 'prompt' ? 0 : 1;
+                setState(() => _activeTab = tab);
+                viewModel.setPromptActiveTab(tab);
+              },
             ),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -420,10 +412,13 @@ class _PromptsPageState extends State<PromptsPage> {
                     },
                   ),
                 const SizedBox(width: 4),
-                _ModeToggleIcon(
+                AppIconButton(
                   icon: Icons.view_agenda_outlined,
                   tooltip: '切换为垂直并排模式',
-                  onTap: () {
+                  size: 26,
+                  iconSize: 15,
+                  radius: 6,
+                  onPressed: () {
                     setState(() => _isTabbedMode = false);
                     viewModel.setPromptTabbedMode(false);
                   },
@@ -474,78 +469,6 @@ class _PromptsPageState extends State<PromptsPage> {
             tokenLimit: params.model.tokenLimit,
           ),
       ],
-    );
-  }
-}
-
-/// 标签页切换胶囊
-class _TabHeaderPill extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _TabHeaderPill({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: isActive ? AppTheme.notionBlue : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-          border: Border.all(
-            color: isActive ? AppTheme.notionBlue : AppTheme.border,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            color: isActive ? Colors.white : AppTheme.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 布局模式切换图标按钮
-class _ModeToggleIcon extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _ModeToggleIcon({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceMuted,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: Icon(icon, size: 15, color: AppTheme.textPrimary),
-        ),
-      ),
     );
   }
 }

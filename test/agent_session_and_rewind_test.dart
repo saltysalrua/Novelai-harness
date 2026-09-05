@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
+import 'package:novelai_harness/core/harness/tools/ask_user_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_card.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_rewind_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_session_list_view.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/inline_agent_question_card.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -249,4 +252,95 @@ void main() {
       viewModel.setChatStreamingForTesting(false);
     },
   );
+
+  testWidgets('InlineAgentQuestionCard renders and handles user response', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final completer = Completer<List<String>?>();
+    final prompt = AgentQuestionPrompt(
+      questions: const [
+        AgentQuestion(
+          header: '向用户提问',
+          question: '请选择生图风格',
+          options: [
+            AgentQuestionOption(label: '二次元动漫', description: '日系赛璐珞风格'),
+            AgentQuestionOption(label: '写实厚涂', description: '半厚涂光影质感'),
+          ],
+        ),
+      ],
+      completer: completer,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: InlineAgentQuestionCard(prompt: prompt)),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('向用户提问'), findsOneWidget);
+    expect(find.text('待确认'), findsOneWidget);
+    expect(find.text('请选择生图风格'), findsOneWidget);
+    expect(find.text('二次元动漫'), findsOneWidget);
+    expect(find.text('写实厚涂'), findsOneWidget);
+
+    // Tap second option
+    await tester.tap(find.text('写实厚涂'));
+    await tester.pump();
+
+    // Tap submit button
+    await tester.tap(find.text('提交回答'));
+    await tester.pump();
+
+    expect(completer.isCompleted, isTrue);
+    final result = await completer.future;
+    expect(result, equals(['写实厚涂']));
+  });
+
+  testWidgets('InlineAgentQuestionCard renders binary confirm card', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final completer = Completer<List<String>?>();
+    final prompt = AgentQuestionPrompt(
+      questions: const [
+        AgentQuestion(
+          header: '付费确认 (消耗点数)',
+          question: '是否确认消耗 15 点数生成？',
+          allowCustomInput: false,
+          options: [
+            AgentQuestionOption(label: '确认生成'),
+            AgentQuestionOption(label: '取消生图'),
+          ],
+        ),
+      ],
+      completer: completer,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: InlineAgentQuestionCard(prompt: prompt)),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('付费确认 (消耗点数)'), findsOneWidget);
+    expect(find.text('待确认'), findsOneWidget);
+    expect(find.text('确认生成'), findsOneWidget);
+    expect(find.text('取消生图'), findsOneWidget);
+
+    await tester.tap(find.text('确认生成'));
+    await tester.pump();
+
+    expect(completer.isCompleted, isTrue);
+    final result = await completer.future;
+    expect(result, equals(['确认生成']));
+  });
 }

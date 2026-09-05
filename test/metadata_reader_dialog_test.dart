@@ -8,13 +8,17 @@ import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/watermark_service.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/metadata_reader_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('MetadataReaderDialog Widget Tests', () {
     late StudioViewModel viewModel;
     late Uint8List testImageBytes;
 
     setUp(() {
+      SharedPreferences.setMockInitialValues({});
       viewModel = StudioViewModel(
         configService: ConfigService(),
         repository: NovelAiRepository(),
@@ -79,6 +83,7 @@ void main() {
       expect(find.text('777888'), findsOneWidget);
 
       // 点击展开原始元数据
+      await tester.ensureVisible(find.textContaining('原始元数据'));
       await tester.tap(find.textContaining('原始元数据'));
       await tester.pumpAndSettle();
       expect(

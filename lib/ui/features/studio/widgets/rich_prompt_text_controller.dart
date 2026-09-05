@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../../data/models/tag_models.dart';
 import '../../../../data/services/prompt_ast_engine.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 
 /// NovelAI 富文本提示词语法高亮控制器
 ///
@@ -42,13 +41,11 @@ class RichPromptTextController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
+    // 全部颜色从当前主题取 (亮暗自适应)，不持有静态色板
+    final colors = context.colors;
     final baseStyle =
         style ??
-        const TextStyle(
-          fontSize: 13.5,
-          height: 1.48,
-          color: AppTheme.textPrimary,
-        );
+        TextStyle(fontSize: 14, height: 1.48, color: colors.textPrimary);
 
     final rawText = text;
     if (!enableHighlight || rawText.isEmpty) {
@@ -75,7 +72,7 @@ class RichPromptTextController extends TextEditingController {
           TextSpan(
             text: separatorText,
             style: baseStyle.copyWith(
-              color: AppTheme.textMuted.withValues(alpha: 0.55),
+              color: colors.textMuted.withValues(alpha: 0.55),
             ),
           ),
         );
@@ -87,44 +84,38 @@ class RichPromptTextController extends TextEditingController {
       final disabled = tok.disabled;
 
       // 基础文本颜色 (分类着色 vs 默认正文色)
-      Color textColor = AppTheme.textPrimary;
+      Color textColor = colors.textPrimary;
       if (disabled) {
-        textColor = AppTheme.textMuted.withValues(alpha: 0.45);
+        textColor = colors.textMuted.withValues(alpha: 0.45);
       } else if (showCategoryColors && tok.category != null) {
-        textColor = switch (tok.category!) {
-          DanbooruTagCategory.artist => const Color(0xFF7B1FA2),
-          DanbooruTagCategory.character => const Color(0xFF1B5E20),
-          DanbooruTagCategory.copyright => const Color(0xFFC2185B),
-          DanbooruTagCategory.meta => const Color(0xFFE65100),
-          DanbooruTagCategory.general => AppTheme.textPrimary,
-        };
+        textColor = context.tagCategoryColor(tok.category!);
       } else if (isUp) {
-        textColor = AppTheme.notionBlue;
+        textColor = colors.primary;
       } else if (isDown) {
-        textColor = AppTheme.warning;
+        textColor = colors.warning;
       }
 
       // 语法记号淡显颜色
       final markerColor = disabled
-          ? AppTheme.textMuted.withValues(alpha: 0.35)
+          ? colors.textMuted.withValues(alpha: 0.35)
           : (isUp
-                ? AppTheme.notionBlue.withValues(alpha: 0.45)
+                ? colors.primary.withValues(alpha: 0.45)
                 : (isDown
-                      ? AppTheme.warning.withValues(alpha: 0.45)
-                      : AppTheme.textMuted.withValues(alpha: 0.40)));
+                      ? colors.warning.withValues(alpha: 0.45)
+                      : colors.textMuted.withValues(alpha: 0.40)));
 
       // 权重区间柔和背景微色
       final Color? bgColor = disabled
           ? null
           : (isUp
-                ? AppTheme.notionBlue.withValues(alpha: 0.08)
-                : (isDown ? AppTheme.warning.withValues(alpha: 0.08) : null));
+                ? colors.primary.withValues(alpha: 0.08)
+                : (isDown ? colors.warning.withValues(alpha: 0.08) : null));
 
       final tokenStyle = baseStyle.copyWith(
         color: textColor,
         backgroundColor: bgColor,
         decoration: disabled ? TextDecoration.lineThrough : null,
-        decorationColor: AppTheme.textMuted.withValues(alpha: 0.6),
+        decorationColor: colors.textMuted.withValues(alpha: 0.6),
         decorationThickness: disabled ? 1.5 : null,
       );
 
@@ -168,7 +159,7 @@ class RichPromptTextController extends TextEditingController {
         TextSpan(
           text: rawText.substring(lastIndex),
           style: baseStyle.copyWith(
-            color: AppTheme.textMuted.withValues(alpha: 0.55),
+            color: colors.textMuted.withValues(alpha: 0.55),
           ),
         ),
       );

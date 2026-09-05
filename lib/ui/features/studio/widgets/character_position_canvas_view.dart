@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../view_models/studio_view_model.dart';
 import 'canvas_position_floating_controls.dart';
@@ -453,6 +453,7 @@ class CanvasPositionPlaceholderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final params = viewModel.params;
     final aspectRatio = (params.width > 0 && params.height > 0)
         ? (params.width / params.height)
@@ -465,12 +466,12 @@ class CanvasPositionPlaceholderCard extends StatelessWidget {
           maxHeight: maxCardHeight,
         ),
         decoration: BoxDecoration(
-          color: AppTheme.pureWhite,
+          color: colors.cardBackground,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppTheme.notionBlue, width: 2.0),
+          border: Border.all(color: colors.primary, width: 2.0),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.notionBlue.withValues(alpha: 0.12),
+              color: colors.primary.withValues(alpha: 0.12),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -483,7 +484,11 @@ class CanvasPositionPlaceholderCard extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               // 优雅的浅灰微网格底纹
-              CustomPaint(painter: _PlaceholderGridPainter()),
+              CustomPaint(
+                painter: _PlaceholderGridPainter(
+                  gridColor: colors.borderSubtle,
+                ),
+              ),
 
               // 尺寸标注
               Center(
@@ -493,17 +498,17 @@ class CanvasPositionPlaceholderCard extends StatelessWidget {
                     vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.surfaceElevated,
+                    color: colors.elevatedBackground,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppTheme.borderSubtle),
+                    border: Border.all(color: colors.borderSubtle),
                   ),
                   child: Text(
                     '临时画板 · ${params.width} × ${params.height}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontFamily: 'monospace',
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ),
@@ -523,10 +528,14 @@ class CanvasPositionPlaceholderCard extends StatelessWidget {
 }
 
 class _PlaceholderGridPainter extends CustomPainter {
+  final Color gridColor;
+
+  _PlaceholderGridPainter({required this.gridColor});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF000000).withValues(alpha: 0.04)
+      ..color = gridColor
       ..strokeWidth = 1;
 
     const step = 32.0;
@@ -539,5 +548,6 @@ class _PlaceholderGridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _PlaceholderGridPainter oldDelegate) =>
+      oldDelegate.gridColor != gridColor;
 }

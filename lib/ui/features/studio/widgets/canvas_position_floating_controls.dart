@@ -1,6 +1,6 @@
 import 'package:flutter/gestures.dart' show GestureBinding, PointerScrollEvent;
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../view_models/studio_view_model.dart';
 import 'canvas_overlays.dart';
@@ -78,6 +78,7 @@ CharacterChipDisplay resolveCharacterChipDisplay(
       .toList();
 
   IconData? genderIcon;
+  // 粉/蓝/紫性别三色为业务身份色 (跨主题恒定)，非主题语义色
   Color color = const Color(0xFF8B5CF6); // 默认紫色 (other)
 
   final isFemale = tags.any(
@@ -131,6 +132,7 @@ class CanvasPositionFloatingControls extends StatelessWidget {
   const CanvasPositionFloatingControls({super.key, required this.viewModel});
 
   Widget _buildWatermarkFloatingControls(BuildContext context) {
+    final colors = context.colors;
     return Stack(
       children: [
         // 右下角：完成编辑微胶囊
@@ -149,11 +151,11 @@ class CanvasPositionFloatingControls extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: AppTheme.notionBlue,
+                  color: colors.primary,
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.notionBlue.withValues(alpha: 0.25),
+                      color: colors.primary.withValues(alpha: 0.25),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -167,7 +169,7 @@ class CanvasPositionFloatingControls extends StatelessWidget {
                     Text(
                       '完成编辑',
                       style: TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -184,6 +186,7 @@ class CanvasPositionFloatingControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     if (viewModel.isEditingWatermarkPosition) {
       return _buildWatermarkFloatingControls(context);
     }
@@ -247,11 +250,11 @@ class CanvasPositionFloatingControls extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: AppTheme.notionBlue,
+                  color: colors.primary,
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.notionBlue.withValues(alpha: 0.25),
+                      color: colors.primary.withValues(alpha: 0.25),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -265,7 +268,7 @@ class CanvasPositionFloatingControls extends StatelessWidget {
                     Text(
                       '完成编辑',
                       style: TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -296,6 +299,7 @@ class _FloatingCharacterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final display = resolveCharacterChipDisplay(character, index);
 
     return InkWell(
@@ -305,7 +309,7 @@ class _FloatingCharacterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 140),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.notionBlue : AppTheme.surfaceMuted,
+          color: isSelected ? colors.primary : colors.mutedBackground,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Row(
@@ -314,9 +318,9 @@ class _FloatingCharacterChip extends StatelessWidget {
             Text(
               '${index + 1}',
               style: TextStyle(
-                fontSize: 11.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: isSelected ? Colors.white : AppTheme.textPrimary,
+                color: isSelected ? Colors.white : colors.textPrimary,
               ),
             ),
             if (display.genderIcon != null) ...[
@@ -340,7 +344,7 @@ class _FloatingCharacterChip extends StatelessWidget {
                     fontWeight: isSelected
                         ? FontWeight.w600
                         : FontWeight.normal,
-                    color: isSelected ? Colors.white : AppTheme.textPrimary,
+                    color: isSelected ? Colors.white : colors.textPrimary,
                   ),
                 ),
               ),

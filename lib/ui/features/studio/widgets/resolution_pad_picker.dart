@@ -1,7 +1,12 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_colors_extension.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_icon_button.dart';
 
 /// Notion 浅色风格与 2D 可视化交互手写板相结合的分辨率选择器
 class ResolutionPadPicker extends StatefulWidget {
@@ -92,8 +97,15 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
 
   @override
   Widget build(BuildContext context) {
-    final category = ResolutionCategory.fromDimensions(widget.width, widget.height);
-    final orientation = ResolutionOrientation.fromDimensions(widget.width, widget.height);
+    final colors = context.colors;
+    final category = ResolutionCategory.fromDimensions(
+      widget.width,
+      widget.height,
+    );
+    final orientation = ResolutionOrientation.fromDimensions(
+      widget.width,
+      widget.height,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,86 +114,65 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               '分辨率',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
+                color: colors.textPrimary,
               ),
             ),
             if (widget.isOpusFree)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                ),
-                child: const Text(
-                  'Opus 免费',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
+              const AppBadge(
+                label: 'Opus 免费',
+                variant: AppBadgeVariant.success,
+                fontSize: 10,
               ),
           ],
         ),
         const SizedBox(height: 8),
 
-        // 控制块 1：官方预设分类选择器 + 舒适大尺寸方向与交换按钮 (36x38)
+        // 控制块 1：官方预设分类选择器 + 舒适大尺寸方向与交换按钮
         Row(
           children: [
             // 官方预设分类下拉框
             Expanded(
-              child: Container(
-                height: 38,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  color: AppTheme.pureWhite,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                  border: Border.all(color: AppTheme.border),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<ResolutionCategory>(
-                    value: category,
-                    isExpanded: true,
-                    dropdownColor: AppTheme.pureWhite,
-                    items: ResolutionCategory.values.map((cat) {
-                      return DropdownMenuItem(
-                        value: cat,
-                        child: Text(
-                          cat.label,
-                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (cat) {
-                      if (cat != null && cat != ResolutionCategory.custom) {
-                        var targetOrientation = orientation;
-                        if (!ResolutionPresetHelper.supportsSquare(cat) && targetOrientation == ResolutionOrientation.square) {
-                          targetOrientation = ResolutionOrientation.landscape;
-                        }
-                        final (w, h) = ResolutionPresetHelper.getDimensions(cat, targetOrientation);
-                        _applyDimensions(w, h);
-                      }
-                    },
-                  ),
-                ),
+              child: AppDropdown<ResolutionCategory>.simple(
+                value: category,
+                items: ResolutionCategory.values,
+                labelOf: (cat) => cat.label,
+                iconOf: (cat) => Icons.aspect_ratio_rounded,
+                onChanged: (cat) {
+                  if (cat != ResolutionCategory.custom) {
+                    var targetOrientation = orientation;
+                    if (!ResolutionPresetHelper.supportsSquare(cat) &&
+                        targetOrientation == ResolutionOrientation.square) {
+                      targetOrientation = ResolutionOrientation.landscape;
+                    }
+                    final (w, h) = ResolutionPresetHelper.getDimensions(
+                      cat,
+                      targetOrientation,
+                    );
+                    _applyDimensions(w, h);
+                  }
+                },
               ),
             ),
             const SizedBox(width: 6),
 
-            // 方向按键组：横屏 / 竖屏 / 正方形 (标准 36x38 舒适可点击尺寸)
+            // 方向按键组：横屏 / 竖屏 / 正方形 (38x38 舒适可点击尺寸)
             _buildOrientationButton(
               icon: Icons.crop_landscape_rounded,
               tooltip: 'Landscape',
               isSelected: orientation == ResolutionOrientation.landscape,
               onTap: () {
-                final cat = category == ResolutionCategory.custom ? ResolutionCategory.normal : category;
-                final (w, h) = ResolutionPresetHelper.getDimensions(cat, ResolutionOrientation.landscape);
+                final cat = category == ResolutionCategory.custom
+                    ? ResolutionCategory.normal
+                    : category;
+                final (w, h) = ResolutionPresetHelper.getDimensions(
+                  cat,
+                  ResolutionOrientation.landscape,
+                );
                 _applyDimensions(w, h);
               },
             ),
@@ -191,8 +182,13 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
               tooltip: 'Portrait',
               isSelected: orientation == ResolutionOrientation.portrait,
               onTap: () {
-                final cat = category == ResolutionCategory.custom ? ResolutionCategory.normal : category;
-                final (w, h) = ResolutionPresetHelper.getDimensions(cat, ResolutionOrientation.portrait);
+                final cat = category == ResolutionCategory.custom
+                    ? ResolutionCategory.normal
+                    : category;
+                final (w, h) = ResolutionPresetHelper.getDimensions(
+                  cat,
+                  ResolutionOrientation.portrait,
+                );
                 _applyDimensions(w, h);
               },
             ),
@@ -205,35 +201,26 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
               isSelected: orientation == ResolutionOrientation.square,
               onTap: ResolutionPresetHelper.supportsSquare(category)
                   ? () {
-                      final cat = category == ResolutionCategory.custom ? ResolutionCategory.normal : category;
-                      final (w, h) = ResolutionPresetHelper.getDimensions(cat, ResolutionOrientation.square);
+                      final cat = category == ResolutionCategory.custom
+                          ? ResolutionCategory.normal
+                          : category;
+                      final (w, h) = ResolutionPresetHelper.getDimensions(
+                        cat,
+                        ResolutionOrientation.square,
+                      );
                       _applyDimensions(w, h);
                     }
                   : null,
             ),
             const SizedBox(width: 4),
 
-            // 宽高快速交换按钮 (36x38)
-            Tooltip(
-              message: 'Swap',
-              child: InkWell(
-                onTap: _swapDimensions,
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                child: Container(
-                  width: 36,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppTheme.pureWhite,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                    border: Border.all(color: AppTheme.border),
-                  ),
-                  child: const Icon(
-                    Icons.swap_horiz_rounded,
-                    size: 18,
-                    color: AppTheme.graphite,
-                  ),
-                ),
-              ),
+            // 宽高快速交换按钮
+            AppIconButton(
+              icon: Icons.swap_horiz_rounded,
+              tooltip: 'Swap',
+              size: 38,
+              iconSize: 18,
+              onPressed: _swapDimensions,
             ),
           ],
         ),
@@ -244,115 +231,35 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
           children: [
             // 宽度输入框 (带前缀 'W')
             Expanded(
-              child: Container(
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppTheme.pureWhite,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                  border: Border.all(color: AppTheme.border),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Row(
-                  children: [
-                    const Text(
-                      'W',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: TextField(
-                        controller: _widthController,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'monospace',
-                          color: AppTheme.textPrimary,
-                        ),
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.zero,
-                          isDense: true,
-                          filled: false,
-                          hoverColor: Colors.transparent,
-                          border: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                        ),
-                        onSubmitted: (val) {
-                          final parsed = int.tryParse(val) ?? widget.width;
-                          _applyDimensions(parsed, widget.height);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+              child: _DimensionInputField(
+                prefix: 'W',
+                controller: _widthController,
+                onSubmitted: (val) {
+                  final parsed = int.tryParse(val) ?? widget.width;
+                  _applyDimensions(parsed, widget.height);
+                },
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
                 '×',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.textSecondary,
+                  color: colors.textSecondary,
                 ),
               ),
             ),
             // 高度输入框 (带前缀 'H')
             Expanded(
-              child: Container(
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppTheme.pureWhite,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                  border: Border.all(color: AppTheme.border),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Row(
-                  children: [
-                    const Text(
-                       'H',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: TextField(
-                        controller: _heightController,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'monospace',
-                          color: AppTheme.textPrimary,
-                        ),
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.zero,
-                          isDense: true,
-                          filled: false,
-                          hoverColor: Colors.transparent,
-                          border: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                        ),
-                        onSubmitted: (val) {
-                          final parsed = int.tryParse(val) ?? widget.height;
-                          _applyDimensions(widget.width, parsed);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+              child: _DimensionInputField(
+                prefix: 'H',
+                controller: _heightController,
+                onSubmitted: (val) {
+                  final parsed = int.tryParse(val) ?? widget.height;
+                  _applyDimensions(widget.width, parsed);
+                },
               ),
             ),
             const SizedBox(width: 6),
@@ -363,16 +270,16 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: AppTheme.paperWarmth,
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                border: Border.all(color: AppTheme.border),
+                color: colors.mutedBackground,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: colors.borderDefault),
               ),
               child: Text(
                 _computeRatioAndMp(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textSecondary,
+                  color: colors.textSecondary,
                   fontFamily: 'monospace',
                 ),
               ),
@@ -386,16 +293,19 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
           aspectRatio: 1.0,
           child: Container(
             decoration: BoxDecoration(
-              color: AppTheme.paperWarmth, // Notion 浅色底色
-              borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-              border: Border.all(color: AppTheme.border),
+              color: colors.mutedBackground,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(color: colors.borderDefault),
             ),
             clipBehavior: Clip.antiAlias,
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final size = constraints.biggest;
                 const margin = 6.0;
-                final side = min(size.width - margin * 2, size.height - margin * 2);
+                final side = min(
+                  size.width - margin * 2,
+                  size.height - margin * 2,
+                );
                 final origin = Offset(
                   (size.width - side) / 2,
                   size.height - (size.height - side) / 2,
@@ -418,7 +328,12 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
                   },
                   onPanUpdate: (details) {
                     if (_dragMode != null) {
-                      _handlePos(details.localPosition, origin, side, _dragMode!);
+                      _handlePos(
+                        details.localPosition,
+                        origin,
+                        side,
+                        _dragMode!,
+                      );
                     }
                   },
                   onPanEnd: (_) => _dragMode = null,
@@ -431,6 +346,7 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
                       padMax: _padMax,
                       origin: origin,
                       side: side,
+                      colors: colors,
                     ),
                   ),
                 );
@@ -448,47 +364,27 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
     required bool isSelected,
     required VoidCallback? onTap,
   }) {
+    final colors = context.colors;
     final isEnabled = onTap != null;
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: 36,
-          height: 38,
-          decoration: BoxDecoration(
-            color: !isEnabled
-                ? AppTheme.paperWarmth.withValues(alpha: 0.6)
-                : isSelected
-                    ? AppTheme.skyTint
-                    : AppTheme.pureWhite,
-            borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-            border: Border.all(
-              color: !isEnabled
-                  ? AppTheme.border.withValues(alpha: 0.5)
-                  : isSelected
-                      ? AppTheme.notionBlue
-                      : AppTheme.border,
-              width: isSelected && isEnabled ? 1.2 : 1,
-            ),
-          ),
-          child: Icon(
-            icon,
-            size: 18,
-            color: !isEnabled
-                ? AppTheme.textMuted.withValues(alpha: 0.35)
-                : isSelected
-                    ? AppTheme.notionBlue
-                    : AppTheme.graphite,
-          ),
-        ),
-      ),
+    return AppIconButton(
+      icon: icon,
+      tooltip: tooltip,
+      size: 38,
+      iconSize: 18,
+      enabled: isEnabled,
+      onPressed: onTap,
+      backgroundColor: isEnabled && isSelected ? colors.primaryTint : null,
+      borderColor: isEnabled && isSelected ? colors.primary : null,
+      iconColor: isEnabled
+          ? (isSelected ? colors.primary : colors.textSecondary)
+          : null,
     );
   }
 
-  ({Offset corner, Offset top, Offset right}) _getHandles(Offset origin, double side) {
+  ({Offset corner, Offset top, Offset right}) _getHandles(
+    Offset origin,
+    double side,
+  ) {
     final fx = (widget.width / _padMax).clamp(0.0, 1.0);
     final fy = (widget.height / _padMax).clamp(0.0, 1.0);
 
@@ -506,8 +402,14 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
     final fx = ((pt.dx - origin.dx) / side).clamp(0.0, 1.0);
     final fy = ((origin.dy - pt.dy) / side).clamp(0.0, 1.0);
 
-    final targetW = ((fx * _padMax / _snap).round() * _snap).clamp(_snap, _padMax);
-    final targetH = ((fy * _padMax / _snap).round() * _snap).clamp(_snap, _padMax);
+    final targetW = ((fx * _padMax / _snap).round() * _snap).clamp(
+      _snap,
+      _padMax,
+    );
+    final targetH = ((fy * _padMax / _snap).round() * _snap).clamp(
+      _snap,
+      _padMax,
+    );
 
     if (mode == 'top') {
       _applyDimensions(widget.width, targetH);
@@ -519,13 +421,77 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
   }
 }
 
-/// Notion 浅色风格 2D 画布绘制器
+/// 宽/高数值输入胶囊 (前缀 W/H + 居中数字输入)
+class _DimensionInputField extends StatelessWidget {
+  final String prefix;
+  final TextEditingController controller;
+  final ValueChanged<String> onSubmitted;
+
+  const _DimensionInputField({
+    required this.prefix,
+    required this.controller,
+    required this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: colors.borderDefault),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        children: [
+          Text(
+            prefix,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'monospace',
+                color: colors.textPrimary,
+              ),
+              decoration: const InputDecoration(
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
+                filled: false,
+                hoverColor: Colors.transparent,
+                border: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                enabledBorder: InputBorder.none,
+              ),
+              onSubmitted: onSubmitted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 2D 可视化画布绘制器 (颜色由 UI 层注入语义色，深浅主题自适应)
 class _NotionResolutionPadPainter extends CustomPainter {
   final int width;
   final int height;
   final int padMax;
   final Offset origin;
   final double side;
+  final AppColorsExtension colors;
 
   _NotionResolutionPadPainter({
     required this.width,
@@ -533,12 +499,13 @@ class _NotionResolutionPadPainter extends CustomPainter {
     required this.padMax,
     required this.origin,
     required this.side,
+    required this.colors,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 1. 绘制浅色点阵 (Notion 浅灰细点)
-    final dotPaint = Paint()..color = const Color(0xFFCCCAC4);
+    // 1. 绘制点阵 (细点，随主题亮暗自适应)
+    final dotPaint = Paint()..color = colors.textMuted.withValues(alpha: 0.45);
     final gridStep = (64 / padMax) * side;
 
     final cols = (padMax / 64).round();
@@ -552,7 +519,7 @@ class _NotionResolutionPadPainter extends CustomPainter {
 
     // 2. 绘制原点坐标基准线
     final axisPaint = Paint()
-      ..color = const Color(0xFFDCDAD5)
+      ..color = colors.borderHover
       ..strokeWidth = 1.0;
     canvas.drawLine(origin, Offset(origin.dx + side, origin.dy), axisPaint);
     canvas.drawLine(origin, Offset(origin.dx, origin.dy - side), axisPaint);
@@ -565,77 +532,81 @@ class _NotionResolutionPadPainter extends CustomPainter {
     final rectH = fy * side;
     final rect = Rect.fromLTWH(origin.dx, origin.dy - rectH, rectW, rectH);
 
-    // 4. 填充 Notion 浅蓝半透明选区
+    // 4. 填充主色半透明选区
     final fillPaint = Paint()
-      ..color = const Color(0x280070F3)
+      ..color = colors.primary.withValues(alpha: 0.16)
       ..style = PaintingStyle.fill;
     canvas.drawRect(rect, fillPaint);
 
-    // 5. 绘制选区外边框 (Notion Blue)
+    // 5. 绘制选区外边框 (主色)
     final borderPaint = Paint()
-      ..color = const Color(0xFF0070F3)
+      ..color = colors.primary
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
     canvas.drawRect(rect, borderPaint);
 
-    // 6. 绘制选区尺寸徽标标签 (微白胶囊底色 + Notion 蓝等宽文字)
+    // 6. 绘制选区尺寸徽标标签 (微白胶囊底色 + 主色等宽文字)
     final textSpan = TextSpan(
       text: '$width × $height',
-      style: const TextStyle(
-        color: Color(0xFF0070F3),
-        fontSize: 9.5,
+      style: TextStyle(
+        color: colors.primary,
+        fontSize: 10,
         fontWeight: FontWeight.w700,
         fontFamily: 'monospace',
       ),
     );
-    final tp = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final tp = TextPainter(text: textSpan, textDirection: TextDirection.ltr)
+      ..layout();
 
     final badgeRect = Rect.fromLTWH(
-      (rect.right - tp.width - 8).clamp(origin.dx + 4, size.width - tp.width - 8),
+      (rect.right - tp.width - 8).clamp(
+        origin.dx + 4,
+        size.width - tp.width - 8,
+      ),
       (rect.bottom - tp.height - 6).clamp(0.0, size.height - tp.height - 6),
       tp.width + 6,
       tp.height + 4,
     );
     final rBadge = RRect.fromRectAndRadius(badgeRect, const Radius.circular(3));
-    canvas.drawRRect(rBadge, Paint()..color = Colors.white.withValues(alpha: 0.92));
+    canvas.drawRRect(
+      rBadge,
+      Paint()..color = colors.cardBackground.withValues(alpha: 0.92),
+    );
     canvas.drawRRect(
       rBadge,
       Paint()
-        ..color = const Color(0x330070F3)
+        ..color = colors.primary.withValues(alpha: 0.2)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0,
     );
     tp.paint(canvas, Offset(badgeRect.left + 3, badgeRect.top + 2));
 
     // 7. 绘制交互手柄 Handle
-    // (1) 顶部高度手柄 (Pink/Coral)
+    // (1) 顶部高度手柄 (错误语义色，与宽度手柄主色形成区分)
     final topHandle = Offset(origin.dx + rectW / 2, rect.top);
-    canvas.drawCircle(topHandle, 4.5, Paint()..color = const Color(0xFFE16259));
+    canvas.drawCircle(topHandle, 4.5, Paint()..color = colors.error);
     canvas.drawCircle(
       topHandle,
       4.5,
       Paint()
-        ..color = Colors.white
+        ..color = colors.cardBackground
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
 
-    // (2) 右侧宽度手柄 (Notion Blue)
+    // (2) 右侧宽度手柄 (主色)
     final rightHandle = Offset(rect.right, origin.dy - rectH / 2);
-    canvas.drawCircle(rightHandle, 4.5, Paint()..color = const Color(0xFF0070F3));
+    canvas.drawCircle(rightHandle, 4.5, Paint()..color = colors.primary);
     canvas.drawCircle(
       rightHandle,
       4.5,
       Paint()
-        ..color = Colors.white
+        ..color = colors.cardBackground
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
 
-    // (3) 右上角双向手柄 (White with Notion Blue Ring)
+    // (3) 右上角双向手柄 (卡片底色填充 + 主色描边环)
     final cornerHandle = Offset(rect.right, rect.top);
     // 投影
     canvas.drawCircle(
@@ -643,12 +614,16 @@ class _NotionResolutionPadPainter extends CustomPainter {
       6.0,
       Paint()..color = Colors.black.withValues(alpha: 0.15),
     );
-    canvas.drawCircle(cornerHandle, 6.0, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      cornerHandle,
+      6.0,
+      Paint()..color = colors.cardBackground,
+    );
     canvas.drawCircle(
       cornerHandle,
       6.0,
       Paint()
-        ..color = const Color(0xFF0070F3)
+        ..color = colors.primary
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0,
     );
@@ -657,6 +632,7 @@ class _NotionResolutionPadPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _NotionResolutionPadPainter oldDelegate) {
     return oldDelegate.width != width ||
-        oldDelegate.height != height;
+        oldDelegate.height != height ||
+        oldDelegate.colors != colors;
   }
 }

@@ -6,7 +6,7 @@ import 'package:pasteboard/pasteboard.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_lightbox.dart';
@@ -200,38 +200,14 @@ Future<bool?> _confirmClearHistory(
   BuildContext context,
   StudioViewModel viewModel,
 ) {
-  return showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: AppTheme.pureWhite,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      title: const Text(
-        '清空历史记录',
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-      ),
-      content: Text(
-        viewModel.autoSaveImages
-            ? '确定要清空画板历史中的 ${viewModel.gallery.length} 张图片吗？仅清空界面记录，本地已保存的图片文件会保留，此操作无法撤销。'
-            : '确定要清空历史中的 ${viewModel.gallery.length} 张图片吗？缓存中未保存的图片会被删除，已手动保存到存储目录的文件会保留，此操作无法撤销。',
-        style: const TextStyle(fontSize: 12.5, color: AppTheme.charcoal),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('取消'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.of(ctx).pop(true),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.coral,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('清空'),
-        ),
-      ],
-    ),
+  return showAppConfirmDialog(
+    context,
+    title: '清空历史记录',
+    message: viewModel.autoSaveImages
+        ? '确定要清空画板历史中的 ${viewModel.gallery.length} 张图片吗？仅清空界面记录，本地已保存的图片文件会保留，此操作无法撤销。'
+        : '确定要清空历史中的 ${viewModel.gallery.length} 张图片吗？缓存中未保存的图片会被删除，已手动保存到存储目录的文件会保留，此操作无法撤销。',
+    confirmLabel: '清空',
+    cancelLabel: '取消',
+    isDestructive: true,
   );
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_card.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_resize_handle.dart';
 
@@ -22,30 +24,25 @@ class FixedAffixesCardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final params = viewModel.params;
     final isEnabled = params.applyFixedPrompts;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        border: Border.all(
-          color: isEnabled
-              ? AppTheme.border
-              : AppTheme.border.withValues(alpha: 0.5),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
+    return AppCard(
+      padding: EdgeInsets.zero,
+      borderColor: isEnabled
+          ? colors.borderDefault
+          : colors.borderDefault.withValues(alpha: 0.5),
       child: Opacity(
         opacity: isEnabled ? 1.0 : 0.55,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _AffixFieldHeader(badge: 'PREFIX', title: '前置词 (放置于主提示词最前)'),
-            const Divider(
+            const _AffixFieldHeader(badge: 'PREFIX', title: '前置词 (放置于主提示词最前)'),
+            Divider(
               height: 1,
               thickness: 1,
-              color: AppTheme.borderSubtle,
+              color: colors.borderSubtle,
             ),
             ResizableTextField(
               controller: prefixController,
@@ -60,22 +57,22 @@ class FixedAffixesCardContent extends StatelessWidget {
               resizeTooltip: '拖动调整前置词高度 (双击重置)',
               enableAutocomplete: viewModel.config.enableTagAutocomplete,
               showTranslation: viewModel.config.showTagTranslations,
-              style: const TextStyle(
-                fontSize: 13.5,
+              style: TextStyle(
+                fontSize: 14,
                 height: 1.48,
-                color: AppTheme.textPrimary,
+                color: colors.textPrimary,
               ),
-              hintStyle: const TextStyle(
+              hintStyle: TextStyle(
                 fontSize: 13,
                 height: 1.48,
-                color: AppTheme.textMuted,
+                color: colors.textMuted,
               ),
             ),
-            _AffixFieldHeader(badge: 'SUFFIX', title: '后缀词 (放置于主提示词最后)'),
-            const Divider(
+            const _AffixFieldHeader(badge: 'SUFFIX', title: '后缀词 (放置于主提示词最后)'),
+            Divider(
               height: 1,
               thickness: 1,
-              color: AppTheme.borderSubtle,
+              color: colors.borderSubtle,
             ),
             ResizableTextField(
               controller: suffixController,
@@ -90,15 +87,15 @@ class FixedAffixesCardContent extends StatelessWidget {
               resizeTooltip: '拖动调整后缀词高度 (双击重置)',
               enableAutocomplete: viewModel.config.enableTagAutocomplete,
               showTranslation: viewModel.config.showTagTranslations,
-              style: const TextStyle(
-                fontSize: 13.5,
+              style: TextStyle(
+                fontSize: 14,
                 height: 1.48,
-                color: AppTheme.textPrimary,
+                color: colors.textPrimary,
               ),
-              hintStyle: const TextStyle(
+              hintStyle: TextStyle(
                 fontSize: 13,
                 height: 1.48,
-                color: AppTheme.textMuted,
+                color: colors.textMuted,
               ),
             ),
           ],
@@ -117,31 +114,24 @@ class _AffixFieldHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
-      color: AppTheme.surfaceElevated,
+      color: colors.elevatedBackground,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       child: Row(
         children: [
-          Container(
+          AppBadge(
+            label: badge,
+            variant: AppBadgeVariant.primary,
+            shape: AppBadgeShape.rounded,
+            fontSize: 10,
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-            decoration: BoxDecoration(
-              color: AppTheme.skyTint,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              badge,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.notionBlue,
-              ),
-            ),
           ),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+              style: TextStyle(fontSize: 12, color: colors.textMuted),
               overflow: TextOverflow.ellipsis,
             ),
           ),

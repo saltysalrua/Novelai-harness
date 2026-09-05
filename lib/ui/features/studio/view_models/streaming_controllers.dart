@@ -136,7 +136,8 @@ class LiveProgressController extends ChangeNotifier {
     _previewBytes = previewBytes;
     _currentStep = currentStep;
     _totalSteps = totalSteps;
-    _progress = progress ??
+    _progress =
+        progress ??
         (totalSteps > 0 ? (currentStep / totalSteps).clamp(0.0, 0.99) : 0.0);
     notifyListeners();
   }

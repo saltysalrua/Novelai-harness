@@ -36,7 +36,7 @@ class AppSearchField extends StatefulWidget {
   /// 控件高度，默认 34.0
   final double height;
 
-  /// 文本字号，默认 12.5
+  /// 文本字号，默认 13
   final double fontSize;
 
   /// 是否自动获取焦点，默认 false
@@ -57,7 +57,7 @@ class AppSearchField extends StatefulWidget {
     this.onClear,
     this.debounceDuration = const Duration(milliseconds: 250),
     this.height = 34.0,
-    this.fontSize = 12.5,
+    this.fontSize = 13,
     this.autofocus = false,
     this.focusNode,
     this.radius = AppRadius.md,
@@ -146,10 +146,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
         controller: _controller,
         autofocus: widget.autofocus,
         focusNode: widget.focusNode,
-        style: TextStyle(
-          fontSize: widget.fontSize,
-          color: colors.textPrimary,
-        ),
+        style: TextStyle(fontSize: widget.fontSize, color: colors.textPrimary),
         textAlignVertical: TextAlignVertical.center,
         decoration: InputDecoration(
           hintText: widget.hintText,
@@ -160,19 +157,31 @@ class _AppSearchFieldState extends State<AppSearchField> {
           filled: true,
           fillColor: colors.cardBackground,
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-          prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 34),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 0,
+          ),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 32,
+            minHeight: 34,
+          ),
           prefixIcon: Icon(
             Icons.search_rounded,
             size: 16,
             color: colors.textMuted,
           ),
-          suffixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 34),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 28,
+            minHeight: 34,
+          ),
           suffixIcon: _hasText
               ? IconButton(
                   icon: const Icon(Icons.close_rounded, size: 14),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
                   splashRadius: 14,
                   color: colors.textSecondary,
                   tooltip: '清空输入',

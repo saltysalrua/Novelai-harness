@@ -139,7 +139,7 @@ class _AppThumbnailCardState extends State<AppThumbnailCard> {
                       child: Text(
                         widget.badgeLabel!,
                         style: const TextStyle(
-                          fontSize: 9.5,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                           height: 1.1,

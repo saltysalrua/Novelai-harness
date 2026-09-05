@@ -1,22 +1,37 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_colors_extension.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_empty_state.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 
-/// 画板浮层通用白底徽章装饰 (Notion 蓝白卡片)
-BoxDecoration canvasBadgeDecoration() => BoxDecoration(
-  color: AppTheme.pureWhite,
-  borderRadius: BorderRadius.circular(8),
-  border: Border.all(color: AppTheme.border),
-  boxShadow: [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.05),
-      blurRadius: 8,
-      offset: const Offset(0, 2),
-    ),
-  ],
-);
+/// 画板浮层通用白底徽章装饰 (Notion 蓝白卡片，支持 context 语义色与无参回退)
+BoxDecoration canvasBadgeDecoration([BuildContext? context]) {
+  final bg = context != null
+      ? context.colors.cardBackground
+      : AppColorsExtension.light.cardBackground;
+  final border = context != null
+      ? context.colors.borderDefault
+      : AppColorsExtension.light.borderDefault;
+  final shadows = context != null
+      ? context.shadowSubtle
+      : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ];
+
+  return BoxDecoration(
+    color: bg,
+    borderRadius: BorderRadius.circular(AppRadius.md),
+    border: Border.all(color: border),
+    boxShadow: shadows,
+  );
+}
 
 /// 左下角悬浮参数徽章：尺寸 + 种子 (种子点击复制) + 批注按钮
 class CanvasParamBadges extends StatelessWidget {
@@ -27,6 +42,7 @@ class CanvasParamBadges extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -34,15 +50,15 @@ class CanvasParamBadges extends StatelessWidget {
         Container(
           height: 38,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: canvasBadgeDecoration(),
+          decoration: canvasBadgeDecoration(context),
           alignment: Alignment.center,
           child: Text(
             '${image.params.width}  ×  ${image.params.height}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontFamily: 'monospace',
               fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary,
+              color: colors.textPrimary,
             ),
           ),
         ),
@@ -55,30 +71,26 @@ class CanvasParamBadges extends StatelessWidget {
             child: InkWell(
               onTap: () =>
                   copyTextWithSnackBar(context, '${image.seed}', '已复制种子到剪贴板'),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               child: Container(
                 height: 38,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
                 ),
-                decoration: canvasBadgeDecoration(),
+                decoration: canvasBadgeDecoration(context),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.eco_rounded,
-                      size: 16,
-                      color: AppTheme.notionBlue,
-                    ),
+                    Icon(Icons.eco_rounded, size: 16, color: colors.primary),
                     const SizedBox(width: 6),
                     Text(
                       '${image.seed}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontFamily: 'monospace',
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                        color: colors.textPrimary,
                       ),
                     ),
                   ],
@@ -96,31 +108,31 @@ class CanvasParamBadges extends StatelessWidget {
             child: InkWell(
               onTap: () =>
                   viewModel!.setAnnotatingImage(true, targetImageId: image.id),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               child: Container(
                 height: 38,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
                 ),
-                decoration: canvasBadgeDecoration(),
+                decoration: canvasBadgeDecoration(context),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.edit_note_rounded,
                       size: 17,
-                      color: AppTheme.notionBlue,
+                      color: colors.primary,
                     ),
                     const SizedBox(width: 5),
                     Text(
                       image.annotations.isEmpty
                           ? '批注'
                           : '批注 (${image.annotations.length})',
-                      style: const TextStyle(
-                        fontSize: 12.5,
+                      style: TextStyle(
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                        color: colors.textPrimary,
                       ),
                     ),
                   ],
@@ -141,6 +153,7 @@ class CanvasSaveButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Tooltip(
       message: '保存当前图片到本地存储目录 (按导出设置处理元数据与水印)',
       child: InkWell(
@@ -154,22 +167,22 @@ class CanvasSaveButton extends StatelessWidget {
                 : (viewModel.errorMessage ?? '保存失败，请检查存储目录设置'),
           );
         },
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
           height: 38,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: canvasBadgeDecoration(),
-          child: const Row(
+          decoration: canvasBadgeDecoration(context),
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.save_rounded, size: 17, color: AppTheme.notionBlue),
-              SizedBox(width: 6),
+              Icon(Icons.save_rounded, size: 17, color: colors.primary),
+              const SizedBox(width: 6),
               Text(
                 '保存图片',
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
+                  color: colors.textPrimary,
                 ),
               ),
             ],
@@ -193,23 +206,24 @@ class UnseenLatestBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onViewLatest,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: AppTheme.pureWhite,
-            borderRadius: BorderRadius.circular(20),
+            color: colors.cardBackground,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             border: Border.all(
-              color: AppTheme.notionBlue.withValues(alpha: 0.5),
+              color: colors.primary.withValues(alpha: 0.5),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.notionBlue.withValues(alpha: 0.12),
+                color: colors.primary.withValues(alpha: 0.12),
                 blurRadius: 12,
                 offset: const Offset(0, 3),
               ),
@@ -221,35 +235,35 @@ class UnseenLatestBanner extends StatelessWidget {
               Container(
                 width: 20,
                 height: 20,
-                decoration: const BoxDecoration(
-                  color: AppTheme.skyTint,
+                decoration: BoxDecoration(
+                  color: colors.primaryTint,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.arrow_upward_rounded,
                   size: 13,
-                  color: AppTheme.notionBlue,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 '已生成新图片 · 点击查看最新',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
+                  color: colors.textPrimary,
                 ),
               ),
               const SizedBox(width: 6),
               InkWell(
                 onTap: onDismiss,
                 borderRadius: BorderRadius.circular(10),
-                child: const Padding(
-                  padding: EdgeInsets.all(2.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(2.0),
                   child: Icon(
                     Icons.close_rounded,
                     size: 14,
-                    color: AppTheme.graphite,
+                    color: colors.textSecondary,
                   ),
                 ),
               ),
@@ -273,15 +287,15 @@ class HistoryToggleButton extends StatelessWidget {
       message: '展开历史记录',
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
           width: 38,
           height: 38,
-          decoration: canvasBadgeDecoration(),
-          child: const Icon(
+          decoration: canvasBadgeDecoration(context),
+          child: Icon(
             Icons.history_rounded,
             size: 20,
-            color: AppTheme.textPrimary,
+            color: context.colors.textPrimary,
           ),
         ),
       ),
@@ -295,31 +309,11 @@ class CanvasEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.palette_outlined,
-            size: 54,
-            color: AppTheme.stone.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            '画板暂无图像',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '可在左侧配置参数后生成图片，历史记录将以垂直图像流展示',
-            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-          ),
-        ],
-      ),
+    return const AppEmptyState(
+      icon: Icons.palette_outlined,
+      title: '画板暂无图像',
+      description: '可在左侧配置参数后生成图片，历史记录将以垂直图像流展示',
+      iconSize: 54,
     );
   }
 }

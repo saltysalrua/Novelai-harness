@@ -7,6 +7,8 @@ import 'data/services/tag_dictionary_service.dart';
 import 'data/services/window_state_service.dart';
 import 'l10n/app_localizations.dart';
 import 'ui/core/theme/app_theme.dart';
+import 'ui/core/theme/theme_mode_controller.dart';
+import 'ui/core/theme/ui_zoom_controller.dart';
 import 'ui/features/studio/views/studio_view.dart';
 
 /// 全局 Navigator Key，供 ViewModel 等无 context 环境弹出对话框 (如 AI 提问)
@@ -59,6 +61,13 @@ void main() async {
     WindowStateService.instance.initialize();
   }
 
+  // 启动即按持久化配置校正主题模式与 UI 缩放，避免深色用户闪亮屏、
+  // 缩放用户首帧尺寸跳动 (配置加载与 StudioViewModel 的 init 各自独立，
+  // 这里多解析一次换取首帧即正确)
+  final bootConfig = await ConfigService().loadConfig();
+  AppThemeModeController.instance.syncFromConfig(bootConfig);
+  AppUiZoomController.instance.syncFromConfig(bootConfig);
+
   runApp(const NovelAiHarnessApp());
 }
 
@@ -67,31 +76,46 @@ class NovelAiHarnessApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'NovelAI Harness',
-      navigatorKey: navigatorKey,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      // 阶段 3 完成硬编码颜色清洗前锁定亮色：darkTheme 已装载但业务组件
-      // 仍是亮色硬编码，跟随系统的深色模式会造成半黑半白视觉破损。
-      themeMode: ThemeMode.light,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      debugShowCheckedModeBanner: false,
-      // Windows 引擎的 accessibility bridge 在处理节点移除与重排时会原生崩溃
-      // (flutter/flutter#175041, #182444)。在 Windows 上禁用 semantics 绕开崩溃。
-      builder: (context, child) {
-        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
-          return ExcludeSemantics(child: child);
-        }
-        return child ?? const SizedBox.shrink();
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppThemeModeController.instance.mode,
+      builder: (context, themeMode, _) {
+        return MaterialApp(
+          title: 'NovelAI Harness',
+          navigatorKey: navigatorKey,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          // 阶段 3 主题模式实装：跟随设置页「主题模式」选择器与持久化配置；
+          // MaterialApp 内建 200ms 主题动画平滑过渡，切换只重建主题层不触发全局重绘。
+          themeMode: themeMode,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          debugShowCheckedModeBanner: false,
+          // Windows 引擎的 accessibility bridge 在处理节点移除与重排时会原生崩溃
+          // (flutter/flutter#175041, #182444)。在 Windows 上禁用 semantics 绕开崩溃。
+          // UI 缩放：浏览器式整体缩放 (Ctrl+=/-/0)，布局坐标系缩小后 Transform 放大，
+          // 只重建包裹层，不触发业务树重建。
+          builder: (context, child) {
+            // 不可变局部：闭包必须捕获原始 Navigator 子树，
+            // 若捕获可变变量会在赋值后指向自身造成无限嵌套 (栈溢出)
+            final Widget navigatorChild = child ?? const SizedBox.shrink();
+            Widget content = ValueListenableBuilder<double>(
+              valueListenable: AppUiZoomController.instance.zoom,
+              builder: (context, zoom, _) =>
+                  AppUiZoomScope(zoom: zoom, child: navigatorChild),
+            );
+            if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+              return ExcludeSemantics(child: content);
+            }
+            return content;
+          },
+          home: const StudioView(),
+        );
       },
-      home: const StudioView(),
     );
   }
 }

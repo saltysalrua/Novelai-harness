@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_thumbnail_card.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 import 'image_stream_view.dart';
@@ -79,22 +81,23 @@ class HistorySidebarHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return InkWell(
       onTap: onCollapse,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppTheme.border)),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: colors.borderDefault)),
         ),
         child: Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'History',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+                  color: colors.textPrimary,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -102,70 +105,20 @@ class HistorySidebarHeader extends StatelessWidget {
             if (galleryCount > 0) ...[
               Text(
                 '$galleryCount',
-                style: const TextStyle(
-                  fontSize: 11.5,
+                style: TextStyle(
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.notionBlue,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(width: 2),
             ],
-            const Icon(
+            Icon(
               Icons.arrow_right_rounded,
               size: 20,
-              color: AppTheme.textPrimary,
+              color: colors.textPrimary,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 缩略图外壳：统一的手势、选中态描边与阴影装饰
-class _HistoryThumbShell extends StatelessWidget {
-  final bool isSelected;
-  final double aspectRatio;
-  final Widget content;
-  final GestureTapCallback? onTap;
-  final GestureTapUpCallback? onSecondaryTapUp;
-
-  const _HistoryThumbShell({
-    required this.isSelected,
-    required this.aspectRatio,
-    required this.content,
-    this.onTap,
-    this.onSecondaryTapUp,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      onSecondaryTapUp: onSecondaryTapUp,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: AppTheme.paperWarmth,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? AppTheme.notionBlue : AppTheme.border,
-            width: 2.0,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppTheme.notionBlue.withValues(alpha: 0.2),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: AspectRatio(
-          aspectRatio: aspectRatio.clamp(0.5, 2.0),
-          child: content,
         ),
       ),
     );
@@ -191,9 +144,19 @@ class _ImageHistoryThumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final index = viewModel.gallery.indexOf(item);
-    return _HistoryThumbShell(
+    final thumb =
+        item.thumbnailBytes ?? (item.bytes.isNotEmpty ? item.bytes : null);
+
+    return AppThumbnailCard(
       isSelected: isSelected,
       aspectRatio: imageAspectRatioOf(item.params),
+      imageBytes: thumb,
+      imageWidget: thumb == null
+          ? Container(color: context.colors.mutedBackground)
+          : null,
+      cacheWidth: 240,
+      badgeLabel: item.historyBadgeLabel,
+      badgeColor: Colors.black.withValues(alpha: 0.72),
       onTap: () {
         viewModel.selectImage(item);
         if (scrollToStream) stream.scrollToItem(index, item.id);
@@ -203,61 +166,6 @@ class _ImageHistoryThumb extends StatelessWidget {
         position: details.globalPosition,
         viewModel: viewModel,
         image: item,
-      ),
-      content: Stack(
-        fit: StackFit.expand,
-        children: [
-          Builder(
-            builder: (context) {
-              final thumb = item.thumbnailBytes ??
-                  (item.bytes.isNotEmpty ? item.bytes : null);
-              if (thumb != null && thumb.isNotEmpty) {
-                return Image.memory(
-                  thumb,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                  // 侧栏缩略图宽约 104px，按 2x 解码已够清晰，避免全分辨率纹理
-                  cacheWidth: 240,
-                );
-              }
-              return Container(color: AppTheme.surfaceMuted);
-            },
-          ),
-          // 特殊来源角标：超分放大图 / 外部导入参考图
-          if (item.historyBadgeLabel != null)
-            Positioned(
-              top: 5,
-              right: 5,
-              child: _HistoryThumbBadge(label: item.historyBadgeLabel!),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 缩略图角标：黑底半透明小胶囊，白色短文案 (放大 / 导入)
-class _HistoryThumbBadge extends StatelessWidget {
-  final String label;
-
-  const _HistoryThumbBadge({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 9.5,
-          height: 1.1,
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }
@@ -275,7 +183,7 @@ class _GeneratingHistoryThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _HistoryThumbShell(
+    return AppThumbnailCard(
       isSelected: viewModel.isViewingLatest,
       aspectRatio: imageAspectRatioOf(viewModel.params),
       onTap: () {
@@ -283,7 +191,7 @@ class _GeneratingHistoryThumb extends StatelessWidget {
         stream.scrollToTop();
       },
       // 去噪中间帧仅在缩略图内部局部重绘，生成期间侧栏零重建
-      content: ListenableBuilder(
+      imageWidget: ListenableBuilder(
         listenable: viewModel.liveProgressController,
         builder: (context, _) {
           final previewBytes = viewModel.livePreviewBytes;
@@ -299,13 +207,13 @@ class _GeneratingHistoryThumb extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const SizedBox(
+                      SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.0,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            AppTheme.notionBlue,
+                            context.colors.primary,
                           ),
                         ),
                       ),
@@ -314,9 +222,9 @@ class _GeneratingHistoryThumb extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           '${viewModel.liveCurrentStep}/${viewModel.liveTotalSteps}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 9,
-                            color: AppTheme.textSecondary,
+                            color: context.colors.textSecondary,
                             fontFamily: 'monospace',
                             fontWeight: FontWeight.w600,
                           ),
@@ -336,22 +244,10 @@ class _HistoryEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.history_rounded,
-            size: 24,
-            color: AppTheme.stone.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '暂无历史',
-            style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
-          ),
-        ],
-      ),
+    return const AppEmptyState(
+      icon: Icons.history_rounded,
+      title: '暂无历史',
+      isCompact: true,
     );
   }
 }

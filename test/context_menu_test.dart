@@ -57,7 +57,7 @@ void main() {
     expect(tapped, isTrue);
     expect(find.text('复制图像'), findsNothing);
 
-    // 重新打开，验证破坏性操作项使用 AppTheme.coral 颜色渲染
+    // 重新打开，验证破坏性操作项使用跨主题身份色 coral (语义令牌)
     await tester.tap(find.text('trigger'));
     await tester.pumpAndSettle();
 

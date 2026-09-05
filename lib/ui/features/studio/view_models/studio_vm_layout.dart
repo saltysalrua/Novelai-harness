@@ -4,6 +4,36 @@ part of 'studio_view_model.dart';
 mixin _StudioLayoutMixin on _StudioCore {
   double get splitLeftWidth => _splitLeftWidth;
   double get splitRightWidth => _splitRightWidth;
+
+  /// 当前全局 UI 缩放系数 (浏览器式整体缩放，单一事实源在根级控制器)
+  double get uiZoom => AppUiZoomController.instance.zoom.value;
+
+  /// 步进放大 UI (Ctrl+=)，防抖落盘；返回钳制后的新值供提示展示
+  double zoomInUi() => _applyUiZoom(AppUiZoomController.step);
+
+  /// 步进缩小 UI (Ctrl+-)，防抖落盘
+  double zoomOutUi() => _applyUiZoom(-AppUiZoomController.step);
+
+  /// 重置为 100% (Ctrl+0)，立即落盘
+  void resetUiZoom() {
+    AppUiZoomController.instance.reset();
+    // 内存配置同步：设置弹窗草稿读 viewModel.config.uiZoom，避免陈旧值
+    _config = _config.copyWith(uiZoom: 1.0);
+    _uiZoomSaveTimer?.cancel();
+    _configService.saveUiZoom(1.0);
+  }
+
+  double _applyUiZoom(double delta) {
+    final value = AppUiZoomController.instance.adjust(delta);
+    // 内存配置同步：设置弹窗草稿读 viewModel.config.uiZoom，避免陈旧值
+    _config = _config.copyWith(uiZoom: value);
+    _uiZoomSaveTimer?.cancel();
+    _uiZoomSaveTimer = Timer(const Duration(milliseconds: 300), () {
+      _configService.saveUiZoom(value);
+    });
+    return value;
+  }
+
   StudioSidebarTab get activeSidebarTab => _activeSidebarTab;
   bool get promptTabbedMode => _promptTabbedMode;
   int get promptActiveTab => _promptActiveTab;

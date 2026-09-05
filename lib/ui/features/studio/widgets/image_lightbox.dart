@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Uint8List;
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/widgets/app_icon_button.dart';
 
 /// 全屏大图查看器：自由平移缩放画板 (滚轮纯缩放、不随鼠标偏移) + 顶部关闭按钮
 void showImageLightbox(
@@ -99,16 +100,20 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
 
     final Matrix4 currentMatrix = _transformationController.value;
     final double currentScale = currentMatrix.getMaxScaleOnAxis();
-    final double targetScale =
-        (currentScale * zoomMultiplier).clamp(_minScale, _maxScale);
+    final double targetScale = (currentScale * zoomMultiplier).clamp(
+      _minScale,
+      _maxScale,
+    );
 
     if (currentScale == targetScale || currentScale <= 0) return;
 
     final double effectiveMultiplier = targetScale / currentScale;
 
     // 以视口中心为固定缩放原点（无论鼠标当前悬停在何处，均在中心纯缩放）
-    final Offset center =
-        Offset(viewportSize.width / 2, viewportSize.height / 2);
+    final Offset center = Offset(
+      viewportSize.width / 2,
+      viewportSize.height / 2,
+    );
 
     final double tx = currentMatrix.storage[12];
     final double ty = currentMatrix.storage[13];
@@ -118,21 +123,22 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
     final double newTy =
         effectiveMultiplier * ty + (1.0 - effectiveMultiplier) * center.dy;
 
-    _transformationController.value =
-        Matrix4.diagonal3Values(targetScale, targetScale, 1.0)
-          ..setTranslationRaw(newTx, newTy, 0.0);
+    _transformationController.value = Matrix4.diagonal3Values(
+      targetScale,
+      targetScale,
+      1.0,
+    )..setTranslationRaw(newTx, newTy, 0.0);
   }
 
   void _handleDoubleTap() {
-    final double currentScale =
-        _transformationController.value.getMaxScaleOnAxis();
+    final double currentScale = _transformationController.value
+        .getMaxScaleOnAxis();
     if ((currentScale - 1.0).abs() > 0.01) {
       // 非 1:1 原图状态下双击重置
       _transformationController.value = Matrix4.identity();
     } else {
       // 1:1 状态下双击放大到 2x
-      _transformationController.value =
-          Matrix4.diagonal3Values(2.0, 2.0, 1.0);
+      _transformationController.value = Matrix4.diagonal3Values(2.0, 2.0, 1.0);
     }
   }
 
@@ -143,8 +149,10 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
       insetPadding: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final viewportSize =
-              Size(constraints.maxWidth, constraints.maxHeight);
+          final viewportSize = Size(
+            constraints.maxWidth,
+            constraints.maxHeight,
+          );
 
           return Stack(
             fit: StackFit.expand,
@@ -167,7 +175,8 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
                         child: Stack(
                           alignment: Alignment.center,
                           children: [
-                            if (_activeBytes != null && _activeBytes!.isNotEmpty)
+                            if (_activeBytes != null &&
+                                _activeBytes!.isNotEmpty)
                               Image.memory(
                                 _activeBytes!,
                                 fit: BoxFit.contain,
@@ -207,22 +216,15 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
               Positioned(
                 top: 16,
                 right: 16,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    color: Colors.white,
-                    size: 26,
-                  ),
+                child: AppIconButton(
+                  icon: Icons.close_rounded,
                   tooltip: '关闭大图展示',
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.black.withValues(alpha: 0.5),
-                    hoverColor: Colors.black.withValues(alpha: 0.8),
-                    padding: const EdgeInsets.all(8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: const BorderSide(color: Colors.white12),
-                    ),
-                  ),
+                  size: 42,
+                  iconSize: 26,
+                  variant: AppIconButtonVariant.elevated,
+                  backgroundColor: Colors.black.withValues(alpha: 0.5),
+                  borderColor: Colors.white.withValues(alpha: 0.12),
+                  iconColor: Colors.white,
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ),

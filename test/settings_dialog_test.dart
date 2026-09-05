@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/main.dart';
+import 'package:novelai_harness/ui/core/widgets/app_nav_tile.dart';
 import 'package:novelai_harness/ui/features/settings/views/settings_dialog.dart';
 
 void main() {
-  // 侧边栏导航项 (13px 文本，区别于 22px 内容区标题)
-  Finder sidebarItem(String label) => find.byWidgetPredicate(
-    (w) => w is Text && w.data == label && w.style?.fontSize == 13,
-  );
+  // 侧边栏导航项 (AppNavTile 标题，区别于 22px 内容区标题)
+  Finder sidebarItem(String label) =>
+      find.descendant(of: find.byType(AppNavTile), matching: find.text(label));
 
   testWidgets('Settings dialog opens and all five tabs render', (
     WidgetTester tester,
@@ -130,7 +130,7 @@ void main() {
     expect(find.textContaining('没有匹配'), findsOneWidget);
 
     // 清空搜索恢复全部
-    await tester.tap(find.byTooltip('清空搜索'));
+    await tester.tap(find.byTooltip('清空输入'));
     await tester.pumpAndSettle();
     expect(find.text('2 / 2 个模型'), findsOneWidget);
 

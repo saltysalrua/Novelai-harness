@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
-import 'canvas_overlays.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_floating_dock.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 
 /// 画板圈选工具类型
 enum AnnotationToolMode {
@@ -36,9 +37,10 @@ class BoardAnnotationToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final colors = context.colors;
+
+    return AppFloatingDock(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: canvasBadgeDecoration(),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -63,7 +65,7 @@ class BoardAnnotationToolbar extends StatelessWidget {
             onTap: () => onToolModeChanged(AnnotationToolMode.point),
           ),
           const SizedBox(width: 6),
-          Container(width: 1, height: 16, color: AppTheme.border),
+          Container(width: 1, height: 16, color: colors.borderDefault),
           const SizedBox(width: 6),
           BoardToolbarItem(
             icon: Icons.note_add_outlined,
@@ -86,7 +88,7 @@ class BoardAnnotationToolbar extends StatelessWidget {
             onTap: onPasteImage,
           ),
           const SizedBox(width: 6),
-          Container(width: 1, height: 16, color: AppTheme.border),
+          Container(width: 1, height: 16, color: colors.borderDefault),
           const SizedBox(width: 6),
           BoardToolbarItem(
             icon: Icons.center_focus_strong_outlined,
@@ -100,7 +102,7 @@ class BoardAnnotationToolbar extends StatelessWidget {
   }
 }
 
-/// 工具坞单键 (选中态蓝底白字)
+/// 工具坞单键 (委托至统一的 [AppToolChip] 原子组件)
 class BoardToolbarItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -117,35 +119,13 @@ class BoardToolbarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return AppToolChip(
+      icon: icon,
+      label: label,
+      isSelected: isSelected,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.notionBlue : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: isSelected ? Colors.white : AppTheme.textPrimary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? Colors.white : AppTheme.textPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      fontSize: 12,
     );
   }
 }

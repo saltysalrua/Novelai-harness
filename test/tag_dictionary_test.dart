@@ -131,10 +131,7 @@ highres\t5256195\t高分辨率\thires
       TagDictionaryService.instance.clearQueryCache();
 
       // 检索走已热替换的 worker 词条 (中文释义前缀命中)
-      final results = await TagDictionaryService.instance.search(
-        '紫',
-        limit: 5,
-      );
+      final results = await TagDictionaryService.instance.search('紫', limit: 5);
       expect(results, isNotEmpty);
       expect(results.first.tag, 'murasaki shion');
       expect(results.first.translation, '紫');

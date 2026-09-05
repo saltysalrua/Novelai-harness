@@ -73,3 +73,6 @@ app.*.map.json
 # 运行产物 (生图输出/浏览器截图)
 output/
 .playwright-mcp/
+
+# spec-workflow tool artifacts
+.spec-workflow/

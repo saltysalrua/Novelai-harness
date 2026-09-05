@@ -8,6 +8,28 @@ import '../../core/harness/skills/skills.dart';
 import '../../core/harness/tools/agent_tool.dart';
 import '../models/novelai_models.dart';
 
+/// 主题模式偏好 (跟随系统 / 亮色 / 深色)
+///
+/// 纯 Dart 枚举，不依赖 Flutter Material 的 [ThemeMode]；
+/// 由 UI 层负责映射 (见 ui/core/theme/theme_mode_controller.dart)。
+/// 阶段 3 颜色清洗完成前出厂默认锁定亮色，避免半黑半白视觉破损。
+enum AppThemeModePreference { system, light, dark }
+
+/// 存储字符串 → 枚举 (未知/缺失值一律回退亮色，保持旧行为)
+AppThemeModePreference parseThemeModePreference(String? raw) => switch (raw) {
+  'system' => AppThemeModePreference.system,
+  'dark' => AppThemeModePreference.dark,
+  _ => AppThemeModePreference.light,
+};
+
+/// 枚举 → 存储字符串
+String themeModePreferenceStorage(AppThemeModePreference mode) =>
+    switch (mode) {
+      AppThemeModePreference.system => 'system',
+      AppThemeModePreference.light => 'light',
+      AppThemeModePreference.dark => 'dark',
+    };
+
 /// 全局配置数据模型
 class AppConfig {
   // NovelAI 设置
@@ -22,6 +44,13 @@ class AppConfig {
   final double defaultScale;
   final double defaultCfgRescale;
   final bool opusFreeMode;
+
+  /// 主题模式偏好 (跟随系统/亮色/深色)，由 AppThemeModeController 映射到 MaterialApp
+  final AppThemeModePreference themeMode;
+
+  /// 全局 UI 缩放系数 (浏览器式 Ctrl+=/- 整体缩放)，1.0 = 100%；
+  /// 由 AppUiZoomController 在 MaterialApp 根节点 Transform 生效
+  final double uiZoom;
   final bool enableStreamPreview;
   final bool enableTagAutocomplete;
   final bool showTagTranslations;
@@ -119,6 +148,8 @@ class AppConfig {
     this.defaultScale = 5.0,
     this.defaultCfgRescale = 0.0,
     this.opusFreeMode = true,
+    this.themeMode = AppThemeModePreference.light,
+    this.uiZoom = 1.0,
     this.enableStreamPreview = true,
     this.enableTagAutocomplete = true,
     this.showTagTranslations = true,
@@ -158,6 +189,8 @@ class AppConfig {
     double? defaultScale,
     double? defaultCfgRescale,
     bool? opusFreeMode,
+    AppThemeModePreference? themeMode,
+    double? uiZoom,
     bool? enableStreamPreview,
     bool? enableTagAutocomplete,
     bool? showTagTranslations,
@@ -199,6 +232,8 @@ class AppConfig {
       defaultScale: defaultScale ?? this.defaultScale,
       defaultCfgRescale: defaultCfgRescale ?? this.defaultCfgRescale,
       opusFreeMode: opusFreeMode ?? this.opusFreeMode,
+      themeMode: themeMode ?? this.themeMode,
+      uiZoom: uiZoom ?? this.uiZoom,
       enableStreamPreview: enableStreamPreview ?? this.enableStreamPreview,
       enableTagAutocomplete:
           enableTagAutocomplete ?? this.enableTagAutocomplete,
@@ -245,6 +280,8 @@ class ConfigService {
   static const String _keyScale = 'novelai_scale';
   static const String _keyCfgRescale = 'novelai_cfg_rescale';
   static const String _keyOpusFreeMode = 'novelai_opus_free_mode';
+  static const String _keyThemeMode = 'novelai_theme_mode';
+  static const String _keyUiZoom = 'novelai_ui_zoom';
   static const String _keyEnableStreamPreview = 'novelai_enable_stream_preview';
   static const String _keyEnableTagAutocomplete =
       'novelai_enable_tag_autocomplete';
@@ -342,6 +379,8 @@ class ConfigService {
     double scale = prefs.getDouble(_keyScale) ?? 5.0;
     double rescale = prefs.getDouble(_keyCfgRescale) ?? 0.0;
     bool opusFree = prefs.getBool(_keyOpusFreeMode) ?? true;
+    final themeMode = parseThemeModePreference(prefs.getString(_keyThemeMode));
+    final uiZoom = clampUiZoom(prefs.getDouble(_keyUiZoom) ?? 1.0);
     bool enableStream = prefs.getBool(_keyEnableStreamPreview) ?? true;
     bool enableTagAc = prefs.getBool(_keyEnableTagAutocomplete) ?? true;
     bool showTagTrans = prefs.getBool(_keyShowTagTranslations) ?? true;
@@ -557,6 +596,8 @@ class ConfigService {
       defaultScale: scale,
       defaultCfgRescale: rescale,
       opusFreeMode: opusFree,
+      themeMode: themeMode,
+      uiZoom: uiZoom,
       enableStreamPreview: enableStream,
       enableTagAutocomplete: enableTagAc,
       showTagTranslations: showTagTrans,
@@ -600,6 +641,11 @@ class ConfigService {
     await prefs.setDouble(_keyScale, config.defaultScale);
     await prefs.setDouble(_keyCfgRescale, config.defaultCfgRescale);
     await prefs.setBool(_keyOpusFreeMode, config.opusFreeMode);
+    await prefs.setString(
+      _keyThemeMode,
+      themeModePreferenceStorage(config.themeMode),
+    );
+    await prefs.setDouble(_keyUiZoom, clampUiZoom(config.uiZoom));
     await prefs.setBool(_keyEnableStreamPreview, config.enableStreamPreview);
     await prefs.setBool(
       _keyEnableTagAutocomplete,
@@ -770,10 +816,26 @@ class ConfigService {
   }
 
   /// 保存分栏左右宽度
+  /// UI 缩放安全档位：钳到合法范围并防御 NaN/无穷 (损坏的持久化值回退 1.0)
+  static double clampUiZoom(double value) {
+    if (value.isNaN || value.isInfinite) return 1.0;
+    return value.clamp(minUiZoom, maxUiZoom).toDouble();
+  }
+
+  /// UI 缩放合法范围 (80% ~ 175%)，与 AppUiZoomController 共用的单一事实源
+  static const double minUiZoom = 0.8;
+  static const double maxUiZoom = 1.75;
+
   Future<void> saveSplitWidths(double left, double right) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keySplitLeftWidth, left);
     await prefs.setDouble(_keySplitRightWidth, right);
+  }
+
+  /// 快捷键即时调整 UI 缩放时的单字段落盘 (不整包重写 config)
+  Future<void> saveUiZoom(double zoom) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyUiZoom, clampUiZoom(zoom));
   }
 
   /// 加载侧边栏激活标签

@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/image_metadata_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_floating_dock.dart';
 import '../view_models/studio_view_model.dart';
 import 'board_image_card.dart';
 import 'board_note_card.dart';
 import 'board_toolbar.dart';
 import 'board_wire_painter.dart';
-import 'canvas_overlays.dart';
 import 'image_canvas_actions.dart';
 
 /// 画布中心基准点 (6000x6000 视口高性能画板)
@@ -251,6 +252,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   Widget build(BuildContext context) {
     final viewModel = widget.viewModel;
     final boardData = viewModel.boardData;
+    final colors = context.colors;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -296,7 +298,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
               return MouseRegion(
                 onHover: (e) => _lastPointerLocal = e.localPosition,
                 child: Container(
-                  color: AppTheme.paperWarmth, // Notion 统一纸本暖底色
+                  color: colors.canvasBackground,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -335,14 +337,17 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                           child: Container(
                             width: kBoardCanvasSize,
                             height: kBoardCanvasSize,
-                            color: AppTheme.paperWarmth,
+                            color: colors.canvasBackground,
                             child: CustomPaint(
                               // 网格点阵画在卡片之下，连线画在卡片之上 (前景) 不被图片遮挡
-                              painter: const BoardGridPainter(),
+                              painter: BoardGridPainter(
+                                dotColor: colors.borderHover,
+                              ),
                               foregroundPainter: BoardWirePainter(
                                 boardData: boardData,
                                 liveOverlays: _liveOverlays,
                                 wireDrag: _wireDrag,
+                                dragColor: colors.primary,
                               ),
                               child: Stack(
                                 clipBehavior: Clip.none,
@@ -415,11 +420,9 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                           child: IgnorePointer(
                             child: Container(
                               decoration: BoxDecoration(
-                                color: AppTheme.notionBlue.withValues(
-                                  alpha: 0.10,
-                                ),
+                                color: colors.primary.withValues(alpha: 0.10),
                                 border: Border.all(
-                                  color: AppTheme.notionBlue,
+                                  color: colors.primary,
                                   width: 3.0,
                                 ),
                               ),
@@ -430,22 +433,18 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                     vertical: 12,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.pureWhite,
-                                    borderRadius: BorderRadius.circular(8),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Colors.black12,
-                                        blurRadius: 16,
-                                        offset: Offset(0, 4),
-                                      ),
-                                    ],
+                                    color: colors.cardBackground,
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.md,
+                                    ),
+                                    boxShadow: context.shadowElevated,
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.file_download_outlined,
-                                        color: AppTheme.notionBlue,
+                                        color: colors.primary,
                                         size: 22,
                                       ),
                                       const SizedBox(width: 8),
@@ -453,10 +452,10 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                         isInternalDragOver
                                             ? '松开鼠标放置参考图'
                                             : '松开鼠标导入外部参考图',
-                                        style: const TextStyle(
-                                          fontSize: 13.5,
+                                        style: TextStyle(
+                                          fontSize: 14,
                                           fontWeight: FontWeight.w700,
-                                          color: AppTheme.textPrimary,
+                                          color: colors.textPrimary,
                                         ),
                                       ),
                                     ],
@@ -514,9 +513,8 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                       Positioned(
                         bottom: 18,
                         right: 18,
-                        child: Container(
+                        child: AppFloatingDock(
                           padding: const EdgeInsets.all(4),
-                          decoration: canvasBadgeDecoration(),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -527,12 +525,12 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                 label: const Text(
                                   '退出批注',
                                   style: TextStyle(
-                                    fontSize: 12.5,
+                                    fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 style: TextButton.styleFrom(
-                                  foregroundColor: AppTheme.textSecondary,
+                                  foregroundColor: colors.textSecondary,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
                                     vertical: 8,
@@ -550,19 +548,21 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                 label: const Text(
                                   '发送全部批注到 AI',
                                   style: TextStyle(
-                                    fontSize: 12.5,
+                                    fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppTheme.notionBlue,
+                                  backgroundColor: colors.primary,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 14,
                                     vertical: 9,
                                   ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.sm,
+                                    ),
                                   ),
                                   elevation: 0,
                                 ),

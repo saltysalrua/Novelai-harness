@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../../../data/services/session_log_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_confirm_dialog.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_prompt_dialog.dart';
+import '../../../core/widgets/app_search_field.dart';
 import '../view_models/studio_view_model.dart';
 
 /// Agent 会话管理列表全卡片视图
@@ -52,120 +59,39 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
     }).toList();
   }
 
-  void _showRenameDialog(SessionInfo session) {
-    final controller = TextEditingController(text: session.title);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.edit_outlined, size: 18, color: AppTheme.notionBlue),
-            SizedBox(width: 8),
-            Text(
-              '重命名会话',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
-          decoration: InputDecoration(
-            hintText: '请输入会话新名称...',
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-              borderSide: const BorderSide(color: AppTheme.border),
-            ),
-          ),
-          onSubmitted: (val) {
-            final text = val.trim();
-            if (text.isNotEmpty) {
-              widget.viewModel.renameSession(session.id, text);
-              Navigator.of(ctx).pop();
-            }
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消', style: TextStyle(color: AppTheme.textSecondary)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.notionBlue,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-              ),
-            ),
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) {
-                widget.viewModel.renameSession(session.id, text);
-                Navigator.of(ctx).pop();
-              }
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+  void _showRenameDialog(SessionInfo session) async {
+    final newName = await showAppPromptDialog(
+      context,
+      title: '重命名会话',
+      initialValue: session.title,
+      hintText: '请输入会话新名称...',
+      icon: Icons.edit_outlined,
+      confirmLabel: '保存',
+      cancelLabel: '取消',
     );
+    if (newName != null && newName.trim().isNotEmpty) {
+      widget.viewModel.renameSession(session.id, newName.trim());
+    }
   }
 
-  void _showDeleteConfirmDialog(SessionInfo session) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.delete_outline_rounded, size: 18, color: AppTheme.error),
-            SizedBox(width: 8),
-            Text(
-              '删除会话',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        content: Text(
-          '确定要永久删除会话 "${session.title}" 吗？此操作无法撤销。',
-          style: const TextStyle(fontSize: 12.5, color: AppTheme.textPrimary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消', style: TextStyle(color: AppTheme.textSecondary)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.error,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-              ),
-            ),
-            onPressed: () {
-              widget.viewModel.deleteSession(session.id);
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+  void _showDeleteConfirmDialog(SessionInfo session) async {
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: '删除会话',
+      message: '确定要永久删除会话 "${session.title}" 吗？此操作无法撤销。',
+      confirmLabel: '删除',
+      cancelLabel: '取消',
+      isDestructive: true,
     );
+    if (confirmed == true) {
+      widget.viewModel.deleteSession(session.id);
+    }
   }
 
   String _formatDateTime(DateTime dt) {
     final now = DateTime.now();
-    final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    final isToday =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day;
     String two(int n) => n.toString().padLeft(2, '0');
     if (isToday) {
       return '${two(dt.hour)}:${two(dt.minute)}';
@@ -175,12 +101,14 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final sessions = widget.viewModel.sessions;
     final filtered = _getFilteredSessions(sessions);
     final currentId = widget.viewModel.currentSessionId;
 
     return Card(
       margin: EdgeInsets.zero,
+      color: colors.cardBackground,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -188,37 +116,29 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
           Container(
             height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: const BoxDecoration(
-              color: AppTheme.pureWhite,
-              border: Border(bottom: BorderSide(color: AppTheme.border)),
+            decoration: BoxDecoration(
+              color: colors.cardBackground,
+              border: Border(bottom: BorderSide(color: colors.borderDefault)),
             ),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 14,
-                    color: AppTheme.textSecondary,
-                  ),
+                AppIconButton(
+                  icon: Icons.arrow_back_ios_new_rounded,
                   tooltip: '返回对话',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  size: 28,
+                  iconSize: 14,
+                  variant: AppIconButtonVariant.ghost,
                   onPressed: widget.onBack,
-                  visualDensity: VisualDensity.compact,
                 ),
                 const SizedBox(width: 4),
-                const Icon(
-                  Icons.forum_outlined,
-                  size: 15,
-                  color: AppTheme.notionBlue,
-                ),
+                Icon(Icons.forum_outlined, size: 15, color: colors.primary),
                 const SizedBox(width: 6),
-                const Text(
+                Text(
                   '会话管理',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: colors.textPrimary,
                   ),
                 ),
                 const Spacer(),
@@ -226,16 +146,19 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                   icon: const Icon(Icons.add_rounded, size: 14),
                   label: const Text(
                     '新建会话',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.notionBlue,
+                    backgroundColor: colors.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     minimumSize: const Size(0, 30),
                     visualDensity: VisualDensity.compact,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
                   ),
                   onPressed: () async {
@@ -250,83 +173,30 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
           // 搜索与过滤栏
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-            child: TextField(
+            child: AppSearchField(
               controller: _searchController,
-              style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
-              decoration: InputDecoration(
-                isDense: true,
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  size: 16,
-                  color: AppTheme.textMuted,
-                ),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 32,
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 14),
-                        color: AppTheme.textMuted,
-                        onPressed: () => _searchController.clear(),
-                      )
-                    : null,
-                hintText: '搜索历史会话...',
-                hintStyle: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
-                fillColor: AppTheme.paperWarmth,
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                  borderSide: const BorderSide(color: AppTheme.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                  borderSide: const BorderSide(color: AppTheme.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                  borderSide: const BorderSide(
-                    color: AppTheme.notionBlue,
-                    width: 1.5,
-                  ),
-                ),
-              ),
+              hintText: '搜索历史会话...',
+              height: 34,
+              fontSize: 12,
+              debounceDuration: Duration.zero,
+              onClear: () => _searchController.clear(),
             ),
           ),
 
           // 会话列表
           Expanded(
             child: filtered.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          size: 32,
-                          color: AppTheme.stone,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _searchQuery.isNotEmpty
-                              ? '未找到匹配的会话'
-                              : '暂无历史会话记录',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
+                ? AppEmptyState(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    iconSize: 32,
+                    title: _searchQuery.isNotEmpty ? '未找到匹配的会话' : '暂无历史会话记录',
+                    isCompact: true,
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
                     itemCount: filtered.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 6),
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 6),
                     itemBuilder: (context, index) {
                       final item = filtered[index];
                       final isCurrent = item.id == currentId;
@@ -340,6 +210,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
   }
 
   Widget _buildSessionCard(SessionInfo session, bool isCurrent) {
+    final colors = context.colors;
     return InkWell(
       onTap: () async {
         if (!isCurrent) {
@@ -347,18 +218,18 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
         }
         widget.onBack();
       },
-      borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: isCurrent
-              ? AppTheme.skyTint.withValues(alpha: 0.5)
-              : AppTheme.pureWhite,
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+              ? colors.primaryTint.withValues(alpha: 0.5)
+              : colors.cardBackground,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(
             color: isCurrent
-                ? AppTheme.notionBlue.withValues(alpha: 0.7)
-                : AppTheme.border,
+                ? colors.primary.withValues(alpha: 0.7)
+                : colors.borderDefault,
             width: isCurrent ? 1.5 : 1,
           ),
         ),
@@ -369,25 +240,14 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
             Row(
               children: [
                 if (isCurrent) ...[
-                  Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1.5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.notionBlue,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                    ),
-                    child: const Text(
-                      '当前',
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
+                  AppBadge.pill(
+                    label: '当前',
+                    variant: AppBadgeVariant.primary,
+                    customBackgroundColor: colors.primary,
+                    customForegroundColor: Colors.white,
+                    fontSize: 10,
                   ),
+                  const SizedBox(width: 6),
                 ],
                 Expanded(
                   child: Text(
@@ -395,43 +255,62 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 13,
                       fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w600,
-                      color: AppTheme.textPrimary,
+                      color: colors.textPrimary,
                     ),
                   ),
                 ),
                 PopupMenuButton<String>(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.more_vert_rounded,
                     size: 15,
-                    color: AppTheme.textMuted,
+                    color: colors.textMuted,
                   ),
                   padding: EdgeInsets.zero,
                   splashRadius: 16,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    side: BorderSide(color: colors.borderDefault),
                   ),
+                  color: colors.cardBackground,
                   itemBuilder: (ctx) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'rename',
                       height: 32,
                       child: Row(
                         children: [
-                          Icon(Icons.edit_outlined, size: 14, color: AppTheme.textSecondary),
-                          SizedBox(width: 8),
-                          Text('重命名', style: TextStyle(fontSize: 12)),
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 14,
+                            color: colors.textSecondary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '重命名',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'delete',
                       height: 32,
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline, size: 14, color: AppTheme.error),
-                          SizedBox(width: 8),
-                          Text('删除', style: TextStyle(fontSize: 12, color: AppTheme.error)),
+                          Icon(
+                            Icons.delete_outline,
+                            size: 14,
+                            color: colors.error,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '删除',
+                            style: TextStyle(fontSize: 12, color: colors.error),
+                          ),
                         ],
                       ),
                     ),
@@ -453,9 +332,9 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
               session.preview,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                color: AppTheme.textSecondary,
+                color: colors.textSecondary,
                 height: 1.35,
               ),
             ),
@@ -464,41 +343,37 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
             // 底部元数据: 消息数、最后修改时间、模型与 Token 用量
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.chat_bubble_outline_rounded,
                   size: 11,
-                  color: AppTheme.textMuted,
+                  color: colors.textMuted,
                 ),
                 const SizedBox(width: 3),
                 Text(
                   '${session.messageCount} 条',
-                  style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
+                  style: TextStyle(fontSize: 11, color: colors.textMuted),
                 ),
                 const SizedBox(width: 8),
-                const Icon(
+                Icon(
                   Icons.access_time_rounded,
                   size: 11,
-                  color: AppTheme.textMuted,
+                  color: colors.textMuted,
                 ),
                 const SizedBox(width: 3),
                 Text(
                   _formatDateTime(session.lastModified),
-                  style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
+                  style: TextStyle(fontSize: 11, color: colors.textMuted),
                 ),
                 if (session.totalTokens > 0) ...[
                   const Spacer(),
-                  const Icon(
-                    Icons.token_outlined,
-                    size: 11,
-                    color: AppTheme.notionBlue,
-                  ),
+                  Icon(Icons.token_outlined, size: 11, color: colors.primary),
                   const SizedBox(width: 3),
                   Text(
                     UsageLedgerService.formatTokens(session.totalTokens),
-                    style: const TextStyle(
-                      fontSize: 10.5,
+                    style: TextStyle(
+                      fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: AppTheme.notionBlue,
+                      color: colors.primary,
                     ),
                   ),
                 ],

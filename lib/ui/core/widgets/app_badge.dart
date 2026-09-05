@@ -131,35 +131,35 @@ class AppBadge extends StatelessWidget {
 
     final (Color bg, Color fg, Color? border) = switch (variant) {
       AppBadgeVariant.primary => (
-          colors.primaryTint,
-          colors.primary,
-          colors.primary.withValues(alpha: 0.25),
-        ),
+        colors.primaryTint,
+        colors.primary,
+        colors.primary.withValues(alpha: 0.25),
+      ),
       AppBadgeVariant.success => (
-          colors.success.withValues(alpha: 0.12),
-          colors.success,
-          colors.success.withValues(alpha: 0.25),
-        ),
+        colors.success.withValues(alpha: 0.12),
+        colors.success,
+        colors.success.withValues(alpha: 0.25),
+      ),
       AppBadgeVariant.warning => (
-          colors.warning.withValues(alpha: 0.12),
-          colors.warning,
-          colors.warning.withValues(alpha: 0.25),
-        ),
+        colors.warning.withValues(alpha: 0.12),
+        colors.warning,
+        colors.warning.withValues(alpha: 0.25),
+      ),
       AppBadgeVariant.error => (
-          colors.errorSurface,
-          colors.error,
-          colors.error.withValues(alpha: 0.25),
-        ),
+        colors.errorSurface,
+        colors.error,
+        colors.error.withValues(alpha: 0.25),
+      ),
       AppBadgeVariant.neutral => (
-          colors.mutedBackground,
-          colors.textSecondary,
-          colors.borderSubtle,
-        ),
+        colors.mutedBackground,
+        colors.textSecondary,
+        colors.borderSubtle,
+      ),
       AppBadgeVariant.dark => (
-          Colors.black.withValues(alpha: 0.65),
-          Colors.white,
-          null,
-        ),
+        Colors.black.withValues(alpha: 0.65),
+        Colors.white,
+        null,
+      ),
     };
 
     final effectiveBg = customBackgroundColor ?? bg;
@@ -171,7 +171,8 @@ class AppBadge extends StatelessWidget {
       AppBadgeShape.pill => AppRadius.pill,
     };
 
-    final effectivePadding = padding ??
+    final effectivePadding =
+        padding ??
         (shape == AppBadgeShape.pill
             ? const EdgeInsets.symmetric(horizontal: 7.5, vertical: 2.5)
             : const EdgeInsets.symmetric(horizontal: 5.5, vertical: 2.0));
@@ -181,7 +182,9 @@ class AppBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: effectiveBg,
         borderRadius: BorderRadius.circular(borderRadiusVal),
-        border: effectiveBorder != null ? Border.all(color: effectiveBorder) : null,
+        border: effectiveBorder != null
+            ? Border.all(color: effectiveBorder)
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -200,10 +203,7 @@ class AppBadge extends StatelessWidget {
               height: 1.15,
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: 3.5),
-            trailing!,
-          ],
+          if (trailing != null) ...[const SizedBox(width: 3.5), trailing!],
         ],
       ),
     );

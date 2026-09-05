@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_dialog_scaffold.dart';
 
 /// Tool 查看 Schema / 编辑 / 新建自定义工具对话框 (Pi 风格工具构建器)
 class ToolEditorDialog extends StatefulWidget {
@@ -35,7 +36,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
     _descController = TextEditingController(text: t?.description ?? '');
 
     final encoder = const JsonEncoder.withIndent('  ');
-    final schemaJson = t != null ? encoder.convert(t.parameters) : '''{
+    final schemaJson = t != null
+        ? encoder.convert(t.parameters)
+        : '''{
   "type": "object",
   "properties": {
     "query": {
@@ -48,8 +51,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
     _schemaController = TextEditingController(text: schemaJson);
 
     final custom = t is CustomAgentTool ? t : null;
-    _templateController =
-        TextEditingController(text: custom?.outputTemplate ?? '');
+    _templateController = TextEditingController(
+      text: custom?.outputTemplate ?? '',
+    );
   }
 
   @override
@@ -64,339 +68,238 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isReadOnly = widget.isReadOnlySchemaView ||
+    final colors = context.colors;
+    final isReadOnly =
+        widget.isReadOnlySchemaView ||
         (widget.tool != null && widget.tool!.isBuiltin);
 
-    return Dialog(
-      backgroundColor: AppTheme.pureWhite,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      child: Container(
-        width: 640,
-        height: 600,
+    return AppDialogScaffold(
+      title: isReadOnly
+          ? '工具 Schema (${widget.tool?.label ?? widget.tool?.name})'
+          : (widget.tool == null
+                ? '新建自定义工具'
+                : '编辑自定义工具 (${widget.tool!.label})'),
+      width: 640,
+      height: 600,
+      body: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 头部
-            Row(
-              children: [
-                Icon(
-                  isReadOnly ? Icons.code_rounded : Icons.build_circle_outlined,
-                  size: 20,
-                  color: AppTheme.notionBlue,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  isReadOnly
-                      ? '工具 Schema (${widget.tool?.label ?? widget.tool?.name})'
-                      : (widget.tool == null
-                          ? '新建自定义工具'
-                          : '编辑自定义工具 (${widget.tool!.label})'),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18, color: AppTheme.stone),
-                  onPressed: () => Navigator.of(context).pop(),
-                  tooltip: '关闭',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: AppTheme.border),
-            const SizedBox(height: 16),
-
-            // 正文表单
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                '标识',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                controller: _nameController,
-                                enabled: !isReadOnly,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontFamily: 'monospace',
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: '如 custom_tool',
-                                  isDense: true,
-                                  filled: true,
-                                  fillColor: isReadOnly
-                                      ? AppTheme.surfaceVariant
-                                      : AppTheme.pureWhite,
-                                  hoverColor: isReadOnly
-                                      ? AppTheme.surfaceVariant
-                                      : AppTheme.pureWhite,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                    borderSide:
-                                        const BorderSide(color: AppTheme.border),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                    borderSide:
-                                        const BorderSide(color: AppTheme.border),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                '名称',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                controller: _labelController,
-                                enabled: !isReadOnly,
-                                style: const TextStyle(fontSize: 12),
-                                decoration: InputDecoration(
-                                  hintText: '如 自定义工具',
-                                  isDense: true,
-                                  filled: true,
-                                  fillColor: isReadOnly
-                                      ? AppTheme.surfaceVariant
-                                      : AppTheme.pureWhite,
-                                  hoverColor: isReadOnly
-                                      ? AppTheme.surfaceVariant
-                                      : AppTheme.pureWhite,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                    borderSide:
-                                        const BorderSide(color: AppTheme.border),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                    borderSide:
-                                        const BorderSide(color: AppTheme.border),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '工具描述',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _descController,
-                      enabled: !isReadOnly,
-                      minLines: 2,
-                      maxLines: 4,
-                      style: const TextStyle(fontSize: 12, height: 1.4),
-                      decoration: InputDecoration(
-                        hintText: '清楚描述该工具的作用与使用时机...',
-                        isDense: true,
-                        filled: true,
-                        fillColor: isReadOnly
-                            ? AppTheme.surfaceVariant
-                            : AppTheme.pureWhite,
-                        hoverColor: isReadOnly
-                            ? AppTheme.surfaceVariant
-                            : AppTheme.pureWhite,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(color: AppTheme.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(color: AppTheme.border),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Text(
-                          '参数 Schema',
+                        Text(
+                          '标识',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
+                            color: colors.textPrimary,
                           ),
                         ),
-                        const Spacer(),
-                        InkWell(
-                          onTap: () {
-                            Clipboard.setData(
-                              ClipboardData(text: _schemaController.text),
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('已复制 Schema JSON 至剪贴板'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            child: Row(
-                              children: [
-                                Icon(Icons.copy_rounded,
-                                    size: 13, color: AppTheme.notionBlue),
-                                SizedBox(width: 4),
-                                Text(
-                                  '复制 Schema',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppTheme.notionBlue,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _nameController,
+                          enabled: !isReadOnly,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontFamily: 'monospace',
+                          ),
+                          decoration: _fieldDecoration(
+                            hint: '如 custom_tool',
+                            filled: isReadOnly,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _schemaController,
-                      enabled: !isReadOnly,
-                      maxLines: 8,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontFamily: 'monospace',
-                        height: 1.4,
-                      ),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor:
-                            AppTheme.surfaceVariant.withValues(alpha: 0.3),
-                        hoverColor:
-                            AppTheme.surfaceVariant.withValues(alpha: 0.3),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(color: AppTheme.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(color: AppTheme.border),
-                        ),
-                      ),
-                    ),
-                    if (!isReadOnly) ...[
-                      const SizedBox(height: 12),
-                      const Text(
-                        '输出模板',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: _templateController,
-                        maxLines: 3,
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontFamily: 'monospace',
-                        ),
-                        decoration: InputDecoration(
-                          hintText: '如：已成功执行并构建结果：{{query}}',
-                          filled: true,
-                          fillColor: AppTheme.pureWhite,
-                          hoverColor: AppTheme.pureWhite,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide:
-                                const BorderSide(color: AppTheme.border),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide:
-                                const BorderSide(color: AppTheme.border),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: AppTheme.border),
-            const SizedBox(height: 16),
-
-            // 底部操作栏
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(
-                    isReadOnly ? '关闭' : '取消',
-                    style: const TextStyle(color: AppTheme.stone),
                   ),
-                ),
-                if (!isReadOnly) ...[
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.notionBlue,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '名称',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _labelController,
+                          enabled: !isReadOnly,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: _fieldDecoration(
+                            hint: '如 自定义工具',
+                            filled: isReadOnly,
+                          ),
+                        ),
+                      ],
                     ),
-                    onPressed: _saveCustomTool,
-                    child: const Text('保存工具'),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '工具描述',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _descController,
+                enabled: !isReadOnly,
+                minLines: 2,
+                maxLines: 4,
+                style: const TextStyle(fontSize: 12, height: 1.4),
+                decoration: _fieldDecoration(
+                  hint: '清楚描述该工具的作用与使用时机...',
+                  filled: isReadOnly,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Text(
+                    '参数 Schema',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () {
+                      Clipboard.setData(
+                        ClipboardData(text: _schemaController.text),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('已复制 Schema JSON 至剪贴板'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.copy_rounded,
+                            size: 13,
+                            color: colors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '复制 Schema',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _schemaController,
+                enabled: !isReadOnly,
+                maxLines: 8,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  height: 1.4,
+                ),
+                decoration: _fieldDecoration(hint: '', subtleFill: true),
+              ),
+              if (!isReadOnly) ...[
+                const SizedBox(height: 12),
+                Text(
+                  '输出模板',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _templateController,
+                  maxLines: 3,
+                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  decoration: _fieldDecoration(hint: '如：已成功执行并构建结果：{{query}}'),
+                ),
               ],
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            isReadOnly ? '关闭' : '取消',
+            style: TextStyle(color: colors.textSecondary),
+          ),
+        ),
+        if (!isReadOnly) ...[
+          const SizedBox(width: 8),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            onPressed: _saveCustomTool,
+            child: const Text('保存工具'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  InputDecoration _fieldDecoration({
+    required String hint,
+    bool filled = false,
+    bool subtleFill = false,
+  }) {
+    final colors = context.colors;
+    final fill = subtleFill
+        ? colors.mutedBackground.withValues(alpha: 0.3)
+        : (filled ? colors.mutedBackground : colors.cardBackground);
+    return InputDecoration(
+      hintText: hint.isEmpty ? null : hint,
+      isDense: true,
+      filled: true,
+      fillColor: fill,
+      hoverColor: fill,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: BorderSide(color: colors.borderDefault),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: BorderSide(color: colors.borderDefault),
       ),
     );
   }
@@ -405,9 +308,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
     final name = _nameController.text.trim();
     final label = _labelController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('工具名称 (Name) 不能为空')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('工具名称 (Name) 不能为空')));
       return;
     }
 
@@ -421,9 +324,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
         parsedParams = decoded;
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Schema JSON 解析失败: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Schema JSON 解析失败: $e')));
       return;
     }
 

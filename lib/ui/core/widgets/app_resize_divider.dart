@@ -9,7 +9,7 @@ import '../theme/theme_context_extensions.dart';
 /// - `prompt_resize_handle.dart:10-67` (PromptResizeHandle 提示词输入区纵向调节手柄)
 ///
 /// 核心职责：
-/// 参数化方向 `Axis.horizontal | Axis.vertical`，统一 28px→42px 鼠标悬停伸缩动效、
+/// 参数化方向 `Axis.horizontal | Axis.vertical`，统一 28px→42px 鼠标悬停瞬时反馈、
 /// `SystemMouseCursors` 方向光标、双击重置回调及统一拖拽手势生命周期。
 class AppResizeDivider extends StatefulWidget {
   /// 拖拽方向；[Axis.vertical] 为上下拉伸，[Axis.horizontal] 为左右拉伸
@@ -88,7 +88,8 @@ class _AppResizeDividerState extends State<AppResizeDivider> {
 
     Widget handle = Center(
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        // 悬停与拖拽反馈必须瞬时生效，不对手柄尺寸和颜色做补间。
+        duration: Duration.zero,
         width: isVertical ? handleLength : widget.handleThickness,
         height: isVertical ? widget.handleThickness : handleLength,
         decoration: BoxDecoration(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../../settings/views/settings_dialog.dart';
 import '../view_models/studio_view_model.dart';
 
@@ -17,13 +18,15 @@ class StudioSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+
     return Container(
       width: 58,
       margin: const EdgeInsets.fromLTRB(8, 8, 0, 8),
       decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        border: Border.all(color: AppTheme.border),
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: colors.borderDefault),
       ),
       child: Column(
         children: [
@@ -31,6 +34,7 @@ class StudioSidebar extends StatelessWidget {
 
           // 导航分类项：参数
           _buildTabItem(
+            context: context,
             tab: StudioSidebarTab.parameters,
             icon: Icons.tune_outlined,
             label: '参数',
@@ -40,6 +44,7 @@ class StudioSidebar extends StatelessWidget {
 
           // 导航分类项：提示词
           _buildTabItem(
+            context: context,
             tab: StudioSidebarTab.prompts,
             icon: Icons.edit_note_outlined,
             label: '提示词',
@@ -49,6 +54,7 @@ class StudioSidebar extends StatelessWidget {
 
           // 导航分类项：修复
           _buildTabItem(
+            context: context,
             tab: StudioSidebarTab.inpaint,
             icon: Icons.auto_fix_high_outlined,
             label: '修复',
@@ -58,6 +64,7 @@ class StudioSidebar extends StatelessWidget {
 
           // 导航分类项：词库 (覆盖三栏的沉浸式管理)
           _buildTabItem(
+            context: context,
             tab: StudioSidebarTab.library,
             icon: Icons.collections_bookmark_outlined,
             label: '词库',
@@ -67,9 +74,10 @@ class StudioSidebar extends StatelessWidget {
           const Spacer(),
 
           // 底部全局设置按钮 (弹窗形式打开)
-          const Divider(height: 1, color: AppTheme.border),
+          Divider(height: 1, color: colors.borderDefault),
           const SizedBox(height: 8),
           _buildActionItem(
+            context: context,
             icon: Icons.settings_outlined,
             label: '设置',
             tooltip: '全局配置 (API Key / 存储 / LLM)',
@@ -82,26 +90,28 @@ class StudioSidebar extends StatelessWidget {
   }
 
   Widget _buildTabItem({
+    required BuildContext context,
     required StudioSidebarTab tab,
     required IconData icon,
     required String label,
     required bool isSelected,
   }) {
+    final colors = context.colors;
     return Tooltip(
       message: label,
       child: InkWell(
         onTap: () => onTabChanged(tab),
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           width: 44,
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? AppTheme.skyTint : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+            color: isSelected ? colors.primaryTint : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(
               color: isSelected
-                  ? AppTheme.notionBlue.withValues(alpha: 0.4)
+                  ? colors.primary.withValues(alpha: 0.4)
                   : Colors.transparent,
               width: 1,
             ),
@@ -112,7 +122,7 @@ class StudioSidebar extends StatelessWidget {
               Icon(
                 icon,
                 size: 20,
-                color: isSelected ? AppTheme.notionBlue : AppTheme.graphite,
+                color: isSelected ? colors.primary : colors.textSecondary,
               ),
               const SizedBox(height: 3),
               Text(
@@ -120,7 +130,7 @@ class StudioSidebar extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected ? AppTheme.notionBlue : AppTheme.graphite,
+                  color: isSelected ? colors.primary : colors.textSecondary,
                 ),
               ),
             ],
@@ -131,27 +141,29 @@ class StudioSidebar extends StatelessWidget {
   }
 
   Widget _buildActionItem({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required String tooltip,
     required VoidCallback onTap,
   }) {
+    final colors = context.colors;
     return Tooltip(
       message: tooltip,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
           width: 44,
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 20, color: AppTheme.graphite),
+              Icon(icon, size: 20, color: colors.textSecondary),
               const SizedBox(height: 3),
               Text(
                 label,
-                style: const TextStyle(fontSize: 10, color: AppTheme.graphite),
+                style: TextStyle(fontSize: 10, color: colors.textSecondary),
               ),
             ],
           ),

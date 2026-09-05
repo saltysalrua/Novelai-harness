@@ -11,7 +11,8 @@ import '../theme/theme_context_extensions.dart';
 ///
 /// 核心职责：
 /// 统一桌面端侧边栏、模态导航及抽屉列表项，
-/// 支持前缀图标、标题、副标题、数量徽标 (Badge)、激活指示态与平滑 Hover 过渡。
+/// 支持前缀图标、标题、副标题、数量徽标 (Badge) 与激活指示态；
+/// Hover 反馈为瞬时无动画变色（避免鼠标快速扫过时连环闪烁），选中态切换同样即时。
 class AppNavTile extends StatefulWidget {
   /// 导航条目标题
   final String title;
@@ -124,8 +125,7 @@ class _AppNavTileState extends State<AppNavTile> {
             borderRadius: BorderRadius.circular(widget.radius),
             hoverColor: Colors.transparent,
             splashColor: resolvedActiveBg.withValues(alpha: 0.3),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 100),
+            child: Container(
               padding: widget.padding,
               decoration: BoxDecoration(
                 color: effectiveBg,
@@ -136,7 +136,8 @@ class _AppNavTileState extends State<AppNavTile> {
                 children: [
                   if (widget.icon != null) ...[
                     Icon(widget.icon, size: 16, color: iconFg),
-                    const SizedBox(width: 8),
+                    // 图标间距对齐旧设置侧栏的 10px 节奏
+                    const SizedBox(width: 10),
                   ],
                   Expanded(
                     child: Column(
@@ -146,10 +147,11 @@ class _AppNavTileState extends State<AppNavTile> {
                         Text(
                           widget.title,
                           style: TextStyle(
-                            fontSize: 12.5,
+                            fontSize: 13,
+                            // 未选中态 w500 对齐替换前旧侧栏字重，避免 MiSans w400 过细显糊
                             fontWeight: widget.isSelected
                                 ? FontWeight.w600
-                                : FontWeight.normal,
+                                : FontWeight.w500,
                             color: effectiveFg,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -160,7 +162,7 @@ class _AppNavTileState extends State<AppNavTile> {
                           Text(
                             widget.subtitle!,
                             style: TextStyle(
-                              fontSize: 10.5,
+                              fontSize: 11,
                               color: colors.textMuted,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -171,8 +173,7 @@ class _AppNavTileState extends State<AppNavTile> {
                   ),
                   if (displayBadge != null) ...[
                     const SizedBox(width: 6),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 100),
+                    Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
                         vertical: 1.5,
@@ -187,7 +188,7 @@ class _AppNavTileState extends State<AppNavTile> {
                       child: Text(
                         displayBadge,
                         style: TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: widget.isSelected
                               ? (widget.badgeColor ?? resolvedActiveColor)

@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/prompt_library_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_confirm_dialog.dart';
+import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_nav_tile.dart';
+import '../../../core/widgets/app_search_field.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_combo_card.dart';
 import 'prompt_combo_edit_dialog.dart';
@@ -104,40 +111,52 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
 
   Future<void> _handleImport() async {
     final controller = TextEditingController();
-    final result = await showDialog<bool>(
+    final result = await AppDialogScaffold.show<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.pureWhite,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-          side: const BorderSide(color: AppTheme.border),
-        ),
-        title: const Text(
-          '导入词库 JSON',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        ),
-        content: SizedBox(
-          width: 480,
+      builder: (ctx) => AppDialogScaffold(
+        title: '导入词库 JSON',
+        width: 480,
+        body: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '请粘贴导出的词库 JSON 文本：',
-                style: TextStyle(fontSize: 12, color: AppTheme.graphite),
+                style: TextStyle(fontSize: 12, color: ctx.colors.textSecondary),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: controller,
                 maxLines: 6,
-                style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: ctx.colors.textPrimary,
+                ),
                 decoration: InputDecoration(
                   hintText: '[{"title": "...", "prompt": "..."}]',
+                  hintStyle: TextStyle(
+                    fontSize: 12,
+                    color: ctx.colors.textMuted,
+                  ),
                   filled: true,
-                  fillColor: AppTheme.surfaceMuted,
+                  fillColor: ctx.colors.mutedBackground,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                    borderSide: const BorderSide(color: AppTheme.border),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: ctx.colors.borderDefault),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: ctx.colors.borderDefault),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(
+                      color: ctx.colors.primary,
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),
@@ -149,12 +168,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('取消'),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.notionBlue,
-              foregroundColor: Colors.white,
-            ),
             child: const Text('导入'),
           ),
         ],
@@ -225,37 +240,13 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   }
 
   Future<void> _confirmDelete(PromptComboEntry combo) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.pureWhite,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-          side: const BorderSide(color: AppTheme.border),
-        ),
-        title: const Text(
-          '删除词组合',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          '确定要删除词组合「${combo.title}」吗？此操作无法撤销。',
-          style: const TextStyle(fontSize: 12.5, color: AppTheme.charcoal),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.coral,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+    final ok = await showAppConfirmDialog(
+      context,
+      title: '删除词组合',
+      message: '确定要删除词组合「${combo.title}」吗？此操作无法撤销。',
+      confirmLabel: '删除',
+      cancelLabel: '取消',
+      isDestructive: true,
     );
 
     if (ok == true) {
@@ -273,24 +264,25 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final allEntries = widget.viewModel.promptLibraryEntries;
     final categories = _getAllCategories(allEntries);
     final filtered = _filterEntries(allEntries);
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      margin: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        border: Border.all(color: AppTheme.border),
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: colors.borderDefault),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 1. 顶部操作栏
-          _buildTopBar(allEntries.length),
-          const Divider(height: 1, color: AppTheme.border),
+          _buildTopBar(context, allEntries.length),
+          Divider(height: 1, color: colors.borderDefault),
 
           // 2. 主体区：左侧分类标签栏 + 竖向分割线 + 右侧词组合网格
           Expanded(
@@ -300,17 +292,17 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 // 侧边分类标签栏 (固定宽度 200)
                 SizedBox(
                   width: 200,
-                  child: _buildCategorySidebar(categories, allEntries),
+                  child: _buildCategorySidebar(context, categories, allEntries),
                 ),
 
-                const VerticalDivider(width: 1, color: AppTheme.border),
+                VerticalDivider(width: 1, color: colors.borderDefault),
 
                 // 右侧词组合网格
                 Expanded(
                   child: Container(
-                    color: AppTheme.surfaceElevated,
+                    color: colors.canvasBackground,
                     child: filtered.isEmpty
-                        ? _buildEmptyState(allEntries.isEmpty)
+                        ? _buildEmptyState(context, allEntries.isEmpty)
                         : _buildGrid(filtered),
                   ),
                 ),
@@ -322,90 +314,55 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
-  Widget _buildTopBar(int totalCount) {
+  Widget _buildTopBar(BuildContext context, int totalCount) {
+    final colors = context.colors;
     return Container(
-      color: AppTheme.pureWhite,
+      color: colors.cardBackground,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           // 标题与条目统计
-          const Icon(
+          Icon(
             Icons.collections_bookmark_outlined,
             size: 20,
-            color: AppTheme.notionBlue,
+            color: colors.primary,
           ),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             '词库',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppTheme.charcoal,
+              color: colors.textPrimary,
             ),
           ),
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppTheme.skyTint,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '$totalCount',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.notionBlue,
-              ),
-            ),
+          AppBadge(
+            label: '$totalCount',
+            variant: AppBadgeVariant.primary,
+            shape: AppBadgeShape.pill,
+            fontSize: 11,
           ),
 
           const SizedBox(width: 20),
 
           // 搜索框
           Expanded(
-            child: Container(
-              height: 34,
+            child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 360),
-              child: TextField(
+              child: AppSearchField(
                 controller: _searchController,
-                style: const TextStyle(fontSize: 12, color: AppTheme.charcoal),
-                decoration: InputDecoration(
-                  hintText: '搜索词组合名称、提示词、标签...',
-                  hintStyle: const TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.graphite,
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    size: 16,
-                    color: AppTheme.graphite,
-                  ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close, size: 14),
-                          onPressed: () => _searchController.clear(),
-                        )
-                      : null,
-                  contentPadding: EdgeInsets.zero,
-                  filled: true,
-                  fillColor: AppTheme.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                    borderSide: const BorderSide(color: AppTheme.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                    borderSide: const BorderSide(color: AppTheme.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                    borderSide: const BorderSide(
-                      color: AppTheme.notionBlue,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
+                hintText: '搜索词组合名称、提示词、标签...',
+                debounceDuration: const Duration(milliseconds: 150),
+                onChanged: (val) {
+                  final q = val.trim();
+                  if (q != _searchQuery) {
+                    setState(() => _searchQuery = q);
+                  }
+                },
+                onClear: () {
+                  setState(() => _searchQuery = '');
+                },
               ),
             ),
           ),
@@ -420,31 +377,31 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               if (val == 'import') _handleImport();
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'export',
                 child: Row(
                   children: [
                     Icon(
                       Icons.file_download_outlined,
                       size: 16,
-                      color: AppTheme.charcoal,
+                      color: colors.textPrimary,
                     ),
-                    SizedBox(width: 8),
-                    Text('导出词库 (JSON)', style: TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    const Text('导出词库 (JSON)', style: TextStyle(fontSize: 12)),
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'import',
                 child: Row(
                   children: [
                     Icon(
                       Icons.file_upload_outlined,
                       size: 16,
-                      color: AppTheme.charcoal,
+                      color: colors.textPrimary,
                     ),
-                    SizedBox(width: 8),
-                    Text('导入词库 (JSON)', style: TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    const Text('导入词库 (JSON)', style: TextStyle(fontSize: 12)),
                   ],
                 ),
               ),
@@ -452,18 +409,18 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: AppTheme.surfaceMuted,
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                border: Border.all(color: AppTheme.border),
+                color: colors.mutedBackground,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: colors.borderDefault),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.more_horiz, size: 16, color: AppTheme.graphite),
-                  SizedBox(width: 4),
+                  Icon(Icons.more_horiz, size: 16, color: colors.textSecondary),
+                  const SizedBox(width: 4),
                   Text(
                     '管理',
-                    style: TextStyle(fontSize: 12, color: AppTheme.charcoal),
+                    style: TextStyle(fontSize: 12, color: colors.textPrimary),
                   ),
                 ],
               ),
@@ -483,12 +440,12 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.notionBlue,
+              backgroundColor: colors.primary,
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
             ),
           ),
@@ -511,11 +468,13 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   }
 
   Widget _buildCategorySidebar(
+    BuildContext context,
     List<String> categories,
     List<PromptComboEntry> allEntries,
   ) {
+    final colors = context.colors;
     return Container(
-      color: AppTheme.pureWhite,
+      color: colors.cardBackground,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -523,33 +482,30 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.label_outline,
                   size: 14,
-                  color: AppTheme.graphite,
+                  color: colors.textSecondary,
                 ),
                 const SizedBox(width: 6),
-                const Text(
+                Text(
                   '标签分类',
                   style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.graphite,
+                    color: colors.textSecondary,
                     letterSpacing: 0.5,
                   ),
                 ),
                 const Spacer(),
                 Text(
                   '${allEntries.length} 条',
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    color: AppTheme.graphite,
-                  ),
+                  style: TextStyle(fontSize: 11, color: colors.textSecondary),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: AppTheme.border),
+          Divider(height: 1, color: colors.borderDefault),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -561,104 +517,21 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                     : allEntries.where((e) => e.category.trim() == cat).length;
                 final icon = _getCategoryIcon(cat);
 
-                final activeColor =
-                    isChar ? AppTheme.coral : AppTheme.notionBlue;
-                final activeBgColor =
-                    isChar ? const Color(0xFFFFECEB) : AppTheme.skyTint;
-                final activeBorderColor = isChar
-                    ? AppTheme.coral.withValues(alpha: 0.35)
-                    : AppTheme.notionBlue.withValues(alpha: 0.35);
-
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 2),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => setState(() => _selectedCategory = cat),
-                      borderRadius:
-                          BorderRadius.circular(AppTheme.radiusButton),
-                      splashColor: Colors.transparent,
-                      highlightColor: Colors.transparent,
-                      hoverColor: isSelected
-                          ? Colors.transparent
-                          : AppTheme.surfaceMuted.withValues(alpha: 0.6),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 100),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected ? activeBgColor : Colors.transparent,
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusButton,
-                          ),
-                          border: Border.all(
-                            color: isSelected
-                                ? activeBorderColor
-                                : activeBorderColor.withValues(alpha: 0.0),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              icon,
-                              size: 15,
-                              color: isSelected
-                                  ? activeColor
-                                  : AppTheme.graphite,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                cat,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                  color: isSelected
-                                      ? activeColor
-                                      : AppTheme.charcoal,
-                                ),
-                              ),
-                            ),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 100),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? (isChar
-                                        ? AppTheme.coral.withValues(
-                                            alpha: 0.15,
-                                          )
-                                        : AppTheme.notionBlue.withValues(
-                                            alpha: 0.15,
-                                          ))
-                                    : AppTheme.surfaceMuted,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                '$count',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                  color: isSelected
-                                      ? activeColor
-                                      : AppTheme.graphite,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  child: AppNavTile(
+                    title: cat,
+                    icon: icon,
+                    badgeCount: count,
+                    isSelected: isSelected,
+                    onTap: () => setState(() => _selectedCategory = cat),
+                    activeColor: isChar ? colors.error : colors.primary,
+                    activeBackgroundColor: isChar
+                        ? colors.errorSurface
+                        : colors.primaryTint,
+                    activeBorderColor: isChar
+                        ? colors.error.withValues(alpha: 0.35)
+                        : colors.primary.withValues(alpha: 0.35),
                   ),
                 );
               }).toList(),
@@ -706,57 +579,25 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
-  Widget _buildEmptyState(bool isCompletelyEmpty) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.collections_bookmark_outlined,
-            size: 48,
-            color: AppTheme.graphite.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            isCompletelyEmpty ? '词库暂无条目' : '没有匹配的词组合',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.charcoal,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            isCompletelyEmpty
-                ? '点击右上角「新建词组合」创建您的第一个专属提示词组合'
-                : '请尝试更换搜索词或分类筛选条件',
-            style: const TextStyle(fontSize: 12, color: AppTheme.graphite),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              if (isCompletelyEmpty) {
-                PromptComboEditDialog.show(
-                  context,
-                  viewModel: widget.viewModel,
-                );
-              } else {
-                setState(() {
-                  _searchController.clear();
-                  _selectedCategory = '全部';
-                });
-              }
-            },
-            icon: Icon(isCompletelyEmpty ? Icons.add : Icons.refresh, size: 15),
-            label: Text(isCompletelyEmpty ? '新建词组合' : '重置筛选条件'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.notionBlue,
-              foregroundColor: Colors.white,
-              elevation: 0,
-            ),
-          ),
-        ],
-      ),
+  Widget _buildEmptyState(BuildContext context, bool isCompletelyEmpty) {
+    return AppEmptyState(
+      icon: Icons.collections_bookmark_outlined,
+      title: isCompletelyEmpty ? '词库暂无条目' : '没有匹配的词组合',
+      description: isCompletelyEmpty
+          ? '点击右上角「新建词组合」创建您的第一个专属提示词组合'
+          : '请尝试更换搜索词或分类筛选条件',
+      actionLabel: isCompletelyEmpty ? '新建词组合' : '重置筛选条件',
+      actionIcon: isCompletelyEmpty ? Icons.add : Icons.refresh,
+      onActionPressed: () {
+        if (isCompletelyEmpty) {
+          PromptComboEditDialog.show(context, viewModel: widget.viewModel);
+        } else {
+          setState(() {
+            _searchController.clear();
+            _selectedCategory = '全部';
+          });
+        }
+      },
     );
   }
 }

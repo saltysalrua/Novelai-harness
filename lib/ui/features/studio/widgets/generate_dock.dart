@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_floating_dock.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 左侧面板底部常驻操作坞：账号等级 / 点数 / Opus 免点标识 / V5 体力条 / 刷新 + 主操作按钮
@@ -28,18 +31,20 @@ class GenerateDock extends StatelessWidget {
     return '生成图片';
   }
 
-  Color _buildButtonColor(int cost) {
+  Color _buildButtonColor(BuildContext context, int cost) {
+    final colors = context.colors;
     if (viewModel.isGenerating) {
-      return AppTheme.error;
+      return colors.error;
     }
     if (cost != 0) {
-      return AppTheme.warning;
+      return colors.warning;
     }
-    return AppTheme.notionBlue;
+    return colors.primary;
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final info = viewModel.accountInfo;
     final estimatedCost = viewModel.estimatedGenerationCost;
     // 修复页签下主按钮切换为「开始修复」(AI 整图编辑模式下为「开始 AI 编辑」)，
@@ -54,17 +59,17 @@ class GenerateDock extends StatelessWidget {
         ? (info.staminaPercent / 100.0).clamp(0.0, 1.0)
         : 0.0;
     final staminaColor = (info?.staminaPercent ?? 0) >= 80
-        ? AppTheme.success
+        ? colors.success
         : (info?.staminaPercent ?? 0) >= 30
-        ? AppTheme.warning
-        : AppTheme.error;
+        ? colors.warning
+        : colors.error;
 
-    return Container(
+    return AppFloatingDock(
+      radius: 0,
+      shadows: const [],
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: const BoxDecoration(
-        color: AppTheme.pureWhite,
-        border: Border(top: BorderSide(color: AppTheme.border)),
-      ),
+      backgroundColor: colors.cardBackground,
+      borderColor: colors.borderDefault,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -72,13 +77,10 @@ class GenerateDock extends StatelessWidget {
           if (info == null)
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     '未获取账号信息 (请检查 API Key)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -90,34 +92,18 @@ class GenerateDock extends StatelessWidget {
             // 等级、点数与刷新
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.skyTint,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                    border: Border.all(
-                      color: AppTheme.notionBlue.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Text(
-                    info.tierName,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.notionBlue,
-                    ),
-                  ),
+                AppBadge(
+                  label: info.tierName,
+                  shape: AppBadgeShape.pill,
+                  variant: AppBadgeVariant.primary,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   '${info.totalAnlas} Anlas',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: colors.textPrimary,
                   ),
                 ),
                 const Spacer(),
@@ -130,21 +116,21 @@ class GenerateDock extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Text(
+                  Text(
                     'V5 体力',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: AppTheme.textSecondary,
+                      color: colors.textSecondary,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                       child: LinearProgressIndicator(
                         value: percent,
-                        backgroundColor: const Color(0xFFEFEFEF),
+                        backgroundColor: colors.mutedBackground,
                         valueColor: AlwaysStoppedAnimation<Color>(staminaColor),
                         minHeight: 5,
                       ),
@@ -154,7 +140,7 @@ class GenerateDock extends StatelessWidget {
                   Text(
                     '${info.staminaPercent.toStringAsFixed(0)}%',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: staminaColor,
                     ),
@@ -170,13 +156,13 @@ class GenerateDock extends StatelessWidget {
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: isInpaintTab
-                  ? AppTheme.notionBlue
-                  : _buildButtonColor(estimatedCost),
+                  ? colors.primary
+                  : _buildButtonColor(context, estimatedCost),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 13),
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
             ),
             onPressed: isInpaintTab
@@ -199,7 +185,7 @@ class GenerateDock extends StatelessWidget {
                         ? (isRepairing ? 'AI 编辑中...' : '开始 AI 编辑')
                         : (isRepairing ? '修复中...' : '开始修复'),
                     style: const TextStyle(
-                      fontSize: 14.5,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
                   )
@@ -209,7 +195,7 @@ class GenerateDock extends StatelessWidget {
                     builder: (context, _) => Text(
                       _buildButtonLabel(estimatedCost),
                       style: const TextStyle(
-                        fontSize: 14.5,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -229,18 +215,19 @@ class _RefreshButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final isLoading = viewModel.isLoadingAccount;
     return IconButton(
       icon: isLoading
-          ? const SizedBox(
+          ? SizedBox(
               width: 14,
               height: 14,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.notionBlue),
+                valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
               ),
             )
-          : const Icon(Icons.refresh, size: 17, color: AppTheme.textSecondary),
+          : Icon(Icons.refresh, size: 17, color: colors.textSecondary),
       tooltip: '刷新体力与点数',
       visualDensity: VisualDensity.compact,
       padding: const EdgeInsets.all(3),

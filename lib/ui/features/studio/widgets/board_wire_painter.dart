@@ -1,7 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
 
 /// 图片卡片顶栏高度 (与 BoardImageCard 顶栏保持一致)
 const double kBoardCardHeaderHeight = 28.0;
@@ -261,7 +260,10 @@ Offset retractFromPinBadge(Offset target, Offset from) {
 
 /// 背景网格点阵绘制器 (绘制在所有卡片之下)
 class BoardGridPainter extends CustomPainter {
-  const BoardGridPainter();
+  /// 网格点颜色 (由当前主题注入，主题切换时参与重绘判定)
+  final Color dotColor;
+
+  const BoardGridPainter({required this.dotColor});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -275,7 +277,7 @@ class BoardGridPainter extends CustomPainter {
     if (right <= left || bottom <= top) return;
 
     final dotPaint = Paint()
-      ..color = const Color(0xFFDFDFDC)
+      ..color = dotColor
       ..strokeWidth = 1.8;
 
     const step = 36.0;
@@ -296,7 +298,8 @@ class BoardGridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant BoardGridPainter oldDelegate) => false;
+  bool shouldRepaint(covariant BoardGridPainter oldDelegate) =>
+      oldDelegate.dotColor != dotColor;
 }
 
 /// 前景连线绘制器 (绘制在所有卡片之上，连线不会被图片遮挡)
@@ -308,10 +311,14 @@ class BoardWirePainter extends CustomPainter {
   final ValueNotifier<BoardLiveOverrides> liveOverlays;
   final ValueNotifier<BoardWireDragState?> wireDrag;
 
+  /// 拖拽中即时连线的主题强调色 (由当前主题注入)
+  final Color dragColor;
+
   BoardWirePainter({
     required this.boardData,
     required this.liveOverlays,
     required this.wireDrag,
+    required this.dragColor,
   }) : super(repaint: Listenable.merge([liveOverlays, wireDrag]));
 
   @override
@@ -383,7 +390,7 @@ class BoardWirePainter extends CustomPainter {
         canvas,
         drag.startBoardPos,
         drag.currentBoardPos,
-        AppTheme.notionBlue,
+        dragColor,
         isDynamicDragging: true,
       );
     }

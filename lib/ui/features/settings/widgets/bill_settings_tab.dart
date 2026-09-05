@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/services/usage_ledger_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_section_header.dart';
+import '../../../core/widgets/app_segmented_controls.dart';
 import '../../studio/view_models/studio_view_model.dart';
-import 'settings_shared.dart';
 
 /// Bill 页：按周期统计各模型的 Token 用量账单 (只读)
+///
+/// 阶段 3 垂直切片：周期胶囊组 → AppSegmentedPillBar，
+/// 空状态 → AppEmptyState，表格取色 → context.colors 语义色。
 class BillSettingsTab extends StatefulWidget {
   final StudioViewModel viewModel;
 
@@ -26,6 +32,7 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final summary = widget.viewModel.buildBillSummary(_billPeriod);
 
     return SingleChildScrollView(
@@ -33,56 +40,26 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SettingsGroupTitle('Usage Bill'),
+          const AppSectionHeader(title: 'Usage Bill'),
 
           // 周期切换胶囊组
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Row(
               children: [
-                for (final period in BillPeriod.values) ...[
-                  InkWell(
-                    onTap: () => setState(() => _billPeriod = period),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _billPeriod == period
-                            ? AppTheme.notionBlue
-                            : AppTheme.pureWhite,
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusPill,
-                        ),
-                        border: Border.all(
-                          color: _billPeriod == period
-                              ? AppTheme.notionBlue
-                              : AppTheme.border,
-                        ),
-                      ),
-                      child: Text(
-                        period.label,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: _billPeriod == period
-                              ? Colors.white
-                              : AppTheme.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
+                AppSegmentedPillBar<BillPeriod>(
+                  items: [
+                    for (final period in BillPeriod.values)
+                      AppSegmentedItem(value: period, label: period.label),
+                  ],
+                  selectedValue: _billPeriod,
+                  onValueChanged: (period) =>
+                      setState(() => _billPeriod = period),
+                ),
                 const Spacer(),
                 Text(
                   '${summary.requests} 次请求 · 总计 ${UsageLedgerService.formatTokens(summary.usage.total)} tokens',
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: AppTheme.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: colors.textMuted),
                 ),
               ],
             ),
@@ -90,15 +67,10 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
 
           // 账单表格
           if (summary.models.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: const Center(
-                child: Text(
-                  '该周期内暂无用量记录',
-                  style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
-                ),
-              ),
+            const AppEmptyState(
+              icon: Icons.receipt_long_rounded,
+              title: '该周期内暂无用量记录',
+              isCompact: true,
             )
           else
             _buildBillTable(summary),
@@ -109,23 +81,25 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
 
   /// 账单表格 (对齐 pi-bill 的列: Model / Reqs / Input / Output / Cache R / Total)
   Widget _buildBillTable(BillSummary summary) {
-    const headerStyle = TextStyle(
+    final colors = context.colors;
+
+    TextStyle headerStyle() => TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w700,
-      color: AppTheme.textMuted,
+      color: colors.textMuted,
     );
-    const cellStyle = TextStyle(fontSize: 11.5, color: AppTheme.textPrimary);
-    const totalStyle = TextStyle(
-      fontSize: 11.5,
+    TextStyle cellStyle() => TextStyle(fontSize: 12, color: colors.textPrimary);
+    TextStyle totalStyle() => TextStyle(
+      fontSize: 12,
       fontWeight: FontWeight.w700,
-      color: AppTheme.textPrimary,
+      color: colors.textPrimary,
     );
 
     String fmt(int v) => UsageLedgerService.formatTokens(v);
 
     TableRow buildRow(
       List<String> cells, {
-      TextStyle style = cellStyle,
+      TextStyle Function()? style,
       Color? background,
       bool topBorder = false,
     }) {
@@ -133,14 +107,14 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
         decoration: BoxDecoration(
           color: background,
           border: topBorder
-              ? const Border(top: BorderSide(color: AppTheme.border))
+              ? Border(top: BorderSide(color: colors.borderDefault))
               : null,
         ),
         children: cells
             .map(
               (c) => Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-                child: Text(c, style: style),
+                child: Text(c, style: style?.call() ?? cellStyle()),
               ),
             )
             .toList(),
@@ -149,9 +123,9 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-        border: Border.all(color: AppTheme.border),
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: colors.borderDefault),
       ),
       clipBehavior: Clip.antiAlias,
       child: Table(
@@ -168,7 +142,7 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
           buildRow(
             const ['模型', '请求数', '输入', '输出', '缓存读', '命中率', '总计'],
             style: headerStyle,
-            background: AppTheme.paperWarmth,
+            background: colors.mutedBackground,
           ),
           for (final model in summary.models)
             buildRow([
@@ -191,7 +165,7 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
               fmt(summary.usage.total),
             ],
             style: totalStyle,
-            background: AppTheme.paperWarmth,
+            background: colors.mutedBackground,
             topBorder: true,
           ),
         ],

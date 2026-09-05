@@ -118,7 +118,11 @@ void main() {
       var notifyCount = 0;
       controller.addListener(() => notifyCount++);
 
-      controller.updateFrame(previewBytes: null, currentStep: 7, totalSteps: 28);
+      controller.updateFrame(
+        previewBytes: null,
+        currentStep: 7,
+        totalSteps: 28,
+      );
       expect(notifyCount, 1);
       expect(controller.currentStep, 7);
       expect(controller.previewBytes, isNull);

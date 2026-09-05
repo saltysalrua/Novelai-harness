@@ -2,11 +2,16 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
+import 'package:novelai_harness/ui/core/widgets/app_badge.dart';
+import 'package:novelai_harness/ui/core/widgets/app_collapsible_section.dart';
+import 'package:novelai_harness/ui/core/widgets/app_dropdown.dart';
+import 'package:novelai_harness/ui/core/widgets/app_key_value_row.dart';
+import 'package:novelai_harness/ui/core/widgets/app_number_slider.dart';
+import 'package:novelai_harness/ui/core/widgets/app_segmented_controls.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/inpaint_canvas_overlay.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/inpaint_page.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_editor_card.dart';
-import 'package:novelai_harness/ui/features/studio/widgets/studio_shared.dart';
 
 // 1x1 红色 PNG
 final kTestPngBytes = Uint8List.fromList([
@@ -113,6 +118,12 @@ void main() {
       expect(find.text('外延上下文 (px)'), findsOneWidget);
       expect(find.text('重绘强度'), findsOneWidget);
       expect(find.text('附加噪声'), findsOneWidget);
+      // 原子组件验证
+      expect(find.byType(AppOptionCard<InpaintMode>), findsNWidgets(3));
+      expect(find.byType(AppCollapsibleSection), findsOneWidget);
+      expect(find.byType(AppBadge), findsOneWidget);
+      expect(find.byType(AppKeyValueRow), findsNWidgets(3));
+      expect(find.byType(AppNumberSlider), findsNWidgets(3));
       // 执行入口统一在左侧生成坞，修复页不再携带「开始修复」按钮
       expect(find.text('开始修复'), findsNothing);
 
@@ -232,7 +243,9 @@ void main() {
       await tester.pumpAndSettle();
 
       final initialRect = viewModel.inpaintParams.selectionRect!;
-      final handleFinder = find.byKey(const ValueKey('inpaint-handle-2')); // BR handle
+      final handleFinder = find.byKey(
+        const ValueKey('inpaint-handle-2'),
+      ); // BR handle
       expect(handleFinder, findsOneWidget);
 
       // 拖拽右下角手柄缩放
@@ -440,9 +453,7 @@ void main() {
       expect(viewModel.inpaintParams.useMainPrompt, isFalse);
     });
 
-    testWidgets('AI 整图编辑模式渲染生图比例与生图分辨率 DropdownField，并支持交互切换', (
-      tester,
-    ) async {
+    testWidgets('AI 整图编辑模式渲染生图比例与生图分辨率 AppDropdown，并支持交互切换', (tester) async {
       viewModel.setInpaintMode(InpaintMode.aiEdit);
 
       await tester.pumpWidget(
@@ -454,7 +465,7 @@ void main() {
 
       expect(find.text('生图比例'), findsOneWidget);
       expect(find.text('生图分辨率'), findsOneWidget);
-      expect(find.byType(DropdownField<String>), findsNWidgets(2));
+      expect(find.byType(AppDropdown<String>), findsNWidgets(2));
       expect(find.text('跟随原图'), findsOneWidget);
       expect(find.text('默认'), findsOneWidget);
 

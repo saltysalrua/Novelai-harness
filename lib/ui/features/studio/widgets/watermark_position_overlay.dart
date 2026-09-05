@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../view_models/studio_view_model.dart';
 
 // ==================== 水印 2D 位置与自由缩放画板交互层 ====================
@@ -65,6 +65,7 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final viewModel = widget.viewModel;
     final config = viewModel.watermarkConfig;
 
@@ -226,15 +227,13 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
                           child: Container(
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: AppTheme.notionBlue,
+                                color: colors.primary,
                                 width: 1.5,
                               ),
                               borderRadius: BorderRadius.circular(4),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppTheme.notionBlue.withValues(
-                                    alpha: 0.2,
-                                  ),
+                                  color: colors.primary.withValues(alpha: 0.2),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -253,12 +252,12 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
                                         gaplessPlayback: true,
                                       )
                                     : Container(
-                                        color: AppTheme.pureWhite,
-                                        child: const Center(
+                                        color: colors.cardBackground,
+                                        child: Center(
                                           child: Icon(
                                             Icons.branding_watermark,
                                             size: 28,
-                                            color: AppTheme.notionBlue,
+                                            color: colors.primary,
                                           ),
                                         ),
                                       ),
@@ -338,10 +337,10 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
                             width: 18,
                             height: 18,
                             decoration: BoxDecoration(
-                              color: AppTheme.pureWhite,
+                              color: colors.cardBackground,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: AppTheme.notionBlue,
+                                color: colors.primary,
                                 width: 2.0,
                               ),
                               boxShadow: const [
@@ -352,11 +351,11 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
                                 ),
                               ],
                             ),
-                            child: const Center(
+                            child: Center(
                               child: Icon(
                                 Icons.aspect_ratio_rounded,
                                 size: 10,
-                                color: AppTheme.notionBlue,
+                                color: colors.primary,
                               ),
                             ),
                           ),
@@ -428,6 +427,7 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
     double? right,
     double? bottom,
   }) {
+    final colors = context.colors;
     return Positioned(
       top: top,
       left: left,
@@ -438,7 +438,7 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
           width: 6,
           height: 6,
           decoration: BoxDecoration(
-            color: AppTheme.notionBlue,
+            color: colors.primary,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 1.0),
           ),

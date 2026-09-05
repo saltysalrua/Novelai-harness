@@ -2,7 +2,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HardwareKeyboard;
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
 import 'board_toolbar.dart';
@@ -80,6 +82,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
     final cardPos = _liveCardOffset ?? imgNode.offset;
     final cardSize = _liveCardSize ?? Size(imgNode.width, imgNode.height);
     final isMain = imgNode.isMain;
+    final colors = context.colors;
 
     return Positioned(
       left: cardPos.dx,
@@ -107,15 +110,19 @@ class _BoardImageCardState extends State<BoardImageCard> {
               height: 28,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
-                color: isMain ? AppTheme.notionBlue : const Color(0xFF37352F),
+                color: isMain
+                    ? colors.primary
+                    : (context.isDarkMode
+                          ? colors.elevatedBackground
+                          : const Color(0xFF37352F)),
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(8),
+                  top: Radius.circular(AppRadius.md),
                 ),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Colors.black12,
+                    color: Colors.black.withValues(alpha: 0.12),
                     blurRadius: 4,
-                    offset: Offset(0, 1),
+                    offset: const Offset(0, 1),
                   ),
                 ],
               ),
@@ -124,7 +131,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                   // 连线端口：按住拖出连线到选区/图钉 (仅参考图)
                   if (!isMain) ...[
                     _WireSourcePort(
-                      color: AppTheme.notionBlue,
+                      color: colors.primary,
                       onPanStart: () {
                         widget.onStartWireFromImage(
                           cardPos + const Offset(14, 14),
@@ -156,16 +163,14 @@ class _BoardImageCardState extends State<BoardImageCard> {
                     ),
                   ),
                   if (!isMain)
-                    Tooltip(
-                      message: '移除参考图卡片',
-                      child: GestureDetector(
-                        onTap: () => viewModel.removeImageNode(imgNode.id),
-                        child: const Icon(
-                          Icons.close_rounded,
-                          size: 14,
-                          color: Colors.white70,
-                        ),
-                      ),
+                    AppIconButton(
+                      icon: Icons.close_rounded,
+                      tooltip: '移除参考图卡片',
+                      size: 20,
+                      iconSize: 14,
+                      variant: AppIconButtonVariant.ghost,
+                      iconColor: Colors.white70,
+                      onPressed: () => viewModel.removeImageNode(imgNode.id),
                     ),
                 ],
               ),
@@ -178,13 +183,13 @@ class _BoardImageCardState extends State<BoardImageCard> {
               decoration: BoxDecoration(
                 color: Colors.black,
                 borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(8),
+                  bottom: Radius.circular(AppRadius.md),
                 ),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Colors.black26,
+                    color: Colors.black.withValues(alpha: 0.26),
                     blurRadius: 12,
-                    offset: Offset(0, 4),
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -224,15 +229,15 @@ class _BoardImageCardState extends State<BoardImageCard> {
                           }
 
                           return Container(
-                            color: AppTheme.surfaceMuted,
-                            child: const Center(
+                            color: colors.mutedBackground,
+                            child: Center(
                               child: SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    AppTheme.notionBlue,
+                                    colors.primary,
                                   ),
                                 ),
                               ),
@@ -340,8 +345,10 @@ class _BoardImageCardState extends State<BoardImageCard> {
                           child: BoardCardResizeHandle(
                             tooltip: '拖拽调节图片卡片大小 (按住 Shift 锁定宽高比)',
                             color: isMain
-                                ? AppTheme.notionBlue
-                                : const Color(0xFF37352F),
+                                ? colors.primary
+                                : (context.isDarkMode
+                                      ? colors.borderHover
+                                      : const Color(0xFF37352F)),
                             onPanStart: () {
                               _resizeStartSize =
                                   _liveCardSize ??
@@ -439,9 +446,9 @@ class _BoardImageCardState extends State<BoardImageCard> {
       child: IgnorePointer(
         child: Container(
           decoration: BoxDecoration(
-            color: AppTheme.notionBlue.withValues(alpha: 0.22),
-            border: Border.all(color: AppTheme.notionBlue, width: 2.0),
-            borderRadius: BorderRadius.circular(4),
+            color: context.colors.primary.withValues(alpha: 0.22),
+            border: Border.all(color: context.colors.primary, width: 2.0),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
         ),
       ),
@@ -826,7 +833,7 @@ class _PinPortBadge extends StatelessWidget {
           child: Text(
             '$number',
             style: TextStyle(
-              fontSize: isActive ? 12 : 10.5,
+              fontSize: isActive ? 12 : 11,
               fontWeight: FontWeight.w800,
               color: isActive ? color : Colors.white,
             ),
@@ -856,19 +863,19 @@ class _AnnotationDeleteChip extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
-            border: Border.all(color: AppTheme.error, width: 1.5),
-            boxShadow: const [
+            border: Border.all(color: context.colors.error, width: 1.5),
+            boxShadow: [
               BoxShadow(
-                color: Colors.black38,
+                color: Colors.black.withValues(alpha: 0.38),
                 blurRadius: 4,
-                offset: Offset(0, 1),
+                offset: const Offset(0, 1),
               ),
             ],
           ),
-          child: const Icon(
+          child: Icon(
             Icons.close_rounded,
             size: 12,
-            color: AppTheme.error,
+            color: context.colors.error,
           ),
         ),
       ),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_dialog_scaffold.dart';
 
 /// 模型设置弹窗的返回结果
 class ModelProfileResult {
@@ -40,9 +41,8 @@ class ModelProfileDialog extends StatefulWidget {
     bool isNew = false,
     bool canDelete = true,
   }) {
-    return showDialog<ModelProfileResult>(
+    return AppDialogScaffold.show<ModelProfileResult>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (ctx) =>
           ModelProfileDialog(model: model, isNew: isNew, canDelete: canDelete),
     );
@@ -149,247 +149,187 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: AppTheme.pureWhite,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
+    final colors = context.colors;
+
+    return AppDialogScaffold(
+      title: widget.isNew ? '添加模型' : '模型设置',
+      width: 460,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 标题栏
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.isNew ? '添加模型' : '模型设置',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      size: 18,
-                      color: AppTheme.stone,
-                    ),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
+            _buildFieldRow(
+              label: '显示名称',
+              child: _buildTextField(
+                controller: _nameController,
+                hint: '如 DeepSeek R1',
               ),
             ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            _buildFieldRow(
+              label: '模型 ID',
+              child: _buildTextField(
+                controller: _idController,
+                hint: '发送给 API 的模型标识',
+                errorText: _idError,
+                mono: true,
+              ),
+            ),
+            _buildFieldRow(
+              label: '温度 (Temperature)',
+              child: SizedBox(
+                width: 190,
+                child: Row(
                   children: [
-                    _buildFieldRow(
-                      label: '显示名称',
-                      child: _buildTextField(
-                        controller: _nameController,
-                        hint: '如 DeepSeek R1',
-                      ),
-                    ),
-                    _buildFieldRow(
-                      label: '模型 ID',
-                      child: _buildTextField(
-                        controller: _idController,
-                        hint: '发送给 API 的模型标识',
-                        errorText: _idError,
-                        mono: true,
-                      ),
-                    ),
-                    _buildFieldRow(
-                      label: '温度 (Temperature)',
-                      child: SizedBox(
-                        width: 190,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: SliderTheme(
-                                data: SliderTheme.of(
-                                  context,
-                                ).copyWith(trackHeight: 3),
-                                child: Slider(
-                                  value: _temperature,
-                                  min: 0.0,
-                                  max: 1.5,
-                                  divisions: 30,
-                                  activeColor: AppTheme.notionBlue,
-                                  onChanged: (v) =>
-                                      setState(() => _temperature = v),
-                                ),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 36,
-                              child: Text(
-                                _temperature.toStringAsFixed(2),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: 'monospace',
-                                  color: AppTheme.textPrimary,
-                                ),
-                              ),
-                            ),
-                          ],
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(trackHeight: 3),
+                        child: Slider(
+                          value: _temperature,
+                          min: 0.0,
+                          max: 1.5,
+                          divisions: 30,
+                          activeColor: colors.primary,
+                          onChanged: (v) => setState(() => _temperature = v),
                         ),
                       ),
                     ),
-                    _buildFieldRow(
-                      label: '深度思考 (Reasoning)',
-                      child: Switch(
-                        value: _reasoning,
-                        activeThumbColor: AppTheme.notionBlue,
-                        onChanged: (v) => setState(() => _reasoning = v),
-                      ),
-                    ),
-                    if (_reasoning)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 0, bottom: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              '思考等级',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: AppTheme.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Wrap(
-                              spacing: 6,
-                              children:
-                                  [
-                                        ThinkingEffort.low,
-                                        ThinkingEffort.medium,
-                                        ThinkingEffort.high,
-                                      ]
-                                      .map(
-                                        (level) => _buildLevelChip(
-                                          level,
-                                          _levels.contains(level),
-                                        ),
-                                      )
-                                      .toList(),
-                            ),
-                          ],
+                    SizedBox(
+                      width: 36,
+                      child: Text(
+                        _temperature.toStringAsFixed(2),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace',
+                          color: colors.textPrimary,
                         ),
-                      ),
-                    _buildFieldRow(
-                      label: '多模态 (图像输入)',
-                      child: Switch(
-                        value: _multimodal,
-                        activeThumbColor: AppTheme.notionBlue,
-                        onChanged: (v) => setState(() => _multimodal = v),
-                      ),
-                    ),
-                    _buildFieldRow(
-                      label: '图像输出 (绘图模型)',
-                      child: Switch(
-                        value: _imageOutput,
-                        activeThumbColor: AppTheme.notionBlue,
-                        onChanged: (v) => setState(() => _imageOutput = v),
-                      ),
-                    ),
-                    _buildFieldRow(
-                      label: '上下文窗口 (tokens)',
-                      child: _buildTextField(
-                        controller: _contextController,
-                        hint: '128000',
-                        mono: true,
-                        digitsOnly: true,
-                        width: 160,
-                      ),
-                    ),
-                    _buildFieldRow(
-                      label: '最大输出 (tokens)',
-                      child: _buildTextField(
-                        controller: _maxTokensController,
-                        hint: '8192',
-                        mono: true,
-                        digitsOnly: true,
-                        width: 160,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            // 底部操作栏
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 8, 16, 14),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppTheme.border)),
+            _buildFieldRow(
+              label: '深度思考 (Reasoning)',
+              child: Switch(
+                value: _reasoning,
+                activeThumbColor: colors.primary,
+                onChanged: (v) => setState(() => _reasoning = v),
               ),
-              child: Row(
-                children: [
-                  if (!widget.isNew && widget.canDelete)
-                    TextButton(
-                      onPressed: () => Navigator.of(
-                        context,
-                      ).pop(const ModelProfileResult.deleted()),
-                      child: const Text(
-                        '删除模型',
-                        style: TextStyle(color: AppTheme.error, fontSize: 12.5),
-                      ),
-                    ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text(
-                      '取消',
+            ),
+            if (_reasoning)
+              Padding(
+                padding: const EdgeInsets.only(left: 0, bottom: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '思考等级',
                       style: TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 12.5,
+                        fontSize: 12,
+                        color: colors.textSecondary,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.notionBlue,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 9,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      children:
+                          [
+                                ThinkingEffort.low,
+                                ThinkingEffort.medium,
+                                ThinkingEffort.high,
+                              ]
+                              .map(
+                                (level) => _buildLevelChip(
+                                  level,
+                                  _levels.contains(level),
+                                ),
+                              )
+                              .toList(),
                     ),
-                    onPressed: _save,
-                    child: Text(
-                      widget.isNew ? '添加' : '保存',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
+              ),
+            _buildFieldRow(
+              label: '多模态 (图像输入)',
+              child: Switch(
+                value: _multimodal,
+                activeThumbColor: colors.primary,
+                onChanged: (v) => setState(() => _multimodal = v),
+              ),
+            ),
+            _buildFieldRow(
+              label: '图像输出 (绘图模型)',
+              child: Switch(
+                value: _imageOutput,
+                activeThumbColor: colors.primary,
+                onChanged: (v) => setState(() => _imageOutput = v),
+              ),
+            ),
+            _buildFieldRow(
+              label: '上下文窗口 (tokens)',
+              child: _buildTextField(
+                controller: _contextController,
+                hint: '128000',
+                mono: true,
+                digitsOnly: true,
+                width: 160,
+              ),
+            ),
+            _buildFieldRow(
+              label: '最大输出 (tokens)',
+              child: _buildTextField(
+                controller: _maxTokensController,
+                hint: '8192',
+                mono: true,
+                digitsOnly: true,
+                width: 160,
               ),
             ),
           ],
         ),
       ),
+      actions: [
+        if (!widget.isNew && widget.canDelete)
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(const ModelProfileResult.deleted()),
+            child: Text(
+              '删除模型',
+              style: TextStyle(color: colors.error, fontSize: 13),
+            ),
+          ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            '取消',
+            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: colors.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          onPressed: _save,
+          child: Text(
+            widget.isNew ? '添加' : '保存',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildLevelChip(ThinkingEffort level, bool selected) {
+    final colors = context.colors;
     return InkWell(
       onTap: () => _toggleLevel(level),
       borderRadius: BorderRadius.circular(6),
@@ -397,13 +337,13 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: selected
-              ? AppTheme.notionBlue.withValues(alpha: 0.12)
-              : AppTheme.paperWarmth,
+              ? colors.primary.withValues(alpha: 0.12)
+              : colors.mutedBackground,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: selected
-                ? AppTheme.notionBlue.withValues(alpha: 0.4)
-                : AppTheme.border,
+                ? colors.primary.withValues(alpha: 0.4)
+                : colors.borderDefault,
           ),
         ),
         child: Text(
@@ -411,7 +351,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: selected ? AppTheme.notionBlue : AppTheme.textSecondary,
+            color: selected ? colors.primary : colors.textSecondary,
           ),
         ),
       ),
@@ -419,6 +359,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
   }
 
   Widget _buildFieldRow({required String label, required Widget child}) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -428,10 +369,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
             width: 140,
             child: Text(
               label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppTheme.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ),
           Expanded(child: child),

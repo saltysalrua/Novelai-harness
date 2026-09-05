@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_resize_divider.dart';
 import 'prompt_edit_actions.dart';
 import 'tag_autocomplete_overlay.dart';
 
 /// 提示词输入区域垂直调节手柄
 ///
 /// 放置在文本区域下方，支持鼠标上下拖拽改变高度，双击快速重置到默认高度。
-class PromptResizeHandle extends StatefulWidget {
+class PromptResizeHandle extends StatelessWidget {
   final ValueChanged<double> onDelta;
   final VoidCallback? onReset;
   final String tooltip;
@@ -20,48 +20,16 @@ class PromptResizeHandle extends StatefulWidget {
   });
 
   @override
-  State<PromptResizeHandle> createState() => _PromptResizeHandleState();
-}
-
-class _PromptResizeHandleState extends State<PromptResizeHandle> {
-  bool _isHovered = false;
-  bool _isDragging = false;
-
-  @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.tooltip,
-      waitDuration: const Duration(milliseconds: 600),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.resizeUpDown,
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onVerticalDragStart: (_) => setState(() => _isDragging = true),
-          onVerticalDragEnd: (_) => setState(() => _isDragging = false),
-          onVerticalDragCancel: () => setState(() => _isDragging = false),
-          onVerticalDragUpdate: (details) => widget.onDelta(details.delta.dy),
-          onDoubleTap: widget.onReset,
-          child: Container(
-            height: 12,
-            alignment: Alignment.center,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: _isHovered || _isDragging ? 42 : 28,
-              height: 3.5,
-              decoration: BoxDecoration(
-                color: _isDragging
-                    ? AppTheme.notionBlue
-                    : (_isHovered
-                          ? AppTheme.notionBlue.withValues(alpha: 0.6)
-                          : AppTheme.borderHover),
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return AppResizeDivider(
+      axis: Axis.vertical,
+      onDelta: onDelta,
+      onReset: onReset,
+      tooltip: tooltip,
+      hitThickness: 12.0,
+      initialHandleSize: 28.0,
+      expandedHandleSize: 42.0,
+      handleThickness: 3.5,
     );
   }
 }
@@ -158,16 +126,10 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
     super.didUpdateWidget(oldWidget);
     if (widget.initialHeight != null &&
         widget.initialHeight != oldWidget.initialHeight) {
-      _height = widget.initialHeight!.clamp(
-        widget.minHeight,
-        widget.maxHeight,
-      );
+      _height = widget.initialHeight!.clamp(widget.minHeight, widget.maxHeight);
     } else if (oldWidget.defaultHeight != widget.defaultHeight &&
         widget.initialHeight == null) {
-      _height = widget.defaultHeight.clamp(
-        widget.minHeight,
-        widget.maxHeight,
-      );
+      _height = widget.defaultHeight.clamp(widget.minHeight, widget.maxHeight);
     }
     if (oldWidget.focusNode != widget.focusNode) {
       if (_internalFocusNode) {

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/services/image_metadata_service.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
 import '../view_models/studio_view_model.dart';
@@ -126,6 +127,37 @@ class _StudioViewState extends State<StudioView> {
       }
     }
 
+    // 浏览器式整体 UI 缩放：Ctrl+= 放大 / Ctrl+- 缩小 / Ctrl+0 重置。
+    // 输入框聚焦时交还给文本编辑链路 (打字场景不该抢键)；
+    // 长按 KeyRepeatEvent 连续步进 (与方向键循环同理)。
+    if (isControlOrCmd) {
+      final key = event.logicalKey;
+      final bool isZoomKey;
+      if (key == LogicalKeyboardKey.equal ||
+          key == LogicalKeyboardKey.numpadAdd ||
+          key == LogicalKeyboardKey.minus ||
+          key == LogicalKeyboardKey.numpadSubtract) {
+        isZoomKey = true;
+      } else if (key == LogicalKeyboardKey.digit0 ||
+          key == LogicalKeyboardKey.numpad0) {
+        isZoomKey = true;
+      } else {
+        isZoomKey = false;
+      }
+      if (isZoomKey && !_isTypingText()) {
+        if (key == LogicalKeyboardKey.equal ||
+            key == LogicalKeyboardKey.numpadAdd) {
+          _viewModel.zoomInUi();
+        } else if (key == LogicalKeyboardKey.minus ||
+            key == LogicalKeyboardKey.numpadSubtract) {
+          _viewModel.zoomOutUi();
+        } else {
+          _viewModel.resetUiZoom();
+        }
+        return true;
+      }
+    }
+
     return false;
   }
 
@@ -210,6 +242,7 @@ class _StudioViewState extends State<StudioView> {
     return ListenableBuilder(
       listenable: _viewModel,
       builder: (context, _) {
+        final colors = context.colors;
         final isLibraryTab =
             _viewModel.activeSidebarTab == StudioSidebarTab.library;
 
@@ -223,7 +256,7 @@ class _StudioViewState extends State<StudioView> {
           child: Focus(
             autofocus: true,
             child: Scaffold(
-              backgroundColor: AppTheme.background,
+              backgroundColor: context.colors.canvasBackground,
               body: Column(
                 children: [
                   // 顶部自定义 Notion 风格标题栏 (支持窗口拖拽与三键控制)
@@ -238,38 +271,36 @@ class _StudioViewState extends State<StudioView> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFDEEED),
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusButton,
-                        ),
+                        color: colors.errorSurface,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
-                          color: AppTheme.coral.withValues(alpha: 0.3),
+                          color: colors.error.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.error_outline,
                             size: 16,
-                            color: AppTheme.coral,
+                            color: colors.error,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _viewModel.errorMessage!,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AppTheme.charcoal,
+                                color: colors.textPrimary,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.close,
                               size: 14,
-                              color: AppTheme.graphite,
+                              color: colors.textSecondary,
                             ),
                             onPressed: () => _viewModel.clearError(),
                             visualDensity: VisualDensity.compact,

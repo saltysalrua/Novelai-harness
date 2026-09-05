@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_empty_state.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 
@@ -14,6 +17,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final gallery = viewModel.gallery;
     final selectedId = viewModel.selectedImage?.id;
+    final colors = context.colors;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -21,9 +25,9 @@ class AnnotationHistoryStrip extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Container(
         width: double.infinity,
-        decoration: const BoxDecoration(
-          color: AppTheme.pureWhite,
-          border: Border(left: BorderSide(color: AppTheme.border)),
+        decoration: BoxDecoration(
+          color: colors.cardBackground,
+          border: Border(left: BorderSide(color: colors.borderDefault)),
         ),
         child: Column(
           children: [
@@ -32,8 +36,10 @@ class AnnotationHistoryStrip extends StatelessWidget {
               onTap: () => viewModel.setAnnotatingImage(false),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: AppTheme.border)),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: colors.borderDefault),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -41,20 +47,20 @@ class AnnotationHistoryStrip extends StatelessWidget {
                       child: Text.rich(
                         TextSpan(
                           children: [
-                            const TextSpan(
+                            TextSpan(
                               text: 'History ',
                               style: TextStyle(
-                                fontSize: 11.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: AppTheme.textPrimary,
+                                color: colors.textPrimary,
                               ),
                             ),
                             TextSpan(
                               text: '${gallery.length}',
-                              style: const TextStyle(
-                                fontSize: 11.5,
+                              style: TextStyle(
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: AppTheme.notionBlue,
+                                color: colors.primary,
                               ),
                             ),
                           ],
@@ -63,10 +69,10 @@ class AnnotationHistoryStrip extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       Icons.arrow_right_rounded,
                       size: 16,
-                      color: AppTheme.textSecondary,
+                      color: colors.textSecondary,
                     ),
                   ],
                 ),
@@ -76,14 +82,10 @@ class AnnotationHistoryStrip extends StatelessWidget {
             // 2. 垂直历史缩略图流 (支持 Draggable 拖拽到左侧自由大画布)
             Expanded(
               child: gallery.isEmpty
-                  ? const Center(
-                      child: Text(
-                        '无图片',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: AppTheme.textMuted,
-                        ),
-                      ),
+                  ? const AppEmptyState(
+                      icon: Icons.photo_library_outlined,
+                      title: '无图片',
+                      isCompact: true,
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.all(8),
@@ -97,17 +99,17 @@ class AnnotationHistoryStrip extends StatelessWidget {
                         final thumbnailWidget = Container(
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
                             border: Border.all(
                               color: isSelected
-                                  ? AppTheme.notionBlue
-                                  : AppTheme.border,
+                                  ? colors.primary
+                                  : colors.borderDefault,
                               width: isSelected ? 2.0 : 1.0,
                             ),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: AppTheme.notionBlue.withValues(
+                                      color: colors.primary.withValues(
                                         alpha: 0.18,
                                       ),
                                       blurRadius: 6,
@@ -128,7 +130,8 @@ class AnnotationHistoryStrip extends StatelessWidget {
                               children: [
                                 Builder(
                                   builder: (context) {
-                                    final thumb = item.thumbnailBytes ??
+                                    final thumb =
+                                        item.thumbnailBytes ??
                                         (item.bytes.isNotEmpty
                                             ? item.bytes
                                             : null);
@@ -140,7 +143,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
                                       );
                                     }
                                     return Container(
-                                      color: AppTheme.surfaceMuted,
+                                      color: colors.mutedBackground,
                                     );
                                   },
                                 ),
@@ -149,47 +152,22 @@ class AnnotationHistoryStrip extends StatelessWidget {
                                   Positioned(
                                     top: 4,
                                     right: 4,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 1.5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.notionBlue,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        '$annCount',
-                                        style: const TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white,
-                                        ),
-                                      ),
+                                    child: AppBadge(
+                                      label: '$annCount',
+                                      variant: AppBadgeVariant.primary,
+                                      shape: AppBadgeShape.pill,
+                                      fontSize: 10,
                                     ),
                                   ),
                                 // 外部参考图 REF 标记
                                 if (item.isImportedReference)
-                                  Positioned(
+                                  const Positioned(
                                     bottom: 4,
                                     left: 4,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 1,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black87,
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                      child: const Text(
-                                        'REF',
-                                        style: TextStyle(
-                                          fontSize: 8.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
+                                    child: AppBadge(
+                                      label: 'REF',
+                                      variant: AppBadgeVariant.dark,
+                                      fontSize: 9,
                                     ),
                                   ),
                               ],
@@ -208,7 +186,8 @@ class AnnotationHistoryStrip extends StatelessWidget {
                               height: 120,
                               child: Builder(
                                 builder: (context) {
-                                  final thumb = item.thumbnailBytes ??
+                                  final thumb =
+                                      item.thumbnailBytes ??
                                       (item.bytes.isNotEmpty
                                           ? item.bytes
                                           : null);
@@ -219,7 +198,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
                                     );
                                   }
                                   return Container(
-                                    color: AppTheme.surfaceMuted,
+                                    color: colors.mutedBackground,
                                   );
                                 },
                               ),
@@ -244,8 +223,8 @@ class AnnotationHistoryStrip extends StatelessWidget {
             // 3. 底部导入本地参考图入口
             Container(
               padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppTheme.border)),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: colors.borderDefault)),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -254,29 +233,29 @@ class AnnotationHistoryStrip extends StatelessWidget {
                   child: InkWell(
                     onTap: () =>
                         pickAndImportReferenceImage(context, viewModel),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       decoration: BoxDecoration(
-                        color: AppTheme.paperWarmth,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppTheme.border),
+                        color: colors.mutedBackground,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        border: Border.all(color: colors.borderDefault),
                       ),
-                      child: const Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.add_photo_alternate_outlined,
                             size: 16,
-                            color: AppTheme.textSecondary,
+                            color: colors.textSecondary,
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             '导入图片',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.textSecondary,
+                              color: colors.textSecondary,
                             ),
                           ),
                         ],

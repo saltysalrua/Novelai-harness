@@ -8,10 +8,11 @@ import '../theme/theme_context_extensions.dart';
 /// 具备自动范围钳制、步长吸附、可选刻度线与单位后缀支持。
 ///
 /// 输入框同时支持回车提交与**失焦自动提交**（点击别处不丢输入）；
-/// 滑块手柄对齐旧 EditableSlider 规格 (radius 8 + 白色浮起)；
+/// 滑块手柄规格 (radius 8 + 白色浮起)；
 /// 当步长不能整除范围时自动退化为连续滑块（无刻度），避免刻度不均。
 class AppNumberSlider extends StatefulWidget {
-  final String title;
+  /// 标题；传 null 时隐藏标题行 (嵌入 AppSettingTile.bottomChild 等容器内使用)
+  final String? title;
   final double value;
   final double min;
   final double max;
@@ -22,7 +23,7 @@ class AppNumberSlider extends StatefulWidget {
 
   const AppNumberSlider({
     super.key,
-    required this.title,
+    this.title,
     required this.value,
     required this.min,
     required this.max,
@@ -35,7 +36,7 @@ class AppNumberSlider extends StatefulWidget {
   /// 整型滑块便捷工厂
   factory AppNumberSlider.integer({
     Key? key,
-    required String title,
+    String? title,
     required int value,
     required int min,
     required int max,
@@ -145,30 +146,32 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                widget.title,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
+        if (widget.title != null) ...[
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.title!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                  ),
                 ),
               ),
-            ),
-            if (widget.unit != null)
-              Text(
-                widget.unit!,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: colors.textMuted,
-                  fontWeight: FontWeight.w500,
+              if (widget.unit != null)
+                Text(
+                  widget.unit!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         Row(
           children: [
             // 左侧单层平整微调输入框
@@ -212,7 +215,7 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
             ),
             const SizedBox(width: AppSpacing.md),
 
-            // 右侧连续滑块 (手柄对齐旧 EditableSlider: radius 8 + 白色浮起)
+            // 右侧连续滑块 (手柄 radius 8 + 白色浮起)
             Expanded(
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(

@@ -46,7 +46,7 @@ class AppKeyValueRow extends StatefulWidget {
   /// 悬停提示文字 (可选)
   final String? tooltip;
 
-  /// 字号大小，默认 11.5
+  /// 字号大小，默认 12
   final double fontSize;
 
   /// 内边距，默认上下 4.0
@@ -67,7 +67,7 @@ class AppKeyValueRow extends StatefulWidget {
     this.onTap,
     this.onCopy,
     this.tooltip,
-    this.fontSize = 11.5,
+    this.fontSize = 12,
     this.padding = const EdgeInsets.symmetric(vertical: 4.0),
     this.trailing,
   });

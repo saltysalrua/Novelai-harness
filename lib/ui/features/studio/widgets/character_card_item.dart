@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../view_models/studio_view_model.dart';
 import 'character_position_canvas_view.dart';
-import 'pill_widgets.dart';
 import 'prompt_combo_edit_dialog.dart';
 import 'prompt_resize_handle.dart';
 import 'rich_prompt_text_controller.dart';
@@ -144,6 +147,7 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     // 同步设置项：标签分类着色开关 (设置弹窗保存后 viewModel 通知重建)
     final showCategoryColors = widget.viewModel.config.showTagCategoryColors;
     _promptController.setHighlightOptions(categoryColors: showCategoryColors);
@@ -158,14 +162,14 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
 
     final card = Container(
       decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
           color: isSelectedInCanvas
-              ? AppTheme.notionBlue
+              ? colors.primary
               : (character.enabled
-                    ? AppTheme.border
-                    : AppTheme.border.withValues(alpha: 0.5)),
+                    ? colors.borderDefault
+                    : colors.borderDefault.withValues(alpha: 0.5)),
           width: isSelectedInCanvas ? 1.8 : 1.0,
         ),
       ),
@@ -178,8 +182,8 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
             // 头部：序号 + 名称 (弹性自适应占满) + 删除，下层为启停 + 位置胶囊 (流式防溢出)
             Container(
               color: isSelectedInCanvas
-                  ? AppTheme.skyTint.withValues(alpha: 0.45)
-                  : AppTheme.surfaceElevated,
+                  ? colors.primaryTint.withValues(alpha: 0.45)
+                  : colors.elevatedBackground,
               padding: const EdgeInsets.fromLTRB(10, 7, 8, 7),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -188,38 +192,32 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                   // 第一行：角色序号 + 名称输入框 (自适应弹性填充) + 删除按钮
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelectedInCanvas
-                              ? AppTheme.notionBlue
-                              : AppTheme.borderSubtle,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '${widget.index + 1}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: isSelectedInCanvas
-                                ? Colors.white
-                                : AppTheme.textSecondary,
-                          ),
-                        ),
+                      AppBadge(
+                        label: '${widget.index + 1}',
+                        fontSize: 11,
+                        variant: isSelectedInCanvas
+                            ? AppBadgeVariant.primary
+                            : AppBadgeVariant.neutral,
+                        customBackgroundColor: isSelectedInCanvas
+                            ? colors.primary
+                            : null,
+                        customForegroundColor: isSelectedInCanvas
+                            ? Colors.white
+                            : null,
+                        customBorderColor: isSelectedInCanvas
+                            ? Colors.transparent
+                            : null,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _nameController,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
+                            color: colors.textPrimary,
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             isDense: true,
                             filled: false,
                             hoverColor: Colors.transparent,
@@ -228,9 +226,9 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                             focusedBorder: InputBorder.none,
                             hintText: '角色名称 (可选)',
                             hintStyle: TextStyle(
-                              fontSize: 12.5,
+                              fontSize: 13,
                               fontWeight: FontWeight.normal,
-                              color: AppTheme.textMuted,
+                              color: colors.textMuted,
                             ),
                             contentPadding: EdgeInsets.zero,
                           ),
@@ -242,10 +240,24 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      _SaveToLibraryIcon(onTap: _saveToLibrary),
+                      AppIconButton(
+                        icon: Icons.bookmark_add_outlined,
+                        tooltip: '保存角色到词库',
+                        variant: AppIconButtonVariant.ghost,
+                        size: 26,
+                        iconSize: 15,
+                        radius: 6,
+                        onPressed: _saveToLibrary,
+                      ),
                       const SizedBox(width: 2),
-                      _DeleteIcon(
-                        onTap: () =>
+                      AppIconButton(
+                        icon: Icons.close_rounded,
+                        tooltip: '删除该角色',
+                        variant: AppIconButtonVariant.ghost,
+                        size: 26,
+                        iconSize: 15,
+                        radius: 6,
+                        onPressed: () =>
                             viewModel.removeCharacterPrompt(character.id),
                       ),
                     ],
@@ -257,8 +269,8 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                     runSpacing: 4,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      ToggleChip(
-                        isActive: character.enabled,
+                      AppToolChip(
+                        isSelected: character.enabled,
                         icon: character.enabled
                             ? Icons.visibility_rounded
                             : Icons.visibility_off_rounded,
@@ -284,11 +296,7 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
                 ],
               ),
             ),
-            const Divider(
-              height: 1,
-              thickness: 1,
-              color: AppTheme.borderSubtle,
-            ),
+            Divider(height: 1, thickness: 1, color: colors.borderSubtle),
 
             // 正向提示词输入区 (支持上下拖拽调节高度，无内部嵌套边框)
             ResizableTextField(
@@ -303,22 +311,18 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
               resizeTooltip: '拖动调整正向提示词高度 (双击重置)',
               enableAutocomplete: viewModel.config.enableTagAutocomplete,
               showTranslation: viewModel.config.showTagTranslations,
-              style: const TextStyle(
-                fontSize: 13.5,
+              style: TextStyle(
+                fontSize: 14,
                 height: 1.48,
-                color: AppTheme.textPrimary,
+                color: colors.textPrimary,
               ),
-              hintStyle: const TextStyle(
+              hintStyle: TextStyle(
                 fontSize: 13,
                 height: 1.48,
-                color: AppTheme.textMuted,
+                color: colors.textMuted,
               ),
             ),
-            const Divider(
-              height: 1,
-              thickness: 1,
-              color: AppTheme.borderSubtle,
-            ),
+            Divider(height: 1, thickness: 1, color: colors.borderSubtle),
 
             // 负面提示词输入区 (支持上下拖拽调节高度，无内部嵌套边框)
             ResizableTextField(
@@ -334,15 +338,15 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
               resizeTooltip: '拖动调整负面提示词高度 (双击重置)',
               enableAutocomplete: viewModel.config.enableTagAutocomplete,
               showTranslation: viewModel.config.showTagTranslations,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 height: 1.45,
-                color: AppTheme.textSecondary,
+                color: colors.textSecondary,
               ),
-              hintStyle: const TextStyle(
-                fontSize: 12.5,
+              hintStyle: TextStyle(
+                fontSize: 13,
                 height: 1.45,
-                color: AppTheme.textMuted,
+                color: colors.textMuted,
               ),
             ),
           ],
@@ -375,24 +379,25 @@ class _PositionPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Tooltip(
       message: '在中间画板编辑角色位置',
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppTheme.notionBlue
-                : (isCustom ? AppTheme.skyTint : AppTheme.surfaceMuted),
-            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                ? colors.primary
+                : (isCustom ? colors.primaryTint : colors.mutedBackground),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             border: Border.all(
               color: isSelected
-                  ? AppTheme.notionBlue
+                  ? colors.primary
                   : (isCustom
-                        ? AppTheme.notionBlue.withValues(alpha: 0.5)
-                        : AppTheme.border),
+                        ? colors.primary.withValues(alpha: 0.5)
+                        : colors.borderDefault),
             ),
           ),
           child: Row(
@@ -400,10 +405,10 @@ class _PositionPill extends StatelessWidget {
             children: [
               Icon(
                 Icons.open_with_rounded,
-                size: 11.5,
+                size: 12,
                 color: isSelected
                     ? Colors.white
-                    : (isCustom ? AppTheme.notionBlue : AppTheme.textMuted),
+                    : (isCustom ? colors.primary : colors.textMuted),
               ),
               const SizedBox(width: 4),
               Text(
@@ -413,61 +418,11 @@ class _PositionPill extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: isSelected
                       ? Colors.white
-                      : (isCustom
-                            ? AppTheme.notionBlue
-                            : AppTheme.textSecondary),
+                      : (isCustom ? colors.primary : colors.textSecondary),
                 ),
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 保存到词库图标按钮
-class _SaveToLibraryIcon extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _SaveToLibraryIcon({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: '保存角色到词库',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: const Padding(
-          padding: EdgeInsets.all(5),
-          child: Icon(
-            Icons.bookmark_add_outlined,
-            size: 15,
-            color: AppTheme.textMuted,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 删除图标按钮
-class _DeleteIcon extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _DeleteIcon({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: '删除该角色',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: const Padding(
-          padding: EdgeInsets.all(5),
-          child: Icon(Icons.close_rounded, size: 15, color: AppTheme.textMuted),
         ),
       ),
     );

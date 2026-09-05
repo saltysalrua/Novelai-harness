@@ -3,7 +3,10 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../../../data/models/prompt_library_models.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 词组合弹窗统一输入框装饰 (浅灰填写风格，可选强调色)
@@ -11,6 +14,7 @@ import '../view_models/studio_view_model.dart';
 /// 弹窗内五个表单字段共用同一套 OutlineInputBorder 视觉，仅 hint、
 /// 内边距与强调色 (负面词字段为珊瑚色) 不同，避免逐字段复制粘贴。
 InputDecoration _comboFieldDecoration(
+  BuildContext context,
   String hint, {
   double hintFontSize = 12,
   EdgeInsetsGeometry contentPadding = const EdgeInsets.symmetric(
@@ -18,23 +22,24 @@ InputDecoration _comboFieldDecoration(
     vertical: 8,
   ),
   Color? fillColor,
-  Color accentColor = AppTheme.notionBlue,
+  Color? accentColor,
   Color? borderColor,
 }) {
+  final colors = context.colors;
   OutlineInputBorder outline(Color color, [double width = 1]) =>
       OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         borderSide: BorderSide(color: color, width: width),
       );
   return InputDecoration(
     hintText: hint,
-    hintStyle: TextStyle(fontSize: hintFontSize, color: AppTheme.graphite),
+    hintStyle: TextStyle(fontSize: hintFontSize, color: colors.textMuted),
     contentPadding: contentPadding,
     filled: true,
-    fillColor: fillColor ?? AppTheme.surfaceMuted,
-    border: outline(borderColor ?? AppTheme.border),
-    enabledBorder: outline(borderColor ?? AppTheme.border),
-    focusedBorder: outline(accentColor, 1.5),
+    fillColor: fillColor ?? colors.mutedBackground,
+    border: outline(borderColor ?? colors.borderDefault),
+    enabledBorder: outline(borderColor ?? colors.borderDefault),
+    focusedBorder: outline(accentColor ?? colors.primary, 1.5),
   );
 }
 
@@ -54,9 +59,8 @@ class PromptComboEditDialog extends StatefulWidget {
     required StudioViewModel viewModel,
     PromptComboEntry? initialEntry,
   }) {
-    return showDialog(
+    return AppDialogScaffold.show(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) => PromptComboEditDialog(
         viewModel: viewModel,
         initialEntry: initialEntry,
@@ -337,302 +341,221 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final screenSize = MediaQuery.of(context).size;
     final dialogWidth = (screenSize.width * 0.72).clamp(700.0, 1060.0);
     final dialogHeight = (screenSize.height * 0.78).clamp(520.0, 800.0);
 
-    return Dialog(
-      backgroundColor: AppTheme.pureWhite,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: dialogWidth,
-        height: dialogHeight,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return AppDialogScaffold(
+      title: _isEdit ? '编辑词组合' : '新建词组合',
+      width: dialogWidth,
+      height: dialogHeight,
+      sidebarWidth: 270.0,
+      sidebar: _buildLeftPosterPanel(context),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. 左侧贯通图片占位符/海报区 (贯穿整个面板上下)
-            _buildLeftPosterPanel(),
+            // 组合名称
+            _buildFieldLabel(context, '组合名称', isRequired: true),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _titleController,
+              style: TextStyle(fontSize: 13, color: colors.textPrimary),
+              decoration: _comboFieldDecoration(
+                context,
+                '例如：赛博朋克猫耳少女 / 日系水彩插画',
+                hintFontSize: 13,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
 
-            const VerticalDivider(width: 1, color: AppTheme.border),
+            // 分类选择器
+            _buildFieldLabel(context, '分类', isRequired: true),
+            const SizedBox(height: 6),
+            _buildCategoryDropdown(context),
+            if (_isCustomCategory) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _customCategoryController,
+                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                decoration: _comboFieldDecoration(
+                  context,
+                  '输入自定义分类名称 (如：光影、视角)',
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
 
-            // 2. 右侧区域 (包含顶部标题栏 + 滚动表单 + 底部操作栏)
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+            // 主提示词 (Positive)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildFieldLabel(context, '主提示词', isRequired: true),
+                TextButton.icon(
+                  onPressed: _fillFromCurrentWorkspacePrompt,
+                  icon: Icon(Icons.input, size: 13, color: colors.primary),
+                  label: Text(
+                    '填入工作台主词',
+                    style: TextStyle(fontSize: 11, color: colors.primary),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _promptController,
+              maxLines: 4,
+              minLines: 3,
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.textPrimary,
+                height: 1.4,
+              ),
+              decoration: _comboFieldDecoration(
+                context,
+                '输入正向提示词 (如: 1girl, hatsune miku, cybernetic...)',
+                hintFontSize: 13,
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 负面提示词 (Negative) — 【只在选择了角色时才出现】
+            if (_isCharacterCategory) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // (1) 右侧顶部标题栏
-                  _buildHeader(),
-                  const Divider(height: 1, color: AppTheme.border),
-
-                  // (2) 右侧表单滚动区
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // 组合名称
-                          _buildFieldLabel('组合名称', isRequired: true),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: _titleController,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: AppTheme.charcoal,
-                            ),
-                            decoration: _comboFieldDecoration(
-                              '例如：赛博朋克猫耳少女 / 日系水彩插画',
-                              hintFontSize: 13,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // 分类选择器
-                          _buildFieldLabel('分类', isRequired: true),
-                          const SizedBox(height: 6),
-                          _buildCategoryDropdown(),
-                          if (_isCustomCategory) ...[
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _customCategoryController,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.charcoal,
-                              ),
-                              decoration: _comboFieldDecoration(
-                                '输入自定义分类名称 (如：光影、视角)',
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
-                                ),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-
-                          // 主提示词 (Positive)
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _buildFieldLabel('主提示词', isRequired: true),
-                              TextButton.icon(
-                                onPressed: _fillFromCurrentWorkspacePrompt,
-                                icon: const Icon(
-                                  Icons.input,
-                                  size: 13,
-                                  color: AppTheme.notionBlue,
-                                ),
-                                label: const Text(
-                                  '填入工作台主词',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppTheme.notionBlue,
-                                  ),
-                                ),
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: _promptController,
-                            maxLines: 4,
-                            minLines: 3,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              color: AppTheme.charcoal,
-                              height: 1.4,
-                            ),
-                            decoration: _comboFieldDecoration(
-                              '输入正向提示词 (如: 1girl, hatsune miku, cybernetic...)',
-                              hintFontSize: 12.5,
-                              contentPadding: const EdgeInsets.all(12),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // 负面提示词 (Negative) — 【只在选择了角色时才出现】
-                          if (_isCharacterCategory) ...[
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    _buildFieldLabel('负面提示词'),
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 1.5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFDEEED),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(
-                                          color: AppTheme.coral.withValues(
-                                            alpha: 0.3,
-                                          ),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        '仅角色分类可用',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: AppTheme.coral,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                TextButton.icon(
-                                  onPressed: _fillFromCurrentWorkspaceNegative,
-                                  icon: const Icon(
-                                    Icons.input,
-                                    size: 13,
-                                    color: AppTheme.coral,
-                                  ),
-                                  label: const Text(
-                                    '填入工作台负向词',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppTheme.coral,
-                                    ),
-                                  ),
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            TextField(
-                              controller: _negativePromptController,
-                              maxLines: 3,
-                              minLines: 2,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.charcoal,
-                                height: 1.35,
-                              ),
-                              decoration: _comboFieldDecoration(
-                                '角色专有负面词 (如: worst quality, bad hands, mutated...)',
-                                contentPadding: const EdgeInsets.all(10),
-                                fillColor: const Color(0xFFFCF9F9),
-                                accentColor: AppTheme.coral,
-                                borderColor: AppTheme.coral.withValues(
-                                  alpha: 0.3,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-
-                          // 检索标签 (Tags)
-                          _buildFieldLabel('检索标签 (Tags)'),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: _tagsController,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.charcoal,
-                            ),
-                            decoration: _comboFieldDecoration(
-                              '用于快速筛选，用逗号分隔 (例如：miku, 水彩, 二次元, 赛博)',
-                            ),
-                          ),
-                        ],
+                  Row(
+                    children: [
+                      _buildFieldLabel(context, '负面提示词'),
+                      const SizedBox(width: 6),
+                      const AppBadge(
+                        label: '仅角色分类可用',
+                        variant: AppBadgeVariant.error,
+                        fontSize: 10,
                       ),
+                    ],
+                  ),
+                  TextButton.icon(
+                    onPressed: _fillFromCurrentWorkspaceNegative,
+                    icon: Icon(Icons.input, size: 13, color: colors.error),
+                    label: Text(
+                      '填入工作台负向词',
+                      style: TextStyle(fontSize: 11, color: colors.error),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      visualDensity: VisualDensity.compact,
                     ),
                   ),
-
-                  const Divider(height: 1, color: AppTheme.border),
-
-                  // (3) 右侧底部操作栏
-                  _buildFooter(),
                 ],
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _negativePromptController,
+                maxLines: 3,
+                minLines: 2,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textPrimary,
+                  height: 1.35,
+                ),
+                decoration: _comboFieldDecoration(
+                  context,
+                  '角色专有负面词 (如: worst quality, bad hands, mutated...)',
+                  contentPadding: const EdgeInsets.all(10),
+                  fillColor: colors.errorSurface,
+                  accentColor: colors.error,
+                  borderColor: colors.error.withValues(alpha: 0.3),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // 检索标签 (Tags)
+            _buildFieldLabel(context, '检索标签 (Tags)'),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _tagsController,
+              style: TextStyle(fontSize: 12, color: colors.textPrimary),
+              decoration: _comboFieldDecoration(
+                context,
+                '用于快速筛选，用逗号分隔 (例如：miku, 水彩, 二次元, 赛博)',
               ),
             ),
           ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            '取消',
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
+        ),
+        const SizedBox(width: 10),
+        ElevatedButton(
+          onPressed: _isSaving ? null : _handleSave,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: colors.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+          ),
+          child: _isSaving
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Text(
+                  _isEdit ? '保存修改' : '创建词组合',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+        ),
+      ],
     );
   }
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppTheme.skyTint,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Icon(
-              Icons.collections_bookmark_outlined,
-              size: 18,
-              color: AppTheme.notionBlue,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            _isEdit ? '编辑词组合' : '新建词组合',
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.charcoal,
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18, color: AppTheme.graphite),
-            onPressed: () => Navigator.of(context).pop(),
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 左侧贯通整个面板的图片占位符与预览区 (中性灰底色，中央上下排列两个操作按钮)
-  Widget _buildLeftPosterPanel() {
+  /// 左侧贯通面板的图片占位符与预览区
+  Widget _buildLeftPosterPanel(BuildContext context) {
+    final colors = context.colors;
     final hasImage =
         _previewBytes != null ||
         (_previewImagePath != null && File(_previewImagePath!).existsSync());
 
     return Container(
-      width: 270,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF2F1ED), // 统一纯净中性灰
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(AppTheme.radiusCard),
-          bottomLeft: Radius.circular(AppTheme.radiusCard),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
+      color: colors.mutedBackground,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -642,15 +565,17 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                 ? Image.memory(
                     _previewBytes!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _buildPlaceholderGraphic(),
+                    errorBuilder: (_, _, _) =>
+                        _buildPlaceholderGraphic(context),
                   )
                 : Image.file(
                     File(_previewImagePath!),
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _buildPlaceholderGraphic(),
+                    errorBuilder: (_, _, _) =>
+                        _buildPlaceholderGraphic(context),
                   ))
           else
-            _buildPlaceholderGraphic(),
+            _buildPlaceholderGraphic(context),
 
           // 中央上下显示两个主要按钮
           Center(
@@ -660,39 +585,33 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
               decoration: BoxDecoration(
                 color: hasImage
                     ? Colors.black.withValues(alpha: 0.6)
-                    : Colors.white.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+                    : colors.cardBackground.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(
                   color: hasImage
                       ? Colors.white.withValues(alpha: 0.2)
-                      : AppTheme.border,
+                      : colors.borderDefault,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                boxShadow: context.shadowSubtle,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (!hasImage) ...[
-                    const Icon(
+                    Icon(
                       Icons.image_outlined,
                       size: 36,
-                      color: AppTheme.graphite,
+                      color: colors.textSecondary,
                     ),
                     const SizedBox(height: 6),
-                    const Text(
+                    Text(
                       '设置预览图',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.charcoal,
+                        color: colors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -711,21 +630,19 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: hasImage
-                          ? Colors.white
-                          : AppTheme.skyTint,
+                          ? colors.cardBackground
+                          : colors.primaryTint,
                       foregroundColor: hasImage
-                          ? AppTheme.charcoal
-                          : AppTheme.notionBlue,
+                          ? colors.textPrimary
+                          : colors.primary,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusButton,
-                        ),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         side: BorderSide(
                           color: hasImage
                               ? Colors.transparent
-                              : AppTheme.notionBlue.withValues(alpha: 0.3),
+                              : colors.primary.withValues(alpha: 0.3),
                         ),
                       ),
                     ),
@@ -745,21 +662,17 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: hasImage
-                          ? Colors.white
-                          : AppTheme.surfaceMuted,
-                      foregroundColor: hasImage
-                          ? AppTheme.charcoal
-                          : AppTheme.charcoal,
+                          ? colors.cardBackground
+                          : colors.mutedBackground,
+                      foregroundColor: colors.textPrimary,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusButton,
-                        ),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         side: BorderSide(
                           color: hasImage
                               ? Colors.transparent
-                              : AppTheme.border,
+                              : colors.borderDefault,
                         ),
                       ),
                     ),
@@ -770,17 +683,14 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                     const SizedBox(height: 10),
                     TextButton.icon(
                       onPressed: _clearPreviewImage,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.delete_outline,
                         size: 14,
-                        color: Color(0xFFFF8B80),
+                        color: colors.error,
                       ),
-                      label: const Text(
+                      label: Text(
                         '移除预览图',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xFFFF8B80),
-                        ),
+                        style: TextStyle(fontSize: 12, color: colors.error),
                       ),
                       style: TextButton.styleFrom(
                         visualDensity: VisualDensity.compact,
@@ -797,50 +707,53 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     );
   }
 
-  Widget _buildPlaceholderGraphic() {
-    return Container(color: const Color(0xFFF2F1ED));
+  Widget _buildPlaceholderGraphic(BuildContext context) {
+    return Container(color: context.colors.mutedBackground);
   }
 
-  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+  Widget _buildFieldLabel(
+    BuildContext context,
+    String label, {
+    bool isRequired = false,
+  }) {
+    final colors = context.colors;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppTheme.charcoal,
+            color: colors.textPrimary,
           ),
         ),
         if (isRequired)
-          const Text(
-            ' *',
-            style: TextStyle(fontSize: 12, color: AppTheme.coral),
-          ),
+          Text(' *', style: TextStyle(fontSize: 12, color: colors.error)),
       ],
     );
   }
 
   /// 下拉分类选择器 (取代平铺 Chips)
-  Widget _buildCategoryDropdown() {
+  Widget _buildCategoryDropdown(BuildContext context) {
+    final colors = context.colors;
     final categories = [...PromptComboCategories.defaults, '自定义...'];
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceMuted,
-        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-        border: Border.all(color: AppTheme.border),
+        color: colors.mutedBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: colors.borderDefault),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _isCustomCategory ? '自定义...' : _selectedCategory,
           isExpanded: true,
-          icon: const Icon(Icons.arrow_drop_down, color: AppTheme.graphite),
-          style: const TextStyle(fontSize: 13, color: AppTheme.charcoal),
-          dropdownColor: AppTheme.pureWhite,
-          borderRadius: BorderRadius.circular(AppTheme.radiusButton),
+          icon: Icon(Icons.arrow_drop_down, color: colors.textSecondary),
+          style: TextStyle(fontSize: 13, color: colors.textPrimary),
+          dropdownColor: colors.cardBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
           items: categories.map((cat) {
             final isChar = cat == '角色';
             return DropdownMenuItem<String>(
@@ -854,15 +767,15 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                               ? Icons.edit_outlined
                               : Icons.label_outline),
                     size: 15,
-                    color: isChar ? AppTheme.coral : AppTheme.graphite,
+                    color: isChar ? colors.error : colors.textSecondary,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     cat,
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 13,
                       fontWeight: isChar ? FontWeight.w600 : FontWeight.normal,
-                      color: isChar ? AppTheme.coral : AppTheme.charcoal,
+                      color: isChar ? colors.error : colors.textPrimary,
                     ),
                   ),
                 ],
@@ -881,53 +794,6 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
             });
           },
         ),
-      ),
-    );
-  }
-
-  Widget _buildFooter() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              '取消',
-              style: TextStyle(fontSize: 12, color: AppTheme.graphite),
-            ),
-          ),
-          const SizedBox(width: 10),
-          ElevatedButton(
-            onPressed: _isSaving ? null : _handleSave,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.notionBlue,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-              ),
-            ),
-            child: _isSaving
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : Text(
-                    _isEdit ? '保存修改' : '创建词组合',
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-          ),
-        ],
       ),
     );
   }
