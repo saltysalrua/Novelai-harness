@@ -563,16 +563,19 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   Widget _buildGrid(List<PromptComboEntry> entries) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 根据宽度动态计算列数 (卡片宽度约 300~360)
-        final crossAxisCount = (constraints.maxWidth / 310).floor().clamp(1, 6);
+        // 控制单卡宽度，避免宽窗口或列数切换时卡片被过度拉大。
+        final crossAxisCount = ((constraints.maxWidth - 20) / 292).ceil().clamp(
+          1,
+          100,
+        );
 
         return GridView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(10),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            mainAxisExtent: 420, // 增大卡片高度以容纳超大预览图与完整信息
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            mainAxisExtent: 320, // 大图 + 单行摘要 + 紧凑操作栏
           ),
           itemCount: entries.length,
           itemBuilder: (context, index) {

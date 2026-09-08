@@ -7,6 +7,7 @@ import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/watermark_service.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
+import 'package:novelai_harness/ui/core/widgets/app_action_button.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/metadata_reader_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -95,8 +96,8 @@ void main() {
         findsOneWidget,
       );
 
-      // 点击应用全部参数到工作台
-      await tester.tap(find.text('应用全部参数到工作台'));
+      // 默认选中全部可用字段，仍支持一次回填。
+      await tester.tap(find.text('填入选中参数'));
       await tester.pumpAndSettle();
 
       // 对话框应已关闭，且 ViewModel 参数被更新
@@ -172,6 +173,112 @@ void main() {
         );
       },
     );
+
+    test('selective import preserves every unselected parameter', () {
+      addTearDown(viewModel.dispose);
+      final before = viewModel.params.toJson();
+      viewModel.applyMetadataToWorkbench(
+        const ImageMetadataResult(
+          prompt: 'new prompt',
+          negativePrompt: 'new negative',
+          model: 'nai-diffusion-3',
+          width: 512,
+          height: 768,
+          seed: 42,
+          steps: 12,
+          scale: 3,
+          cfgRescale: 0.5,
+          qualityToggle: false,
+          transparentBackground: true,
+          characterPrompts: ['new character'],
+        ),
+        fields: {MetadataImportField.prompt, MetadataImportField.seed},
+      );
+      expect(viewModel.params.toJson(), {
+        ...before,
+        'prompt': 'new prompt',
+        'seed': 42,
+      });
+    });
+
+    test(
+      'empty and missing selections are no-ops; false and zero remain valid',
+      () {
+        addTearDown(viewModel.dispose);
+        final before = viewModel.params;
+        const meta = ImageMetadataResult(
+          prompt: 'unused',
+          cfgRescale: 0,
+          seed: 0,
+          qualityToggle: false,
+          transparentBackground: false,
+        );
+        viewModel.applyMetadataToWorkbench(meta, fields: {});
+        expect(viewModel.params, same(before));
+        viewModel.applyMetadataToWorkbench(
+          meta,
+          fields: {MetadataImportField.steps},
+        );
+        expect(viewModel.params, same(before));
+        viewModel.applyMetadataToWorkbench(
+          meta,
+          fields: {
+            MetadataImportField.cfgRescale,
+            MetadataImportField.seed,
+            MetadataImportField.quality,
+            MetadataImportField.transparentBackground,
+          },
+        );
+        expect(viewModel.params.cfgRescale, 0);
+        expect(viewModel.params.seed, 0);
+        expect(viewModel.params.qualityToggle, isFalse);
+        expect(viewModel.params.transparentBg, isFalse);
+        expect(viewModel.params.prompt, before.prompt);
+      },
+    );
+
+    testWidgets('selection controls apply only checked fields', (tester) async {
+      final before = viewModel.params.toJson();
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: MetadataReaderDialog(
+              metadata: const ImageMetadataResult(
+                prompt: 'selected prompt',
+                seed: 123,
+              ),
+              viewModel: viewModel,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey(MetadataImportField.steps)),
+        findsNothing,
+      );
+      await tester.tap(find.text('全不选'));
+      await tester.pump();
+      final apply = find.widgetWithText(AppActionButton, '填入选中参数');
+      expect(tester.widget<AppActionButton>(apply).onPressed, isNull);
+      await tester.tap(find.text('全选'));
+      await tester.pump();
+      expect(tester.widget<AppActionButton>(apply).onPressed, isNotNull);
+      await tester.tap(find.text('全不选'));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey(MetadataImportField.prompt)));
+      await tester.pump();
+      await tester.tap(apply);
+      await tester.pumpAndSettle();
+      expect(viewModel.params.toJson(), {
+        ...before,
+        'prompt': 'selected prompt',
+      });
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('Extract blind watermark button reveals embedded payload', (
       WidgetTester tester,

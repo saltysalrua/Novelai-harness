@@ -15,6 +15,7 @@ import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_collapsible_section.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_key_value_row.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 拖入图片元数据读取与查看弹窗 (Notion 极简纯净风格)
@@ -59,6 +60,8 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
   // 盲水印提取结果 (null=未提取，空串=无水印，非空=提取到的文本)
   String? _blindResult;
   bool _blindExtracting = false;
+  late final Set<MetadataImportField> _selectedFields =
+      widget.metadata.importableFields;
 
   Future<void> _extractBlindWatermark() async {
     final bytes = widget.imageBytes;
@@ -199,6 +202,11 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
           _buildImageSummary(context, meta),
           const SizedBox(height: 16),
 
+          if (meta.importableFields.isNotEmpty) ...[
+            _buildImportSelection(context, meta),
+            const SizedBox(height: 16),
+          ],
+
           // 正向提示词
           if (meta.prompt.isNotEmpty) ...[
             AppCopyableBox(
@@ -243,6 +251,77 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
 
           // 盲水印提取结果
           _buildBlindWatermarkSection(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImportSelection(BuildContext context, ImageMetadataResult meta) {
+    final l10n = context.l10n;
+    String labelOf(MetadataImportField field) => switch (field) {
+      MetadataImportField.prompt => l10n.metadataPromptTitle,
+      MetadataImportField.negativePrompt => l10n.metadataNegativePromptTitle,
+      MetadataImportField.characters => l10n.metadataCharacterPromptsTitle,
+      MetadataImportField.model => l10n.metadataParamModel,
+      MetadataImportField.resolution => l10n.resolutionTitle,
+      MetadataImportField.sampler => l10n.metadataParamSampler,
+      MetadataImportField.steps => l10n.metadataParamSteps,
+      MetadataImportField.scale => 'CFG Scale',
+      MetadataImportField.cfgRescale => 'CFG Rescale',
+      MetadataImportField.seed => l10n.metadataParamSeed,
+      MetadataImportField.noiseSchedule => l10n.metadataParamNoiseSchedule,
+      MetadataImportField.quality => l10n.metadataImportQuality,
+      MetadataImportField.ucPreset => l10n.metadataParamUcPreset,
+      MetadataImportField.transparentBackground =>
+        l10n.metadataParamTransparentBg,
+    };
+
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(title: l10n.metadataImportSelection),
+          Text(
+            l10n.metadataImportSelectionHint,
+            style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
+          ),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: () => setState(
+                  () => _selectedFields.addAll(meta.importableFields),
+                ),
+                child: Text(l10n.metadataImportSelectAll),
+              ),
+              TextButton(
+                onPressed: () => setState(_selectedFields.clear),
+                child: Text(l10n.metadataImportSelectNone),
+              ),
+            ],
+          ),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final field in meta.importableFields)
+                AppToolChip(
+                  key: ValueKey(field),
+                  label: labelOf(field),
+                  icon: _selectedFields.contains(field)
+                      ? Icons.check_box_outlined
+                      : Icons.check_box_outline_blank,
+                  isSelected: _selectedFields.contains(field),
+                  variant: AppToolChipVariant.tinted,
+                  onTap: () => setState(() {
+                    if (!_selectedFields.remove(field)) {
+                      _selectedFields.add(field);
+                    }
+                  }),
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -472,10 +551,15 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
         icon: Icons.auto_fix_high_rounded,
         label: l10n.metadataApplyToWorkbench,
         variant: AppActionButtonVariant.primary,
-        onPressed: () {
-          widget.viewModel.applyMetadataToWorkbench(meta);
-          Navigator.of(context).pop();
-        },
+        onPressed: _selectedFields.isEmpty
+            ? null
+            : () {
+                widget.viewModel.applyMetadataToWorkbench(
+                  meta,
+                  fields: _selectedFields,
+                );
+                Navigator.of(context).pop();
+              },
       ),
     ];
   }

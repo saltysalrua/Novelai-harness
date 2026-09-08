@@ -1,6 +1,24 @@
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
+/// 元数据回填选项；分辨率、质量预设和角色内容按关联字段整体应用。
+enum MetadataImportField {
+  prompt,
+  negativePrompt,
+  characters,
+  model,
+  resolution,
+  sampler,
+  steps,
+  scale,
+  cfgRescale,
+  seed,
+  noiseSchedule,
+  quality,
+  ucPreset,
+  transparentBackground,
+}
+
 /// 统一解析后的图像元数据模型 (支持 NovelAI、WebUI、ComfyUI、InvokeAI 等)
 class ImageMetadataResult {
   final String prompt;
@@ -46,6 +64,28 @@ class ImageMetadataResult {
     this.characterNegativePrompts = const [],
     this.rawJson = '',
   });
+
+  /// 只开放实际解析到的值，缺失值不以默认参数参与回填。
+  Set<MetadataImportField> get importableFields => {
+    if (prompt.isNotEmpty) MetadataImportField.prompt,
+    if (negativePrompt.isNotEmpty) MetadataImportField.negativePrompt,
+    if (characterPrompts.isNotEmpty) MetadataImportField.characters,
+    if (model != null && model!.isNotEmpty && model != 'Unknown')
+      MetadataImportField.model,
+    if ((width ?? 0) > 0 || (height ?? 0) > 0) MetadataImportField.resolution,
+    if (sampler != null && sampler!.isNotEmpty) MetadataImportField.sampler,
+    if ((steps ?? 0) > 0) MetadataImportField.steps,
+    if ((scale ?? 0) > 0) MetadataImportField.scale,
+    if (cfgRescale != null) MetadataImportField.cfgRescale,
+    if (seed != null) MetadataImportField.seed,
+    if (noiseSchedule != null && noiseSchedule!.isNotEmpty)
+      MetadataImportField.noiseSchedule,
+    if (qualityToggle != null || qualityPreset != null)
+      MetadataImportField.quality,
+    if (ucPreset != null) MetadataImportField.ucPreset,
+    if (transparentBackground != null)
+      MetadataImportField.transparentBackground,
+  };
 
   bool get hasData =>
       prompt.trim().isNotEmpty ||

@@ -1773,7 +1773,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get metadataImportedReference => '已导入参考图';
 
   @override
-  String get metadataApplyToWorkbench => '应用全部参数到工作台';
+  String get metadataApplyToWorkbench => '填入选中参数';
+
+  @override
+  String get metadataImportSelection => '选择要填入的内容';
+
+  @override
+  String get metadataImportSelectionHint => '未勾选或图片中缺失的参数保持不变。';
+
+  @override
+  String get metadataImportSelectAll => '全选';
+
+  @override
+  String get metadataImportSelectNone => '全不选';
+
+  @override
+  String get metadataImportQuality => '质量词开关与预设';
 
   @override
   String dockAbortWithSteps(int current, int total) {

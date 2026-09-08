@@ -8,7 +8,6 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
-import '../../../core/widgets/app_copyable_box.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/context_menu.dart';
 
@@ -108,9 +107,8 @@ class PromptComboCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. 顶部超大预览图 / 占位图 (含应用到工作台悬浮按钮)
-          SizedBox(
-            height: 210,
+          // 图片优先占满剩余空间，文字与操作区保持紧凑。
+          Expanded(
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -137,15 +135,14 @@ class PromptComboCard extends StatelessWidget {
 
           Divider(height: 1, color: colors.borderDefault),
 
-          // 2. 标题与提示词内容区
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 组合名称
-                  Text(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Tooltip(
+                  message: combo.title,
+                  child: Text(
                     combo.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -155,47 +152,22 @@ class PromptComboCard extends StatelessWidget {
                       color: colors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 6),
-
-                  // 主提示词预览块
-                  Expanded(
-                    child: AppCopyableBox(
-                      content: combo.prompt,
-                      showCopyButton: false,
-                      selectable: false,
-                      maxLines: hasNegative ? 2 : 4,
-                      fontSize: 11,
-                      radius: AppRadius.sm,
-                      padding: const EdgeInsets.all(7),
-                    ),
+                ),
+                const SizedBox(height: 3),
+                Tooltip(
+                  message: hasNegative
+                      ? '${combo.prompt}\nUC: ${combo.negativePrompt}'
+                      : combo.prompt,
+                  child: Text(
+                    combo.prompt,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: colors.textMuted),
                   ),
-
-                  // 负面提示词预览块 (仅角色分类且非空时展示)
-                  if (hasNegative) ...[
-                    const SizedBox(height: 5),
-                    AppCopyableBox(
-                      content: combo.negativePrompt,
-                      prefixBadge: 'UC:',
-                      prefixBadgeColor: colors.error,
-                      showCopyButton: false,
-                      selectable: false,
-                      maxLines: 1,
-                      fontSize: 11,
-                      radius: AppRadius.sm,
-                      backgroundColor: colors.errorSurface,
-                      borderColor: colors.error.withValues(alpha: 0.25),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 4,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-
-          Divider(height: 1, color: colors.borderDefault),
 
           // 3. 底部操作栏 (醒目分类胶囊 + 快捷操作按钮)
           _buildBottomBar(context, isChar),
@@ -223,7 +195,7 @@ class PromptComboCard extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(
               children: [
                 const Icon(Icons.bolt_outlined, size: 13, color: Colors.white),
@@ -283,52 +255,61 @@ class PromptComboCard extends StatelessWidget {
     final colors = context.colors;
     final l10n = context.l10n;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       color: colors.elevatedBackground,
       child: Row(
         children: [
           // 醒目的左侧分类胶囊
-          AppBadge(
-            label: comboCategoryLabelOf(l10n, combo.category),
-            icon: isChar ? Icons.person_outline : Icons.label_outline,
-            variant: isChar ? AppBadgeVariant.error : AppBadgeVariant.neutral,
-            shape: AppBadgeShape.rounded,
-            fontSize: 11,
-            iconSize: 13,
+          Expanded(
+            child: Tooltip(
+              message: comboCategoryLabelOf(l10n, combo.category),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: AppBadge(
+                  label: comboCategoryLabelOf(l10n, combo.category),
+                  icon: isChar ? Icons.person_outline : Icons.label_outline,
+                  variant: isChar
+                      ? AppBadgeVariant.error
+                      : AppBadgeVariant.neutral,
+                  shape: AppBadgeShape.rounded,
+                  fontSize: 11,
+                  iconSize: 13,
+                ),
+              ),
+            ),
           ),
-
-          const Spacer(),
+          const SizedBox(width: 6),
 
           // 复制按钮
           AppIconButton(
             icon: Icons.copy_outlined,
             tooltip: l10n.libraryMenuCopyPrompt,
-            size: 32,
-            iconSize: 17,
+            size: 28,
+            iconSize: 15,
             iconColor: colors.textPrimary,
             variant: AppIconButtonVariant.outlined,
             onPressed: () => _copyToClipboard(context),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
 
           // 编辑按钮
           AppIconButton(
             icon: Icons.edit_outlined,
             tooltip: l10n.libraryMenuEdit,
-            size: 32,
-            iconSize: 17,
+            size: 28,
+            iconSize: 15,
             iconColor: colors.primary,
             variant: AppIconButtonVariant.outlined,
             onPressed: onEdit,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
 
           // 删除按钮
           AppIconButton(
             icon: Icons.delete_outline,
             tooltip: l10n.delete,
-            size: 32,
-            iconSize: 17,
+            size: 28,
+            iconSize: 15,
             iconColor: colors.error,
             variant: AppIconButtonVariant.outlined,
             onPressed: onDelete,

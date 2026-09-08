@@ -1152,8 +1152,15 @@ class StudioViewModel extends ChangeNotifier
     _debounceSaveConfig();
   }
 
-  /// 一键将外部解析出的元数据应用到工作台参数与提示词
-  void applyMetadataToWorkbench(ImageMetadataResult metadata) {
+  /// 仅应用选中的有效元数据；省略选项时保持原有全部回填行为。
+  void applyMetadataToWorkbench(
+    ImageMetadataResult metadata, {
+    Set<MetadataImportField>? fields,
+  }) {
+    final selected = metadata.importableFields;
+    if (fields != null) selected.retainAll(fields);
+    if (selected.isEmpty) return;
+    bool includes(MetadataImportField field) => selected.contains(field);
     NaiModel? resolvedModel;
     if (metadata.model != null && metadata.model!.isNotEmpty) {
       try {
@@ -1196,32 +1203,44 @@ class StudioViewModel extends ChangeNotifier
     }
 
     final newParams = _params.copyWith(
-      prompt: metadata.prompt.isNotEmpty ? metadata.prompt : _params.prompt,
-      negativePrompt: metadata.negativePrompt.isNotEmpty
+      prompt: includes(MetadataImportField.prompt) ? metadata.prompt : null,
+      negativePrompt: includes(MetadataImportField.negativePrompt)
           ? metadata.negativePrompt
-          : _params.negativePrompt,
-      model: resolvedModel ?? _params.model,
-      sampler: resolvedSampler ?? _params.sampler,
-      noiseSchedule: resolvedSchedule ?? _params.noiseSchedule,
-      width: (metadata.width != null && metadata.width! > 0)
-          ? metadata.width!
-          : _params.width,
-      height: (metadata.height != null && metadata.height! > 0)
-          ? metadata.height!
-          : _params.height,
-      steps: (metadata.steps != null && metadata.steps! > 0)
-          ? metadata.steps!
-          : _params.steps,
-      scale: (metadata.scale != null && metadata.scale! > 0)
-          ? metadata.scale!
-          : _params.scale,
-      cfgRescale: metadata.cfgRescale ?? _params.cfgRescale,
-      seed: metadata.seed ?? _params.seed,
-      qualityToggle: metadata.qualityToggle ?? _params.qualityToggle,
-      qualityPreset: metadata.qualityPreset ?? _params.qualityPreset,
-      ucPresetKey: metadata.ucPreset ?? _params.ucPresetKey,
-      transparentBg: metadata.transparentBackground ?? _params.transparentBg,
-      characterPrompts: charPrompts ?? _params.characterPrompts,
+          : null,
+      model: includes(MetadataImportField.model) ? resolvedModel : null,
+      sampler: includes(MetadataImportField.sampler) ? resolvedSampler : null,
+      noiseSchedule: includes(MetadataImportField.noiseSchedule)
+          ? resolvedSchedule
+          : null,
+      width:
+          includes(MetadataImportField.resolution) && (metadata.width ?? 0) > 0
+          ? metadata.width
+          : null,
+      height:
+          includes(MetadataImportField.resolution) && (metadata.height ?? 0) > 0
+          ? metadata.height
+          : null,
+      steps: includes(MetadataImportField.steps) ? metadata.steps : null,
+      scale: includes(MetadataImportField.scale) ? metadata.scale : null,
+      cfgRescale: includes(MetadataImportField.cfgRescale)
+          ? metadata.cfgRescale
+          : null,
+      seed: includes(MetadataImportField.seed) ? metadata.seed : null,
+      qualityToggle: includes(MetadataImportField.quality)
+          ? metadata.qualityToggle
+          : null,
+      qualityPreset: includes(MetadataImportField.quality)
+          ? metadata.qualityPreset
+          : null,
+      ucPresetKey: includes(MetadataImportField.ucPreset)
+          ? metadata.ucPreset
+          : null,
+      transparentBg: includes(MetadataImportField.transparentBackground)
+          ? metadata.transparentBackground
+          : null,
+      characterPrompts: includes(MetadataImportField.characters)
+          ? charPrompts
+          : null,
     );
 
     updateParams(newParams);

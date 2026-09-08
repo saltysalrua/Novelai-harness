@@ -3401,8 +3401,38 @@ abstract class AppLocalizations {
   /// No description provided for @metadataApplyToWorkbench.
   ///
   /// In zh, this message translates to:
-  /// **'应用全部参数到工作台'**
+  /// **'填入选中参数'**
   String get metadataApplyToWorkbench;
+
+  /// No description provided for @metadataImportSelection.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择要填入的内容'**
+  String get metadataImportSelection;
+
+  /// No description provided for @metadataImportSelectionHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'未勾选或图片中缺失的参数保持不变。'**
+  String get metadataImportSelectionHint;
+
+  /// No description provided for @metadataImportSelectAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全选'**
+  String get metadataImportSelectAll;
+
+  /// No description provided for @metadataImportSelectNone.
+  ///
+  /// In zh, this message translates to:
+  /// **'全不选'**
+  String get metadataImportSelectNone;
+
+  /// No description provided for @metadataImportQuality.
+  ///
+  /// In zh, this message translates to:
+  /// **'质量词开关与预设'**
+  String get metadataImportQuality;
 
   /// No description provided for @dockAbortWithSteps.
   ///

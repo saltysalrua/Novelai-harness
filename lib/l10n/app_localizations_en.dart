@@ -1852,7 +1852,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get metadataImportedReference => 'Imported reference image';
 
   @override
-  String get metadataApplyToWorkbench => 'Apply All Parameters to Studio';
+  String get metadataApplyToWorkbench => 'Apply Selected Parameters';
+
+  @override
+  String get metadataImportSelection => 'Choose What to Apply';
+
+  @override
+  String get metadataImportSelectionHint =>
+      'Unchecked or missing parameters stay unchanged.';
+
+  @override
+  String get metadataImportSelectAll => 'Select All';
+
+  @override
+  String get metadataImportSelectNone => 'Deselect All';
+
+  @override
+  String get metadataImportQuality => 'Quality Toggle and Preset';
 
   @override
   String dockAbortWithSteps(int current, int total) {

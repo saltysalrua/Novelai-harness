@@ -782,7 +782,12 @@
   "metadataExtractBlindWatermark": "Extract Blind Watermark",
   "metadataImportAsReference": "Import as Reference",
   "metadataImportedReference": "Imported reference image",
-  "metadataApplyToWorkbench": "Apply All Parameters to Studio",
+  "metadataApplyToWorkbench": "Apply Selected Parameters",
+  "metadataImportSelection": "Choose What to Apply",
+  "metadataImportSelectionHint": "Unchecked or missing parameters stay unchanged.",
+  "metadataImportSelectAll": "Select All",
+  "metadataImportSelectNone": "Deselect All",
+  "metadataImportQuality": "Quality Toggle and Preset",
   "dockAbortWithSteps": "Abort Generation ({current}/{total})",
   "@dockAbortWithSteps": {
     "placeholders": {

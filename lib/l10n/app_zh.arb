@@ -782,7 +782,12 @@
   "metadataExtractBlindWatermark": "提取盲水印",
   "metadataImportAsReference": "作为参考图导入",
   "metadataImportedReference": "已导入参考图",
-  "metadataApplyToWorkbench": "应用全部参数到工作台",
+  "metadataApplyToWorkbench": "填入选中参数",
+  "metadataImportSelection": "选择要填入的内容",
+  "metadataImportSelectionHint": "未勾选或图片中缺失的参数保持不变。",
+  "metadataImportSelectAll": "全选",
+  "metadataImportSelectNone": "全不选",
+  "metadataImportQuality": "质量词开关与预设",
   "dockAbortWithSteps": "终止生成 ({current}/{total})",
   "@dockAbortWithSteps": {
     "placeholders": {
