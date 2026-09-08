@@ -31,13 +31,17 @@ class DanbooruSearchTagsTool extends AgentTool {
             '用中文或英文的自然语言描述查找对应的 Danbooru 标准标签。'
             '基于语义向量匹配，支持模糊概念、整段画面描述、拼写容错与中文查询'
             '（例如"白色水手服的少女"或"雨中奔跑的城市街道"）。'
-            '查询单一概念时结果更精准；返回标签附中文名、热度与一句话简介。'
+            '查询单一概念时结果更精准；返回标签、中文名与热度；简介通过 include_wiki 按需读取。'
             '注意：语义检索较慢（10~30 秒），不要在单轮对话里高频调用。',
         parameters: {
           'type': 'object',
           'properties': {
             'query': {'type': 'string', 'description': '自然语言描述或概念（中文或英文均可）'},
-            'limit': {'type': 'integer', 'description': '返回条数上限（默认 20，最大 80）'},
+            'include_wiki': {
+              'type': 'boolean',
+              'description': '返回简短简介，默认 false',
+            },
+            'limit': {'type': 'integer', 'description': '返回条数上限（默认 8，最大 30）'},
             'use_segmentation': {
               'type': 'boolean',
               'description':
@@ -63,7 +67,7 @@ class DanbooruSearchTagsTool extends AgentTool {
       );
     }
 
-    final limit = ((args['limit'] as num?)?.toInt() ?? 20).clamp(1, 80);
+    final limit = ((args['limit'] as num?)?.toInt() ?? 8).clamp(1, 30);
     final seg = args['use_segmentation'] as bool? ?? true;
 
     try {
@@ -81,12 +85,12 @@ class DanbooruSearchTagsTool extends AgentTool {
 
       final buffer = StringBuffer();
       buffer.writeln('语义搜词 "$query" 结果：');
-      for (final r in results) {
+      for (final r in results.take(limit)) {
         final zh = r.cnHead;
         buffer.writeln(
           '- ${r.tag}${zh != null ? ' ($zh)' : ''}'
           ' [热度: ${formatTagCount(r.count)}${r.category != DanbooruTagCategory.general ? ' / ${r.category.label}' : ''}]'
-          '${r.wiki.isNotEmpty ? ' -- ${r.wiki}' : ''}',
+          '${args['include_wiki'] == true && r.wiki.isNotEmpty ? ' -- ${r.wiki.length > 160 ? '${r.wiki.substring(0, 160)}…' : r.wiki}' : ''}',
         );
       }
       return ToolResult(
@@ -134,7 +138,11 @@ class DanbooruRelatedTagsTool extends AgentTool {
               'items': {'type': 'string'},
               'description': '种子标签列表（Danbooru 英文标签名，如 ["maid", "twintails"]）',
             },
-            'limit': {'type': 'integer', 'description': '返回条数上限（默认 20，最大 200）'},
+            'include_wiki': {
+              'type': 'boolean',
+              'description': '返回简短简介，默认 false',
+            },
+            'limit': {'type': 'integer', 'description': '返回条数上限（默认 8，最大 30）'},
             'category': {
               'type': 'string',
               'enum': ['General', 'Character', 'Copyright', 'Artist', 'Meta'],
@@ -165,7 +173,7 @@ class DanbooruRelatedTagsTool extends AgentTool {
       );
     }
 
-    final limit = ((args['limit'] as num?)?.toInt() ?? 20).clamp(1, 200);
+    final limit = ((args['limit'] as num?)?.toInt() ?? 8).clamp(1, 30);
     final category = switch (args['category'] as String?) {
       'Character' => DanbooruTagCategory.character,
       'Copyright' => DanbooruTagCategory.copyright,
@@ -202,11 +210,11 @@ class DanbooruRelatedTagsTool extends AgentTool {
           '已自动纠错: ${corrections.entries.map((e) => '${e.key} -> ${e.value}').join(', ')}',
         );
       }
-      for (final r in results) {
+      for (final r in results.take(limit)) {
         final zh = r.cnHead;
         buffer.writeln(
           '- ${r.tag.replaceAll('_', ' ')}${zh != null ? ' ($zh)' : ''}'
-          '${r.wiki.isNotEmpty ? ' -- ${r.wiki}' : ''}'
+          '${args['include_wiki'] == true && r.wiki.isNotEmpty ? ' -- ${r.wiki.length > 160 ? '${r.wiki.substring(0, 160)}…' : r.wiki}' : ''}'
           '${r.sources.isNotEmpty ? ' [来自: ${r.sources.join(',')}]' : ''}',
         );
       }

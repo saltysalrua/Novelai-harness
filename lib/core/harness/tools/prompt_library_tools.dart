@@ -61,7 +61,7 @@ class SearchPromptLibraryTool extends AgentTool {
         description:
             '检索本地词组合预设库 (词库)。传入 query 可按标题、提示词内容或标签模糊搜索；'
             '传入 category 可按分类过滤 (角色/风格/服装/构图/环境/特效/其他)；'
-            '传入 id 可精确读取单条条目的完整内容。不传任何参数时返回全部条目列表。'
+            '传入 id 可精确读取单条条目的完整内容。默认分页返回 ID、标题与分类；用 id 读取完整提示词。'
             '返回的条目 id 可用于 add/update/delete 工具的精确引用。',
         parameters: const {
           'type': 'object',
@@ -76,6 +76,17 @@ class SearchPromptLibraryTool extends AgentTool {
               'description': '按分类过滤',
             },
             'id': {'type': 'string', 'description': '精确条目 ID，传入时直接返回该条目的完整内容'},
+            'offset': {
+              'type': 'integer',
+              'minimum': 0,
+              'description': '分页偏移，默认 0',
+            },
+            'limit': {
+              'type': 'integer',
+              'minimum': 1,
+              'maximum': 50,
+              'description': '每页条数，默认 10',
+            },
           },
         },
       );
@@ -131,7 +142,25 @@ class SearchPromptLibraryTool extends AgentTool {
     if (query.isNotEmpty) header.write(', 关键词 "$query"');
     if (category.isNotEmpty) header.write(', 分类 "$category"');
     header.writeln(')：');
-    header.write(filtered.map(formatPromptComboEntry).join('\n'));
+    final offset = ((args['offset'] as num?)?.toInt() ?? 0).clamp(
+      0,
+      filtered.length,
+    );
+    final limit = ((args['limit'] as num?)?.toInt() ?? 10).clamp(1, 50);
+    final page = filtered.skip(offset).take(limit).toList();
+    header.write(
+      page
+          .map((entry) {
+            final title = entry.title.length > 120
+                ? '${entry.title.substring(0, 120)}…'
+                : entry.title;
+            return '• [${entry.id}] $title (${entry.category})';
+          })
+          .join('\n'),
+    );
+    final next = offset + page.length;
+    header.writeln('\n本页 ${page.length} 条；用 id 读取全文。');
+    if (next < filtered.length) header.writeln('下一页 offset: $next');
     return ToolResult(toolCallId: toolCallId, content: header.toString());
   }
 }

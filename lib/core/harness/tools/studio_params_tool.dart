@@ -319,7 +319,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
     if (args.containsKey('prompt')) {
       if (isAllowed(PresetParamKeys.prompt)) {
         prompt = args['prompt'] as String? ?? '';
-        updatedEntries.add('正向提示词: $prompt');
+        updatedEntries.add('正向提示词: 已更新');
       } else {
         blockedEntries.add('正向提示词');
       }
@@ -329,7 +329,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
     if (args.containsKey('negative_prompt')) {
       if (isAllowed(PresetParamKeys.negativePrompt)) {
         negativePrompt = args['negative_prompt'] as String? ?? '';
-        updatedEntries.add('负向提示词: $negativePrompt');
+        updatedEntries.add('负向提示词: 已更新');
       } else {
         blockedEntries.add('负向提示词');
       }

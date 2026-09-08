@@ -104,13 +104,33 @@ void main() {
     entries = List.from(PromptLibraryService.instance.cachedEntries);
   }
 
-  test('搜索工具: 无参数列出全部条目', () async {
+  test('搜索工具: 无参数返回摘要而非全文', () async {
     final tool = SearchPromptLibraryTool(getEntries: () => entries);
     final result = await tool.execute('t1', {});
     expect(result.isError, isFalse);
     expect(result.content, contains('共 3 条'));
     expect(result.content, contains('[e1] 水彩风'));
-    expect(result.content, contains('负面提示词: lowres'));
+    expect(result.content, isNot(contains('lowres')));
+    expect(result.content, isNot(contains('watercolor, pastel')));
+  });
+
+  test('搜索工具: 分页与边界保留按 ID 读取全文', () async {
+    final many = List.generate(60, (i) => entry('p$i', '标题$i', prompt: '全文$i'));
+    final tool = SearchPromptLibraryTool(getEntries: () => many);
+    final first = await tool.execute('p1', {});
+    expect(first.content, contains('下一页 offset: 10'));
+    expect(first.content, isNot(contains('[p10]')));
+    expect(first.content, isNot(contains('提示词: 全文')));
+    final next = await tool.execute('p2', {'offset': 10, 'limit': 2});
+    expect(next.content, contains('[p10]'));
+    expect(next.content, contains('[p11]'));
+    expect(next.content, isNot(contains('[p12]')));
+    final capped = await tool.execute('p3', {'offset': -1, 'limit': 999});
+    expect(capped.content, contains('下一页 offset: 50'));
+    final empty = await tool.execute('p4', {'offset': 999});
+    expect(empty.content, contains('本页 0 条'));
+    final detail = await tool.execute('p5', {'id': 'p59'});
+    expect(detail.content, contains('提示词: 全文59'));
   });
 
   test('搜索工具: 关键词与分类过滤', () async {

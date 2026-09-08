@@ -176,8 +176,8 @@ class NovelAiAddCharacterPromptTool extends AgentTool {
           '已添加角色提示词并同步到工作台 UI：\n'
           '• 名称: ${character.name}\n'
           '• ID: ${character.id}\n'
-          '• 正向提示词: ${character.prompt}\n'
-          '• 负面提示词: ${character.negativePrompt.isEmpty ? '(空)' : character.negativePrompt}\n'
+          '• 正向提示词: 已设置\n'
+          '• 负面提示词: ${character.negativePrompt.isEmpty ? '(空)' : '已设置'}\n'
           '• 定位: ${character.useCustomPosition ? '手动 ($positionX, $positionY)' : '自动布局 (跟随全局 AI 自动 / 自定义模式)'}\n'
           '当前共 ${characters.length + 1} 个角色。后续修改或删除该角色请引用 ID: ${character.id}。',
     );
@@ -265,14 +265,14 @@ class NovelAiUpdateCharacterPromptTool extends AgentTool {
     }
     if (args.containsKey('prompt') && (args['prompt'] as String?) != null) {
       updated = updated.copyWith(prompt: args['prompt'] as String);
-      changes.add('正向提示词: ${updated.prompt}');
+      changes.add('正向提示词: 已更新');
     }
     if (args.containsKey('negative_prompt') &&
         (args['negative_prompt'] as String?) != null) {
       updated = updated.copyWith(
         negativePrompt: args['negative_prompt'] as String,
       );
-      changes.add('负面提示词: ${updated.negativePrompt}');
+      changes.add('负面提示词: 已更新');
     }
     if (args.containsKey('enabled') && args['enabled'] is bool) {
       updated = updated.copyWith(enabled: args['enabled'] as bool);

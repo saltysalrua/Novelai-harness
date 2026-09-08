@@ -614,6 +614,7 @@ class StudioViewModel extends ChangeNotifier
     _toolRegistry = ToolRegistry();
     _harness = AgentHarness(
       tools: _toolRegistry,
+      skillRegistry: _skillRegistry,
       recorder: _sessionLog,
       initialPreset: BuiltinPresets.v5Architect,
     );

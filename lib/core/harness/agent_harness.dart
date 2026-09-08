@@ -14,6 +14,7 @@ import 'types.dart';
 /// - 原始消息仍完整保留在 UI 消息流与会话落盘中 (仅 LLM 请求不再携带)。
 class AgentHarness {
   final ToolRegistry tools;
+  final SkillRegistry? skillRegistry;
   LlmProvider? provider;
   AgentPreset? _currentPreset;
 
@@ -69,6 +70,7 @@ class AgentHarness {
 
   AgentHarness({
     required this.tools,
+    this.skillRegistry,
     this.provider,
     this.providerLabel,
     this.recorder,
@@ -101,7 +103,11 @@ class AgentHarness {
   String buildSystemPrompt(AgentPreset preset) {
     final buffer = StringBuffer(preset.systemPrompt.trim());
     final enabledSkills = preset.enabledSkillIds
-        .map((id) => BuiltinSkills.findById(id))
+        .map(
+          (id) => skillRegistry != null
+              ? skillRegistry!.get(id)
+              : BuiltinSkills.findById(id),
+        )
         .whereType<Skill>()
         .toList();
     if (enabledSkills.isNotEmpty) {

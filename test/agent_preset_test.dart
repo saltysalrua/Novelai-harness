@@ -207,19 +207,27 @@ void main() {
       expect(result.isError, isFalse);
       expect(result.content, contains('<skill name="v5-architect">'));
       expect(result.content, contains('V5 自然语言与空间视觉架构师'));
-      expect(result.content, contains('未知/不确定角色单Tag探测规则'));
-      expect(result.content, contains('仅靠角色的单 tag 生成一次图片来获取'));
+      expect(
+        result.content,
+        contains(BuiltinSkills.v5PromptArchitect.systemPrompt),
+      );
+      expect(result.content, contains('不强制额外生图探测'));
 
       final inpaintResult = await tool.execute('call_inpaint', {
         'skill_name': 'inpaint-specialist',
       });
       expect(inpaintResult.isError, isFalse);
-      expect(inpaintResult.content, contains('<skill name="inpaint-specialist">'));
+      expect(
+        inpaintResult.content,
+        contains('<skill name="inpaint-specialist">'),
+      );
       expect(inpaintResult.content, contains('NovelAI 局部修复与图像重绘专家'));
-      expect(inpaintResult.content, contains('基底保持与最小必要改动'));
-      expect(inpaintResult.content, contains('nano banana'));
-      expect(inpaintResult.content, contains('前置保真指令模板'));
-      expect(inpaintResult.content, contains('焦点特写修复'));
+      expect(
+        inpaintResult.content,
+        contains(BuiltinSkills.inpaintSpecialist.systemPrompt),
+      );
+      expect(inpaintResult.content, contains('prompt 留空复用工作台提示词'));
+      expect(inpaintResult.content, contains('费用以工具返回及账号状态为准'));
     });
 
     test('LoadSkillTool returns error for unknown skill', () async {
@@ -552,32 +560,35 @@ You are an expert in cinematic lighting, rim light, and ambient color harmony.''
       },
     );
 
-    test('StudioViewModel updateConfig hot-updates preset tool permissions', () async {
-      SharedPreferences.setMockInitialValues({});
-      final vm = StudioViewModel();
-      await vm.init();
+    test(
+      'StudioViewModel updateConfig hot-updates preset tool permissions',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final vm = StudioViewModel();
+        await vm.init();
 
-      expect(vm.currentPreset.isToolEnabled('novelai_generate'), isTrue);
+        expect(vm.currentPreset.isToolEnabled('novelai_generate'), isTrue);
 
-      // 模拟在设置中禁用了当前预设的生图工具
-      final current = vm.currentPreset;
-      final modifiedTools = current.enabledToolNames
-          .where((t) => t != 'novelai_generate')
-          .toList();
-      final updatedPreset = current.copyWith(enabledToolNames: modifiedTools);
-      final updatedPresets = vm.presets
-          .map((p) => p.id == updatedPreset.id ? updatedPreset : p)
-          .toList();
+        // 模拟在设置中禁用了当前预设的生图工具
+        final current = vm.currentPreset;
+        final modifiedTools = current.enabledToolNames
+            .where((t) => t != 'novelai_generate')
+            .toList();
+        final updatedPreset = current.copyWith(enabledToolNames: modifiedTools);
+        final updatedPresets = vm.presets
+            .map((p) => p.id == updatedPreset.id ? updatedPreset : p)
+            .toList();
 
-      final newConfig = vm.config.copyWith(
-        presets: updatedPresets,
-        activePresetId: updatedPreset.id,
-      );
+        final newConfig = vm.config.copyWith(
+          presets: updatedPresets,
+          activePresetId: updatedPreset.id,
+        );
 
-      await vm.updateConfig(newConfig);
+        await vm.updateConfig(newConfig);
 
-      // 无需在 Agent 卡片上重新切换预设，工具权限即时生效
-      expect(vm.currentPreset.isToolEnabled('novelai_generate'), isFalse);
-    });
+        // 无需在 Agent 卡片上重新切换预设，工具权限即时生效
+        expect(vm.currentPreset.isToolEnabled('novelai_generate'), isFalse);
+      },
+    );
   });
 }

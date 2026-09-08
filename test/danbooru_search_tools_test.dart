@@ -48,7 +48,12 @@ void main() {
       expect(r.isError, isFalse);
       expect(r.content, contains('white_serafuku'));
       expect(r.content, contains('白色水手服'));
-      expect(r.content, contains('上衣和裙子'));
+      expect(r.content, isNot(contains('上衣和裙子')));
+      final detailed = await tool.execute('t2', {
+        'query': '白色水手服',
+        'include_wiki': true,
+      });
+      expect(detailed.content, contains('上衣和裙子'));
     });
 
     test('空查询返回错误', () async {
