@@ -63,6 +63,9 @@ Novelai-harness/
 │   │   └── harness/
 │   │       ├── types.dart                      # 消息、事件流、角色、工具调用与附件数据模型
 │   │       ├── agent_harness.dart              # 核心 Agent 调度器 (多轮对话/工具执行/自适应压缩/瞬态重试/耗尽收尾)
+│   │       ├── agent_context.dart              # 请求上下文生命周期、回复编号与会话笔记状态
+│   │       ├── agent_compaction.dart           # 单飞后台压缩快照、分批摘要与版本校验提交
+│   │       ├── context_memory.dart             # 会话笔记/请求侧释放与上下文用量快照
 │   │       ├── session_recorder.dart           # 会话记录器抽象接口 (Pi 格式落盘钩子)
 │   │       ├── presets/
 │   │       │   └── agent_preset.dart           # Agent 预设模型 (系统提示词/可用Skills/工具与参数权限白名单)
@@ -74,6 +77,7 @@ Novelai-harness/
 │   │       │   ├── annotation_tools.dart       # 画板批注五件套工具与覆盖层离屏绘制 (view/add/update/remove/clear)
 │   │       │   ├── anysearch_tools.dart       # AnySearch 网络搜索三件套工具 (web_search / get_search_domains / web_extract)
 │   │       │   ├── ask_user_tool.dart          # 向用户提出结构化单选/多选/填空问题 (ask_user)
+│   │       │   ├── context_memory_tool.dart    # 会话笔记与请求侧释放 (context_memory)
 │   │       │   ├── canvas_view_tool.dart       # 画板历史图片查看工具 (view_canvas_image，支持索引与覆盖层)
 │   │       │   ├── character_prompt_tools.dart  # 多角色提示词增删改查四件套工具
 │   │       │   ├── danbooru_search_tools.dart  # Danbooru 离线/在线语义搜索与 NPMI 画师推荐工具
@@ -258,9 +262,13 @@ sequenceDiagram
     VM->>Harness: send(prompt, images)
     loop Harness 循环 (最多 maxTurns 轮)
         Harness->>Compaction: 估算当前上下文 Token 用量
-        alt 超过 contextWindow - reserveTokens
-            Compaction->>LLM: 触发无工具一次性摘要请求
-            Compaction-->>Harness: 返回结构化中文摘要，保留近期窗口
+        opt 使用量超过安全窗口的 70%
+            Harness->>Compaction: 启动单飞后台快照任务 (不阻塞主请求)
+            Compaction->>LLM: 用配置的压缩模型分批生成摘要 (默认主模型)
+            Compaction-->>Harness: 版本校验后原子提交摘要与窗口起点
+        end
+        opt 达到安全窗口上限
+            Harness->>Compaction: 等待任务完成，仍超窗则报错而非盲发
         end
         Harness->>LLM: 发送请求 (含系统提示词 / 摘要 / 工具定义 / 历史消息)
         LLM-->>Harness: SSE 流式推送 (思考链增量 + 正文增量)
@@ -277,9 +285,16 @@ sequenceDiagram
     Harness-->>VM: TurnCompleteEvent / 落盘 Pi JSONL 会话
 ```
 
-- **上下文自适应动态压缩 (Compaction)**：
-  - 每轮请求前实时估算 Token 占用。超出阈值后，自前向后智能寻找非工具分割点，保留最后 `compactionKeepRecentTokens`（默认 20,000）预算内的最近轮次。
-  - 前序历史消息通过 LLM 无工具调用生成高密度结构化中文摘要（目标、约束、关键决策、当前进展），替代原长历史消息注入请求。原始消息在 UI 视图与磁盘会话 JSONL 中**完整保留**。
+- **上下文用量与后台压缩**：
+  - 聊天输入栏显示当前请求上下文估算、窗口、占比、笔记数量与后台状态，不与累计账单混淆。有效响应的 `usage.total` 为用量锚点，后续消息增量估算；不重复加入系统开销。压缩、模型切换或遗忘后丢弃旧锚点，重新计入系统、工具 Schema、摘要、笔记及折叠图片；非 ASCII 文本保守按每字符一 Token 估算。
+  - `agent_compaction.dart`：安全窗口为模型窗口减预留（预留最多占窗口 1/4）；默认在其 70% 启动单飞后台快照压缩，主回复继续运行，临近上限才等待。若仍超窗则明确报错。近期预算默认 20,000，且最多占安全窗口 1/3；切点不拆散工具调用与结果。
+  - 设置 → 默认 → 上下文管理可独立开关自动/后台压缩，选择已有供应商及模型，或跟随主模型（选择失效时也回退主模型）。仍复用 OpenAI 兼容协议及供应商思考格式，不引入其他原生协议；压缩用量独立计入实际压缩模型的账单。
+  - 小窗口压缩模型采用分批迭代摘要，不再直接截掉超长历史。流闲置超时、错误、空摘要或无压缩收益时保留原上下文。会话切换、回溯、记忆修改、模型配置变化与销毁均使旧快照失效，晚到结果不得跨会话提交。
+- **回复编号与会话笔记**：
+  - `AgentMessage.replyNumber` 为稳定回复编号，界面显示 `#N`，模型请求携带 `[回复 #N]`，原文不被改写。新回复递增，回溯后不复用已分配编号；旧会话按历史顺序补号。
+  - `context_memory.dart` / `agent_context.dart` 管理本会话笔记和请求侧释放状态；`context_memory` 工具支持 `list`、`add_note`、`delete_note`、`forget_reply`、`read_reply`，遵守预设白名单。笔记最多 64 条，每条 2,000 字符；回复列表分页 50 条，原文分页 8,000 字符。
+  - 释放旧回复时同时省略其工具结果，以固定占位保留编号；原始用户要求不删除，当前轮回复及已进入摘要的回复不能单独释放。必要信息可先存为笔记，之后仍可按编号读取原文；笔记仅为参考数据，不覆盖系统规则。
+  - `SessionLogService` 在 JSONL 消息中保留应用消息 ID 和编号，以同目录 `.jsonl.context.json` 原子写入摘要、窗口、笔记、释放集合及编号高水位。恢复先校验消息 ID 前缀，拒绝过期分支检查点；切换/新建会话隔离记忆，删除会话同时删除检查点。原始消息在 UI 与磁盘 JSONL 中**完整保留**。
 - **视觉附件单次展示与 1024 像素降采样**：
   - 视觉模型在多轮对话中如果不断重新读取旧大图，会导致上下文迅速爆满并破坏 Prompt Cache。
   - 系统引入 `imageEpoch` 机制：**图片只给模型看一次**。旧轮次历史图片自动折叠为固定占位文本，仅当前轮新增附件与画板审查结果发送图片数据；

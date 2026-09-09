@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:ui' show Color, Locale, Offset, Rect;
 import 'package:flutter/foundation.dart';
 import '../../../../core/harness/agent_harness.dart';
+import '../../../../core/harness/context_memory.dart';
+import '../../../../core/harness/tools/context_memory_tool.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/providers/openai_provider.dart';
 import '../../../../core/harness/skills/skills.dart';
@@ -277,6 +279,7 @@ mixin _StudioCore on ChangeNotifier {
       _selectedImage?.id == gallery.first.id;
   List<NaiGeneratedImage> get gallery => _repository.history;
   List<AgentMessage> get messages => _harness.messages;
+  ContextUsage get contextUsage => _harness.contextUsage;
   AgentPreset get currentPreset => _harness.currentPreset;
   List<AgentPreset> get presets =>
       _config.presets.isNotEmpty ? _config.presets : BuiltinPresets.all;
@@ -618,6 +621,24 @@ class StudioViewModel extends ChangeNotifier
       recorder: _sessionLog,
       initialPreset: BuiltinPresets.v5Architect,
     );
+    _harness.onContextChanged = () {
+      _sessionLog.saveContextState(_harness.exportContextState());
+      notifyListeners();
+    };
+    _harness.onCompactionUsage = (usage, model) {
+      final provider = _config.llmProviders
+          .where((p) => p.id == _config.compactionProviderId)
+          .firstOrNull;
+      final label = _harness.compactionProvider == null
+          ? (_harness.providerLabel ?? 'unknown')
+          : (provider?.name ?? provider?.id ?? 'unknown');
+      _usageLedger.record(
+        key: 'compaction_${DateTime.now().microsecondsSinceEpoch}',
+        provider: label,
+        model: model,
+        usage: usage,
+      );
+    };
     // 大画布领域控制器：宿主回调经 _StudioBoardHost 最小接口接入
     board = BoardController(
       host: _StudioBoardHost(this),
@@ -709,6 +730,7 @@ class StudioViewModel extends ChangeNotifier
     final snapshot = _sessionLog.loadLatestSession();
     if (snapshot != null && snapshot.messages.isNotEmpty) {
       _harness.restoreMessages(snapshot.messages);
+      _harness.restoreContextState(_sessionLog.loadContextState());
       _sessionModelUsage = {
         for (final e in snapshot.sessionUsage.entries)
           displayNameForModelKey(e.key): e.value,
@@ -1288,6 +1310,7 @@ class StudioViewModel extends ChangeNotifier
 
   @override
   void dispose() {
+    _harness.dispose();
     _generationSubscription?.cancel();
     _paramSaveDebounceTimer?.cancel();
     _splitWidthSaveTimer?.cancel();

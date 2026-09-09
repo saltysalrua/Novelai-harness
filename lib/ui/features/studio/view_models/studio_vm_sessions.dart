@@ -15,9 +15,12 @@ mixin _StudioSessionsMixin on _StudioCore {
     if (_isChatStreaming) {
       await abortChat();
     }
+    _harness.memoryChanged();
+    await _sessionLog.flush();
     final snapshot = _sessionLog.loadSession(sessionId);
     if (snapshot != null) {
       _harness.setMessages(snapshot.messages);
+      _harness.restoreContextState(_sessionLog.loadContextState());
       _sessionModelUsage = {
         for (final e in snapshot.sessionUsage.entries)
           displayNameForModelKey(e.key): e.value,
@@ -49,6 +52,7 @@ mixin _StudioSessionsMixin on _StudioCore {
     if (_isChatStreaming) {
       await abortChat();
     }
+    _harness.memoryChanged();
     await _sessionLog.createSession(title: title);
     _harness.setMessages([]);
     _sessionModelUsage = {};
@@ -67,6 +71,7 @@ mixin _StudioSessionsMixin on _StudioCore {
     if (ids.isEmpty) return;
     final isCurrent = ids.contains(currentSessionId);
     if (isCurrent && _isChatStreaming) await abortChat();
+    if (isCurrent) _harness.memoryChanged();
     for (final id in ids) {
       await _sessionLog.deleteSession(id);
     }

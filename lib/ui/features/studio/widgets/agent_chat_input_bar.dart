@@ -412,6 +412,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     final activeProvider = widget.viewModel.config.activeLlmProvider;
     final activeModel = activeProvider.activeModel;
     final currentEffort = widget.viewModel.currentThinkingEffort;
+    final usage = widget.viewModel.contextUsage;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -431,6 +432,38 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           ),
           const SizedBox(height: 12),
 
+          Tooltip(
+            message:
+                usage.error ??
+                '当前请求上下文估算，含系统提示词、工具、摘要和笔记；不是会话累计用量。可用 /compact 手动压缩。',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '上下文 ≈${usage.tokens} / ${usage.window} · ${(usage.fraction * 100).toStringAsFixed(0)}%'
+                  ' · 笔记 ${usage.noteCount}'
+                  '${usage.compacting
+                      ? ' · 后台压缩中'
+                      : usage.error != null
+                      ? ' · 压缩失败'
+                      : ''}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: usage.error != null
+                        ? colors.error
+                        : colors.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                LinearProgressIndicator(
+                  value: usage.fraction,
+                  minHeight: 2,
+                  color: usage.fraction >= 0.85 ? colors.error : colors.primary,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
           // 斜杠指令补全悬浮层 (渲染到根 Overlay，锚定在输入框上方)
           OverlayPortal(
             controller: _overlayController,

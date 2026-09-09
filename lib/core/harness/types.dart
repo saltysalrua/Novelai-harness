@@ -224,6 +224,7 @@ class AgentMessage {
   final String id;
   final AgentRole role;
   final String content;
+  final int? replyNumber;
   final String thoughts; // 思考过程 (Reasoning / Thinking)
   final List<ToolCall>? toolCalls;
   final String? toolCallId;
@@ -271,6 +272,7 @@ class AgentMessage {
     required this.role,
     this.content = '',
     this.thoughts = '',
+    this.replyNumber,
     this.toolCalls,
     this.toolCallId,
     this.toolName,
@@ -291,6 +293,7 @@ class AgentMessage {
     AgentRole? role,
     String? content,
     String? thoughts,
+    int? replyNumber,
     List<ToolCall>? toolCalls,
     String? toolCallId,
     String? toolName,
@@ -311,6 +314,7 @@ class AgentMessage {
       role: role ?? this.role,
       content: content ?? this.content,
       thoughts: thoughts ?? this.thoughts,
+      replyNumber: replyNumber ?? this.replyNumber,
       toolCalls: toolCalls ?? this.toolCalls,
       toolCallId: toolCallId ?? this.toolCallId,
       toolName: toolName ?? this.toolName,
@@ -347,6 +351,7 @@ class AgentMessage {
       role: role,
       content: content.isEmpty ? placeholder : '$content\n\n$placeholder',
       thoughts: thoughts,
+      replyNumber: replyNumber,
       toolCalls: toolCalls,
       toolCallId: toolCallId,
       toolName: toolName,

@@ -108,6 +108,32 @@ class SessionLogService implements SessionRecorder {
 
   bool get isInitialized => _baseDir != null;
 
+  /// 请求上下文检查点与会话同目录存储，不改写原始 JSONL 历史。
+  void saveContextState(Map<String, Object?> state) {
+    final file = _currentFile;
+    if (file == null) return;
+    final target = File('${file.path}.context.json');
+    final encoded = jsonEncode(state);
+    _queue = _queue.catchError((Object _) {}).then((_) async {
+      final temp = File('${target.path}.tmp');
+      await temp.writeAsString(encoded, flush: true);
+      await temp.rename(target.path);
+    });
+  }
+
+  Map<String, Object?> loadContextState() {
+    final file = _currentFile;
+    if (file == null) return const {};
+    try {
+      final value = jsonDecode(
+        File('${file.path}.context.json').readAsStringSync(),
+      );
+      return value is Map<String, Object?> ? value : const {};
+    } catch (_) {
+      return const {};
+    }
+  }
+
   /// 会话根目录 (供账本等其他服务复用同一目录)
   String? get baseDirPath => _baseDir?.path;
 
@@ -160,7 +186,10 @@ class SessionLogService implements SessionRecorder {
     if (_baseDir == null) return;
     _ensureSession();
 
-    final msg = <String, dynamic>{};
+    final msg = <String, dynamic>{
+      'harnessMessageId': message.id,
+      if (message.replyNumber != null) 'replyNumber': message.replyNumber,
+    };
     switch (message.role) {
       case AgentRole.user:
         msg['role'] = 'user';
@@ -427,6 +456,10 @@ class SessionLogService implements SessionRecorder {
 
     try {
       file.deleteSync();
+      for (final suffix in ['.context.json', '.context.json.tmp']) {
+        final sidecar = File('${file.path}$suffix');
+        if (sidecar.existsSync()) sidecar.deleteSync();
+      }
       return true;
     } catch (_) {
       return false;
@@ -761,7 +794,9 @@ class SessionLogService implements SessionRecorder {
     if (msg == null) return null;
 
     final entryId = entry['id'] as String?;
-    final fallbackId = 'restored_${entryId ?? _hexId(8)}';
+    final fallbackId =
+        msg['harnessMessageId'] as String? ??
+        'restored_${entryId ?? _hexId(8)}';
     final epochMs = (msg['timestamp'] as num?)?.toInt();
     final createdAt = epochMs != null
         ? DateTime.fromMillisecondsSinceEpoch(epochMs)
@@ -833,6 +868,7 @@ class SessionLogService implements SessionRecorder {
         return AgentMessage(
           id: fallbackId,
           role: AgentRole.assistant,
+          replyNumber: msg['replyNumber'] as int?,
           content: content,
           thoughts: thoughts,
           toolCalls: toolCalls.isNotEmpty ? toolCalls : null,

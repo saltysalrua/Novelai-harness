@@ -144,6 +144,14 @@ class AssistantMessageItem extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (message.replyNumber != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: SelectableText(
+              '#${message.replyNumber}',
+              style: TextStyle(fontSize: 11, color: context.colors.textMuted),
+            ),
+          ),
         if (message.thoughts.isNotEmpty)
           AgentTimelineStep(
             child: ThinkingBlock(

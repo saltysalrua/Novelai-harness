@@ -16,7 +16,11 @@ class DefaultsSettingsDraft {
       noiseSchedule = config.defaultNoiseSchedule,
       steps = config.defaultSteps,
       scale = config.defaultScale,
-      agentMaxTurns = config.agentMaxTurns;
+      agentMaxTurns = config.agentMaxTurns,
+      compactionEnabled = config.agentCompactionEnabled,
+      backgroundCompaction = config.agentBackgroundCompaction,
+      compactionProviderId = config.compactionProviderId,
+      compactionModelId = config.compactionModelId;
 
   NaiModel model;
   NaiSampler sampler;
@@ -26,6 +30,10 @@ class DefaultsSettingsDraft {
 
   /// Agent 单次对话最大工具调用轮数 (1..100)
   int agentMaxTurns;
+  bool compactionEnabled;
+  bool backgroundCompaction;
+  String compactionProviderId;
+  String compactionModelId;
 }
 
 /// Defaults 页：启动出厂默认生图模型、采样算法与步数引导
@@ -35,7 +43,13 @@ class DefaultsSettingsDraft {
 class DefaultsSettingsTab extends StatefulWidget {
   final DefaultsSettingsDraft draft;
 
-  const DefaultsSettingsTab({super.key, required this.draft});
+  final List<LlmProviderConfig> Function()? getProviders;
+
+  const DefaultsSettingsTab({
+    super.key,
+    required this.draft,
+    this.getProviders,
+  });
 
   @override
   State<DefaultsSettingsTab> createState() => _DefaultsSettingsTabState();
@@ -47,6 +61,12 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final providers =
+        widget.getProviders?.call() ?? const <LlmProviderConfig>[];
+    final summaryProvider = providers
+        .where((p) => p.id == _draft.compactionProviderId)
+        .firstOrNull;
+    final models = summaryProvider?.models ?? const <LlmModelConfig>[];
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
       child: Column(
@@ -116,6 +136,58 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
             ),
           ),
 
+          const SizedBox(height: AppSpacing.lg),
+          const AppSectionHeader(title: '上下文管理'),
+          AppSettingTile(
+            title: '自动压缩',
+            subtitle: '保留近期消息，将更早内容转换为摘要；原始历史不删除。',
+            control: Switch(
+              value: _draft.compactionEnabled,
+              onChanged: (v) => setState(() => _draft.compactionEnabled = v),
+            ),
+          ),
+          AppSettingTile(
+            title: '后台异步压缩',
+            subtitle: '安全窗口使用到 70% 时提前压缩；到达上限才等待。',
+            control: Switch(
+              value: _draft.backgroundCompaction,
+              onChanged: _draft.compactionEnabled
+                  ? (v) => setState(() => _draft.backgroundCompaction = v)
+                  : null,
+            ),
+          ),
+          AppSettingTile(
+            title: '压缩供应商',
+            subtitle: '未选择独立模型或配置不可用时使用主模型。压缩请求单独计入账单。',
+            control: AppDropdown.simple(
+              value: summaryProvider?.id ?? '',
+              items: ['', ...providers.map((p) => p.id)],
+              width: 170,
+              labelOf: (id) => id.isEmpty
+                  ? '跟随主模型'
+                  : providers.firstWhere((p) => p.id == id).name,
+              onChanged: (id) => setState(() {
+                _draft.compactionProviderId = id;
+                _draft.compactionModelId = '';
+              }),
+            ),
+          ),
+          if (summaryProvider != null)
+            AppSettingTile(
+              title: '压缩模型',
+              control: AppDropdown.simple(
+                value: models.any((m) => m.id == _draft.compactionModelId)
+                    ? _draft.compactionModelId
+                    : '',
+                items: ['', ...models.map((m) => m.id)],
+                width: 170,
+                labelOf: (id) => id.isEmpty
+                    ? '跟随主模型'
+                    : models.firstWhere((m) => m.id == id).name,
+                onChanged: (id) =>
+                    setState(() => _draft.compactionModelId = id),
+              ),
+            ),
           const SizedBox(height: AppSpacing.lg),
           AppSectionHeader(title: l10n.settingsSectionAgentLoop),
           AppSettingTile(

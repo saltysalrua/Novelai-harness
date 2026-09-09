@@ -211,6 +211,10 @@ class AppConfig {
 
   /// Agent 单次对话最大工具调用轮数 (达到后自动收尾)
   final int agentMaxTurns;
+  final bool agentCompactionEnabled;
+  final bool agentBackgroundCompaction;
+  final String compactionProviderId;
+  final String compactionModelId;
 
   // Agent 预设 (多预设配置)
   final List<AgentPreset> presets;
@@ -312,6 +316,11 @@ class AppConfig {
     this.imageEditProviderId = '',
     this.imageEditModelId = '',
     this.agentMaxTurns = 30,
+    this.agentCompactionEnabled = true,
+    this.agentBackgroundCompaction = true,
+    this.compactionProviderId = '',
+    this.compactionModelId = '',
+
     this.presets = const [],
     this.activePresetId = 'v5-architect-preset',
     this.customSkills = const [],
@@ -365,6 +374,11 @@ class AppConfig {
     String? imageEditProviderId,
     String? imageEditModelId,
     int? agentMaxTurns,
+    bool? agentCompactionEnabled,
+    bool? agentBackgroundCompaction,
+    String? compactionProviderId,
+    String? compactionModelId,
+
     List<AgentPreset>? presets,
     String? activePresetId,
     List<Skill>? customSkills,
@@ -425,6 +439,13 @@ class AppConfig {
       imageEditProviderId: imageEditProviderId ?? this.imageEditProviderId,
       imageEditModelId: imageEditModelId ?? this.imageEditModelId,
       agentMaxTurns: agentMaxTurns ?? this.agentMaxTurns,
+      agentCompactionEnabled:
+          agentCompactionEnabled ?? this.agentCompactionEnabled,
+      agentBackgroundCompaction:
+          agentBackgroundCompaction ?? this.agentBackgroundCompaction,
+      compactionProviderId: compactionProviderId ?? this.compactionProviderId,
+      compactionModelId: compactionModelId ?? this.compactionModelId,
+
       presets: presets ?? this.presets,
       activePresetId: activePresetId ?? this.activePresetId,
       customSkills: customSkills ?? this.customSkills,
@@ -539,6 +560,13 @@ class ConfigService {
   static const String _keyImageEditProviderId = 'image_edit_provider_id';
   static const String _keyImageEditModelId = 'image_edit_model_id';
   static const String _keyAgentMaxTurns = 'novelai_agent_max_turns';
+  static const String _keyAgentCompactionEnabled =
+      'novelai_agent_compaction_enabled';
+  static const String _keyAgentBackgroundCompaction =
+      'novelai_agent_background_compaction';
+  static const String _keyCompactionProviderId =
+      'novelai_compaction_provider_id';
+  static const String _keyCompactionModelId = 'novelai_compaction_model_id';
   static const String _keyPresets = 'agent_presets_json';
   static const String _keyActivePresetId = 'active_preset_id';
   static const String _keyCustomSkills = 'agent_custom_skills_json';
@@ -836,6 +864,12 @@ class ConfigService {
       imageEditProviderId: imageEditProviderId,
       imageEditModelId: imageEditModelId,
       agentMaxTurns: agentMaxTurns,
+      agentCompactionEnabled: prefs.getBool(_keyAgentCompactionEnabled) ?? true,
+      agentBackgroundCompaction:
+          prefs.getBool(_keyAgentBackgroundCompaction) ?? true,
+      compactionProviderId: prefs.getString(_keyCompactionProviderId) ?? '',
+      compactionModelId: prefs.getString(_keyCompactionModelId) ?? '',
+
       presets: presets,
       activePresetId: activePresetId,
       customSkills: customSkills,
@@ -846,7 +880,6 @@ class ConfigService {
   /// 保存配置
   Future<void> saveConfig(AppConfig config) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString(_keyNovelAiKey, config.novelAiKey);
     await prefs.setString(_keyAnySearchApiKey, config.anySearchApiKey);
     await prefs.setString(_keyModel, config.defaultModel.id);
@@ -931,6 +964,19 @@ class ConfigService {
     await prefs.setString(_keyImageEditProviderId, config.imageEditProviderId);
     await prefs.setString(_keyImageEditModelId, config.imageEditModelId);
     await prefs.setInt(_keyAgentMaxTurns, config.agentMaxTurns.clamp(1, 100));
+    await prefs.setBool(
+      _keyAgentCompactionEnabled,
+      config.agentCompactionEnabled,
+    );
+    await prefs.setBool(
+      _keyAgentBackgroundCompaction,
+      config.agentBackgroundCompaction,
+    );
+    await prefs.setString(
+      _keyCompactionProviderId,
+      config.compactionProviderId,
+    );
+    await prefs.setString(_keyCompactionModelId, config.compactionModelId);
 
     // 保存 Agent 预设配置
     final presetsJson = jsonEncode(

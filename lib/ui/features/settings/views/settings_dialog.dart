@@ -59,7 +59,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
       () => ModelsSettingsTab(viewModel: widget.viewModel, draft: _modelsDraft),
       () =>
           PresetsSettingsTab(viewModel: widget.viewModel, draft: _presetsDraft),
-      () => DefaultsSettingsTab(draft: _defaultsDraft),
+      () => DefaultsSettingsTab(
+        draft: _defaultsDraft,
+        getProviders: () => _modelsDraft.providers,
+      ),
       () => BillSettingsTab(viewModel: widget.viewModel),
     ];
   }
@@ -116,6 +119,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
       defaultSteps: _defaultsDraft.steps,
       defaultScale: _defaultsDraft.scale,
       agentMaxTurns: _defaultsDraft.agentMaxTurns.clamp(1, 100),
+      agentCompactionEnabled: _defaultsDraft.compactionEnabled,
+      agentBackgroundCompaction: _defaultsDraft.backgroundCompaction,
+      compactionProviderId: _defaultsDraft.compactionProviderId,
+      compactionModelId: _defaultsDraft.compactionModelId,
     );
 
     widget.viewModel.updateConfig(newConfig);

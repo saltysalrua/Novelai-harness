@@ -8,8 +8,11 @@ mixin _StudioHarnessMixin on _StudioCore {
     _skillRegistry.resetToBuiltin();
     _skillRegistry.registerAll(_config.customSkills);
 
+    // 配置更换使旧后台快照失效，并避免继续沿用旧模型用量。
+    _harness.memoryChanged();
     // 重置工具注册表并注册全部内置工具
     _toolRegistry.clear();
+    _toolRegistry.register(ContextMemoryTool(_harness));
     // Agent 生图发起前的"是否正在看最新图"快照 (与手动生图同语义，
     // 完成时叠加实时 isViewingLatest，避免新图已入历史后误报"有新图"横幅)
     var agentWasViewingLatest = false;
@@ -319,6 +322,31 @@ mixin _StudioHarnessMixin on _StudioCore {
     _harness.maxTurns = _config.agentMaxTurns;
     // 上下文压缩窗口：按当前模型卡片的上下文窗口自适应触发
     _harness.contextWindowTokens = activeModel.contextWindow;
+    _harness.compactionEnabled = _config.agentCompactionEnabled;
+    _harness.backgroundCompactionEnabled = _config.agentBackgroundCompaction;
+    _harness.compactionProvider = null;
+    _harness.compactionModelWindowTokens = activeModel.contextWindow;
+    final summaryProvider = _config.llmProviders
+        .where((p) => p.id == _config.compactionProviderId)
+        .firstOrNull;
+    final summaryModel = summaryProvider?.models
+        .where((m) => m.id == _config.compactionModelId)
+        .firstOrNull;
+    if (summaryProvider != null &&
+        summaryModel != null &&
+        summaryProvider.apiKey.isNotEmpty) {
+      _harness.compactionProvider = OpenAiCompatibleProvider(
+        baseUrl: summaryProvider.fullEndpointUrl,
+        apiKey: summaryProvider.apiKey,
+        model: summaryModel.id,
+        thinkingEffort: summaryModel.supportsThinking
+            ? ThinkingEffort.none.id
+            : null,
+        thinkingParamFormat: summaryProvider.thinkingParamFormat.id,
+        cacheConfig: summaryModel.cacheConfig,
+      );
+      _harness.compactionModelWindowTokens = summaryModel.contextWindow;
+    }
   }
 
   /// 动态调整 Agent 思考强度 (在对话工作台中随点随切)

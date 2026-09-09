@@ -682,12 +682,12 @@ void main() {
             ..compactionReserveTokens = 1000
             ..compactionKeepRecentTokens = 100;
 
-      // 预置一段超阈值的历史 (每条 400 字符 ≈ 100 tokens)
+      // 不再虚加 2048 系统开销：以真实长历史触发硬阈值。
       harness.restoreMessages([
-        AgentMessage(id: 'm1', role: AgentRole.user, content: pad(400)),
-        AgentMessage(id: 'm2', role: AgentRole.assistant, content: pad(400)),
-        AgentMessage(id: 'm3', role: AgentRole.user, content: pad(400)),
-        AgentMessage(id: 'm4', role: AgentRole.assistant, content: pad(400)),
+        AgentMessage(id: 'm1', role: AgentRole.user, content: pad(4000)),
+        AgentMessage(id: 'm2', role: AgentRole.assistant, content: pad(4000)),
+        AgentMessage(id: 'm3', role: AgentRole.user, content: pad(4000)),
+        AgentMessage(id: 'm4', role: AgentRole.assistant, content: pad(4000)),
       ]);
 
       final events = await harness.send('新问题').toList();
@@ -730,8 +730,12 @@ void main() {
         ),
       );
       harness.restoreMessages([
-        AgentMessage(id: 'm1', role: AgentRole.user, content: '第一问'),
-        AgentMessage(id: 'm2', role: AgentRole.assistant, content: '第一答'),
+        AgentMessage(id: 'm1', role: AgentRole.user, content: '第一问${pad(400)}'),
+        AgentMessage(
+          id: 'm2',
+          role: AgentRole.assistant,
+          content: '第一答${pad(400)}',
+        ),
         AgentMessage(id: 'm3', role: AgentRole.user, content: '第二问'),
         AgentMessage(id: 'm4', role: AgentRole.assistant, content: '第二答'),
       ]);
@@ -782,8 +786,12 @@ void main() {
       final provider = buildCompactionProvider([]);
       final harness = AgentHarness(tools: tools, provider: provider);
       harness.restoreMessages([
-        AgentMessage(id: 'm1', role: AgentRole.user, content: '第一问'),
-        AgentMessage(id: 'm2', role: AgentRole.assistant, content: '第一答'),
+        AgentMessage(id: 'm1', role: AgentRole.user, content: '第一问${pad(400)}'),
+        AgentMessage(
+          id: 'm2',
+          role: AgentRole.assistant,
+          content: '第一答${pad(400)}',
+        ),
         AgentMessage(id: 'm3', role: AgentRole.user, content: '第二问'),
         AgentMessage(id: 'm4', role: AgentRole.assistant, content: '第二答'),
       ]);

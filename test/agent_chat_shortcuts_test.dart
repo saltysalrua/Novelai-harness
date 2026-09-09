@@ -11,6 +11,7 @@ import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/ui/features/studio/views/studio_view.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_card.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_messages.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget _wrapChatCard(StudioViewModel viewModel) {
@@ -147,13 +148,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     final listTop = tester.getTopLeft(find.byType(ListView)).dy;
-    // 与生产语义一致：视口顶缘第一条锚定消息 (与卡片 _captureTopAnchor 同
-    // 一判定：底缘跨过滚动位置的首条)。jumpTo 800 时 item14 (usermsg14)
-    // 底缘跨过顶缘，是生产锚点；其文本顶部位置展开前后必须纹丝不动
-    String anchorText = 'usermsg14';
-    final anchorFinder = find.text(anchorText, findRichText: true);
-    expect(anchorFinder.evaluate(), isNotEmpty, reason: '锚点消息应已布局');
-    final anchorTop = tester.getTopLeft(anchorFinder).dy;
+    // 与生产 _captureTopAnchor 同判定：底缘跨过视口顶缘的首条消息。
+    // 不写死下标：回复编号会抬高助手消息，jumpTo 800 时顶缘条目会随高度变化。
+    AgentMessage? anchorMessage;
+    double? anchorTop;
+    for (final element in find.byType(AgentChatMessageItem).evaluate()) {
+      final widget = element.widget as AgentChatMessageItem;
+      final rect = tester.getRect(find.byWidget(widget));
+      if (rect.bottom > listTop) {
+        anchorMessage = widget.message;
+        anchorTop = rect.top;
+        break;
+      }
+    }
+    expect(anchorMessage, isNotNull, reason: '锚点消息应已布局');
     expect(anchorTop, lessThan(listTop + 78), reason: '锚点应是视口顶缘附近条目');
 
     // 全局展开思考块：所有助手消息高度暴增，顶部锚点应纹丝不动
@@ -162,13 +170,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump(const Duration(milliseconds: 50));
 
-    final afterTop = tester.getTopLeft(anchorFinder).dy;
+    final afterFinder = find.byWidgetPredicate(
+      (w) => w is AgentChatMessageItem && w.message.id == anchorMessage!.id,
+    );
+    expect(afterFinder, findsOneWidget);
+    final afterTop = tester.getTopLeft(afterFinder).dy;
     expect(
-      (afterTop - anchorTop).abs(),
+      (afterTop - anchorTop!).abs(),
       lessThan(2.0),
       reason:
           '展开思考块后视口顶部内容不应漂移 '
-          '(前: $anchorTop, 后: $afterTop, 消息: $anchorText)',
+          '(前: $anchorTop, 后: $afterTop, 消息: ${anchorMessage!.id})',
     );
   });
 }
