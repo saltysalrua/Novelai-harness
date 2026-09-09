@@ -106,6 +106,14 @@ class AgentHarness {
   /// 当前压缩摘要文本 (未压缩时为 null)
   String? get compactionSummary => _compactionSummary;
 
+  /// 去掉正文开头被模型回显或历史叠加上的 [回复 #N] 标记。
+  static final RegExp _replyMarkerPrefix = RegExp(
+    r'^(?:\[回复 #\d+\][ \t]*\n?)+',
+  );
+
+  static String stripReplyMarkers(String text) =>
+      text.replaceFirst(_replyMarkerPrefix, '');
+
   /// 图片折叠占位符 (固定文本，保证提示缓存前缀不被击穿)
   static const String _kCollapsedImagePlaceholder =
       '[图片附件已折叠: 图片数据已在当时的轮次展示过，此处不再重复发送。'
@@ -136,7 +144,7 @@ class AgentHarness {
       }
     }
     buffer.writeln(
-      '\n每条助手回复带有稳定的 [回复 #编号] 引用标记，无需在正文重复编号。'
+      '\n每条助手回复由系统注入稳定的 [回复 #编号] 引用标记，禁止写入或叠加该标记。'
       '可用 context_memory 保存关键事实为会话笔记、删除过期笔记、'
       '按编号读取或释放旧回复。释放不删除用户原文；请先记录必要结论。',
     );
@@ -280,7 +288,7 @@ class AgentHarness {
                 id: assistantMsgId,
                 replyNumber: ++_replySequence,
                 role: AgentRole.assistant,
-                content: content,
+                content: stripReplyMarkers(content),
                 thoughts: thoughts,
                 usage: usage,
                 provider: providerLabel,
@@ -336,7 +344,7 @@ class AgentHarness {
             id: assistantMsgId,
             replyNumber: ++_replySequence,
             role: AgentRole.assistant,
-            content: content,
+            content: stripReplyMarkers(content),
             thoughts: thoughts,
             toolCalls: toolCalls.isNotEmpty ? toolCalls : null,
             usage: usage,
@@ -503,7 +511,10 @@ class AgentHarness {
         continue;
       }
       if (m.replyNumber != null) {
-        m = m.copyWith(content: '[回复 #${m.replyNumber}]\n${m.content}');
+        // 每次从原文现拼一层标记，避免历史正文里的回显叠成 [回复 #N] 链。
+        m = m.copyWith(
+          content: '[回复 #${m.replyNumber}]\n${stripReplyMarkers(m.content)}',
+        );
       }
       // 本轮新产生的图片原样发送；更早轮次的图片折叠为占位符
       if (m.imageEpoch == _sendEpoch || !m.hasVisionImages) {
@@ -645,7 +656,9 @@ class AgentHarness {
           }
         case AgentRole.assistant:
           if (m.content.isNotEmpty || m.toolCalls != null) {
-            buffer.writeln('[助手 #${m.replyNumber ?? m.id}]: ${m.content}');
+            buffer.writeln(
+              '[助手 #${m.replyNumber ?? m.id}]: ${stripReplyMarkers(m.content)}',
+            );
             for (final tc in m.toolCalls ?? const <ToolCall>[]) {
               buffer.writeln(
                 '  [助手调用了工具 ${tc.name}: ${jsonEncode(tc.arguments)}]',
@@ -805,7 +818,10 @@ class AgentHarness {
       if (m.role != AgentRole.assistant) continue;
       final n = m.replyNumber ?? _replySequence + 1;
       if (n > _replySequence) _replySequence = n;
-      _messages[i] = m.copyWith(replyNumber: n);
+      _messages[i] = m.copyWith(
+        replyNumber: n,
+        content: stripReplyMarkers(m.content),
+      );
     }
   }
 

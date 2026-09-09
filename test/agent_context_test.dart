@@ -244,4 +244,30 @@ void main() {
     );
     h.dispose();
   });
+
+  test('请求侧回复编号只保留一层，入库剥离模型回显', () async {
+    List<AgentMessage> request = [];
+    final h = _harness(
+      provider: MockLlmProvider((messages, _) {
+        request = messages;
+        return [ContentDeltaEvent('[回复 #9]\n[回复 #9]\n正文')];
+      }),
+    );
+    h.restoreMessages([
+      AgentMessage(id: 'u1', role: AgentRole.user, content: '问'),
+      AgentMessage(
+        id: 'a1',
+        role: AgentRole.assistant,
+        content: '[回复 #1]\n[回复 #1]\n旧正文',
+      ),
+    ]);
+    expect(h.messages.firstWhere((m) => m.id == 'a1').content, '旧正文');
+    await h.send('继续').toList();
+    final old = request.firstWhere((m) => m.id == 'a1');
+    expect(RegExp(r'\[回复 #').allMatches(old.content).length, 1);
+    expect(old.content, '[回复 #1]\n旧正文');
+    expect(h.messages.last.content, '正文');
+    expect(h.messages.last.replyNumber, 2);
+    h.dispose();
+  });
 }
