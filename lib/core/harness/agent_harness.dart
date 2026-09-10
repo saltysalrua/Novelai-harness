@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'presets/agent_preset.dart';
 import 'providers/llm_provider.dart';
+import 'reply_marker.dart';
 import 'session_recorder.dart';
 import 'skills/skills.dart';
 import 'tools/agent_tool.dart';
@@ -106,30 +107,9 @@ class AgentHarness {
   /// 当前压缩摘要文本 (未压缩时为 null)
   String? get compactionSummary => _compactionSummary;
 
-  /// 回复标记 token：只认「回复 + #编号」这一保留记号，容忍模型回显时
-  /// 的变体 (全角括号 / Markdown 加粗 / 空格差异 / 缺半个括号)。
-  /// 例: `[回复 #7]` / `[回复#7]` / `**[回复 #7]**` / `回复 #7` / `[回复 #7`
-  static final RegExp _replyMarkerToken = RegExp(
-    r'(?:\*\*)?[ \t]*[\[［]?[ \t]*回复[ \t]*[#＃][ \t]*\d+[ \t]*[\]］]?[ \t]*(?:\*\*)?',
-  );
-
-  /// 去掉正文中任意位置被模型回显的 [回复 #N] 标记。
-  /// 标记可能出现在开头 (最常见)、段落之间或行尾，只剥开头会让它留在
-  /// 入库正文里，下一轮请求再叠一层 → 历史里越滚越多。因此全量剥离，
-  /// 并顺手清理由此产生的空行。
-  static String stripReplyMarkers(String text) {
-    if (text.isEmpty) return text;
-    final first = _replyMarkerToken.firstMatch(text);
-    if (first == null) return text;
-    final cleaned = text
-        .replaceAll(_replyMarkerToken, '')
-        .replaceAll(RegExp(r'^[ \t]+$', multiLine: true), '')
-        .replaceAll(RegExp(r'\n{3,}'), '\n\n');
-    // 标记就位于正文最前时，剥离后残留的首部空白一并清掉
-    return first.start == 0
-        ? cleaned.replaceFirst(RegExp(r'^\s+'), '')
-        : cleaned;
-  }
+  /// 去掉正文中任意位置被模型回显的 [回复 #N] 标记与残渣
+  /// (协议实现见 [ReplyMarker] 单一事实源)
+  static String stripReplyMarkers(String text) => ReplyMarker.strip(text);
 
   /// 图片折叠占位符 (固定文本，保证提示缓存前缀不被击穿)
   static const String _kCollapsedImagePlaceholder =
@@ -268,8 +248,8 @@ class AgentHarness {
           String content = '';
           String thoughts = '';
           // 流式增量里的回复标记过滤：UI 与入库正文都不会看到回显的标记
-          final contentFilter = _ReplyMarkerStreamFilter();
-          final thoughtFilter = _ReplyMarkerStreamFilter();
+          final contentFilter = ReplyMarkerStreamFilter();
+          final thoughtFilter = ReplyMarkerStreamFilter();
           TokenUsage? usage;
           String? errorMessage;
           bool errorTransient = false;
@@ -872,77 +852,6 @@ class AgentHarness {
     _compactionError = null;
     _compactionSummary = null;
     _contextStartIndex = 0;
-  }
-}
-
-/// 流式正文/思考的回复标记过滤器。
-///
-/// 模型偶尔会回显系统注入的 `[回复 #N]` 标记。若直接透传增量：
-/// UI 会先闪出标记再被剥离，而且标记可能被网络分块切断，
-/// 事后一次性剥离也治不了「非行首」的标记。
-/// 这里在增量层即时剥离完整标记，并把「可能是半个标记」的尾巴扣在缓冲区，
-/// 等下一个增量再判定；流结束时把残缺尾巴丢弃。
-class _ReplyMarkerStreamFilter {
-  String _pending = '';
-  bool _started = false;
-
-  /// 可能是「半个标记」的形状（全部字符都是标记自身会用到的字符）
-  static final RegExp _partial = RegExp(
-    r'^\**[ \t]*[\[［]?[ \t]*(?:回(?:复)?)?[ \t]*[#＃]?[ \t]*\d*[ \t]*[\]］]?[ \t]*\**$',
-  );
-
-  /// 标记签名字符：尾部只要含这些字符才可能是被截断的标记
-  static final RegExp _markerSignature = RegExp(r'[回\[［#＃]');
-
-  /// 最长保留的尾部长度 (标记本身最多 20 余字符，32 足够)
-  static const int _maxHold = 32;
-
-  /// 追加一个增量，返回可以安全展示/入库的正文片段 (可能为空)
-  String add(String delta) {
-    if (delta.isEmpty) return '';
-    _pending += delta;
-    _pending = _pending.replaceAll(AgentHarness._replyMarkerToken, '');
-    if (!_started) {
-      // 标记独占一行时，剥离后会残留一个开头的空行，一并吃掉
-      _pending = _pending.replaceFirst(RegExp(r'^\n+'), '');
-    }
-    final hold = _holdbackLength(_pending);
-    if (hold == 0) {
-      final safe = _pending;
-      _pending = '';
-      if (safe.isNotEmpty) _started = true;
-      return safe;
-    }
-    final safe = _pending.substring(0, _pending.length - hold);
-    _pending = _pending.substring(_pending.length - hold);
-    if (safe.isNotEmpty) _started = true;
-    return safe;
-  }
-
-  /// 流结束：冲刷残留；被截断的半个标记直接丢弃，
-  /// 而 `**` / 纯数字这类尾字是无害正文，原样归还。
-  String flush() {
-    var safe = _pending.replaceAll(AgentHarness._replyMarkerToken, '');
-    _pending = '';
-    if (!_started) safe = safe.replaceFirst(RegExp(r'^\n+'), '');
-    final hold = _holdbackLength(safe);
-    if (hold > 0) {
-      final tail = safe.substring(safe.length - hold);
-      if (_markerSignature.hasMatch(tail)) {
-        safe = safe.substring(0, safe.length - hold);
-      }
-    }
-    return safe;
-  }
-
-  /// 取最长的「可能是标记一部分」的尾长 (取最大，确保整个标记都被扣住)
-  static int _holdbackLength(String text) {
-    final max = text.length < _maxHold ? text.length : _maxHold;
-    var hold = 0;
-    for (var k = 1; k <= max; k++) {
-      if (_partial.hasMatch(text.substring(text.length - k))) hold = k;
-    }
-    return hold;
   }
 }
 

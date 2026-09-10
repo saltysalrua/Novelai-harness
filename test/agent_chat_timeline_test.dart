@@ -102,4 +102,50 @@ void main() {
     expect(firstNonEmptyLine('\n  \r\n  第一行\r\n第二行'), '第一行');
     expect(firstNonEmptyLine('  '), '');
   });
+
+  testWidgets('正文与流式气泡都不渲染回复编号标记与残渣', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        Column(
+          children: [
+            AssistantMessageItem(
+              message: AgentMessage(
+                id: 'a',
+                role: AgentRole.assistant,
+                replyNumber: 7,
+                // 历史会话里落盘的脏数据：开头标记 + 残渣
+                content: '[回复 #7]\n旧的回答[回复 #7]\n结尾]',
+              ),
+            ),
+            const StreamingMessageBubble(
+              thoughts: '[回复 #9] 先想一下',
+              content: '[回复 #8]\n流式正文',
+            ),
+          ],
+        ),
+      ),
+    );
+    // 流式气泡带无限进度动画，不能用 pumpAndSettle
+    await tester.pump();
+
+    // 渲染层文案：Markdown 正文交给 MarkdownBody，思考块用 SelectableText
+    final rendered = <String>[
+      for (final widget in tester.allWidgets)
+        if (widget is MarkdownBody) widget.data,
+      for (final widget in tester.allWidgets)
+        if (widget is Text) widget.data ?? '',
+      for (final widget in tester.allWidgets)
+        if (widget is SelectableText) widget.data ?? '',
+      for (final widget in tester.allWidgets)
+        if (widget is RichText) widget.text.toPlainText(),
+    ];
+    expect(rendered.any((text) => text.contains('回复 #')), isFalse);
+    expect(rendered.any((text) => text.contains(']')), isFalse);
+    // 正向对照：正文本身仍然完整渲染
+    expect(rendered.any((text) => text.contains('旧的回答')), isTrue);
+    expect(rendered.any((text) => text.contains('结尾')), isTrue);
+    expect(rendered.any((text) => text.contains('流式正文')), isTrue);
+    // 思考块里的回显标记同样不上 UI
+    expect(rendered.any((text) => text.contains('先想一下')), isTrue);
+  });
 }

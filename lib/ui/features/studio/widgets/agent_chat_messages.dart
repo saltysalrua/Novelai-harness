@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import '../../../../core/harness/reply_marker.dart';
 import '../../../../core/harness/types.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -141,6 +142,9 @@ class AssistantMessageItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 展示层兜底：正文里的 [回复 #N] 标记与残渣一律不上 UI
+    // (历史会话、陈旧落盘数据也一并洗干净)
+    final content = ReplyMarker.strip(message.content);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -159,8 +163,8 @@ class AssistantMessageItem extends StatelessWidget {
               forceExpanded: thinkingExpanded,
             ),
           ),
-        if (message.content.isNotEmpty) ...[
-          AgentTimelineStep(child: AgentMarkdownBody(data: message.content)),
+        if (content.isNotEmpty) ...[
+          AgentTimelineStep(child: AgentMarkdownBody(data: content)),
         ],
         if (message.toolCalls != null)
           for (final call in message.toolCalls!)
@@ -391,6 +395,8 @@ class StreamingMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    // 展示层兜底：流式气泡里的标记与残渣不上 UI
+    final visibleContent = ReplyMarker.strip(content);
     return AgentTimelineStep(
       accent: colors.primary,
       child: Column(
@@ -403,8 +409,8 @@ class StreamingMessageBubble extends StatelessWidget {
             ),
           if (thoughts.isNotEmpty)
             ThinkingBlock(thoughts: thoughts, forceExpanded: thinkingExpanded),
-          if (content.isNotEmpty)
-            AgentMarkdownBody(data: content)
+          if (visibleContent.isNotEmpty)
+            AgentMarkdownBody(data: visibleContent)
           else
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),

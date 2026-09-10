@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/harness/reply_marker.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 
@@ -110,7 +111,9 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final expanded = _expanded || widget.forceExpanded;
-    final preview = widget.thoughts
+    // 展示层兜底：模型在思考里回显的 [回复 #N] 标记不进 UI
+    final thoughts = ReplyMarker.strip(widget.thoughts);
+    final preview = thoughts
         .split('\n')
         .map((l) => l.trim())
         .firstWhere((l) => l.isNotEmpty, orElse: () => '');
@@ -151,7 +154,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
       bodyBuilder: (context) => SizedBox(
         width: double.infinity,
         child: SelectableText(
-          widget.thoughts,
+          thoughts,
           style: TextStyle(
             fontSize: 12,
             fontStyle: FontStyle.italic,

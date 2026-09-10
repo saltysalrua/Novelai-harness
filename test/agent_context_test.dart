@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/agent_harness.dart';
 import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
 import 'package:novelai_harness/core/harness/providers/llm_provider.dart';
+import 'package:novelai_harness/core/harness/reply_marker.dart';
 import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/tools/context_memory_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
@@ -274,14 +275,31 @@ void main() {
   });
 
   test('正文任意位置的回复标记都被全量剥离 (变体/加粗/缺括号)', () {
+    expect(ReplyMarker.strip('[回复 #1]\n正文'), '正文');
+    expect(ReplyMarker.strip('[回复 #1]\n\n[回复 #1]\n正文'), '正文');
+    expect(ReplyMarker.strip('正文\n[回复 #2]\n更多'), '正文\n\n更多');
+    expect(ReplyMarker.strip('**[回复 #3]** 正文'), '正文');
+    expect(ReplyMarker.strip('[回复#4]正文'), '正文');
+    expect(ReplyMarker.strip('[回复 #5'), '');
+    expect(ReplyMarker.strip('先看[回复 #9]再回答'), '先看再回答');
+    expect(ReplyMarker.strip('没有标记的正文 #5'), '没有标记的正文 #5');
+    // AgentHarness 上的同名静态方法保持向后兼容
     expect(AgentHarness.stripReplyMarkers('[回复 #1]\n正文'), '正文');
-    expect(AgentHarness.stripReplyMarkers('[回复 #1]\n\n[回复 #1]\n正文'), '正文');
-    expect(AgentHarness.stripReplyMarkers('正文\n[回复 #2]\n更多'), '正文\n\n更多');
-    expect(AgentHarness.stripReplyMarkers('**[回复 #3]** 正文'), '正文');
-    expect(AgentHarness.stripReplyMarkers('[回复#4]正文'), '正文');
-    expect(AgentHarness.stripReplyMarkers('[回复 #5'), '');
-    expect(AgentHarness.stripReplyMarkers('先看[回复 #9]再回答'), '先看再回答');
-    expect(AgentHarness.stripReplyMarkers('没有标记的正文 #5'), '没有标记的正文 #5');
+  });
+
+  test('标记被切碎后剩下的孤立右括号也一并清掉 (仅括号数失衡时)', () {
+    expect(ReplyMarker.strip(']\n正文'), '正文');
+    expect(ReplyMarker.strip('正文]'), '正文');
+    expect(ReplyMarker.strip(']** 正文'), '正文');
+    expect(ReplyMarker.strip('**[回复 #7]** 好的]'), '好的');
+    // 成对括号的正常正文不能被动，包括 Markdown 链接与引用
+    expect(ReplyMarker.strip('参考 [3]'), '参考 [3]');
+    expect(ReplyMarker.strip('见 [文档](https://x.y)'), '见 [文档](https://x.y)');
+    expect(ReplyMarker.strip('正文**'), '正文**');
+    expect(
+      ReplyMarker.strip('- [x] 已完成\n- [ ] 未完成'),
+      '- [x] 已完成\n- [ ] 未完成',
+    );
   });
 
   test('恢复旧会话时清洗正文里任意位置的回复标记', () {
@@ -298,44 +316,52 @@ void main() {
     h.dispose();
   });
 
-  test('流式增量不泄露回复标记 (含跨 chunk 被切断的标记)', () async {
-    final h = _harness(
-      provider: MockLlmProvider(
-        (_, _) => [
-          ContentDeltaEvent('[回'),
-          ContentDeltaEvent('复 #7]\n好的'),
-          ContentDeltaEvent('，继续[回复 #8]'),
-          ContentDeltaEvent('完成'),
-        ],
-      ),
-    );
-    final events = await h.send('hi').toList();
-    final streamed = events
-        .whereType<ContentDeltaEvent>()
-        .map((e) => e.delta)
-        .join();
-    expect(streamed, '好的，继续完成');
-    expect(h.messages.last.content, '好的，继续完成');
-    h.dispose();
-  });
+  test('流式增量与落库正文都不留回复标记残渣 (任意分块方式)', () async {
+    // 流式与整段剥离的分工：
+    // - 带右括号的完整标记：任何时候都可即时剥；
+    // - 「[回复 #7」这类缺括号形态：只有确定后面不会再补上括号时才能剥，
+    //   否则晚到的「]」会变成孤立残渣（旧版就是在这里漏出「]」的）。
+    Future<(String, String)> run(List<String> chunks) async {
+      final h = _harness(
+        provider: MockLlmProvider(
+          (_, _) => [for (final c in chunks) ContentDeltaEvent(c)],
+        ),
+      );
+      final events = await h.send('hi').toList();
+      final streamed = events
+          .whereType<ContentDeltaEvent>()
+          .map((e) => e.delta)
+          .join();
+      final stored = h.messages.last.content;
+      h.dispose();
+      return (streamed, stored);
+    }
 
-  test('流被截断的半个标记也入不了库', () async {
-    final h = _harness(
-      provider: MockLlmProvider(
-        (_, _) => [
-          ContentDeltaEvent('说明'),
-          ContentDeltaEvent('[回复 #12'),
-        ],
-      ),
-    );
-    final events = await h.send('hi').toList();
-    final streamed = events
-        .whereType<ContentDeltaEvent>()
-        .map((e) => e.delta)
-        .join();
-    expect(streamed, '说明');
-    expect(h.messages.last.content, '说明');
-    h.dispose();
+    const cases = <List<String>, String>{
+      ['[回复 #7]\n好的']: '好的',
+      ['[回复 #7', ']', '\n好的']: '好的',
+      ['[回', '复 #7]', '\n好的']: '好的',
+      ['[回复 #7 ', '好的']: '好的',
+      ['好的[回复 #7]']: '好的',
+      ['好的', '[回复 #7', ']']: '好的',
+      ['**[回复 #7', ']**', ' 好的']: '好的',
+      ['[回复 #3]', '\n一\n', '[回复 #4', ']', '\n二']: '一\n\n二',
+      ['[回复　＃１２]\n好的']: '好的',
+      ['[回', '复 #7]\n好的，继续', '[回复 #8]', '完成']: '好的，继续完成',
+      // 被流截断的半个标记：整段丢弃
+      ['说明', '[回复 #12']: '说明',
+      // 尾部的 `**` 是正常 Markdown，不能被当成残标吃掉
+      ['正文**']: '正文**',
+      // 切碎后只剩孤立右括号的残渣也不能漏
+      ['好的[回复 #7', ']']: '好的',
+      ['[回复 #8', ']', '\n结尾]']: '结尾',
+    };
+
+    for (final entry in cases.entries) {
+      final (streamed, stored) = await run(entry.key);
+      expect(streamed, entry.value, reason: '流式: ${entry.key}');
+      expect(stored, entry.value, reason: '落库: ${entry.key}');
+    }
   });
 
   test('多轮工具调用下标记不增殖：每个助手回复在请求侧只带一层标记', () async {
