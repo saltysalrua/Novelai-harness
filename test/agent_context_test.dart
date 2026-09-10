@@ -8,7 +8,7 @@ import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/tools/context_memory_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 
-import 'agent_harness_test.dart' show MockLlmProvider;
+import 'agent_harness_test.dart' show MockLlmProvider, TestEchoTool;
 
 class _SummaryProvider implements LlmProvider {
   final started = Completer<void>();
@@ -228,6 +228,8 @@ void main() {
     expect(h.messages.any((m) => m.content == '旧工具结果'), isTrue);
     final read = await tool.execute('x', {'action': 'read_reply', 'id': 1});
     expect(read.content, contains('旧工具结果'));
+    // 工具结果不得带 [回复 #N] 标记形态，避免它在对话气泡里以标记样式露面
+    expect(read.content.contains('[回复 #'), isFalse);
     expect(h.messages.last.replyNumber, 2);
     expect(
       (await tool.execute('x', {'action': 'delete_note', 'id': 1})).isError,
@@ -268,6 +270,131 @@ void main() {
     expect(old.content, '[回复 #1]\n旧正文');
     expect(h.messages.last.content, '正文');
     expect(h.messages.last.replyNumber, 2);
+    h.dispose();
+  });
+
+  test('正文任意位置的回复标记都被全量剥离 (变体/加粗/缺括号)', () {
+    expect(AgentHarness.stripReplyMarkers('[回复 #1]\n正文'), '正文');
+    expect(AgentHarness.stripReplyMarkers('[回复 #1]\n\n[回复 #1]\n正文'), '正文');
+    expect(AgentHarness.stripReplyMarkers('正文\n[回复 #2]\n更多'), '正文\n\n更多');
+    expect(AgentHarness.stripReplyMarkers('**[回复 #3]** 正文'), '正文');
+    expect(AgentHarness.stripReplyMarkers('[回复#4]正文'), '正文');
+    expect(AgentHarness.stripReplyMarkers('[回复 #5'), '');
+    expect(AgentHarness.stripReplyMarkers('先看[回复 #9]再回答'), '先看再回答');
+    expect(AgentHarness.stripReplyMarkers('没有标记的正文 #5'), '没有标记的正文 #5');
+  });
+
+  test('恢复旧会话时清洗正文里任意位置的回复标记', () {
+    final h = _harness();
+    h.restoreMessages([
+      AgentMessage(id: 'u1', role: AgentRole.user, content: '问'),
+      AgentMessage(
+        id: 'a1',
+        role: AgentRole.assistant,
+        content: '[回复 #1]正文\n[回复 #1]\n[回复 #1]更多',
+      ),
+    ]);
+    expect(h.messages[1].content, '正文\n\n更多');
+    h.dispose();
+  });
+
+  test('流式增量不泄露回复标记 (含跨 chunk 被切断的标记)', () async {
+    final h = _harness(
+      provider: MockLlmProvider(
+        (_, _) => [
+          ContentDeltaEvent('[回'),
+          ContentDeltaEvent('复 #7]\n好的'),
+          ContentDeltaEvent('，继续[回复 #8]'),
+          ContentDeltaEvent('完成'),
+        ],
+      ),
+    );
+    final events = await h.send('hi').toList();
+    final streamed = events
+        .whereType<ContentDeltaEvent>()
+        .map((e) => e.delta)
+        .join();
+    expect(streamed, '好的，继续完成');
+    expect(h.messages.last.content, '好的，继续完成');
+    h.dispose();
+  });
+
+  test('流被截断的半个标记也入不了库', () async {
+    final h = _harness(
+      provider: MockLlmProvider(
+        (_, _) => [
+          ContentDeltaEvent('说明'),
+          ContentDeltaEvent('[回复 #12'),
+        ],
+      ),
+    );
+    final events = await h.send('hi').toList();
+    final streamed = events
+        .whereType<ContentDeltaEvent>()
+        .map((e) => e.delta)
+        .join();
+    expect(streamed, '说明');
+    expect(h.messages.last.content, '说明');
+    h.dispose();
+  });
+
+  test('多轮工具调用下标记不增殖：每个助手回复在请求侧只带一层标记', () async {
+    final tools = ToolRegistry()..register(TestEchoTool());
+    final snapshots = <List<AgentMessage>>[];
+    final provider = MockLlmProvider((messages, _) {
+      snapshots.add(messages);
+      if (snapshots.length <= 3) {
+        return [
+          ContentDeltaEvent('[回复 #99]\n干活[回复 #99]\n'),
+          ToolCallEvent(
+            ToolCall(
+              id: 'call_${snapshots.length}',
+              name: 'echo_test',
+              arguments: {'text': 'x'},
+            ),
+          ),
+        ];
+      }
+      return [ContentDeltaEvent('[回复 #99]\n[回复 #99]\n最终答复')];
+    });
+    final h = AgentHarness(
+      tools: tools,
+      provider: provider,
+      initialPreset: const AgentPreset(
+        id: 'test',
+        name: 'test',
+        description: '',
+        systemPrompt: 'system',
+        enabledSkillIds: [],
+        enabledToolNames: ['echo_test'],
+      ),
+    );
+    final events = await h.send('开始').toList();
+
+    // UI 侧：流式增量与落库正文都不含标记
+    final streamed = events
+        .whereType<ContentDeltaEvent>()
+        .map((e) => e.delta)
+        .join();
+    expect(streamed.contains('回复 #'), isFalse);
+    for (final m in h.messages) {
+      expect(m.content.contains('回复 #'), isFalse, reason: m.id);
+    }
+
+    // 请求侧：每个助手回复恰好一层注入标记，不会越叠越多
+    final marker = RegExp(r'\[回复 #\d+\]');
+    for (final request in snapshots) {
+      final assistants = request
+          .where((m) => m.role == AgentRole.assistant)
+          .toList();
+      for (final m in assistants) {
+        expect(
+          marker.allMatches(m.content).length,
+          1,
+          reason: '回复 #${m.replyNumber}: ${m.content}',
+        );
+      }
+    }
     h.dispose();
   });
 }

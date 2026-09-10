@@ -103,7 +103,7 @@ class ContextMemoryTool extends AgentTool {
           final calls = message.toolCalls ?? const <ToolCall>[];
           final callIds = calls.map((c) => c.id).toSet();
           final text =
-              '[回复 #$id]\n${message.content}\n'
+              '回复 #$id 原文:\n${message.content}\n'
               '${calls.map((c) => jsonEncode(c.toOpenAiJson())).join('\n')}\n'
               '${harness.messages.where((m) => m.role == AgentRole.tool && callIds.contains(m.toolCallId)).map((m) => m.content).join('\n')}';
           if (offset > text.length) {
