@@ -610,6 +610,12 @@ class NovelAiInpaintTool extends AgentTool {
           enablePersistence: config.enableImagePersistence,
           maxImages: config.maxPersistentImages,
           autoSave: config.autoSaveImages,
+          imageSaveTemplate: config.imageSaveTemplate,
+          stripMetadata: config.stripMetadata,
+          enableWatermark: config.enableWatermark,
+          keepOriginalImage: config.keepOriginalImage,
+          watermarkConfig: config.watermarkConfig,
+          watermarkBytes: config.watermarkConfig.imageBytes,
         );
 
         await for (final p in stream) {
@@ -634,6 +640,12 @@ class NovelAiInpaintTool extends AgentTool {
           enablePersistence: config.enableImagePersistence,
           maxImages: config.maxPersistentImages,
           autoSave: config.autoSaveImages,
+          imageSaveTemplate: config.imageSaveTemplate,
+          stripMetadata: config.stripMetadata,
+          enableWatermark: config.enableWatermark,
+          keepOriginalImage: config.keepOriginalImage,
+          watermarkConfig: config.watermarkConfig,
+          watermarkBytes: config.watermarkConfig.imageBytes,
         );
       }
 

@@ -6,6 +6,7 @@ import '../../studio/view_models/studio_view_model.dart';
 import '../widgets/bill_settings_tab.dart';
 import '../widgets/defaults_settings_tab.dart';
 import '../widgets/general_settings_tab.dart';
+import '../widgets/image_save_template_settings.dart';
 import '../widgets/models_settings_tab.dart';
 import '../widgets/presets_settings_tab.dart';
 
@@ -76,6 +77,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
   }
 
   void _handleSave() {
+    final templateError = ImageSaveTemplateSettings.errorTextOf(
+      context,
+      _generalDraft.saveTemplateError,
+    );
+    if (templateError != null) {
+      setState(() => _activeTabIndex = 0);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(templateError)));
+      return;
+    }
     _modelsDraft.syncFromForm();
     _presetsDraft.syncFromForm();
 
@@ -83,6 +95,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       novelAiKey: _generalDraft.naiKeyController.text.trim(),
       anySearchApiKey: _generalDraft.anySearchKeyController.text.trim(),
       saveDirectory: _generalDraft.saveDirController.text.trim(),
+      imageSaveTemplate: _generalDraft.saveTemplateController.text.trim(),
       opusFreeMode: _generalDraft.opusFreeMode,
       themeMode: _generalDraft.themeMode,
       accentMode: _generalDraft.accentMode,

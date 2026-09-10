@@ -117,6 +117,8 @@ Novelai-harness/
 │   │   │   ├── anlas_calculator.dart           # 现代 Anlas 消耗计算单一事实源 (Opus 免费档/分档超分计费)
 │   │   │   ├── inpaint_service.dart            # 焦点特写几何计算 (1MP 潜空间超采样/64 步长)、量化蒙版与无损回贴
 │   │   │   ├── watermark_service.dart          # 图像导出管道单一事实源 (可见水印/自动对比度/智能选位/Koch-Zhao DCT 盲水印)
+│   │   │   ├── image_save_path_service.dart    # 图片命名宏、生成快照、相对目录模板校验与安全净化
+│   │   │   ├── image_file_store.dart           # 递归目录、独占占位、防覆盖编号与配对原图副本写入
 │   │   │   ├── image_edit_service.dart         # 外部绘图模型整图编辑服务 (OpenAI 兼容 /chat/completions 传图返图)
 │   │   │   ├── comfyui_service.dart            # ComfyUI PromptToolkit AI Bridge 客户端 (注册表探测/参数下发/采样器选项实时拉取)
 │   │   │   ├── image_metadata_service.dart     # PNG Chunks 与 Alpha LSB 隐写读取、元数据脱敏抹除与注入
@@ -156,6 +158,7 @@ Novelai-harness/
 │           │   └── widgets/
 │           │       ├── settings_shared.dart    # 设置域共享件 (卡片/分组标题/操作钮/密钥框/下拉菜单)
 │           │       ├── general_settings_tab.dart # 常规页：服务凭证、存储目录、自动保存与免点保护开关
+│           │       ├── image_save_template_settings.dart # 图片路径模板表单 (宏插入/示例/预览/校验提示)
 │           │       ├── models_settings_tab.dart # 模型页：LLM 供应商管理、模型卡片、在线拉取与 AI 绘图模型配置
 │           │       ├── presets_settings_tab.dart # 预设页：预设 CRUD、系统提示词、可用技能与工具权限白名单
 │           │       ├── defaults_settings_tab.dart # 默认页：出厂默认生图参数与 Agent 轮数限制
@@ -375,6 +378,19 @@ $$\text{原始原图} \xrightarrow{\text{步骤 1}} \text{可见水印合成} \x
 3. **Koch-Zhao DCT 盲水印隐写**：
    - 采用 DCT 中频系数对能量差隐写算法，通过伪随机序列打乱，将载荷（魔数 + 长度 + CRC16 + 文本）循环冗余嵌入图像 8×8 频域块；
    - 提取时通过多数投票机制还原文本，具备优异的抗轻微重编码与抗截断鲁棒性。
+
+---
+
+### 3.4.1 图片命名宏与目录归档
+
+- **设置入口**：设置 → 常规 → 图片命名模板。`AppConfig.imageSaveTemplate` 以 `novelai_image_save_template` 持久化；空串使用 `{prefix}_{date}_{time}_{seed}`。模板相对于本地存储目录，`/` 或反斜杠用于分目录，文件末尾自动补 `.png`（已写 `.png` 时不重复）。修改模板只影响之后的导出，不搬动已有文件。
+- **宏清单**：`{prefix}` 来源前缀、`{type}` (`generate` / `inpaint` / `ai_edit` / `upscale` / `comfyui`)、`{date}` (`yyyyMMdd`)、`{time}` (`HHmmss`)、`{year}` / `{month}` / `{day}`、`{seed}`、`{model}`、`{width}` / `{height}` / `{resolution}`、`{steps}` / `{cfg}` / `{sampler}` / `{scheduler}`、`{prompt}`（基础提示词，会暴露在文件名中）。支持 `{date:yyyy-MM-dd}` / `{date:HHmmss_SSS}` 等格式；格式字符仅允许 `y M d H m s S` 与点、下划线、空格、短横线，不允许在格式内部生成目录。
+- **示例**：`{date:yyyy-MM}/{model}/{seed}_{time}` → `2026-09/nai-diffusion-5-full/42_030405.png`；`{type}/{date:yyyy-MM-dd}/{resolution}_{seed}` 按来源与日期分目录。
+- **命名单一事实源**：`ImageSavePathService` 负责校验、宏展开与净化；`GeneralSettingsDraft` 生成预览和校验状态，表单仅展示。宏读取成品的参数、种子、生成时间快照，隔天手动保存仍使用图片原日期。`NaiGeneratedImage.outputModel` 为外部编辑模型保留真实 ID；ComfyUI Bridge 不提供 checkpoint 名时固定为 `comfyui`，超分继承源图模型。ComfyUI 采样参数宏是工作台快照，不保证等于未下发字段的工作流实际参数。
+- **覆盖范围**：NovelAI 普通/流式生图、普通/流式修复、AI 编辑、超分、ComfyUI 与手动保存共用 `_persistImageFiles`。ComfyUI 成品也落原图缓存并按自动保存开关导出，尺寸取返回字节的实际解码值。Agent 工具同步透传模板及全局水印/脱敏/原图保留设置。
+- **安全与冲突**：不允许绝对路径、`..`、空目录或占用根下的 `cache` / `board_refs`；宏值先净化，提示词中的斜杠不会生成目录。Windows 设备名、尾随点空格、控制字符被净化，Unicode 按 UTF-8 字节截短；模板最长 512 字符、最多 7 层子目录，展开相对路径预算 180 字节（冲突编号另计）。无效模板在设置中阻止保存，外部损坏配置在导出时回退默认模板。
+- **无覆盖落盘**：`ImageFileStore` 检查子目录链接逃逸，以 `File.createSync(exclusive: true)` 占位，已有同名文件/目录自动递增 `_2`、`_3`。成品与 `_raw` 副本作为配对路径共同选取编号，写入异常清理本次占位，不触碰旧文件。
+- **缓存隔离**：`cache/` 原图仍使用内部平铺命名，且同样不覆盖；命名模板不改变历史索引、画布布局或缓存清理语义。正式导出失败时保留缓存和未保存状态，支持修改目录或模板后重试。导出处理顺序仍为可见水印 → 元数据 → 盲水印。
 
 ---
 

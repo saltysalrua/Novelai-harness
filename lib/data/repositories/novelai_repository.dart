@@ -9,6 +9,8 @@ import 'package:path/path.dart' as p;
 import '../models/novelai_models.dart';
 import '../services/anlas_calculator.dart';
 import '../services/image_metadata_service.dart';
+import '../services/image_file_store.dart';
+import '../services/image_save_path_service.dart';
 import '../services/inpaint_service.dart';
 import '../services/isolated_compute.dart';
 import '../services/skia_image_codec.dart';
@@ -245,15 +247,13 @@ class NovelAiRepository {
   /// 确保保存目录存在并写入图片文件，返回落盘路径 (目录为空或写入失败返回 null)
   String? _writeImageFile(String saveDir, String fileName, List<int> bytes) {
     if (saveDir.isEmpty) return null;
-    final dir = Directory(saveDir);
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-    }
-    final filePath = p.join(saveDir, fileName);
     try {
-      File(filePath).writeAsBytesSync(bytes);
-      return filePath;
-    } catch (_) {
+      return ImageFileStore.write(
+        root: saveDir,
+        relativePath: fileName,
+        bytes: bytes,
+      );
+    } on FileSystemException {
       return null;
     }
   }
@@ -302,6 +302,8 @@ class NovelAiRepository {
     required List<int> rawBytes,
     required String saveDir,
     required String baseName,
+    required ImageSaveContext namingContext,
+    String imageSaveTemplate = '',
     required bool autoSave,
     required bool stripMetadata,
     required bool enableWatermark,
@@ -330,9 +332,6 @@ class NovelAiRepository {
             watermarkBytes.isNotEmpty) ||
         (watermarkConfig?.blindEnabled == true &&
             (watermarkConfig?.blindText.trim().isNotEmpty ?? false));
-    if (needsProcessing && keepOriginalImage) {
-      _writeImageFile(saveDir, '${baseName}_raw.png', rawBytes);
-    }
     final fileBytes = needsProcessing
         ? await WatermarkService.processExportImage(
             rawBytes: rawBytes is Uint8List
@@ -344,7 +343,22 @@ class NovelAiRepository {
             watermarkBytes: watermarkBytes,
           )
         : rawBytes;
-    final filePath = _writeImageFile(saveDir, '$baseName.png', fileBytes);
+    String? filePath;
+    if (saveDir.isNotEmpty) {
+      try {
+        filePath = ImageFileStore.write(
+          root: saveDir,
+          relativePath: ImageSavePathService.resolve(
+            imageSaveTemplate,
+            namingContext,
+          ),
+          bytes: fileBytes,
+          originalBytes: needsProcessing && keepOriginalImage ? rawBytes : null,
+        );
+      } on FileSystemException {
+        // 导出失败仍保留原图缓存与未保存状态，允许用户更换目录后重试。
+      }
+    }
     return (
       filePath: filePath ?? originalPath,
       originalFilePath: originalPath,
@@ -352,20 +366,65 @@ class NovelAiRepository {
     );
   }
 
-  /// 登记一张 ComfyUI 生成的成品图 (字节来自 AI Bridge raw 拉取，
-  /// 无本地缓存文件，处于未保存态，由用户手动或导出管道处理)
-  NaiGeneratedImage recordComfyUiImage({
+  /// ComfyUI 成品同样进入原图缓存、命名导出与历史持久化管线。
+  Future<NaiGeneratedImage> recordComfyUiImage({
     required String id,
     required Uint8List bytes,
     required NaiGenerationParams params,
     required int seed,
-  }) => _recordGenerated(
-    id: id,
-    bytes: bytes,
-    params: params,
-    seed: seed,
-    isUnsaved: true,
-  );
+    String saveDir = '',
+    String imageSaveTemplate = '',
+    bool autoSave = false,
+    bool enablePersistence = true,
+    int maxImages = 50,
+    bool stripMetadata = false,
+    bool enableWatermark = false,
+    bool keepOriginalImage = false,
+    WatermarkConfig? watermarkConfig,
+    Uint8List? watermarkBytes,
+  }) async {
+    final now = DateTime.now();
+    final dims = await AnlasCalculator.decodeImageDimensions(bytes);
+    final displayParams = params.copyWith(
+      width: dims?.width ?? params.width,
+      height: dims?.height ?? params.height,
+      seed: seed,
+    );
+    final files = await _persistImageFiles(
+      rawBytes: bytes,
+      saveDir: saveDir,
+      baseName: 'comfy_${now.microsecondsSinceEpoch}_$seed',
+      namingContext: ImageSaveContext(
+        params: displayParams,
+        createdAt: now,
+        seed: seed,
+        prefix: 'comfyui',
+        outputModel: 'comfyui',
+      ),
+      imageSaveTemplate: imageSaveTemplate,
+      autoSave: autoSave,
+      stripMetadata: stripMetadata,
+      enableWatermark: enableWatermark,
+      keepOriginalImage: keepOriginalImage,
+      watermarkConfig: watermarkConfig,
+      watermarkBytes: watermarkBytes,
+    );
+    final image = _recordGenerated(
+      id: id,
+      bytes: bytes,
+      params: displayParams,
+      seed: seed,
+      createdAt: now,
+      outputModel: 'comfyui',
+      filePath: files.filePath,
+      originalFilePath: files.originalFilePath,
+      isUnsaved: files.isUnsaved,
+    );
+    if (enablePersistence && saveDir.isNotEmpty) {
+      await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
+    }
+    return image;
+  }
 
   /// 构造生成结果并插入历史头部
   NaiGeneratedImage _recordGenerated({
@@ -379,6 +438,8 @@ class NovelAiRepository {
     bool isUpscaled = false,
     bool isInpainted = false,
     bool isAiEdited = false,
+    DateTime? createdAt,
+    String? outputModel,
   }) {
     final uBytes = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
     _cacheImageBytes(id, uBytes);
@@ -388,7 +449,8 @@ class NovelAiRepository {
       localFilePath: filePath,
       originalFilePath: originalFilePath,
       params: params,
-      createdAt: DateTime.now(),
+      createdAt: createdAt ?? DateTime.now(),
+      outputModel: outputModel,
       seed: seed,
       isOpusFree: params.isOpusFree,
       isUnsaved: isUnsaved,
@@ -413,6 +475,7 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
     bool autoSave = true,
+    String imageSaveTemplate = '',
   }) async* {
     final effectiveSeed = params.seed < 0 ? generateRandomSeed() : params.seed;
 
@@ -437,7 +500,13 @@ class NovelAiRepository {
           rawBytes: rawFinal,
           saveDir: saveDir,
           baseName: 'nai_${timeStr}_$effectiveSeed',
+          namingContext: ImageSaveContext(
+            params: requestParams,
+            createdAt: now,
+            seed: effectiveSeed,
+          ),
           autoSave: autoSave,
+          imageSaveTemplate: imageSaveTemplate,
           stripMetadata: stripMetadata,
           enableWatermark: enableWatermark,
           keepOriginalImage: keepOriginalImage,
@@ -446,6 +515,7 @@ class NovelAiRepository {
         );
         final generatedImage = _recordGenerated(
           id: '${now.millisecondsSinceEpoch}_0',
+          createdAt: now,
           bytes: rawFinal,
           filePath: files.filePath,
           originalFilePath: files.originalFilePath,
@@ -480,6 +550,7 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
     bool autoSave = true,
+    String imageSaveTemplate = '',
   }) async {
     final effectiveSeed = params.seed < 0 ? generateRandomSeed() : params.seed;
 
@@ -507,7 +578,13 @@ class NovelAiRepository {
         rawBytes: rawWithMeta,
         saveDir: saveDir,
         baseName: baseName,
+        namingContext: ImageSaveContext(
+          params: requestParams,
+          createdAt: now,
+          seed: effectiveSeed,
+        ),
         autoSave: autoSave,
+        imageSaveTemplate: imageSaveTemplate,
         stripMetadata: stripMetadata,
         enableWatermark: enableWatermark,
         keepOriginalImage: keepOriginalImage,
@@ -517,6 +594,7 @@ class NovelAiRepository {
       results.add(
         _recordGenerated(
           id: '${now.millisecondsSinceEpoch}_$i',
+          createdAt: now,
           bytes: rawWithMeta,
           filePath: files.filePath,
           originalFilePath: files.originalFilePath,
@@ -733,7 +811,9 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
     required bool autoSave,
+    String imageSaveTemplate = '',
     String filePrefix = 'nai_inpaint',
+    String? outputModel,
     bool isAiEdited = false,
   }) async {
     final now = DateTime.now();
@@ -744,7 +824,15 @@ class NovelAiRepository {
       rawBytes: rawFinal,
       saveDir: saveDir,
       baseName: '${filePrefix}_${timeStr}_$seed',
+      namingContext: ImageSaveContext(
+        params: displayParams,
+        createdAt: now,
+        seed: seed,
+        prefix: filePrefix,
+        outputModel: outputModel,
+      ),
       autoSave: autoSave,
+      imageSaveTemplate: imageSaveTemplate,
       stripMetadata: stripMetadata,
       enableWatermark: enableWatermark,
       keepOriginalImage: keepOriginalImage,
@@ -753,6 +841,7 @@ class NovelAiRepository {
     );
     final generatedImage = _recordGenerated(
       id: '${now.millisecondsSinceEpoch}_inpaint',
+      createdAt: now,
       bytes: rawFinal,
       filePath: files.filePath,
       originalFilePath: files.originalFilePath,
@@ -761,6 +850,7 @@ class NovelAiRepository {
       isUnsaved: files.isUnsaved,
       isInpainted: !isAiEdited,
       isAiEdited: isAiEdited,
+      outputModel: outputModel,
     );
 
     if (enablePersistence && saveDir.isNotEmpty) {
@@ -784,6 +874,7 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
     bool autoSave = true,
+    String imageSaveTemplate = '',
   }) async* {
     final prepared = await _prepareInpaintRequest(
       sourceImageBytes: sourceImageBytes,
@@ -824,6 +915,7 @@ class NovelAiRepository {
           watermarkConfig: watermarkConfig,
           watermarkBytes: watermarkBytes,
           autoSave: autoSave,
+          imageSaveTemplate: imageSaveTemplate,
         );
         yield NaiStreamProgress.finalResult(
           finalImage: rawFinal,
@@ -851,6 +943,7 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
     bool autoSave = true,
+    String imageSaveTemplate = '',
   }) async {
     final prepared = await _prepareInpaintRequest(
       sourceImageBytes: sourceImageBytes,
@@ -894,6 +987,7 @@ class NovelAiRepository {
       watermarkConfig: watermarkConfig,
       watermarkBytes: watermarkBytes,
       autoSave: autoSave,
+      imageSaveTemplate: imageSaveTemplate,
     );
   }
 
@@ -917,6 +1011,7 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
     bool autoSave = true,
+    String imageSaveTemplate = '',
   }) async {
     if (prompt.trim().isEmpty) {
       throw StateError('请输入 AI 整图编辑的修改指令。');
@@ -959,7 +1054,9 @@ class NovelAiRepository {
       watermarkConfig: watermarkConfig,
       watermarkBytes: watermarkBytes,
       autoSave: autoSave,
+      imageSaveTemplate: imageSaveTemplate,
       filePrefix: 'nai_ai_edit',
+      outputModel: modelId,
       isAiEdited: true,
     );
   }
@@ -977,6 +1074,7 @@ class NovelAiRepository {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
     bool autoSave = true,
+    String imageSaveTemplate = '',
   }) async {
     final srcBytes = sourceImage.bytes.isNotEmpty
         ? sourceImage.bytes
@@ -1001,7 +1099,15 @@ class NovelAiRepository {
       rawBytes: upscaledBytes,
       saveDir: saveDir,
       baseName: baseName,
+      namingContext: ImageSaveContext(
+        params: sourceImage.params.copyWith(width: outWidth, height: outHeight),
+        createdAt: now,
+        seed: sourceImage.seed,
+        prefix: 'nai_upscaled',
+        outputModel: sourceImage.outputModel,
+      ),
       autoSave: autoSave,
+      imageSaveTemplate: imageSaveTemplate,
       stripMetadata: stripMetadata,
       enableWatermark: enableWatermark,
       keepOriginalImage: keepOriginalImage,
@@ -1015,6 +1121,7 @@ class NovelAiRepository {
       localFilePath: files.filePath,
       originalFilePath: files.originalFilePath,
       params: sourceImage.params.copyWith(width: outWidth, height: outHeight),
+      outputModel: sourceImage.outputModel,
       createdAt: now,
       seed: sourceImage.seed,
       isOpusFree: false,
@@ -1040,6 +1147,7 @@ class NovelAiRepository {
   Future<NaiGeneratedImage?> saveUnsavedImageToDisk({
     required String imageId,
     required String saveDir,
+    String imageSaveTemplate = '',
     bool enablePersistence = true,
     int maxImages = 50,
     bool stripMetadata = false,
@@ -1068,7 +1176,9 @@ class NovelAiRepository {
       rawBytes: rawBytes,
       saveDir: saveDir,
       baseName: baseName,
+      namingContext: ImageSaveContext.fromImage(image),
       autoSave: true,
+      imageSaveTemplate: imageSaveTemplate,
       stripMetadata: stripMetadata,
       enableWatermark: enableWatermark,
       keepOriginalImage: keepOriginalImage,

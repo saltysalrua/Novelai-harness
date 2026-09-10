@@ -183,14 +183,16 @@ mixin _StudioComfyMixin on _StudioCore {
         _params = _params.copyWith(seed: seed);
       }
 
+      // 冻结此次请求参数，轮询期间用户修改工作台不能改写成品命名快照。
+      final requestParams = _params;
       // 3. 推送参数 (ComfyUI 模式禁用质量词/UC 预设：正向词只组固定词缀)
-      await service.setPrompt(targets.promptNodeId, _params.finalPrompt);
+      await service.setPrompt(targets.promptNodeId, requestParams.finalPrompt);
       final resolutionNodeId = targets.resolutionNodeId;
       if (resolutionNodeId != null) {
         await service.setResolution(
           resolutionNodeId,
-          _params.width,
-          _params.height,
+          requestParams.width,
+          requestParams.height,
         );
       }
       final paramsNodeId = targets.paramsNodeId;
@@ -200,9 +202,9 @@ mixin _StudioComfyMixin on _StudioCore {
         await service.setParams(
           paramsNodeId,
           ComfyUiParamsPatch(
-            negative: _params.negativePrompt.trim(),
-            steps: _params.steps,
-            cfg: _params.scale,
+            negative: requestParams.negativePrompt.trim(),
+            steps: requestParams.steps,
+            cfg: requestParams.scale,
             seed: seed,
             samplerName: sampler.isEmpty ? null : sampler,
             scheduler: scheduler.isEmpty ? null : scheduler,
@@ -246,11 +248,21 @@ mixin _StudioComfyMixin on _StudioCore {
 
       // 6. 拉取全分辨率字节并登记历史
       final bytes = await service.rawImageBytes();
-      final image = _repository.recordComfyUiImage(
+      final image = await _repository.recordComfyUiImage(
         id: 'comfy_${DateTime.now().millisecondsSinceEpoch}',
         bytes: bytes,
-        params: _params,
+        params: requestParams,
         seed: seed,
+        saveDir: _config.saveDirectory,
+        imageSaveTemplate: _config.imageSaveTemplate,
+        autoSave: _config.autoSaveImages,
+        enablePersistence: _config.enableImagePersistence,
+        maxImages: _config.maxPersistentImages,
+        stripMetadata: _config.stripMetadata,
+        enableWatermark: _config.enableWatermark,
+        keepOriginalImage: _config.keepOriginalImage,
+        watermarkConfig: _config.watermarkConfig,
+        watermarkBytes: _config.watermarkConfig.imageBytes,
       );
       _applyGeneratedImage(
         image,

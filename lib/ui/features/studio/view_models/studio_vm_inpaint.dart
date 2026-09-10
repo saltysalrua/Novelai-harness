@@ -304,6 +304,7 @@ mixin _StudioInpaintMixin on _StudioCore {
           watermarkConfig: config.watermarkConfig,
           watermarkBytes: config.watermarkConfig.imageBytes,
           autoSave: config.autoSaveImages,
+          imageSaveTemplate: config.imageSaveTemplate,
         );
 
         await for (final progress in stream) {
@@ -334,6 +335,7 @@ mixin _StudioInpaintMixin on _StudioCore {
           watermarkConfig: config.watermarkConfig,
           watermarkBytes: config.watermarkConfig.imageBytes,
           autoSave: config.autoSaveImages,
+          imageSaveTemplate: config.imageSaveTemplate,
         );
         // 同上：完成即跳到新图，不弹「有新图」横幅
         _applyGeneratedImage(result, wasViewingLatest: true);
@@ -408,6 +410,7 @@ mixin _StudioInpaintMixin on _StudioCore {
         watermarkConfig: config.watermarkConfig,
         watermarkBytes: config.watermarkConfig.imageBytes,
         autoSave: config.autoSaveImages,
+        imageSaveTemplate: config.imageSaveTemplate,
       );
 
       // 完成直接跳到新图：选中新图并把编辑底图切到新图，便于继续迭代

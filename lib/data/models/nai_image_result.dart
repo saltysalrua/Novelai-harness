@@ -42,6 +42,10 @@ class NaiGeneratedImage {
   /// 旧版历史及外部参考图没有独立缓存时，兼容使用原有路径。
   String? get displayFilePath => originalFilePath ?? localFilePath;
   final NaiGenerationParams params;
+
+  /// 非 NovelAI 后端的实际模型标识，避免命名宏误用工作台残留模型。
+  /// ComfyUI Bridge 不提供 checkpoint 名时固定为 comfyui。
+  final String? outputModel;
   final DateTime createdAt;
   final int seed;
   final bool isOpusFree;
@@ -71,6 +75,7 @@ class NaiGeneratedImage {
     this.localFilePath,
     this.originalFilePath,
     required this.params,
+    this.outputModel,
     required this.createdAt,
     required this.seed,
     required this.isOpusFree,
@@ -103,6 +108,7 @@ class NaiGeneratedImage {
     String? localFilePath,
     String? originalFilePath,
     NaiGenerationParams? params,
+    String? outputModel,
     DateTime? createdAt,
     int? seed,
     bool? isOpusFree,
@@ -120,6 +126,7 @@ class NaiGeneratedImage {
       localFilePath: localFilePath ?? this.localFilePath,
       originalFilePath: originalFilePath ?? this.originalFilePath,
       params: params ?? this.params,
+      outputModel: outputModel ?? this.outputModel,
       createdAt: createdAt ?? this.createdAt,
       seed: seed ?? this.seed,
       isOpusFree: isOpusFree ?? this.isOpusFree,
@@ -137,6 +144,7 @@ class NaiGeneratedImage {
     'localFilePath': localFilePath,
     if (originalFilePath != null) 'originalFilePath': originalFilePath,
     'params': params.toJson(),
+    if (outputModel != null) 'outputModel': outputModel,
     'createdAt': createdAt.toIso8601String(),
     'seed': seed,
     'isOpusFree': isOpusFree,
@@ -178,6 +186,7 @@ class NaiGeneratedImage {
       localFilePath: json['localFilePath'] as String?,
       originalFilePath: json['originalFilePath'] as String?,
       params: NaiGenerationParams.fromJson(paramsJson),
+      outputModel: json['outputModel'] as String?,
       createdAt: createdAt,
       seed: (json['seed'] as num?)?.toInt() ?? -1,
       isOpusFree: json['isOpusFree'] as bool? ?? false,

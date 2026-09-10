@@ -190,6 +190,7 @@ class AiEditImageTool extends AgentTool {
         watermarkConfig: config.watermarkConfig,
         watermarkBytes: config.watermarkConfig.imageBytes,
         autoSave: config.autoSaveImages,
+        imageSaveTemplate: config.imageSaveTemplate,
       );
 
       _onGenerated?.call(result);

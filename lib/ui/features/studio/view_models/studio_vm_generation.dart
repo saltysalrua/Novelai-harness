@@ -45,6 +45,7 @@ mixin _StudioGenerationMixin on _StudioCore {
     try {
       final saved = await _repository.saveUnsavedImageToDisk(
         imageId: image.id,
+        imageSaveTemplate: _config.imageSaveTemplate,
         saveDir: _config.saveDirectory,
         enablePersistence: _config.enableImagePersistence,
         maxImages: _config.maxPersistentImages,
@@ -148,6 +149,7 @@ mixin _StudioGenerationMixin on _StudioCore {
           watermarkConfig: _config.watermarkConfig,
           watermarkBytes: _config.watermarkConfig.imageBytes,
           autoSave: _config.autoSaveImages,
+          imageSaveTemplate: _config.imageSaveTemplate,
         );
 
         _generationSubscription = stream.listen(
@@ -221,6 +223,7 @@ mixin _StudioGenerationMixin on _StudioCore {
           watermarkConfig: _config.watermarkConfig,
           watermarkBytes: _config.watermarkConfig.imageBytes,
           autoSave: _config.autoSaveImages,
+          imageSaveTemplate: _config.imageSaveTemplate,
         );
 
         if (results.isNotEmpty) {
@@ -325,6 +328,7 @@ mixin _StudioGenerationMixin on _StudioCore {
         watermarkConfig: _config.watermarkConfig,
         watermarkBytes: _config.watermarkConfig.imageBytes,
         autoSave: _config.autoSaveImages,
+        imageSaveTemplate: _config.imageSaveTemplate,
       );
       _selectedImage = upscaled;
       _statusMessage = upscaled.isUnsaved

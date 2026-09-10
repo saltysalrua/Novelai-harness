@@ -234,6 +234,55 @@ class AppLocalizationsEn extends AppLocalizations {
       'Optional key for the agent web search tools; anonymous access works with lower rate limits';
 
   @override
+  String get settingsImageSaveTemplateTitle => 'Image Naming Template';
+
+  @override
+  String get settingsImageSaveTemplateSubtitle =>
+      'Relative to the storage directory; shared by automatic and manual saves. Adds .png automatically.';
+
+  @override
+  String get settingsImageSaveTemplatePreview =>
+      'Example path (relative to storage directory)';
+
+  @override
+  String get settingsImageSaveTemplateHelp =>
+      'Wrap macros in braces; / or backslash separates folders. Dates use image creation time. Duplicates receive a number; originals share the folder with a _raw suffix. Invalid characters and long names are sanitized or truncated. Leave blank for the default.';
+
+  @override
+  String get settingsImageSaveMacroHelp =>
+      'prefix: source prefix; type: generate / inpaint / ai_edit / upscale / comfyui; date / time / year / month / day: creation time; seed: seed; model: model ID (comfyui for ComfyUI); width / height / resolution: output size; steps / cfg / sampler / scheduler: generation parameters; prompt: base prompt (may contain private information). ComfyUI sampling parameters reflect the workbench, not unspecified workflow values.';
+
+  @override
+  String get settingsImageSaveMacros => 'Macro Reference';
+
+  @override
+  String get settingsImageSaveInsertMacro => 'Insert Macro';
+
+  @override
+  String get settingsImageSavePreset => 'Use Example';
+
+  @override
+  String get settingsImageSaveDefault => 'Default Names';
+
+  @override
+  String get settingsImageSaveByDate => 'Folders by Date';
+
+  @override
+  String get settingsImageSaveByModel => 'Folders by Month and Model';
+
+  @override
+  String get settingsImageSaveInvalidMacro =>
+      'Unknown macro, invalid date format or unmatched braces. Choose from Insert Macro.';
+
+  @override
+  String get settingsImageSaveInvalidPath =>
+      'Use a relative path without empty folders, .., absolute paths, invalid characters or cache / board_refs as the first folder.';
+
+  @override
+  String get settingsImageSaveTooLong =>
+      'Use at most 512 characters and 7 levels of subfolders.';
+
+  @override
   String get settingsSaveDirTitle => 'Local Storage Directory';
 
   @override

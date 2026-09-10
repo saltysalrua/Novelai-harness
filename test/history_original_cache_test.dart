@@ -8,6 +8,7 @@ import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/data/services/image_edit_service.dart';
 import 'package:novelai_harness/data/services/novelai_service.dart';
+import 'package:novelai_harness/data/services/image_save_path_service.dart';
 import 'package:path/path.dart' as p;
 
 Uint8List _solidPng(int red, int green, int blue) {
@@ -19,13 +20,14 @@ Uint8List _solidPng(int red, int green, int blue) {
 class _ImageService extends NovelAiService {
   final Uint8List result;
   Uint8List? upscaleSource;
+  int count = 1;
   _ImageService(this.result);
 
   @override
   Future<List<Uint8List>> generateImage({
     required String apiKey,
     required NaiGenerationParams params,
-  }) async => [result];
+  }) async => List.filled(count, result);
 
   @override
   Stream<NaiStreamProgress> generateImageStream({
@@ -88,6 +90,8 @@ class _EditService extends ImageEditService {
   }) async => ImageEditResult(imageBytes: result);
 }
 
+const _template = '{model}/{type}/{seed}_{date}_{time}';
+
 const _params = NaiGenerationParams(prompt: 'test', width: 64, height: 64);
 const _watermark = WatermarkConfig(
   enabled: true,
@@ -122,7 +126,16 @@ void main() {
     expect(image.originalFilePath, isNotNull);
     expect(p.dirname(image.originalFilePath!), p.join(dir.path, 'cache'));
     expect(File(image.originalFilePath!).readAsBytesSync(), image.bytes);
-    expect(p.dirname(image.localFilePath!), dir.path);
+    expect(
+      image.localFilePath,
+      p.joinAll([
+        dir.path,
+        ...ImageSavePathService.resolve(
+          _template,
+          ImageSaveContext.fromImage(image),
+        ).split('/'),
+      ]),
+    );
     final exported = img.decodePng(
       File(image.localFilePath!).readAsBytesSync(),
     )!;
@@ -148,6 +161,7 @@ void main() {
                       apiKey: 'mock',
                       params: _params,
                       saveDir: dir.path,
+                      imageSaveTemplate: _template,
                       enableWatermark: true,
                       watermarkBytes: watermark,
                       watermarkConfig: _watermark,
@@ -159,6 +173,7 @@ void main() {
               apiKey: 'mock',
               params: _params,
               saveDir: dir.path,
+              imageSaveTemplate: _template,
               enableWatermark: true,
               watermarkBytes: watermark,
               watermarkConfig: _watermark,
@@ -178,6 +193,7 @@ void main() {
                       ),
                       generationParams: _params,
                       saveDir: dir.path,
+                      imageSaveTemplate: _template,
                       enableWatermark: true,
                       watermarkBytes: watermark,
                       watermarkConfig: _watermark,
@@ -190,6 +206,7 @@ void main() {
               inpaintParams: const InpaintParams(mode: InpaintMode.standard),
               generationParams: _params,
               saveDir: dir.path,
+              imageSaveTemplate: _template,
               enableWatermark: true,
               watermarkBytes: watermark,
               watermarkConfig: _watermark,
@@ -212,11 +229,14 @@ void main() {
       sourceImageBytes: raw,
       generationParams: _params,
       saveDir: dir.path,
+      imageSaveTemplate: _template,
       enableWatermark: true,
       watermarkBytes: watermark,
       watermarkConfig: _watermark,
     );
     expect(image.isAiEdited, isTrue);
+    expect(image.outputModel, 'mock');
+    expect(NaiGeneratedImage.fromJson(image.toJson()).outputModel, 'mock');
     await expectOriginalAfterRestart(image);
   });
 
@@ -225,6 +245,7 @@ void main() {
       apiKey: 'mock',
       params: _params,
       saveDir: dir.path,
+      imageSaveTemplate: _template,
       enableWatermark: true,
       watermarkBytes: watermark,
       watermarkConfig: _watermark,
@@ -237,6 +258,7 @@ void main() {
       apiKey: 'mock',
       sourceImage: restored,
       saveDir: dir.path,
+      imageSaveTemplate: _template,
       enableWatermark: true,
       watermarkBytes: watermark,
       watermarkConfig: _watermark,
@@ -257,6 +279,7 @@ void main() {
     final saved = (await restarted.saveUnsavedImageToDisk(
       imageId: source.id,
       saveDir: dir.path,
+      imageSaveTemplate: _template,
       enableWatermark: true,
       watermarkBytes: watermark,
       watermarkConfig: _watermark,
@@ -271,6 +294,7 @@ void main() {
       apiKey: 'mock',
       params: _params,
       saveDir: dir.path,
+      imageSaveTemplate: _template,
       enableWatermark: true,
       watermarkBytes: watermark,
       watermarkConfig: _watermark,
@@ -352,6 +376,119 @@ void main() {
     expect(legacy.originalFilePath, isNull);
     expect(await repo.loadHistoryImageBytes(legacy), watermark);
   });
+
+  test('同种子批量导出不覆盖成品与缓存，raw 副本跟随编号', () async {
+    service.count = 3;
+    final images = await repo.generate(
+      apiKey: 'mock',
+      params: _params.copyWith(seed: 42, nSamples: 3),
+      saveDir: dir.path,
+      imageSaveTemplate: '{seed}',
+      stripMetadata: true,
+      keepOriginalImage: true,
+    );
+    expect(images.map((image) => p.basename(image.localFilePath!)), [
+      '42.png',
+      '42_2.png',
+      '42_3.png',
+    ]);
+    expect(images.map((image) => image.originalFilePath).toSet(), hasLength(3));
+    for (final image in images) {
+      expect(File(image.originalFilePath!).readAsBytesSync(), image.bytes);
+      expect(
+        File(
+          '${p.withoutExtension(image.localFilePath!)}_raw.png',
+        ).existsSync(),
+        isTrue,
+      );
+    }
+  });
+
+  test('隔天手动保存使用图片时间，改模板不移动旧文件', () async {
+    final source = NaiGeneratedImage(
+      id: 'old',
+      bytes: raw,
+      params: _params,
+      createdAt: DateTime(2020, 1, 2, 3, 4, 5),
+      seed: 99,
+      isOpusFree: true,
+      isUnsaved: true,
+    );
+    repo.addImageForTesting(source);
+    final saved = (await repo.saveUnsavedImageToDisk(
+      imageId: source.id,
+      saveDir: dir.path,
+      imageSaveTemplate: '{date:yyyy-MM-dd}/{seed}_{time}',
+    ))!;
+    expect(
+      saved.localFilePath,
+      p.join(dir.path, '2020-01-02', '99_030405.png'),
+    );
+    final again = (await repo.saveUnsavedImageToDisk(
+      imageId: source.id,
+      saveDir: dir.path,
+      imageSaveTemplate: 'changed/{seed}',
+    ))!;
+    expect(again.localFilePath, saved.localFilePath);
+    expect(File(saved.localFilePath!).existsSync(), isTrue);
+  });
+
+  test('模板目录不可写时保留缓存和未保存状态，换模板可重试', () async {
+    File(p.join(dir.path, 'blocked')).writeAsStringSync('keep');
+    final image = (await repo.generate(
+      apiKey: 'mock',
+      params: _params,
+      saveDir: dir.path,
+      imageSaveTemplate: 'blocked/{seed}',
+    )).single;
+    expect(image.isUnsaved, isTrue);
+    expect(File(image.originalFilePath!).existsSync(), isTrue);
+    expect(File(p.join(dir.path, 'blocked')).readAsStringSync(), 'keep');
+    final saved = await repo.saveUnsavedImageToDisk(
+      imageId: image.id,
+      saveDir: dir.path,
+      imageSaveTemplate: 'working/{seed}',
+    );
+    expect(saved!.isUnsaved, isFalse);
+    expect(p.dirname(saved.localFilePath!), p.join(dir.path, 'working'));
+  });
+
+  for (final autoSave in [false, true]) {
+    test('ComfyUI autoSave=$autoSave：统一缓存、命名、手动导出及重启恢复', () async {
+      final image = await repo.recordComfyUiImage(
+        id: 'comfy_1',
+        bytes: raw,
+        params: _params.copyWith(width: 1024),
+        seed: 42,
+        saveDir: dir.path,
+        imageSaveTemplate: _template,
+        autoSave: autoSave,
+        enableWatermark: true,
+        watermarkBytes: watermark,
+        watermarkConfig: _watermark,
+      );
+      expect(image.params.width, 64);
+      expect(image.outputModel, 'comfyui');
+      expect(image.isUnsaved, !autoSave);
+      final restarted = NovelAiRepository();
+      final restored = (await restarted.loadPersistedHistory(
+        saveDir: dir.path,
+      )).single;
+      expect(restored.outputModel, 'comfyui');
+      final saved = autoSave
+          ? image
+          : (await restarted.saveUnsavedImageToDisk(
+              imageId: image.id,
+              saveDir: dir.path,
+              imageSaveTemplate: _template,
+              enableWatermark: true,
+              watermarkBytes: watermark,
+              watermarkConfig: _watermark,
+            ))!;
+      expect(saved.isUnsaved, isFalse);
+      await expectOriginalAfterRestart(saved);
+    });
+  }
 
   test('独立原图丢失时不悄悄将导出水印图当成原图', () async {
     final source = (await repo.generate(

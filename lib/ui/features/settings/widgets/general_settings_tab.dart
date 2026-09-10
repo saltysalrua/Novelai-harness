@@ -2,6 +2,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../data/services/config_service.dart';
+import '../../../../data/models/nai_generation_params.dart';
+import '../../../../data/services/image_save_path_service.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -14,6 +16,7 @@ import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
 import 'settings_shared.dart';
+import 'image_save_template_settings.dart';
 
 /// General 页草稿状态 (父级 SettingsDialog 持有，保存时统一聚合)
 class GeneralSettingsDraft {
@@ -23,6 +26,23 @@ class GeneralSettingsDraft {
         text: config.anySearchApiKey,
       ),
       saveDirController = TextEditingController(text: config.saveDirectory),
+      saveTemplateController = TextEditingController(
+        text: config.imageSaveTemplate,
+      ),
+      _savePreviewContext = ImageSaveContext(
+        params: NaiGenerationParams(
+          prompt: 'sample',
+          model: config.defaultModel,
+          width: config.customWidth,
+          height: config.customHeight,
+          steps: config.defaultSteps,
+          scale: config.defaultScale,
+          sampler: config.defaultSampler,
+          noiseSchedule: config.defaultNoiseSchedule,
+        ),
+        createdAt: DateTime.now(),
+        seed: 123456,
+      ),
       comfyBaseUrlController = TextEditingController(
         text: config.comfyUiBaseUrl,
       ),
@@ -57,6 +77,29 @@ class GeneralSettingsDraft {
   /// AnySearch 网络搜索 API Key (可选，空 = 匿名访问)
   final TextEditingController anySearchKeyController;
   final TextEditingController saveDirController;
+  final TextEditingController saveTemplateController;
+  final ImageSaveContext _savePreviewContext;
+
+  ImageSaveTemplateError? get saveTemplateError =>
+      ImageSavePathService.validate(saveTemplateController.text);
+
+  String get saveTemplatePreview => ImageSavePathService.resolve(
+    saveTemplateController.text,
+    _savePreviewContext,
+  );
+
+  void insertSaveMacro(String macro) {
+    if (macro.isEmpty) return;
+    final value = saveTemplateController.value;
+    final selection = value.selection;
+    final start = selection.isValid ? selection.start : value.text.length;
+    final end = selection.isValid ? selection.end : value.text.length;
+    saveTemplateController.value = TextEditingValue(
+      text: value.text.replaceRange(start, end, '{$macro}'),
+      selection: TextSelection.collapsed(offset: start + macro.length + 2),
+    );
+  }
+
   bool opusFreeMode;
 
   /// ComfyUI 模式：服务地址与目标节点 ID (保存时由 SettingsDialog 聚合)
@@ -96,6 +139,7 @@ class GeneralSettingsDraft {
     naiKeyController.dispose();
     anySearchKeyController.dispose();
     saveDirController.dispose();
+    saveTemplateController.dispose();
     comfyBaseUrlController.dispose();
     comfyPromptNodeController.dispose();
     comfyResolutionNodeController.dispose();
@@ -332,6 +376,15 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   onPressed: _pickDirectory,
                 ),
               ],
+            ),
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _draft.saveTemplateController,
+            builder: (context, value, child) => ImageSaveTemplateSettings(
+              controller: _draft.saveTemplateController,
+              preview: _draft.saveTemplatePreview,
+              error: _draft.saveTemplateError,
+              onInsertMacro: _draft.insertSaveMacro,
             ),
           ),
           AppSettingTile.switchTile(

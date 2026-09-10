@@ -175,6 +175,9 @@ class AppConfig {
   final String suffixPrompt;
   final String negativePrompt;
   final String saveDirectory;
+
+  /// 相对于 saveDirectory 的目录/文件名宏模板；空串使用默认命名。
+  final String imageSaveTemplate;
   final bool stripMetadata;
   final bool enableWatermark;
   final bool keepOriginalImage;
@@ -300,6 +303,7 @@ class AppConfig {
     this.suffixPrompt = '',
     this.negativePrompt = '',
     this.saveDirectory = '',
+    this.imageSaveTemplate = '',
     this.stripMetadata = false,
     this.enableWatermark = false,
     this.keepOriginalImage = false,
@@ -358,6 +362,7 @@ class AppConfig {
     String? suffixPrompt,
     String? negativePrompt,
     String? saveDirectory,
+    String? imageSaveTemplate,
     bool? stripMetadata,
     bool? enableWatermark,
     bool? keepOriginalImage,
@@ -421,6 +426,7 @@ class AppConfig {
       suffixPrompt: suffixPrompt ?? this.suffixPrompt,
       negativePrompt: negativePrompt ?? this.negativePrompt,
       saveDirectory: saveDirectory ?? this.saveDirectory,
+      imageSaveTemplate: imageSaveTemplate ?? this.imageSaveTemplate,
       stripMetadata: stripMetadata ?? this.stripMetadata,
       enableWatermark: enableWatermark ?? this.enableWatermark,
       keepOriginalImage: keepOriginalImage ?? this.keepOriginalImage,
@@ -490,6 +496,7 @@ class ConfigService {
   static const String _keySuffix = 'novelai_suffix';
   static const String _keyNegative = 'novelai_negative';
   static const String _keySaveDir = 'novelai_save_dir';
+  static const String _keyImageSaveTemplate = 'novelai_image_save_template';
   static const String _keyStripMetadata = 'novelai_strip_metadata';
   static const String _keyEnableWatermark = 'novelai_enable_watermark';
   static const String _keyKeepOriginalImage = 'novelai_keep_original_image';
@@ -812,6 +819,7 @@ class ConfigService {
     return AppConfig(
       novelAiKey: naiKey,
       anySearchApiKey: anySearchKey,
+      imageSaveTemplate: prefs.getString(_keyImageSaveTemplate) ?? '',
       defaultModel: modelId.isNotEmpty
           ? NaiModel.fromId(modelId)
           : NaiModel.v5Full,
@@ -935,6 +943,7 @@ class ConfigService {
     await prefs.setString(_keySuffix, config.suffixPrompt);
     await prefs.setString(_keyNegative, config.negativePrompt);
     await prefs.setString(_keySaveDir, config.saveDirectory);
+    await prefs.setString(_keyImageSaveTemplate, config.imageSaveTemplate);
     await prefs.setBool(_keyStripMetadata, config.stripMetadata);
     await prefs.setBool(_keyEnableWatermark, config.enableWatermark);
     await prefs.setBool(_keyKeepOriginalImage, config.keepOriginalImage);

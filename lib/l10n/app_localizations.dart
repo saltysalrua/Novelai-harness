@@ -524,6 +524,90 @@ abstract class AppLocalizations {
   /// **'可选，用于 Agent 网页搜索工具；未配置时匿名访问，限流较低'**
   String get settingsAnySearchKeySubtitle;
 
+  /// No description provided for @settingsImageSaveTemplateTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片命名模板'**
+  String get settingsImageSaveTemplateTitle;
+
+  /// No description provided for @settingsImageSaveTemplateSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'相对于存储目录；自动保存与手动保存共用，末尾自动补 .png'**
+  String get settingsImageSaveTemplateSubtitle;
+
+  /// No description provided for @settingsImageSaveTemplatePreview.
+  ///
+  /// In zh, this message translates to:
+  /// **'路径示例（相对于存储目录）'**
+  String get settingsImageSaveTemplatePreview;
+
+  /// No description provided for @settingsImageSaveTemplateHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'宏用花括号包裹；/ 或反斜杠分隔子目录。日期使用图片生成时间；同名自动追加编号，原图副本保持同目录并加 _raw。非法字符和过长名称会自动净化、截短。留空恢复默认。'**
+  String get settingsImageSaveTemplateHelp;
+
+  /// No description provided for @settingsImageSaveMacroHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'prefix：来源前缀；type：generate / inpaint / ai_edit / upscale / comfyui；date / time / year / month / day：日期时间；seed：种子；model：模型 ID（ComfyUI 为 comfyui）；width / height / resolution：输出尺寸；steps / cfg / sampler / scheduler：生成参数；prompt：基础提示词（可能含私密内容，请谨慎用于文件名）。ComfyUI 的采样参数来自工作台，不代表未下发的工作流参数。'**
+  String get settingsImageSaveMacroHelp;
+
+  /// No description provided for @settingsImageSaveMacros.
+  ///
+  /// In zh, this message translates to:
+  /// **'宏说明'**
+  String get settingsImageSaveMacros;
+
+  /// No description provided for @settingsImageSaveInsertMacro.
+  ///
+  /// In zh, this message translates to:
+  /// **'插入宏'**
+  String get settingsImageSaveInsertMacro;
+
+  /// No description provided for @settingsImageSavePreset.
+  ///
+  /// In zh, this message translates to:
+  /// **'套用示例'**
+  String get settingsImageSavePreset;
+
+  /// No description provided for @settingsImageSaveDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认命名'**
+  String get settingsImageSaveDefault;
+
+  /// No description provided for @settingsImageSaveByDate.
+  ///
+  /// In zh, this message translates to:
+  /// **'按日期分目录'**
+  String get settingsImageSaveByDate;
+
+  /// No description provided for @settingsImageSaveByModel.
+  ///
+  /// In zh, this message translates to:
+  /// **'按月份和模型分目录'**
+  String get settingsImageSaveByModel;
+
+  /// No description provided for @settingsImageSaveInvalidMacro.
+  ///
+  /// In zh, this message translates to:
+  /// **'宏名称或日期格式无效，或花括号未配对。请从“插入宏”选择。'**
+  String get settingsImageSaveInvalidMacro;
+
+  /// No description provided for @settingsImageSaveInvalidPath.
+  ///
+  /// In zh, this message translates to:
+  /// **'请使用相对路径；不能含空目录、..、绝对路径、非法字符或使用 cache / board_refs 根子目录。'**
+  String get settingsImageSaveInvalidPath;
+
+  /// No description provided for @settingsImageSaveTooLong.
+  ///
+  /// In zh, this message translates to:
+  /// **'模板最多 512 个字符，最多 7 层子目录。'**
+  String get settingsImageSaveTooLong;
+
   /// No description provided for @settingsSaveDirTitle.
   ///
   /// In zh, this message translates to:
