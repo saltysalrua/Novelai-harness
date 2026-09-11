@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
@@ -168,13 +169,32 @@ class CanvasSaveButton extends StatelessWidget {
       message: l10n.canvasSaveButtonTooltip,
       child: InkWell(
         onTap: () async {
-          final ok = await viewModel.saveCurrentImageToDisk();
+          String? targetDir;
+          if (viewModel.config.saveDirectory.isEmpty) {
+            targetDir = await FilePicker.platform.getDirectoryPath();
+            if (targetDir == null || targetDir.isEmpty) return;
+          }
+          final ok = await viewModel.saveCurrentImageToDisk(customDir: targetDir);
           if (!context.mounted) return;
           showCanvasSnackBar(
             context,
             ok
                 ? l10n.canvasSavedImage(
-                    viewModel.selectedImage?.localFilePath ?? '',
+                    viewModel.selectedImage?.localFilePath ?? targetDir ?? '',
+                  )
+                : (viewModel.errorMessage ?? l10n.canvasSaveFailed),
+          );
+        },
+        onLongPress: () async {
+          final targetDir = await FilePicker.platform.getDirectoryPath();
+          if (targetDir == null || targetDir.isEmpty) return;
+          final ok = await viewModel.saveCurrentImageToDisk(customDir: targetDir);
+          if (!context.mounted) return;
+          showCanvasSnackBar(
+            context,
+            ok
+                ? l10n.canvasSavedImage(
+                    viewModel.selectedImage?.localFilePath ?? targetDir,
                   )
                 : (viewModel.errorMessage ?? l10n.canvasSaveFailed),
           );

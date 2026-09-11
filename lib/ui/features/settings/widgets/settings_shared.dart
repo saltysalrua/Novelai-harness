@@ -28,26 +28,28 @@ class _SettingsKeyFieldState extends State<SettingsKeyField> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return SizedBox(
-      width: widget.width,
-      height: 36,
-      child: TextField(
-        controller: widget.controller,
-        obscureText: _obscure,
-        style: const TextStyle(fontSize: 12),
-        decoration: InputDecoration(
-          hintText: widget.hintText,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 8,
-          ),
-          suffixIcon: IconButton(
-            icon: Icon(
-              _obscure ? Icons.visibility_off : Icons.visibility,
-              size: 15,
-              color: colors.textMuted,
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: widget.width),
+      child: SizedBox(
+        height: 36,
+        child: TextField(
+          controller: widget.controller,
+          obscureText: _obscure,
+          style: const TextStyle(fontSize: 12),
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
             ),
-            onPressed: () => setState(() => _obscure = !_obscure),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscure ? Icons.visibility_off : Icons.visibility,
+                size: 15,
+                color: colors.textMuted,
+              ),
+              onPressed: () => setState(() => _obscure = !_obscure),
+            ),
           ),
         ),
       ),

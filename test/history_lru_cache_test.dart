@@ -76,44 +76,47 @@ void main() {
       );
     });
 
-    test('loadPersistedHistory 仅读元信息，大图 bytes 初始化为空，调用 loadHistoryImageBytes 懒加载', () async {
-      final repo = NovelAiRepository();
-      const params = NaiGenerationParams(prompt: 'persisted lazy');
+    test(
+      'loadPersistedHistory 仅读元信息，大图 bytes 初始化为空，调用 loadHistoryImageBytes 懒加载',
+      () async {
+        final repo = NovelAiRepository();
+        const params = NaiGenerationParams(prompt: 'persisted lazy');
 
-      final filePath = p.join(tempDir.path, 'persist_lazy.png');
-      final originalBytes = Uint8List.fromList([11, 22, 33, 44]);
-      File(filePath).writeAsBytesSync(originalBytes);
+        final filePath = p.join(tempDir.path, 'persist_lazy.png');
+        final originalBytes = Uint8List.fromList([11, 22, 33, 44]);
+        File(filePath).writeAsBytesSync(originalBytes);
 
-      final img = NaiGeneratedImage(
-        id: 'img_lazy_1',
-        bytes: originalBytes,
-        localFilePath: filePath,
-        params: params,
-        createdAt: DateTime.now(),
-        seed: 777,
-        isOpusFree: true,
-      );
+        final img = NaiGeneratedImage(
+          id: 'img_lazy_1',
+          bytes: originalBytes,
+          localFilePath: filePath,
+          params: params,
+          createdAt: DateTime.now(),
+          seed: 777,
+          isOpusFree: true,
+        );
 
-      final historyFile = File(p.join(tempDir.path, 'image_history.json'));
-      historyFile.writeAsStringSync(jsonEncode([img.toJson()]));
+        final historyFile = File(p.join(tempDir.path, 'image_history.json'));
+        historyFile.writeAsStringSync(jsonEncode([img.toJson()]));
 
-      // 执行 loadPersistedHistory
-      final loaded = await repo.loadPersistedHistory(saveDir: tempDir.path);
-      expect(loaded.length, equals(1));
+        // 执行 loadPersistedHistory
+        final loaded = await repo.loadPersistedHistory(saveDir: tempDir.path);
+        expect(loaded.length, equals(1));
 
-      final loadedImg = loaded.first;
-      // 内存治理要点：大图常驻 bytes 必须为空
-      expect(loadedImg.bytes.isEmpty, isTrue);
-      // 此时 LRU 缓存中尚未加载该图
-      expect(repo.lruImageCache.containsKey(loadedImg.id), isFalse);
+        final loadedImg = loaded.first;
+        // 内存治理要点：大图常驻 bytes 必须为空
+        expect(loadedImg.bytes.isEmpty, isTrue);
+        // 此时 LRU 缓存中尚未加载该图
+        expect(repo.lruImageCache.containsKey(loadedImg.id), isFalse);
 
-      // 按需懒加载大图
-      final loadedBytes = await repo.loadHistoryImageBytes(loadedImg);
-      expect(loadedBytes, equals(originalBytes));
-      // 此时已载入 LRU 缓存
-      expect(repo.lruImageCache.containsKey(loadedImg.id), isTrue);
-      expect(repo.lruImageCache[loadedImg.id], equals(originalBytes));
-    });
+        // 按需懒加载大图
+        final loadedBytes = await repo.loadHistoryImageBytes(loadedImg);
+        expect(loadedBytes, equals(originalBytes));
+        // 此时已载入 LRU 缓存
+        expect(repo.lruImageCache.containsKey(loadedImg.id), isTrue);
+        expect(repo.lruImageCache[loadedImg.id], equals(originalBytes));
+      },
+    );
 
     test('deleteImage 与 clearHistory 会同步清理 LRU 缓存条目', () async {
       final repo = NovelAiRepository();

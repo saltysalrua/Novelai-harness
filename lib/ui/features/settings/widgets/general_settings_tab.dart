@@ -232,11 +232,19 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 600;
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            isNarrow ? 14 : 28,
+            8,
+            isNarrow ? 14 : 28,
+            20,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           AppSectionHeader(title: l10n.settingsSectionAppearance),
           AppSettingTile(
             title: l10n.settingsThemeMode,
@@ -351,31 +359,34 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
           AppSettingTile(
             title: l10n.settingsSaveDirTitle,
             subtitle: l10n.settingsSaveDirSubtitle,
-            control: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 220,
-                  height: 36,
-                  child: TextField(
-                    controller: _draft.saveDirController,
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: l10n.settingsSaveDirHint,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
+            control: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 36,
+                      child: TextField(
+                        controller: _draft.saveDirController,
+                        style: const TextStyle(fontSize: 12),
+                        decoration: InputDecoration(
+                          hintText: l10n.settingsSaveDirHint,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                AppActionButton(
-                  icon: Icons.folder_open_rounded,
-                  label: l10n.settingsChooseButton,
-                  onPressed: _pickDirectory,
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  AppActionButton(
+                    icon: Icons.folder_open_rounded,
+                    label: l10n.settingsChooseButton,
+                    onPressed: _pickDirectory,
+                  ),
+                ],
+              ),
             ),
           ),
           ValueListenableBuilder<TextEditingValue>(
@@ -564,6 +575,8 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
         ],
       ),
     );
+  },
+);
   }
 }
 

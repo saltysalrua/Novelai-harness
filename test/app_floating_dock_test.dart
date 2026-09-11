@@ -10,9 +10,7 @@ void main() {
         MaterialApp(
           theme: AppTheme.lightTheme,
           home: const Scaffold(
-            body: AppFloatingDock(
-              child: Text('Dock Action'),
-            ),
+            body: AppFloatingDock(child: Text('Dock Action')),
           ),
         ),
       );
@@ -25,10 +23,7 @@ void main() {
         MaterialApp(
           theme: AppTheme.darkTheme,
           home: const Scaffold(
-            body: AppFloatingDock(
-              enableBlur: true,
-              child: Icon(Icons.brush),
-            ),
+            body: AppFloatingDock(enableBlur: true, child: Icon(Icons.brush)),
           ),
         ),
       );

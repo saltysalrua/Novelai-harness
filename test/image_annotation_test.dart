@@ -116,34 +116,37 @@ void main() {
       }
     });
 
-    test('CanvasNoteNode and CanvasBoardData serialization and connections', () {
-      final note = const CanvasNoteNode(
-        id: 'note-1',
-        text: '修改背景为星空夜景',
-        offset: Offset(500, 300),
-        width: 220,
-        colorIndex: 2,
-        targetImageId: 'main-img-1',
-        targetAnnotationId: 'ann-1',
-      );
+    test(
+      'CanvasNoteNode and CanvasBoardData serialization and connections',
+      () {
+        final note = const CanvasNoteNode(
+          id: 'note-1',
+          text: '修改背景为星空夜景',
+          offset: Offset(500, 300),
+          width: 220,
+          colorIndex: 2,
+          targetImageId: 'main-img-1',
+          targetAnnotationId: 'ann-1',
+        );
 
-      expect(note.isConnected, isTrue);
-      expect(note.colorIndex, 2);
+        expect(note.isConnected, isTrue);
+        expect(note.colorIndex, 2);
 
-      final json = note.toJson();
-      final restored = CanvasNoteNode.fromJson(json);
-      expect(restored.id, 'note-1');
-      expect(restored.text, '修改背景为星空夜景');
-      expect(restored.offset.dx, 500);
-      expect(restored.offset.dy, 300);
-      expect(restored.targetImageId, 'main-img-1');
-      expect(restored.targetAnnotationId, 'ann-1');
-      expect(restored.isConnected, isTrue);
+        final json = note.toJson();
+        final restored = CanvasNoteNode.fromJson(json);
+        expect(restored.id, 'note-1');
+        expect(restored.text, '修改背景为星空夜景');
+        expect(restored.offset.dx, 500);
+        expect(restored.offset.dy, 300);
+        expect(restored.targetImageId, 'main-img-1');
+        expect(restored.targetAnnotationId, 'ann-1');
+        expect(restored.isConnected, isTrue);
 
-      final disconnected = restored.copyWith(clearConnection: true);
-      expect(disconnected.isConnected, isFalse);
-      expect(disconnected.targetImageId, isNull);
-    });
+        final disconnected = restored.copyWith(clearConnection: true);
+        expect(disconnected.isConnected, isFalse);
+        expect(disconnected.targetImageId, isNull);
+      },
+    );
   });
 
   group('NaiGeneratedImage & Repository Annotation Persistence Tests', () {

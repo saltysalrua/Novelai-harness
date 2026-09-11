@@ -266,7 +266,9 @@ class ImageAnnotation {
         : DateTime.now();
 
     return ImageAnnotation(
-      id: json['id'] as String? ?? 'ann_${DateTime.now().millisecondsSinceEpoch}',
+      id:
+          json['id'] as String? ??
+          'ann_${DateTime.now().millisecondsSinceEpoch}',
       type: type,
       rect: rect,
       point: point,

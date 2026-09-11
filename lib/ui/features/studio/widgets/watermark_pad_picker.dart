@@ -43,21 +43,31 @@ class WatermarkPadPicker extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(content: Text(context.l10n.watermarkPickImageFailed(e.toString()))),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.watermarkPickImageFailed(e.toString())),
+          ),
         );
       }
     }
   }
 
   String _positionLabel(AppLocalizations l10n, double x, double y) {
-    if ((x - 0.0).abs() < 0.05 && (y - 0.0).abs() < 0.05) return l10n.watermarkPositionTopLeft;
-    if ((x - 1.0).abs() < 0.05 && (y - 0.0).abs() < 0.05) return l10n.watermarkPositionTopRight;
-    if ((x - 0.5).abs() < 0.05 && (y - 0.5).abs() < 0.05) return l10n.watermarkPositionCenter;
-    if ((x - 0.0).abs() < 0.05 && (y - 1.0).abs() < 0.05) return l10n.watermarkPositionBottomLeft;
-    if ((x - 1.0).abs() < 0.05 && (y - 1.0).abs() < 0.05) return l10n.watermarkPositionBottomRight;
+    if ((x - 0.0).abs() < 0.05 && (y - 0.0).abs() < 0.05) {
+      return l10n.watermarkPositionTopLeft;
+    }
+    if ((x - 1.0).abs() < 0.05 && (y - 0.0).abs() < 0.05) {
+      return l10n.watermarkPositionTopRight;
+    }
+    if ((x - 0.5).abs() < 0.05 && (y - 0.5).abs() < 0.05) {
+      return l10n.watermarkPositionCenter;
+    }
+    if ((x - 0.0).abs() < 0.05 && (y - 1.0).abs() < 0.05) {
+      return l10n.watermarkPositionBottomLeft;
+    }
+    if ((x - 1.0).abs() < 0.05 && (y - 1.0).abs() < 0.05) {
+      return l10n.watermarkPositionBottomRight;
+    }
     return '${(x * 100).toInt()}%, ${(y * 100).toInt()}%';
   }
 
@@ -68,7 +78,9 @@ class WatermarkPadPicker extends StatelessWidget {
       final l10n = context.l10n;
       showWatermarkSnackBar(
         context,
-        ok ? l10n.watermarkSmartPositionApplied : l10n.watermarkSmartPositionNoImage,
+        ok
+            ? l10n.watermarkSmartPositionApplied
+            : l10n.watermarkSmartPositionNoImage,
       );
     }
   }

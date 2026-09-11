@@ -98,6 +98,37 @@ Future<void> pickAndImportReferenceImage(
   }
 }
 
+/// 弹出原生系统文件夹选择器并保存当前图片到选定目录 (支持 Android SAF 与桌面资源管理器)
+Future<void> exportImageToCustomDirectory(
+  BuildContext context,
+  StudioViewModel viewModel,
+  NaiGeneratedImage image,
+) async {
+  try {
+    final selectedDir = await FilePicker.platform.getDirectoryPath();
+    if (selectedDir == null || selectedDir.isEmpty) return;
+
+    final bool ok;
+    if (image.isUnsaved) {
+      ok = await viewModel.saveCurrentImageToDisk(customDir: selectedDir);
+    } else {
+      ok = await viewModel.exportImageToDirectory(image, selectedDir);
+    }
+
+    if (!context.mounted) return;
+    showCanvasSnackBar(
+      context,
+      ok
+          ? context.l10n.canvasSavedImage(selectedDir)
+          : (viewModel.errorMessage ?? context.l10n.canvasSaveFailed),
+    );
+  } catch (_) {
+    if (context.mounted) {
+      showCanvasSnackBar(context, context.l10n.canvasSaveFailed);
+    }
+  }
+}
+
 /// 图片右键菜单：超分放大、复制图像、复制原图像、复制提示词、复用参数与查看大图
 void showImageContextMenu(
   BuildContext context, {
@@ -112,6 +143,8 @@ void showImageContextMenu(
   final isGenerating = viewModel.isGenerating;
   final showCopyRaw = viewModel.stripMetadata || viewModel.enableWatermark;
   final l10n = context.l10n;
+  final saveToFolderLabel =
+      l10n.canvasSaveImage == '保存图片' ? '保存至指定文件夹...' : 'Save to Folder...';
 
   showStudioContextMenu(
     context,
@@ -135,6 +168,11 @@ void showImageContextMenu(
         icon: Icons.zoom_in_rounded,
         label: l10n.canvasActionUpscale,
         onTap: isGenerating ? null : () => viewModel.upscaleSelected(),
+      ),
+      ContextMenuItem(
+        icon: Icons.drive_file_move_outlined,
+        label: saveToFolderLabel,
+        onTap: () => exportImageToCustomDirectory(context, viewModel, image),
       ),
       const ContextMenuDivider(),
       ContextMenuItem(

@@ -150,6 +150,27 @@ void main() {
       expect(mediaQuerySize.width, closeTo(800 / 1.5, 0.1));
       expect(mediaQuerySize.height, closeTo(600 / 1.5, 0.1));
     });
+
+    testWidgets('在宽松约束 (如 SafeArea) 下仍铺满父容器，不产生右侧/底部白边', (tester) async {
+      const childKey = Key('loose_probe');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SafeArea(
+              child: AppUiZoomScope(
+                zoom: 1.25,
+                child: Container(
+                  key: childKey,
+                  color: Colors.blue,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final visualRect = tester.getRect(find.byKey(childKey));
+      expect(visualRect.width, closeTo(800, 0.5));
+    });
   });
 
   group('UI 缩放下的浮层锚定坐标 (Overlay 坐标换算)', () {

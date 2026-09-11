@@ -405,8 +405,13 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
                     ),
                     child: Text(
                       _isResizing
-                          ? l10n.watermarkOverlayScale(currentScale.toStringAsFixed(1))
-                          : l10n.watermarkOverlayPosition((posX * 100).toInt(), (posY * 100).toInt()),
+                          ? l10n.watermarkOverlayScale(
+                              currentScale.toStringAsFixed(1),
+                            )
+                          : l10n.watermarkOverlayPosition(
+                              (posX * 100).toInt(),
+                              (posY * 100).toInt(),
+                            ),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 11,

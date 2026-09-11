@@ -22,24 +22,27 @@ void main() {
       expect(state.isMaximized, isFalse);
     });
 
-    test('clamps window size if saved size is smaller than minimum limits', () async {
-      SharedPreferences.setMockInitialValues({
-        'novelai_window_width': 500.0,
-        'novelai_window_height': 300.0,
-        'novelai_window_pos_x': 100.0,
-        'novelai_window_pos_y': 150.0,
-        'novelai_window_maximized': false,
-      });
+    test(
+      'clamps window size if saved size is smaller than minimum limits',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'novelai_window_width': 500.0,
+          'novelai_window_height': 300.0,
+          'novelai_window_pos_x': 100.0,
+          'novelai_window_pos_y': 150.0,
+          'novelai_window_maximized': false,
+        });
 
-      final configService = ConfigService();
-      final state = await configService.loadWindowState();
+        final configService = ConfigService();
+        final state = await configService.loadWindowState();
 
-      expect(state.width, 960.0); // Clamped to minWidth 960
-      expect(state.height, 600.0); // Clamped to minHeight 600
-      expect(state.posX, 100.0);
-      expect(state.posY, 150.0);
-      expect(state.isMaximized, isFalse);
-    });
+        expect(state.width, 960.0); // Clamped to minWidth 960
+        expect(state.height, 600.0); // Clamped to minHeight 600
+        expect(state.posX, 100.0);
+        expect(state.posY, 150.0);
+        expect(state.isMaximized, isFalse);
+      },
+    );
 
     test('saves and loads custom window size and position', () async {
       final configService = ConfigService();
@@ -94,7 +97,9 @@ void main() {
   group('WindowStateService Debounce and Lifecycle Tests', () {
     test('schedules debounced save on resize and move events', () {
       final configService = ConfigService();
-      final service = WindowStateService.forTesting(configService: configService);
+      final service = WindowStateService.forTesting(
+        configService: configService,
+      );
 
       expect(service.hasPendingSave, isFalse);
 
@@ -108,50 +113,62 @@ void main() {
       expect(service.hasPendingSave, isFalse);
     });
 
-    test('cancels pending save and updates maximized state on maximize', () async {
-      final configService = ConfigService();
-      final service = WindowStateService.forTesting(configService: configService);
+    test(
+      'cancels pending save and updates maximized state on maximize',
+      () async {
+        final configService = ConfigService();
+        final service = WindowStateService.forTesting(
+          configService: configService,
+        );
 
-      service.onWindowResize();
-      expect(service.hasPendingSave, isTrue);
+        service.onWindowResize();
+        expect(service.hasPendingSave, isTrue);
 
-      service.onWindowMaximize();
-      expect(service.hasPendingSave, isFalse);
-      await service.lastSaveFuture;
+        service.onWindowMaximize();
+        expect(service.hasPendingSave, isFalse);
+        await service.lastSaveFuture;
 
-      final state = await configService.loadWindowState();
-      expect(state.isMaximized, isTrue);
+        final state = await configService.loadWindowState();
+        expect(state.isMaximized, isTrue);
 
-      service.dispose();
-    });
+        service.dispose();
+      },
+    );
 
-    test('updates maximized state to false on unmaximize and restore', () async {
-      final configService = ConfigService();
-      await configService.saveWindowMaximized(true);
+    test(
+      'updates maximized state to false on unmaximize and restore',
+      () async {
+        final configService = ConfigService();
+        await configService.saveWindowMaximized(true);
 
-      final service = WindowStateService.forTesting(configService: configService);
+        final service = WindowStateService.forTesting(
+          configService: configService,
+        );
 
-      service.onWindowUnmaximize();
-      expect(service.hasPendingSave, isTrue);
-      await service.lastSaveFuture;
+        service.onWindowUnmaximize();
+        expect(service.hasPendingSave, isTrue);
+        await service.lastSaveFuture;
 
-      var state = await configService.loadWindowState();
-      expect(state.isMaximized, isFalse);
+        var state = await configService.loadWindowState();
+        expect(state.isMaximized, isFalse);
 
-      await configService.saveWindowMaximized(true);
-      service.onWindowRestore();
-      expect(service.hasPendingSave, isTrue);
-      await service.lastSaveFuture;
+        await configService.saveWindowMaximized(true);
+        service.onWindowRestore();
+        expect(service.hasPendingSave, isTrue);
+        await service.lastSaveFuture;
 
-      state = await configService.loadWindowState();
-      expect(state.isMaximized, isFalse);
+        state = await configService.loadWindowState();
+        expect(state.isMaximized, isFalse);
 
-      service.dispose();
-    });
+        service.dispose();
+      },
+    );
 
     test('flushPendingSave executes and resets pending timer', () async {
       final configService = ConfigService();
-      final service = WindowStateService.forTesting(configService: configService);
+      final service = WindowStateService.forTesting(
+        configService: configService,
+      );
 
       service.onWindowResized();
       expect(service.hasPendingSave, isTrue);

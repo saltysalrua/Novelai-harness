@@ -16,11 +16,15 @@ class AppSegmentedItem<T> {
   /// 提示文字 (可选)
   final String? tooltip;
 
+  /// 是否显示微徽章/提示点 (可选)
+  final bool badge;
+
   const AppSegmentedItem({
     required this.value,
     required this.label,
     this.icon,
     this.tooltip,
+    this.badge = false,
   });
 }
 
@@ -147,6 +151,7 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
     };
 
     Widget pill = InkWell(
+      key: Key('segmented_pill_${item.value}'),
       onTap: () => onValueChanged?.call(item.value),
       borderRadius: BorderRadius.circular(AppRadius.pill),
       child: AnimatedContainer(
@@ -172,6 +177,17 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
                 color: fg,
               ),
             ),
+            if (item.badge) ...[
+              const SizedBox(width: 4),
+              Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: fg,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
           ],
         ),
       ),

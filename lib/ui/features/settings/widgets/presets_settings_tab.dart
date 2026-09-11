@@ -363,10 +363,8 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                       )
                       .toList(),
                   onChanged: (val) => setState(
-                    () => _draft.switchPreset(
-                      val,
-                      l10n.presetDefaultCustomName,
-                    ),
+                    () =>
+                        _draft.switchPreset(val, l10n.presetDefaultCustomName),
                   ),
                 ),
                 const SizedBox(width: 8),

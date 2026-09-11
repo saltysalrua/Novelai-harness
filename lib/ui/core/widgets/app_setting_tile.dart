@@ -19,6 +19,9 @@ class AppSettingTile extends StatelessWidget {
   /// 整行点击回调 (设置后整行可点击，光标变手型；开关行用于整行切换)
   final VoidCallback? onTap;
 
+  /// 是否为开关类型项 (开关始终保持横向紧凑 Row 排版，不受窄屏断点折行影响)
+  final bool isSwitch;
+
   const AppSettingTile({
     super.key,
     required this.title,
@@ -28,6 +31,7 @@ class AppSettingTile extends StatelessWidget {
     this.padding,
     this.margin,
     this.onTap,
+    this.isSwitch = false,
   });
 
   /// Switch 开关便捷工厂 (整行可点击切换)
@@ -46,6 +50,7 @@ class AppSettingTile extends StatelessWidget {
       subtitle: subtitle,
       bottomChild: bottomChild,
       margin: margin,
+      isSwitch: true,
       onTap: () => onChanged(!value),
       control: Builder(
         builder: (context) {
@@ -125,47 +130,62 @@ class AppSettingTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: colors.borderDefault),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 420;
+          final isSwitch = this.isSwitch || control is Switch;
+
+          final titleColumn = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    if (subtitle != null && subtitle!.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ],
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              control,
+              if (subtitle != null && subtitle!.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
             ],
-          ),
-          if (bottomChild != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            bottomChild!,
-          ],
-        ],
+          );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isNarrow && !isSwitch) ...[
+                titleColumn,
+                const SizedBox(height: AppSpacing.sm),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: control,
+                ),
+              ] else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: titleColumn),
+                    const SizedBox(width: AppSpacing.md),
+                    control,
+                  ],
+                ),
+              if (bottomChild != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                bottomChild!,
+              ],
+            ],
+          );
+        },
       ),
     );
 

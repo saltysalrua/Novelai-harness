@@ -25,18 +25,21 @@ mixin _StudioGenerationMixin on _StudioCore {
         : vmL10n.vmGenDoneSavedTo(image.localFilePath ?? vmL10n.vmGenLocalPath);
   }
 
-  /// 手动保存当前选中的未保存 (缓存) 图片到本地存储目录。
+  /// 手动保存当前选中的未保存 (缓存) 图片到本地存储目录 (可指定自定义目录)。
   ///
   /// 自动保存关闭时画板右下角保存按钮调用；按全局导出设置处理元数据与
   /// 水印后落盘，删除旧缓存文件。返回是否保存成功。
   @override
-  Future<bool> saveCurrentImageToDisk() async {
+  Future<bool> saveCurrentImageToDisk({String? customDir}) async {
     final image = _selectedImage;
     if (image == null || !image.isUnsaved) return false;
 
     await ensureImageLoaded(image);
 
-    if (_config.saveDirectory.isEmpty) {
+    final targetDir = (customDir != null && customDir.isNotEmpty)
+        ? customDir
+        : _config.saveDirectory;
+    if (targetDir.isEmpty) {
       _errorMessage = vmL10n.vmGenNoSaveDir;
       notifyListeners();
       return false;
@@ -46,7 +49,7 @@ mixin _StudioGenerationMixin on _StudioCore {
       final saved = await _repository.saveUnsavedImageToDisk(
         imageId: image.id,
         imageSaveTemplate: _config.imageSaveTemplate,
-        saveDir: _config.saveDirectory,
+        saveDir: targetDir,
         enablePersistence: _config.enableImagePersistence,
         maxImages: _config.maxPersistentImages,
         stripMetadata: _config.stripMetadata,
@@ -64,6 +67,31 @@ mixin _StudioGenerationMixin on _StudioCore {
         _selectedImage = saved;
       }
       _statusMessage = vmL10n.vmGenSavedTo(saved.localFilePath!);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = vmL10n.vmGenSaveFailed('$e');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// 导出任意图片到指定文件夹 (由原生文件选择器挑选)
+  @override
+  Future<bool> exportImageToDirectory(
+    NaiGeneratedImage image,
+    String targetDir,
+  ) async {
+    if (targetDir.isEmpty) return false;
+    try {
+      final bytes = await getExportImageBytes(image, raw: false);
+      if (bytes.isEmpty) return false;
+      final now = DateTime.now();
+      final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
+      final fileName = 'nai_${timeStr}_${image.seed}.png';
+      final file = File(p.join(targetDir, fileName));
+      await file.writeAsBytes(bytes);
+      _statusMessage = vmL10n.vmGenSavedTo(file.path);
       notifyListeners();
       return true;
     } catch (e) {

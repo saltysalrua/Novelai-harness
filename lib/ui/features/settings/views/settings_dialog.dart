@@ -144,51 +144,143 @@ class _SettingsDialogState extends State<SettingsDialog> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final screenSize = MediaQuery.sizeOf(context);
-    final dialogWidth = (screenSize.width * 0.8).clamp(520.0, 1600.0);
-    final dialogHeight = (screenSize.height * 0.8).clamp(400.0, 1200.0);
+    final isNarrow = screenSize.width < 768;
+
+    final dialogWidth = isNarrow
+        ? screenSize.width
+        : (screenSize.width * 0.8).clamp(520.0, 1600.0);
+    final dialogHeight = isNarrow
+        ? screenSize.height
+        : (screenSize.height * 0.8).clamp(400.0, 1200.0);
+    final borderRadius = isNarrow ? 0.0 : 12.0;
 
     return Dialog(
       backgroundColor: colors.cardBackground,
-      insetPadding: EdgeInsets.zero,
+      insetPadding: isNarrow ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: colors.borderDefault),
+        borderRadius: BorderRadius.circular(borderRadius),
+        side: isNarrow ? BorderSide.none : BorderSide(color: colors.borderDefault),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(borderRadius),
         child: SizedBox(
           width: dialogWidth,
           height: dialogHeight,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. 左侧导航栏 (Settings Categories)
-              _buildSidebar(context),
-
-              // 2. 右侧配置详情内容区
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 右侧顶部标题栏与关闭按键
-                    _buildContentHeader(context),
-
-                    // 懒构建保活，切页只动画绘制层，不逐帧重建表单。
-                    Expanded(
-                      child: AppPageStack(
-                        index: _activeTabIndex,
-                        itemCount: _tabBuilders.length,
-                        itemBuilder: (context, index) => _tabBuilders[index](),
+          child: SafeArea(
+            top: isNarrow,
+            bottom: isNarrow,
+            child: isNarrow
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildContentHeader(context),
+                      _buildHorizontalTabs(context),
+                      Expanded(
+                        child: AppPageStack(
+                          index: _activeTabIndex,
+                          itemCount: _tabBuilders.length,
+                          itemBuilder: (context, index) => _tabBuilders[index](),
+                        ),
                       ),
-                    ),
+                      _buildFooter(context),
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 1. 左侧导航栏 (Settings Categories)
+                      _buildSidebar(context),
 
-                    // 右侧底部保存 / 取消操作栏
-                    _buildFooter(context),
-                  ],
+                      // 2. 右侧配置详情内容区
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // 右侧顶部标题栏与关闭按键
+                            _buildContentHeader(context),
+
+                            // 懒构建保活，切页只动画绘制层，不逐帧重建表单。
+                            Expanded(
+                              child: AppPageStack(
+                                index: _activeTabIndex,
+                                itemCount: _tabBuilders.length,
+                                itemBuilder: (context, index) =>
+                                    _tabBuilders[index](),
+                              ),
+                            ),
+
+                            // 右侧底部保存 / 取消操作栏
+                            _buildFooter(context),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 窄屏顶部横向滚动分类标签
+  Widget _buildHorizontalTabs(BuildContext context) {
+    final colors = context.colors;
+    final tabs = [
+      (0, Icons.tune_outlined, 'General'),
+      (1, Icons.smart_toy_outlined, 'Models'),
+      (2, Icons.psychology_outlined, 'Presets'),
+      (3, Icons.layers_outlined, 'Defaults'),
+      (4, Icons.receipt_long_outlined, 'Bill'),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.elevatedBackground,
+        border: Border(bottom: BorderSide(color: colors.borderDefault)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: tabs.map((tab) {
+            final isSelected = _activeTabIndex == tab.$1;
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: InkWell(
+                onTap: () => setState(() => _activeTabIndex = tab.$1),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected ? colors.primaryTint : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected ? colors.primary.withValues(alpha: 0.4) : Colors.transparent,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        tab.$2,
+                        size: 15,
+                        color: isSelected ? colors.primary : colors.textMuted,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        tab.$3,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          color: isSelected ? colors.primary : colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            );
+          }).toList(),
         ),
       ),
     );

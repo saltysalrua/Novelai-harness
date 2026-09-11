@@ -275,35 +275,29 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     final categories = _getAllCategories(allEntries);
     final filtered = _filterEntries(allEntries);
 
-    return Container(
-      margin: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: colors.borderDefault),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 1. 顶部操作栏
-          _buildTopBar(context, allEntries.length),
-          Divider(height: 1, color: colors.borderDefault),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 650;
 
-          // 2. 主体区：左侧分类标签栏 + 竖向分割线 + 右侧词组合网格
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 侧边分类标签栏 (固定宽度 200)
-                SizedBox(
-                  width: 200,
-                  child: _buildCategorySidebar(context, categories, allEntries),
-                ),
+        return Container(
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: colors.cardBackground,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: colors.borderDefault),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. 顶部操作栏
+              _buildTopBar(context, allEntries.length),
+              Divider(height: 1, color: colors.borderDefault),
 
-                VerticalDivider(width: 1, color: colors.borderDefault),
-
-                // 右侧词组合网格
+              // 2. 主体区：窄屏分类在顶部横向滚动，宽屏在左侧
+              if (isNarrow) ...[
+                _buildHorizontalCategoryBar(context, categories, allEntries),
+                Divider(height: 1, color: colors.borderDefault),
                 Expanded(
                   child: Container(
                     color: colors.canvasBackground,
@@ -312,10 +306,110 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                         : _buildGrid(filtered),
                   ),
                 ),
+              ] else ...[
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 侧边分类标签栏 (固定宽度 200)
+                      SizedBox(
+                        width: 200,
+                        child: _buildCategorySidebar(
+                          context,
+                          categories,
+                          allEntries,
+                        ),
+                      ),
+
+                      VerticalDivider(width: 1, color: colors.borderDefault),
+
+                      // 右侧词组合网格
+                      Expanded(
+                        child: Container(
+                          color: colors.canvasBackground,
+                          child: filtered.isEmpty
+                              ? _buildEmptyState(context, allEntries.isEmpty)
+                              : _buildGrid(filtered),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
-            ),
+            ],
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  /// 窄屏顶部横向滚动分类胶囊栏
+  Widget _buildHorizontalCategoryBar(
+    BuildContext context,
+    List<String> categories,
+    List<PromptComboEntry> allEntries,
+  ) {
+    final colors = context.colors;
+
+    return Container(
+      color: colors.cardBackground,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: categories.map((cat) {
+            final isSelected = _selectedCategory == cat;
+            final count = cat == '全部'
+                ? allEntries.length
+                : allEntries.where((e) => e.category.trim() == cat).length;
+            final icon = _getCategoryIcon(cat);
+
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: InkWell(
+                onTap: () => setState(() => _selectedCategory = cat),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isSelected ? colors.primaryTint : colors.mutedBackground,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(
+                      color: isSelected ? colors.primary.withValues(alpha: 0.5) : colors.borderDefault,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 14,
+                        color: isSelected ? colors.primary : colors.textSecondary,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        cat,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          color: isSelected ? colors.primary : colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$count',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isSelected ? colors.primary : colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }

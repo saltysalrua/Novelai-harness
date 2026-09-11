@@ -31,10 +31,7 @@ void main() {
         MaterialApp(
           theme: AppTheme.darkTheme,
           home: const Scaffold(
-            body: AppCard(
-              isSelected: true,
-              child: Text('Selected Card'),
-            ),
+            body: AppCard(isSelected: true, child: Text('Selected Card')),
           ),
         ),
       );

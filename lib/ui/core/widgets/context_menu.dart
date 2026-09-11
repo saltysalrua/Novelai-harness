@@ -80,7 +80,7 @@ class _ContextMenuOverlay extends StatefulWidget {
 class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
   bool _visible = false;
 
-  static const double _menuWidth = 176.0;
+  static const double _menuWidth = 200.0;
   static const double _itemHeight = 34.0;
   static const double _dividerHeight = 9.0;
   static const double _menuPadding = 4.0;
@@ -219,12 +219,15 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
             children: [
               Icon(action.icon, size: 16, color: iconColor),
               const SizedBox(width: 10),
-              Text(
-                action.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: textColor,
+              Expanded(
+                child: Text(
+                  action.label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: textColor,
+                  ),
                 ),
               ),
             ],

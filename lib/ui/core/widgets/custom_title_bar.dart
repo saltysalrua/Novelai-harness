@@ -146,13 +146,13 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
 
           // 右侧：窗口控制三键 (最小化、最大化/向下还原、关闭)
           if (_isDesktop) ...[
-            _WindowButton(
+            AppWindowButton(
               icon: Icons.remove,
               iconSize: 14,
               tooltip: '最小化',
               onPressed: _minimize,
             ),
-            _WindowButton(
+            AppWindowButton(
               icon: _isMaximized
                   ? Icons.filter_none_rounded
                   : Icons.crop_square_rounded,
@@ -160,7 +160,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
               tooltip: _isMaximized ? '向下还原' : '最大化',
               onPressed: _toggleMaximize,
             ),
-            _WindowButton(
+            AppWindowButton(
               icon: Icons.close_rounded,
               iconSize: 15,
               tooltip: '关闭',
@@ -186,26 +186,31 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
 }
 
 /// 窗口控制按钮组件 (带原生平滑 Hover 动效，关闭键支持红底警示)
-class _WindowButton extends StatefulWidget {
+class AppWindowButton extends StatefulWidget {
   final IconData icon;
   final double iconSize;
   final String tooltip;
   final bool isClose;
   final VoidCallback onPressed;
+  final double width;
+  final double height;
 
-  const _WindowButton({
+  const AppWindowButton({
+    super.key,
     required this.icon,
     required this.iconSize,
     required this.tooltip,
     this.isClose = false,
     required this.onPressed,
+    this.width = 44,
+    this.height = 38,
   });
 
   @override
-  State<_WindowButton> createState() => _WindowButtonState();
+  State<AppWindowButton> createState() => _AppWindowButtonState();
 }
 
-class _WindowButtonState extends State<_WindowButton> {
+class _AppWindowButtonState extends State<AppWindowButton> {
   bool _isHovered = false;
 
   @override
@@ -234,8 +239,8 @@ class _WindowButtonState extends State<_WindowButton> {
           behavior: HitTestBehavior.opaque,
           onTap: widget.onPressed,
           child: Container(
-            width: 44,
-            height: 38,
+            width: widget.width,
+            height: widget.height,
             color: backgroundColor,
             alignment: Alignment.center,
             child: Icon(widget.icon, size: widget.iconSize, color: iconColor),

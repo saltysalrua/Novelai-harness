@@ -330,9 +330,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
         parsedParams = decoded;
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.l10n.toolSchemaParseError('$e'))),
       );
       return;

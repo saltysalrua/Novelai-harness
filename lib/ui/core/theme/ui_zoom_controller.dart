@@ -80,14 +80,20 @@ class AppUiZoomScope extends StatelessWidget {
         return MediaQuery(
           data: mq.copyWith(size: Size(scaledWidth, scaledHeight)),
           // FittedBox 给子树无约束布局空间，内层 SizedBox 固定缩小后的逻辑尺寸；
-          // fit: fill 在等比尺寸下均匀放大 zoom 倍铺满窗口。
-          child: FittedBox(
-            fit: BoxFit.fill,
-            clipBehavior: Clip.none,
-            child: SizedBox(
-              width: scaledWidth,
-              height: scaledHeight,
-              child: child,
+          // 外层 SizedBox 锁定父级完整可用尺寸，确保 FittedBox 将子树等比放大 zoom 倍铺满容器，
+          // 杜绝在宽松约束 (如 SafeArea) 下 FittedBox 自收缩为缩小尺寸导致右侧与底部大面积空白。
+          child: SizedBox(
+            width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
+            height:
+                constraints.maxHeight.isFinite ? constraints.maxHeight : null,
+            child: FittedBox(
+              fit: BoxFit.fill,
+              clipBehavior: Clip.none,
+              child: SizedBox(
+                width: scaledWidth,
+                height: scaledHeight,
+                child: child,
+              ),
             ),
           ),
         );
