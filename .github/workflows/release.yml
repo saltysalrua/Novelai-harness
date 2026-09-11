@@ -2,6 +2,18 @@ name: Release
 
 # 触发方式：pubspec.yaml 有变动时（版本号更新）或手动触发。
 # 若 pubspec 里的 version 没有新增（对应 Release 已存在），流程会在检查阶段直接跳过。
+#
+# 产物：
+#   - Windows x64 绿色包 (zip)  ← build-windows
+#   - Android 通用 APK          ← build-android
+# 两端构建并行，全部完成后由 release 阶段统一建 tag 并上传 Release 资产。
+#
+# Android 签名（可选）：在仓库 Secrets 中配置下列四项后自动启用正式签名，
+# 未配置时回退 debug 签名（APK 仍可直接侧载安装）：
+#   ANDROID_KEYSTORE_BASE64
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
 on:
   push:
     branches: [master]
@@ -48,15 +60,13 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # 阶段二：构建 Windows 发行包
-  build:
+  # 阶段二 A：构建 Windows 发行包
+  build-windows:
     needs: check
     if: needs.check.outputs.skip == 'false'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-        with:
-          fetch-depth: 0 # 完整历史，用于生成 commit 总结
 
       # subosito/flutter-action v2.21.0
       - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
@@ -82,8 +92,103 @@ jobs:
           Compress-Archive -Path "$releaseDir/*" -DestinationPath "$zip" -Force
           Get-Item "$zip" | Select-Object Name, Length
 
+      # actions/upload-artifact v7.0.1
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: windows-x64
+          path: NovelAI-Harness-*-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 3
+
+  # 阶段二 B：构建 Android 通用 APK（与 Windows 并行）
+  build-android:
+    needs: check
+    if: needs.check.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      # actions/setup-java v5.7.0
+      # AGP 8.11 / Kotlin 2.2 需要 JDK 17+，同时顺带缓存 ~/.gradle
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      # subosito/flutter-action v2.21.0（版本与 Windows 保持一致）
+      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
+        with:
+          flutter-version: 3.44.0-0.3.pre
+          channel: beta
+          cache: true
+
+      - name: Configure release signing (optional)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "未配置 ANDROID_KEYSTORE_BASE64，改用 debug 签名构建。"
+            exit 0
+          fi
+          STORE="$RUNNER_TEMP/release.keystore"
+          base64 -d > "$STORE" <<< "$ANDROID_KEYSTORE_BASE64"
+          {
+            echo "storeFile=$STORE"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+          } > android/key.properties
+          echo "已写入 android/key.properties（正式签名）。"
+
+      - name: Build Android APK
+        run: |
+          flutter pub get
+          flutter build apk --release \
+            --build-number ${{ github.run_number }}
+
+      - name: Rename APK
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          APK="NovelAI-Harness-v${VERSION}-android.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$APK"
+          ls -lh "$APK"
+
+      # actions/upload-artifact v7.0.1
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: android-apk
+          path: NovelAI-Harness-*-android.apk
+          if-no-files-found: error
+          retention-days: 3
+
+  # 阶段三：汇总产物、生成变更说明并创建 Release
+  release:
+    needs: [check, build-windows, build-android]
+    if: needs.check.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0 # 完整历史，用于生成 commit 总结
+
+      # actions/download-artifact v8.0.1
+      - name: Download all artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh dist
+
       - name: Generate commit summary
-        shell: bash
         env:
           VERSION: ${{ needs.check.outputs.version }}
         run: |
@@ -139,13 +244,22 @@ jobs:
               echo "$OTHERS"
               echo ""
             fi
+
+            WIN_ZIP="NovelAI-Harness-v${VERSION}-windows-x64.zip"
+            APK="NovelAI-Harness-v${VERSION}-android.apk"
+            echo "### 下载"
+            echo ""
+            echo "| 平台 | 文件 |"
+            echo "| --- | --- |"
+            echo "| Windows x64 | \`$WIN_ZIP\` |"
+            echo "| Android | \`$APK\` |"
+            echo ""
           } > "$NOTES"
 
           echo "----- 生成的 Release 说明 -----"
           cat "$NOTES"
 
       - name: Create GitHub release
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.check.outputs.version }}
@@ -155,4 +269,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "NovelAI Harness v${VERSION}" \
             --notes-file release_notes.md \
-            "NovelAI-Harness-v${VERSION}-windows-x64.zip"
+            dist/*.zip dist/*.apk
