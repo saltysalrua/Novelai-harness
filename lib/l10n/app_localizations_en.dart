@@ -23,6 +23,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String chatContextShort(int percent) {
+    return 'Context $percent%';
+  }
+
+  @override
   String chatContextNotes(int count) {
     return 'Notes $count';
   }

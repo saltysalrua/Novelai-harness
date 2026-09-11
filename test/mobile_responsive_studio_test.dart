@@ -65,10 +65,10 @@ void main() {
     // 手机不用圆角胶囊外框，仅以底部细线标记选中项
     expect(navigation.variant, AppPillVariant.underline);
     final firstSize = tester.getSize(find.byKey(const Key('segmented_pill_0')));
-    expect(firstSize.height, 48);
+    expect(firstSize.height, 32);
     expect(
       tester.getSize(find.byKey(const ValueKey('mobile_top_bar'))).height,
-      48,
+      32,
     );
     for (final index in [1, 2]) {
       final size = tester.getSize(find.byKey(Key('segmented_pill_$index')));

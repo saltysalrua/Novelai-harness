@@ -277,6 +277,37 @@ void main() {
         closeTo(width - 50, 1),
         reason: '手机正文同样使用整行，不被附件和发送挤占',
       );
+
+      // 辅助区默认折叠在抽屉里，只保留一行可点摘要
+      final drawer = find.byKey(const ValueKey('chat_aux_drawer_toggle'));
+      expect(drawer, findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('chat_thinking_selector')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('chat_context_details')), findsNothing);
+      final collapsedHeight = tester.getSize(input).height;
+      expect(
+        tester.getTopLeft(drawer).dy,
+        lessThan(tester.getTopLeft(find.byType(AppCard)).dy),
+        reason: '抽屉在输入框上方',
+      );
+
+      await tester.tap(drawer);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('chat_thinking_selector')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('chat_context_details')),
+        findsOneWidget,
+      );
+      expect(tester.getSize(input).height, greaterThan(collapsedHeight));
+      await tester.tap(drawer);
+      await tester.pumpAndSettle();
+      expect(tester.getSize(input).height, collapsedHeight);
+
       await tester.enterText(field, List.filled(3, '多行').join('\n'));
       await tester.pump();
       final threeLines = tester.getSize(field);

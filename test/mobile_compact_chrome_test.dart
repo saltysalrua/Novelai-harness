@@ -30,7 +30,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           tester.getSize(find.byKey(const ValueKey('mobile_top_bar'))).height,
-          48,
+          32,
         );
         expect(
           tester.getSize(find.byType(GenerateDock)).height,
@@ -72,6 +72,15 @@ void main() {
         final input = find.byType(AgentChatInputBar);
         expect(tester.widget<AgentChatInputBar>(input).compact, isTrue);
         expect(tester.getSize(input).height, lessThanOrEqualTo(210));
+        // 思考与上下文默认收在抽屉里，输入区只保留一行摘要
+        expect(
+          find.byKey(const ValueKey('chat_aux_drawer_toggle')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('chat_thinking_selector')),
+          findsNothing,
+        );
         final field = find.descendant(
           of: input,
           matching: find.byType(TextField),

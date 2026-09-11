@@ -774,7 +774,8 @@ class _StudioViewState extends State<StudioView> {
 /// - 中间：三卡片分段胶囊指示器 [生图] [画板] [助手]，平滑跟随与点击切页；
 ///   可用宽度不足时自动退化为图标胶囊 (带 Tooltip)，彻底避免窄屏溢出；
 /// - 桌面端 (Windows/macOS/Linux)：背景支持拖拽窗口移动与双击最大化，右侧提供最小化与关闭按键；
-/// - 移动端 (Android/iOS)：不渲染胶囊外框和装饰图标，仅保留文字与选中下划线。
+/// - 移动端 (Android/iOS)：不渲染胶囊外框和装饰图标，仅保留文字与选中下划线，
+///   整体高度对齐桌面标题栏 (32)，不占用竖屏空间。
 class _MobileTopBar extends StatefulWidget {
   final int activeIndex;
   final ValueChanged<int> onPageSelected;
@@ -800,7 +801,7 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
 
     return SizedBox(
       key: const ValueKey('mobile_top_bar'),
-      height: isDesktopWindow ? 32.0 : 48.0,
+      height: 32.0,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.cardBackground,
@@ -864,7 +865,7 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
                                 : AppPillVariant.underline,
                             expand: true,
                             radius: isDesktopWindow ? AppRadius.md : 0,
-                            minHeight: isDesktopWindow ? 24 : 48,
+                            minHeight: isDesktopWindow ? 24 : 32,
                             itemPadding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 2,

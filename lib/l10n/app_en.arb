@@ -10,6 +10,10 @@
       "window": {"type": "int"}
     }
   },
+  "chatContextShort": "Context {percent}%",
+  "@chatContextShort": {
+    "placeholders": {"percent": {"type": "int"}}
+  },
   "chatContextNotes": "Notes {count}",
   "@chatContextNotes": {
     "placeholders": {"count": {"type": "int"}}

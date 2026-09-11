@@ -122,6 +122,12 @@ abstract class AppLocalizations {
   /// **'上下文 ≈{tokens} / {window}'**
   String chatContextEstimate(int tokens, int window);
 
+  /// No description provided for @chatContextShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'上下文 {percent}%'**
+  String chatContextShort(int percent);
+
   /// No description provided for @chatContextNotes.
   ///
   /// In zh, this message translates to:

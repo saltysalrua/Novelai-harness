@@ -10,6 +10,10 @@
       "window": {"type": "int"}
     }
   },
+  "chatContextShort": "上下文 {percent}%",
+  "@chatContextShort": {
+    "placeholders": {"percent": {"type": "int"}}
+  },
   "chatContextNotes": "笔记 {count}",
   "@chatContextNotes": {
     "placeholders": {"count": {"type": "int"}}

@@ -533,8 +533,8 @@ Agent 对话可联网检索：AnySearch (`https://api.anysearch.com`) 三端点�
 
 ### 3.10 窄屏布局与二维拖动
 
-- **紧凑布局**：窄屏 `StudioView` 的三卡片仍由横向 `PageView` 承载；移动端顶部导航总高 48 逻辑像素，三个页签使用 `AppSegmentedPillBar` 的 `AppPillVariant.underline`（无外框、无装饰图标，仅文字与底部选中细线），桌面窗口内仍用 `soft` 胶囊 + 窗口按键。底部五个快捷入口复用 `AppNavTile(axis: Axis.vertical)`，统一选中底色、边框和圆角。软键盘弹出时隐藏底部快捷栏，换页时释放输入焦点，草稿保留在 ViewModel。
+- **紧凑布局**：窄屏 `StudioView` 的三卡片仍由横向 `PageView` 承载；移动端顶部导航总高 32 逻辑像素（与桌面标题栏同高），三个页签使用 `AppSegmentedPillBar` 的 `AppPillVariant.underline`（无外框、无装饰图标，仅文字与底部选中细线），桌面窗口内仍用 `soft` 胶囊 + 窗口按键。底部五个快捷入口复用 `AppNavTile(axis: Axis.vertical)`，统一选中底色、边框和圆角。软键盘弹出时隐藏底部快捷栏，换页时释放输入焦点，草稿保留在 ViewModel。
 - **生成与对话操作区**：`ParameterCard → GenerateDock`、`AgentChatCard → AgentChatInputBar` 透传 `compact`，仅窄屏开启，桌面维持原布局。窄屏触屏控件统一到 48 逻辑像素：账号徽章 + 点数 + 完整 V5 体力条保留原信息密度，刷新与附件/发送/思考/模型选择均改由原子按钮与 `AppDropdown` 的 `pill` 变体承载（不改变桌面尺寸）。
-- **手机对话框分层**：`AgentChatInputBar` 与桌面共用同一编辑器、控制器与按键链，仅重排布局：正文输入保持整行宽度（3 行后内部滚动），卡片内工具栏为「附件 → 模型胶囊 → 发送」；辅助行放思考档位与上下文摘要。`ChatContextStatus` 是唯一的上下文用量展示组件：桌面为悬停提示，手机为 48 像素可点区域，点按弹出底部抽屉展示模型、估算口径、会话累计用量与压缩状态，不再依赖悬停；流式输出期间发送键切换为停止键，补足手机无 Esc 的终止入口。
+- **手机对话框分层**：`AgentChatInputBar` 与桌面共用同一编辑器、控制器与按键链，仅重排布局：正文输入保持整行宽度（3 行后内部滚动），卡片内工具栏为「附件 → 模型选择 → 发送」，两者均无外框。思考档位与上下文用量收进输入框**上方的辅助抽屉**（`chat_aux_drawer_toggle`，默认折叠，仅一行「思考 … · 上下文 N%」摘要，展开后才渲染选择器与用量块）。`ChatContextStatus` 是唯一的上下文用量展示组件：桌面为悬停提示，手机为 48 像素可点区域，点按弹出底部抽屉展示模型、估算口径、会话累计用量与压缩状态，不再依赖悬停；流式输出期间发送键切换为停止键，补足手机无 Esc 的终止入口。
 - **手势单一入口**：`lib/ui/core/widgets/app_pan_gesture_region.dart` 的 `AppPanGestureRegion` 不含业务状态，给分辨率画板、角色锚点、水印移动与缩放提供二维拖动。Flutter 默认 Pan 的触摸阈值高于单轴滚动，故按同一 `MediaQuery.gestureSettings` 将 Pan 接受阈值对齐单轴 Drag，使操作面先于祖先翻页/滚动识别；不在按下时独占事件，也不禁用外围滚动。已接受手势收到 `PointerCancel` 时转取消回调，不误走松手提交。
 - **预览与提交**：分辨率、角色和水印拖动期间只更新局部预览，松手一次性提交 ViewModel，取消不写参数。水印缩放手柄完整放在父盒有效命中范围内，避免可见却点不到。`mobile_pan_gesture_test.dart` 逐帧验证横/纵/斜拖不移动外层 PageView/ListView、不逐帧全局通知，并覆盖松手、取消与外围正常滚动。

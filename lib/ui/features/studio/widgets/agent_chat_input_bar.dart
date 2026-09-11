@@ -65,6 +65,9 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 按 Esc 后记录当前输入，避免同类补全立即重新弹出
   String _dismissedToken = '';
 
+  /// 手机端辅助抽屉（思考档位 / 上下文用量）是否展开，默认折叠隐藏
+  bool _auxDrawerExpanded = false;
+
   /// 输入框实测宽度 (帧后回调中缓存，禁止在 build/layout 阶段读 size)
   double _fieldWidth = 320.0;
 
@@ -438,7 +441,11 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (!widget.compact) ...[
+          if (widget.compact) ...[
+            // 辅助区在输入框上方，默认折叠为一行摘要
+            _buildAuxDrawer(activeModel, currentEffort, contextStatus),
+            const SizedBox(height: AppSpacing.sm),
+          ] else ...[
             _buildCombinedModelThinkingCard(
               activeProvider,
               activeModel,
@@ -458,27 +465,83 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           _buildAttachmentPreview(),
 
           _buildMessageComposer(),
-          if (widget.compact) ...[
-            const SizedBox(height: AppSpacing.xs),
-            // 辅助控制独立成行；容量、笔记与压缩状态不再截断。
-            Row(
-              children: [
-                if (activeModel.supportsThinking) ...[
-                  SizedBox(
-                    width: 112,
-                    child: _buildInlineThinkingDropdown(
-                      activeModel,
-                      currentEffort,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                ],
-                Expanded(child: contextStatus),
-              ],
-            ),
-          ],
         ],
       ),
+    );
+  }
+
+  /// 手机端辅助抽屉：思考档位与上下文用量默认隐藏，仅在输入框上方留一条
+  /// 可点击摘要；展开后按顺序落下选择器与用量详情，全部无外框。
+  Widget _buildAuxDrawer(
+    LlmModelConfig activeModel,
+    ThinkingEffort currentEffort,
+    Widget contextStatus,
+  ) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final usage = widget.viewModel.contextUsage;
+    // 折叠摘要固定为「思考 <档位> · 上下文 <百分比>」，不携带容量与笔记明细
+    final summary = [
+      if (activeModel.supportsThinking)
+        '${l10n.chatThinkingLabel} ${_effortLabel(currentEffort)}',
+      l10n.chatContextShort((usage.fraction * 100).round()),
+    ].join(' · ');
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          button: true,
+          expanded: _auxDrawerExpanded,
+          child: InkWell(
+            key: const ValueKey('chat_aux_drawer_toggle'),
+            onTap: () =>
+                setState(() => _auxDrawerExpanded = !_auxDrawerExpanded),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 32),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs,
+                  vertical: AppSpacing.xs,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        summary,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: colors.textMuted),
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: _auxDrawerExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 150),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (_auxDrawerExpanded) ...[
+          if (activeModel.supportsThinking) ...[
+            SizedBox(
+              height: 48,
+              child: _buildInlineThinkingDropdown(activeModel, currentEffort),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+          contextStatus,
+        ],
+      ],
     );
   }
 
@@ -655,9 +718,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         danglingLabel: activeModel.name,
         minHeight: widget.compact ? 48 : 0,
         multilineMenu: widget.compact,
-        variant: widget.compact
-            ? AppDropdownVariant.pill
-            : AppDropdownVariant.inline,
+        variant: AppDropdownVariant.inline,
         menuWidth: widget.compact
             ? MediaQuery.sizeOf(context).width - 32
             : null,
@@ -716,7 +777,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           .toList(),
       onChanged: widget.viewModel.setThinkingEffort,
       variant: widget.compact
-          ? AppDropdownVariant.pill
+          ? AppDropdownVariant.inline
           : AppDropdownVariant.compact,
       minHeight: widget.compact ? 48 : 0,
       width: widget.compact ? null : 92,
