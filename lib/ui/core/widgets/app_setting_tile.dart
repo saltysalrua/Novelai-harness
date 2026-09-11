@@ -151,10 +151,7 @@ class AppSettingTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
                 ),
               ],
             ],
@@ -166,10 +163,7 @@ class AppSettingTile extends StatelessWidget {
               if (isNarrow && !isSwitch) ...[
                 titleColumn,
                 const SizedBox(height: AppSpacing.sm),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: control,
-                ),
+                Align(alignment: Alignment.centerLeft, child: control),
               ] else
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,

@@ -245,338 +245,346 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          AppSectionHeader(title: l10n.settingsSectionAppearance),
-          AppSettingTile(
-            title: l10n.settingsThemeMode,
-            subtitle: l10n.settingsThemeModeSubtitle,
-            control: AppDropdown.simple(
-              value: _draft.themeMode,
-              items: AppThemeModePreference.values,
-              labelOf: (mode) => switch (mode) {
-                AppThemeModePreference.system => l10n.themeModeSystem,
-                AppThemeModePreference.light => l10n.themeModeLight,
-                AppThemeModePreference.dark => l10n.themeModeDark,
-              },
-              width: 130,
-              onChanged: (mode) => setState(() => _draft.themeMode = mode),
-            ),
-          ),
-          AppSettingTile(
-            title: l10n.settingsAccentSource,
-            subtitle: l10n.settingsAccentSourceSubtitle,
-            control: AppDropdown.simple(
-              value: _draft.accentMode,
-              items: AppAccentMode.values,
-              labelOf: (mode) => switch (mode) {
-                AppAccentMode.defaultBlue => l10n.accentModeDefault,
-                AppAccentMode.adaptive => l10n.accentModeAdaptive,
-                AppAccentMode.manual => l10n.accentModeManual,
-              },
-              width: 130,
-              onChanged: (mode) => setState(() => _draft.accentMode = mode),
-            ),
-          ),
-          AppSettingTile(
-            title: l10n.settingsAccentSeed,
-            subtitle: l10n.settingsAccentSeedSubtitle,
-            control: _AccentSeedSwatch(
-              color:
-                  _seedColorOf(_draft.accentSeedColor) ??
-                  const Color(0xFF0075DE),
-              onTap: () async {
-                final picked = await AppColorPickerDialog.show(
-                  context,
-                  initialColor:
+              AppSectionHeader(title: l10n.settingsSectionAppearance),
+              AppSettingTile(
+                title: l10n.settingsThemeMode,
+                subtitle: l10n.settingsThemeModeSubtitle,
+                control: AppDropdown.simple(
+                  value: _draft.themeMode,
+                  items: AppThemeModePreference.values,
+                  labelOf: (mode) => switch (mode) {
+                    AppThemeModePreference.system => l10n.themeModeSystem,
+                    AppThemeModePreference.light => l10n.themeModeLight,
+                    AppThemeModePreference.dark => l10n.themeModeDark,
+                  },
+                  width: 130,
+                  onChanged: (mode) => setState(() => _draft.themeMode = mode),
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsAccentSource,
+                subtitle: l10n.settingsAccentSourceSubtitle,
+                control: AppDropdown.simple(
+                  value: _draft.accentMode,
+                  items: AppAccentMode.values,
+                  labelOf: (mode) => switch (mode) {
+                    AppAccentMode.defaultBlue => l10n.accentModeDefault,
+                    AppAccentMode.adaptive => l10n.accentModeAdaptive,
+                    AppAccentMode.manual => l10n.accentModeManual,
+                  },
+                  width: 130,
+                  onChanged: (mode) => setState(() => _draft.accentMode = mode),
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsAccentSeed,
+                subtitle: l10n.settingsAccentSeedSubtitle,
+                control: _AccentSeedSwatch(
+                  color:
                       _seedColorOf(_draft.accentSeedColor) ??
                       const Color(0xFF0075DE),
-                );
-                if (picked == null) return;
-                setState(() {
-                  _draft.accentSeedColor = seedColorText(picked.toARGB32());
-                  _draft.accentMode = AppAccentMode.manual;
-                });
-              },
-            ),
-          ),
-          AppSettingTile(
-            title: l10n.settingsAccentVariant,
-            subtitle: l10n.settingsAccentVariantSubtitle,
-            control: AppDropdown.simple(
-              value: _draft.accentVariant,
-              items: AppAccentVariant.values,
-              labelOf: (variant) => switch (variant) {
-                AppAccentVariant.tonalSpot => l10n.accentVariantTonalSpot,
-                AppAccentVariant.vibrant => l10n.accentVariantVibrant,
-                AppAccentVariant.expressive => l10n.accentVariantExpressive,
-                AppAccentVariant.content => l10n.accentVariantContent,
-                AppAccentVariant.neutral => l10n.accentVariantNeutral,
-                AppAccentVariant.monochrome => l10n.accentVariantMonochrome,
-                AppAccentVariant.rainbow => l10n.accentVariantRainbow,
-                AppAccentVariant.fruitSalad => l10n.accentVariantFruitSalad,
-              },
-              width: 170,
-              onChanged: (variant) =>
-                  setState(() => _draft.accentVariant = variant),
-            ),
-          ),
-          AppSettingTile(
-            title: l10n.settingsLanguage,
-            subtitle: l10n.settingsLanguageSubtitle,
-            control: AppDropdown.simple(
-              value: _draft.localePreference,
-              items: AppLocalePreference.values,
-              labelOf: (locale) => switch (locale) {
-                AppLocalePreference.system => l10n.localeSystem,
-                AppLocalePreference.zh => l10n.localeChinese,
-                AppLocalePreference.en => l10n.localeEnglish,
-              },
-              width: 150,
-              onChanged: (locale) =>
-                  setState(() => _draft.localePreference = locale),
-            ),
-          ),
-          AppSettingTile(
-            title: l10n.settingsUiZoom,
-            subtitle: l10n.settingsUiZoomSubtitle,
-            control: AppDropdown<double>.simple(
-              value: _draft.uiZoom,
-              items: const [0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75],
-              labelOf: (zoom) => '${(zoom * 100).round()}%',
-              width: 110,
-              onChanged: (zoom) => setState(() => _draft.uiZoom = zoom),
-            ),
-          ),
-          const SizedBox(height: 12),
-          AppSectionHeader(title: l10n.settingsSectionNovelaiService),
-          AppSettingTile(
-            title: l10n.settingsApiKeyTitle,
-            subtitle: l10n.settingsApiKeySubtitle,
-            control: SettingsKeyField(
-              controller: _draft.naiKeyController,
-              hintText: 'pst-...',
-            ),
-          ),
-          AppSettingTile(
-            title: l10n.settingsSaveDirTitle,
-            subtitle: l10n.settingsSaveDirSubtitle,
-            control: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 320),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 36,
-                      child: TextField(
-                        controller: _draft.saveDirController,
-                        style: const TextStyle(fontSize: 12),
-                        decoration: InputDecoration(
-                          hintText: l10n.settingsSaveDirHint,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
+                  onTap: () async {
+                    final picked = await AppColorPickerDialog.show(
+                      context,
+                      initialColor:
+                          _seedColorOf(_draft.accentSeedColor) ??
+                          const Color(0xFF0075DE),
+                    );
+                    if (picked == null) return;
+                    setState(() {
+                      _draft.accentSeedColor = seedColorText(picked.toARGB32());
+                      _draft.accentMode = AppAccentMode.manual;
+                    });
+                  },
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsAccentVariant,
+                subtitle: l10n.settingsAccentVariantSubtitle,
+                control: AppDropdown.simple(
+                  value: _draft.accentVariant,
+                  items: AppAccentVariant.values,
+                  labelOf: (variant) => switch (variant) {
+                    AppAccentVariant.tonalSpot => l10n.accentVariantTonalSpot,
+                    AppAccentVariant.vibrant => l10n.accentVariantVibrant,
+                    AppAccentVariant.expressive => l10n.accentVariantExpressive,
+                    AppAccentVariant.content => l10n.accentVariantContent,
+                    AppAccentVariant.neutral => l10n.accentVariantNeutral,
+                    AppAccentVariant.monochrome => l10n.accentVariantMonochrome,
+                    AppAccentVariant.rainbow => l10n.accentVariantRainbow,
+                    AppAccentVariant.fruitSalad => l10n.accentVariantFruitSalad,
+                  },
+                  width: 170,
+                  onChanged: (variant) =>
+                      setState(() => _draft.accentVariant = variant),
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsLanguage,
+                subtitle: l10n.settingsLanguageSubtitle,
+                control: AppDropdown.simple(
+                  value: _draft.localePreference,
+                  items: AppLocalePreference.values,
+                  labelOf: (locale) => switch (locale) {
+                    AppLocalePreference.system => l10n.localeSystem,
+                    AppLocalePreference.zh => l10n.localeChinese,
+                    AppLocalePreference.en => l10n.localeEnglish,
+                  },
+                  width: 150,
+                  onChanged: (locale) =>
+                      setState(() => _draft.localePreference = locale),
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsUiZoom,
+                subtitle: l10n.settingsUiZoomSubtitle,
+                control: AppDropdown<double>.simple(
+                  value: _draft.uiZoom,
+                  items: const [0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75],
+                  labelOf: (zoom) => '${(zoom * 100).round()}%',
+                  width: 110,
+                  onChanged: (zoom) => setState(() => _draft.uiZoom = zoom),
+                ),
+              ),
+              const SizedBox(height: 12),
+              AppSectionHeader(title: l10n.settingsSectionNovelaiService),
+              AppSettingTile(
+                title: l10n.settingsApiKeyTitle,
+                subtitle: l10n.settingsApiKeySubtitle,
+                control: SettingsKeyField(
+                  controller: _draft.naiKeyController,
+                  hintText: 'pst-...',
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsSaveDirTitle,
+                subtitle: l10n.settingsSaveDirSubtitle,
+                control: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 36,
+                          child: TextField(
+                            controller: _draft.saveDirController,
+                            style: const TextStyle(fontSize: 12),
+                            decoration: InputDecoration(
+                              hintText: l10n.settingsSaveDirHint,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      AppActionButton(
+                        icon: Icons.folder_open_rounded,
+                        label: l10n.settingsChooseButton,
+                        onPressed: _pickDirectory,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  AppActionButton(
-                    icon: Icons.folder_open_rounded,
-                    label: l10n.settingsChooseButton,
-                    onPressed: _pickDirectory,
+                ),
+              ),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _draft.saveTemplateController,
+                builder: (context, value, child) => ImageSaveTemplateSettings(
+                  controller: _draft.saveTemplateController,
+                  preview: _draft.saveTemplatePreview,
+                  error: _draft.saveTemplateError,
+                  onInsertMacro: _draft.insertSaveMacro,
+                ),
+              ),
+              AppSettingTile.switchTile(
+                title: l10n.settingsAutoSaveTitle,
+                subtitle: _draft.autoSaveImages
+                    ? l10n.settingsAutoSaveSubtitleOn
+                    : l10n.settingsAutoSaveSubtitleOff,
+                value: _draft.autoSaveImages,
+                onChanged: (val) => setState(() => _draft.autoSaveImages = val),
+              ),
+              AppSettingTile.switchTile(
+                title: l10n.settingsStreamPreviewTitle,
+                subtitle: l10n.settingsStreamPreviewSubtitle,
+                value: _draft.enableStreamPreview,
+                onChanged: (val) =>
+                    setState(() => _draft.enableStreamPreview = val),
+              ),
+              AppSettingTile.switchTile(
+                title: l10n.settingsImagePersistenceTitle,
+                subtitle: l10n.settingsImagePersistenceSubtitle,
+                value: _draft.enableImagePersistence,
+                onChanged: (val) =>
+                    setState(() => _draft.enableImagePersistence = val),
+              ),
+              if (_draft.enableImagePersistence)
+                AppSettingTile(
+                  title: l10n.settingsMaxImagesTitle,
+                  subtitle: l10n.settingsMaxImagesSubtitle,
+                  control: AppDropdown.simple(
+                    value:
+                        [
+                          20,
+                          50,
+                          100,
+                          200,
+                          500,
+                        ].contains(_draft.maxPersistentImages)
+                        ? _draft.maxPersistentImages
+                        : 50,
+                    items: const [20, 50, 100, 200, 500],
+                    labelOf: (count) => l10n.settingsImageCount(count),
+                    width: 110,
+                    onChanged: (count) =>
+                        setState(() => _draft.maxPersistentImages = count),
                   ),
-                ],
+                ),
+              const SizedBox(height: 12),
+              AppSectionHeader(title: l10n.settingsSectionWebSearch),
+              AppSettingTile(
+                title: l10n.settingsAnySearchKeyTitle,
+                subtitle: l10n.settingsAnySearchKeySubtitle,
+                control: SettingsKeyField(
+                  controller: _draft.anySearchKeyController,
+                  hintText: 'as_sk-...',
+                ),
               ),
-            ),
-          ),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: _draft.saveTemplateController,
-            builder: (context, value, child) => ImageSaveTemplateSettings(
-              controller: _draft.saveTemplateController,
-              preview: _draft.saveTemplatePreview,
-              error: _draft.saveTemplateError,
-              onInsertMacro: _draft.insertSaveMacro,
-            ),
-          ),
-          AppSettingTile.switchTile(
-            title: l10n.settingsAutoSaveTitle,
-            subtitle: _draft.autoSaveImages
-                ? l10n.settingsAutoSaveSubtitleOn
-                : l10n.settingsAutoSaveSubtitleOff,
-            value: _draft.autoSaveImages,
-            onChanged: (val) => setState(() => _draft.autoSaveImages = val),
-          ),
-          AppSettingTile.switchTile(
-            title: l10n.settingsStreamPreviewTitle,
-            subtitle: l10n.settingsStreamPreviewSubtitle,
-            value: _draft.enableStreamPreview,
-            onChanged: (val) =>
-                setState(() => _draft.enableStreamPreview = val),
-          ),
-          AppSettingTile.switchTile(
-            title: l10n.settingsImagePersistenceTitle,
-            subtitle: l10n.settingsImagePersistenceSubtitle,
-            value: _draft.enableImagePersistence,
-            onChanged: (val) =>
-                setState(() => _draft.enableImagePersistence = val),
-          ),
-          if (_draft.enableImagePersistence)
-            AppSettingTile(
-              title: l10n.settingsMaxImagesTitle,
-              subtitle: l10n.settingsMaxImagesSubtitle,
-              control: AppDropdown.simple(
-                value:
-                    [20, 50, 100, 200, 500].contains(_draft.maxPersistentImages)
-                    ? _draft.maxPersistentImages
-                    : 50,
-                items: const [20, 50, 100, 200, 500],
-                labelOf: (count) => l10n.settingsImageCount(count),
-                width: 110,
-                onChanged: (count) =>
-                    setState(() => _draft.maxPersistentImages = count),
+              const SizedBox(height: 12),
+              AppSectionHeader(title: l10n.settingsSectionComfy),
+              AppSettingTile.switchTile(
+                title: l10n.settingsComfyEnabledTitle,
+                subtitle: l10n.settingsComfyEnabledDesc,
+                value: _draft.comfyUiEnabled,
+                onChanged: (val) => setState(() => _draft.comfyUiEnabled = val),
               ),
-            ),
-          const SizedBox(height: 12),
-          AppSectionHeader(title: l10n.settingsSectionWebSearch),
-          AppSettingTile(
-            title: l10n.settingsAnySearchKeyTitle,
-            subtitle: l10n.settingsAnySearchKeySubtitle,
-            control: SettingsKeyField(
-              controller: _draft.anySearchKeyController,
-              hintText: 'as_sk-...',
-            ),
-          ),
-          const SizedBox(height: 12),
-          AppSectionHeader(title: l10n.settingsSectionComfy),
-          AppSettingTile.switchTile(
-            title: l10n.settingsComfyEnabledTitle,
-            subtitle: l10n.settingsComfyEnabledDesc,
-            value: _draft.comfyUiEnabled,
-            onChanged: (val) => setState(() => _draft.comfyUiEnabled = val),
-          ),
-          if (_draft.comfyUiEnabled) ...[
-            AppSettingTile(
-              title: l10n.settingsComfyBaseUrlTitle,
-              control: SettingsKeyField(
-                controller: _draft.comfyBaseUrlController,
-                hintText: l10n.settingsComfyBaseUrlHint,
-              ),
-            ),
-            AppSettingTile(
-              title: l10n.settingsComfyNodeIdsTitle,
-              subtitle: l10n.settingsComfyNodeIdsHint,
-              control: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  SizedBox(
-                    width: 220,
-                    child: TextField(
-                      controller: _draft.comfyPromptNodeController,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: InputDecoration(
-                        hintText: l10n.settingsComfyPromptNodeHint,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+              if (_draft.comfyUiEnabled) ...[
+                AppSettingTile(
+                  title: l10n.settingsComfyBaseUrlTitle,
+                  control: SettingsKeyField(
+                    controller: _draft.comfyBaseUrlController,
+                    hintText: l10n.settingsComfyBaseUrlHint,
+                  ),
+                ),
+                AppSettingTile(
+                  title: l10n.settingsComfyNodeIdsTitle,
+                  subtitle: l10n.settingsComfyNodeIdsHint,
+                  control: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      SizedBox(
+                        width: 220,
+                        child: TextField(
+                          controller: _draft.comfyPromptNodeController,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: InputDecoration(
+                            hintText: l10n.settingsComfyPromptNodeHint,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    width: 220,
-                    child: TextField(
-                      controller: _draft.comfyResolutionNodeController,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: InputDecoration(
-                        hintText: l10n.settingsComfyResolutionNodeHint,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        width: 220,
+                        child: TextField(
+                          controller: _draft.comfyResolutionNodeController,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: InputDecoration(
+                            hintText: l10n.settingsComfyResolutionNodeHint,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    width: 220,
-                    child: TextField(
-                      controller: _draft.comfyParamsNodeController,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: InputDecoration(
-                        hintText: l10n.settingsComfyParamsNodeHint,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        width: 220,
+                        child: TextField(
+                          controller: _draft.comfyParamsNodeController,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: InputDecoration(
+                            hintText: l10n.settingsComfyParamsNodeHint,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              AppSectionHeader(title: l10n.settingsSectionTagAutocomplete),
+              AppSettingTile.switchTile(
+                title: l10n.settingsTagAutocompleteTitle,
+                subtitle: l10n.settingsTagAutocompleteSubtitle,
+                value: _draft.enableTagAutocomplete,
+                onChanged: (val) =>
+                    setState(() => _draft.enableTagAutocomplete = val),
               ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          AppSectionHeader(title: l10n.settingsSectionTagAutocomplete),
-          AppSettingTile.switchTile(
-            title: l10n.settingsTagAutocompleteTitle,
-            subtitle: l10n.settingsTagAutocompleteSubtitle,
-            value: _draft.enableTagAutocomplete,
-            onChanged: (val) =>
-                setState(() => _draft.enableTagAutocomplete = val),
+              AppSettingTile(
+                title: l10n.settingsDictUpdateTitle,
+                subtitle: _dictUpdating
+                    ? _dictStatus
+                    : (_dictStatus.isNotEmpty
+                          ? _dictStatus
+                          : _dictInfoText(l10n)),
+                control: _dictUpdating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : AppActionButton(
+                        icon: Icons.cloud_download_rounded,
+                        label: l10n.settingsDictUpdateNowButton,
+                        onPressed: _updateDictionary,
+                      ),
+              ),
+              AppSettingTile.switchTile(
+                title: l10n.settingsDictAutoCheckTitle,
+                subtitle: l10n.settingsDictAutoCheckSubtitle,
+                value: _draft.enableTagDictionaryAutoUpdate,
+                onChanged: (val) =>
+                    setState(() => _draft.enableTagDictionaryAutoUpdate = val),
+              ),
+              AppSettingTile.switchTile(
+                title: l10n.settingsTagTranslationsTitle,
+                subtitle: l10n.settingsTagTranslationsSubtitle,
+                value: _draft.showTagTranslations,
+                onChanged: (val) =>
+                    setState(() => _draft.showTagTranslations = val),
+              ),
+              AppSettingTile.switchTile(
+                title: l10n.settingsTagColorsTitle,
+                subtitle: l10n.settingsTagColorsSubtitle,
+                value: _draft.showTagCategoryColors,
+                onChanged: (val) =>
+                    setState(() => _draft.showTagCategoryColors = val),
+              ),
+              const SizedBox(height: 12),
+              AppSectionHeader(title: l10n.settingsSectionProtection),
+              AppSettingTile.switchTile(
+                title: l10n.settingsOpusTitle,
+                subtitle: l10n.settingsOpusSubtitle,
+                value: _draft.opusFreeMode,
+                onChanged: (val) => setState(() => _draft.opusFreeMode = val),
+              ),
+            ],
           ),
-          AppSettingTile(
-            title: l10n.settingsDictUpdateTitle,
-            subtitle: _dictUpdating
-                ? _dictStatus
-                : (_dictStatus.isNotEmpty ? _dictStatus : _dictInfoText(l10n)),
-            control: _dictUpdating
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : AppActionButton(
-                    icon: Icons.cloud_download_rounded,
-                    label: l10n.settingsDictUpdateNowButton,
-                    onPressed: _updateDictionary,
-                  ),
-          ),
-          AppSettingTile.switchTile(
-            title: l10n.settingsDictAutoCheckTitle,
-            subtitle: l10n.settingsDictAutoCheckSubtitle,
-            value: _draft.enableTagDictionaryAutoUpdate,
-            onChanged: (val) =>
-                setState(() => _draft.enableTagDictionaryAutoUpdate = val),
-          ),
-          AppSettingTile.switchTile(
-            title: l10n.settingsTagTranslationsTitle,
-            subtitle: l10n.settingsTagTranslationsSubtitle,
-            value: _draft.showTagTranslations,
-            onChanged: (val) =>
-                setState(() => _draft.showTagTranslations = val),
-          ),
-          AppSettingTile.switchTile(
-            title: l10n.settingsTagColorsTitle,
-            subtitle: l10n.settingsTagColorsSubtitle,
-            value: _draft.showTagCategoryColors,
-            onChanged: (val) =>
-                setState(() => _draft.showTagCategoryColors = val),
-          ),
-          const SizedBox(height: 12),
-          AppSectionHeader(title: l10n.settingsSectionProtection),
-          AppSettingTile.switchTile(
-            title: l10n.settingsOpusTitle,
-            subtitle: l10n.settingsOpusSubtitle,
-            value: _draft.opusFreeMode,
-            onChanged: (val) => setState(() => _draft.opusFreeMode = val),
-          ),
-        ],
-      ),
+        );
+      },
     );
-  },
-);
   }
 }
 

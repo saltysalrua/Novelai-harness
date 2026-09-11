@@ -84,8 +84,9 @@ class AppUiZoomScope extends StatelessWidget {
           // 杜绝在宽松约束 (如 SafeArea) 下 FittedBox 自收缩为缩小尺寸导致右侧与底部大面积空白。
           child: SizedBox(
             width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
-            height:
-                constraints.maxHeight.isFinite ? constraints.maxHeight : null,
+            height: constraints.maxHeight.isFinite
+                ? constraints.maxHeight
+                : null,
             child: FittedBox(
               fit: BoxFit.fill,
               clipBehavior: Clip.none,

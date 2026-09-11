@@ -18,26 +18,31 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('宽屏桌面模式 (>=620px)：渲染 CustomTitleBar、StudioSidebar 与 ResizableThreeSplitView', (tester) async {
-    tester.view.physicalSize = const Size(1200, 800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    '宽屏桌面模式 (>=620px)：渲染 CustomTitleBar、StudioSidebar 与 ResizableThreeSplitView',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const NovelAiHarnessApp());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(const NovelAiHarnessApp());
+      await tester.pumpAndSettle();
 
-    // 宽屏验证：顶部标题栏存在
-    expect(find.byType(CustomTitleBar), findsOneWidget);
-    // 左侧侧边栏存在
-    expect(find.byType(StudioSidebar), findsOneWidget);
-    // 三栏可拖拽工作台存在
-    expect(find.byType(ResizableThreeSplitView), findsOneWidget);
-    // 移动端 PageView 不存在
-    expect(find.byType(PageView), findsNothing);
-  });
+      // 宽屏验证：顶部标题栏存在
+      expect(find.byType(CustomTitleBar), findsOneWidget);
+      // 左侧侧边栏存在
+      expect(find.byType(StudioSidebar), findsOneWidget);
+      // 三栏可拖拽工作台存在
+      expect(find.byType(ResizableThreeSplitView), findsOneWidget);
+      // 移动端 PageView 不存在
+      expect(find.byType(PageView), findsNothing);
+    },
+  );
 
-  testWidgets('窄屏模式 (<620px)：双层解耦架构 (顶部32px胶囊三卡片 + 底部纯正5功能项导航栏)', (tester) async {
+  testWidgets('窄屏模式 (<620px)：双层解耦架构 (顶部32px胶囊三卡片 + 底部纯正5功能项导航栏)', (
+    tester,
+  ) async {
     // 模拟常见全面屏手机竖屏尺寸：390x844
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;

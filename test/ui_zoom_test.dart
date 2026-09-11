@@ -159,10 +159,7 @@ void main() {
             body: SafeArea(
               child: AppUiZoomScope(
                 zoom: 1.25,
-                child: Container(
-                  key: childKey,
-                  color: Colors.blue,
-                ),
+                child: Container(key: childKey, color: Colors.blue),
               ),
             ),
           ),
