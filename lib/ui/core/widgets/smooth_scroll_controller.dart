@@ -74,8 +74,9 @@ class _SmoothWheelScrollPosition extends ScrollPositionWithSingleContext {
     if (!haveDimensions) return;
     if (!physics.shouldAcceptUserOffset(this)) return;
 
-    // 拖拽手势 (滚动条拖动等) 进行中时退回默认逐格滚动，避免打断用户手势
-    if (activity is DragScrollActivity) {
+    // 尊重系统减少动画设置；拖拽时也不启动新的滑行活动。
+    if (MediaQuery.disableAnimationsOf(context.storageContext) ||
+        activity is DragScrollActivity) {
       super.pointerScroll(delta);
       return;
     }
@@ -86,7 +87,13 @@ class _SmoothWheelScrollPosition extends ScrollPositionWithSingleContext {
     // 把视口瞬移到完全无关的位置
     final bool gliding =
         activity is DrivenScrollActivity && identical(activity, _glideActivity);
-    final double base = gliding ? (_wheelTarget ?? pixels) : pixels;
+    final pendingDistance = gliding ? (_wheelTarget ?? pixels) - pixels : 0.0;
+    // 反向滚轮立即以当前位置为基准，丢弃尚未完成的旧方向位移，
+    // 否则快速回拨仍会朝旧方向滑动，产生粘滞与输入延迟感。
+    final reversing = pendingDistance * delta < 0;
+    final double base = gliding && !reversing
+        ? (_wheelTarget ?? pixels)
+        : pixels;
     final double target = (base + delta)
         .clamp(minScrollExtent, maxScrollExtent)
         .toDouble();

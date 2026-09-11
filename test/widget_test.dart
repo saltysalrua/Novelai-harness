@@ -44,9 +44,9 @@ void main() {
 
     final promptPage = find.byType(PromptsPage, skipOffstage: false);
     final parameterPage = find.byType(ParametersPage, skipOffstage: false);
-    final promptState = tester.state(promptPage);
+    // 未访问页懒挂载，不再把全部表单挤进首帧。
+    expect(promptPage, findsNothing);
     expect(TickerMode.valuesOf(tester.element(parameterPage)).enabled, isTrue);
-    expect(TickerMode.valuesOf(tester.element(promptPage)).enabled, isFalse);
 
     // 3. 点击切换至提示词页
     await tester.tap(find.text('提示词'));
@@ -54,6 +54,12 @@ void main() {
 
     expect(TickerMode.valuesOf(tester.element(parameterPage)).enabled, isFalse);
     expect(TickerMode.valuesOf(tester.element(promptPage)).enabled, isTrue);
+    final promptState = tester.state(promptPage);
+    await tester.tap(find.text('参数'));
+    await tester.pumpAndSettle();
+    expect(TickerMode.valuesOf(tester.element(promptPage)).enabled, isFalse);
+    await tester.tap(find.text('提示词'));
+    await tester.pumpAndSettle();
     expect(tester.state(promptPage), same(promptState));
     expect(find.text('提示词管理'), findsOneWidget);
     expect(find.text('Prompt'), findsOneWidget);

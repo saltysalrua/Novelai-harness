@@ -81,7 +81,10 @@ class _InpaintPageState extends State<InpaintPage> {
     final colors = context.colors;
     final l10n = context.l10n;
     return ListenableBuilder(
-      listenable: widget.viewModel,
+      // 保活隐藏页暂停表单订阅，避免在后台重复计算修复几何与提示词布局。
+      listenable: Listenable.merge([
+        if (TickerMode.valuesOf(context).enabled) widget.viewModel,
+      ]),
       builder: (context, _) {
         final vm = widget.viewModel;
         final inpaint = vm.inpaintParams;
@@ -281,14 +284,16 @@ class _InpaintPageState extends State<InpaintPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      isAiEdit
-                          ? l10n.inpaintCustomInstruction
-                          : l10n.inpaintCustomPrompt,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textSecondary,
+                    Expanded(
+                      child: Text(
+                        isAiEdit
+                            ? l10n.inpaintCustomInstruction
+                            : l10n.inpaintCustomPrompt,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textSecondary,
+                        ),
                       ),
                     ),
                     if (_promptController.text.trim().isNotEmpty)
@@ -342,12 +347,14 @@ class _InpaintPageState extends State<InpaintPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        l10n.inpaintCustomNegative,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textSecondary,
+                      Expanded(
+                        child: Text(
+                          l10n.inpaintCustomNegative,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ),
                       if (_negativeController.text.trim().isNotEmpty)
@@ -418,12 +425,14 @@ class _InpaintPageState extends State<InpaintPage> {
         children: [
           Icon(Icons.auto_awesome, size: 14, color: colors.textSecondary),
           const SizedBox(width: 6),
-          Text(
-            l10n.inpaintImageModel,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
+          Expanded(
+            child: Text(
+              l10n.inpaintImageModel,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -488,12 +497,14 @@ class _InpaintPageState extends State<InpaintPage> {
             color: colors.textSecondary,
           ),
           const SizedBox(width: 6),
-          Text(
-            l10n.inpaintLatentFocusGeometry,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
+          Expanded(
+            child: Text(
+              l10n.inpaintLatentFocusGeometry,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -537,7 +548,13 @@ class _InpaintPageState extends State<InpaintPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 12, color: colors.textPrimary)),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, color: colors.textPrimary),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
         Switch(
           value: value,
           onChanged: onChanged,

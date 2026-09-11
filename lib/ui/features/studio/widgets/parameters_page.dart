@@ -84,7 +84,10 @@ class _ParametersPageState extends State<ParametersPage> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return ListenableBuilder(
-      listenable: widget.viewModel,
+      // 隐藏页暂停表单订阅；重新激活时立即读取最新参数。
+      listenable: Listenable.merge([
+        if (TickerMode.valuesOf(context).enabled) widget.viewModel,
+      ]),
       builder: (context, _) {
         final viewModel = widget.viewModel;
         final params = viewModel.params;

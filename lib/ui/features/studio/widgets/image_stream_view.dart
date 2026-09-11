@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../view_models/studio_view_model.dart';
 import 'character_position_canvas_view.dart';
 import 'image_canvas_actions.dart';
@@ -12,7 +13,7 @@ import 'image_lightbox.dart';
 /// 画板垂直图像流的滚动协调器：
 /// 持有滚动控制器与每张图的锚点 Key，供图像流、历史侧边栏与浮动横幅共同驱动滚动定位。
 class CanvasStreamController {
-  final ScrollController scrollController = ScrollController();
+  final ScrollController scrollController = SmoothWheelScrollController();
   final Map<String, GlobalKey> _itemKeys = {};
 
   /// 是否正在程序化调整滚动锚点 (期间暂停"居中图自动选中"检测)
@@ -117,6 +118,7 @@ class _ImageStreamViewState extends State<ImageStreamView> {
   int _lastGalleryLength = 0;
   String? _lastFirstImageId;
   bool _lastIsGenerating = false;
+  bool _selectionScheduled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -217,10 +219,12 @@ class _ImageStreamViewState extends State<ImageStreamView> {
         // 多张图片 (或已有图片并在生成新图/展示临时位置卡片)：垂直无限滚动瀑布流
         return NotificationListener<ScrollNotification>(
           onNotification: (notification) {
-            if (!controller.isAdjustingAnchor &&
-                (notification is ScrollUpdateNotification ||
-                    notification is ScrollEndNotification)) {
-              _updateActiveVisibleImage(viewModel, gallery);
+            // 滚动帧只移动画布；停止后才同步选中图与全局面板。
+            // 不逐帧扫描整个历史列表，也不让 notifyListeners 打断滑行。
+            if (notification.depth == 0 &&
+                !controller.isAdjustingAnchor &&
+                notification is ScrollEndNotification) {
+              _scheduleActiveImageSelection();
             }
             return false;
           },
@@ -291,6 +295,24 @@ class _ImageStreamViewState extends State<ImageStreamView> {
         );
       },
     );
+  }
+
+  void _scheduleActiveImageSelection() {
+    if (_selectionScheduled) return;
+    _selectionScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _selectionScheduled = false;
+      if (!mounted) return;
+      final controller = widget.controller;
+      final scroll = controller.scrollController;
+      // 连续滚轮重启滑行时也会发出短暂的 ScrollEnd，下一帧确认真正停下。
+      if (!scroll.hasClients ||
+          scroll.position.isScrollingNotifier.value ||
+          controller.isAdjustingAnchor) {
+        return;
+      }
+      _updateActiveVisibleImage(widget.viewModel, widget.viewModel.gallery);
+    });
   }
 
   /// 依据图片纵横比估算其在瀑布流中的实际卡片高度 (用于视口居中内边距计算)

@@ -35,6 +35,34 @@ Future<void> _sendWheel(WidgetTester tester, double dy) async {
 }
 
 void main() {
+  for (final direction in [1.0, -1.0]) {
+    testWidgets('快速反向滚轮立即从当前位置转向 (direction=$direction)', (tester) async {
+      final controller = SmoothWheelScrollController(initialScrollOffset: 2000);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(_buildList(controller));
+      await _sendWheel(tester, 600 * direction);
+      await tester.pump(const Duration(milliseconds: 16));
+      final before = controller.offset;
+      await _sendWheel(tester, -80 * direction);
+      await tester.pump(const Duration(milliseconds: 32));
+      expect((controller.offset - before) * direction, lessThan(0));
+      await tester.pumpAndSettle();
+      expect(controller.offset, closeTo(before - 80 * direction, 0.5));
+    });
+  }
+
+  testWidgets('减少动画设置使滚轮即时定位', (tester) async {
+    final controller = SmoothWheelScrollController();
+    addTearDown(controller.dispose);
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await tester.pumpWidget(_buildList(controller));
+    await _sendWheel(tester, 120);
+    expect(controller.offset, 120);
+    expect(controller.position.isScrollingNotifier.value, isFalse);
+  });
+
   testWidgets('单次滚轮事件平滑滑动到目标像素', (tester) async {
     final controller = SmoothWheelScrollController();
     await tester.pumpWidget(_buildList(controller));

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_nav_tile.dart';
+import '../../../core/widgets/app_page_stack.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import '../widgets/bill_settings_tab.dart';
 import '../widgets/defaults_settings_tab.dart';
@@ -13,7 +14,7 @@ import '../widgets/presets_settings_tab.dart';
 /// 全局设置弹窗：左侧导航 + 右侧配置详情 + 底部保存栏
 ///
 /// 各标签页持有独立的草稿状态 (Draft)，由本壳统一创建、装配与聚合保存；
-/// IndexedStack 首次激活时懒构建标签页，构建后缓存实例，切换标签不丢输入状态。
+/// AppPageStack 首次激活时懒构建标签页，轻量过渡并保留输入与滚动状态。
 class SettingsDialog extends StatefulWidget {
   final StudioViewModel viewModel;
 
@@ -39,11 +40,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late final PresetsSettingsDraft _presetsDraft;
   late final DefaultsSettingsDraft _defaultsDraft;
 
-  /// 标签页首次激活时懒构建并缓存：
-  /// 1) 未访问页以 SizedBox.shrink() 占位，弹窗首帧只构建当前激活页，避免重页同步挤入首帧；
-  /// 2) 访问过的页回投 identical 缓存实例，Element 层短路零重建，滚动位置与输入状态不丢。
+  /// 页面缓存、隐藏页焦点/Ticker 隔离统一由 AppPageStack 管理。
   late final List<Widget Function()> _tabBuilders;
-  final List<Widget?> _builtTabs = List<Widget?>.filled(5, null);
 
   @override
   void initState() {
@@ -175,16 +173,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     // 右侧顶部标题栏与关闭按键
                     _buildContentHeader(context),
 
-                    // 右侧设置项卡片列表 (懒构建 + 缓存实例 + IndexedStack：首帧只建激活页，切页零重建且不丢输入状态)
+                    // 懒构建保活，切页只动画绘制层，不逐帧重建表单。
                     Expanded(
-                      child: IndexedStack(
+                      child: AppPageStack(
                         index: _activeTabIndex,
-                        children: List.generate(5, (i) {
-                          if (i == _activeTabIndex) {
-                            _builtTabs[i] ??= _tabBuilders[i]();
-                          }
-                          return _builtTabs[i] ?? const SizedBox.shrink();
-                        }),
+                        itemCount: _tabBuilders.length,
+                        itemBuilder: (context, index) => _tabBuilders[index](),
                       ),
                     ),
 

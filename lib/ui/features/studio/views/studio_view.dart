@@ -4,6 +4,7 @@ import '../../../../data/services/image_metadata_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
 import '../view_models/studio_view_model.dart';
@@ -367,54 +368,62 @@ class _StudioViewState extends State<StudioView> {
 
                         // 2. 主区域：全屏词库视图 (覆盖所有三栏) 或 主三栏自适应工作台
                         Expanded(
-                          child: isLibraryTab
-                              ? PromptLibraryView(
-                                  viewModel: _viewModel,
-                                  onClose: () {
-                                    _viewModel.setActiveSidebarTab(
-                                      _previousSidebarTab,
-                                    );
-                                  },
-                                )
-                              : ResizableThreeSplitView(
-                                  key: ValueKey(
-                                    'split-${_viewModel.board.isAnnotatingImage}',
-                                  ),
-                                  initialLeftWidth: _viewModel.splitLeftWidth,
-                                  initialRightWidth:
-                                      _viewModel.board.isAnnotatingImage
-                                      ? 110.0
-                                      : _viewModel.splitRightWidth,
-                                  minRightWidth:
-                                      _viewModel.board.isAnnotatingImage
-                                      ? 90.0
-                                      : 280.0,
-                                  maxRightWidth:
-                                      _viewModel.board.isAnnotatingImage
-                                      ? 160.0
-                                      : 560.0,
-                                  onWidthsChanged: (left, right) {
-                                    if (!_viewModel.board.isAnnotatingImage) {
-                                      _viewModel.updateSplitWidths(left, right);
-                                    }
-                                  },
-                                  leftChild: ParameterCard(
+                          child: AppPageStack(
+                            index: isLibraryTab ? 1 : 0,
+                            itemCount: 2,
+                            itemBuilder: (context, index) => index == 1
+                                ? PromptLibraryView(
                                     viewModel: _viewModel,
-                                    activeTab: _viewModel.activeSidebarTab,
+                                    onClose: () {
+                                      _viewModel.setActiveSidebarTab(
+                                        _previousSidebarTab,
+                                      );
+                                    },
+                                  )
+                                : ResizableThreeSplitView(
+                                    key: ValueKey(
+                                      'split-${_viewModel.board.isAnnotatingImage}',
+                                    ),
+                                    initialLeftWidth: _viewModel.splitLeftWidth,
+                                    initialRightWidth:
+                                        _viewModel.board.isAnnotatingImage
+                                        ? 110.0
+                                        : _viewModel.splitRightWidth,
+                                    minRightWidth:
+                                        _viewModel.board.isAnnotatingImage
+                                        ? 90.0
+                                        : 280.0,
+                                    maxRightWidth:
+                                        _viewModel.board.isAnnotatingImage
+                                        ? 160.0
+                                        : 560.0,
+                                    onWidthsChanged: (left, right) {
+                                      if (!_viewModel.board.isAnnotatingImage) {
+                                        _viewModel.updateSplitWidths(
+                                          left,
+                                          right,
+                                        );
+                                      }
+                                    },
+                                    leftChild: ParameterCard(
+                                      viewModel: _viewModel,
+                                      activeTab: _viewModel.activeSidebarTab,
+                                    ),
+                                    centerChild: ImageCanvasCard(
+                                      viewModel: _viewModel,
+                                    ),
+                                    rightChild:
+                                        _viewModel.board.isAnnotatingImage
+                                        ? AnnotationHistoryStrip(
+                                            viewModel: _viewModel,
+                                          )
+                                        : AgentChatCard(
+                                            key: _chatCardKey,
+                                            viewModel: _viewModel,
+                                            onEscape: _handleGlobalEsc,
+                                          ),
                                   ),
-                                  centerChild: ImageCanvasCard(
-                                    viewModel: _viewModel,
-                                  ),
-                                  rightChild: _viewModel.board.isAnnotatingImage
-                                      ? AnnotationHistoryStrip(
-                                          viewModel: _viewModel,
-                                        )
-                                      : AgentChatCard(
-                                          key: _chatCardKey,
-                                          viewModel: _viewModel,
-                                          onEscape: _handleGlobalEsc,
-                                        ),
-                                ),
+                          ),
                         ),
                       ],
                     ),

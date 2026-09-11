@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
@@ -8,12 +9,73 @@ import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model
 import 'package:novelai_harness/ui/features/studio/widgets/image_stream_view.dart';
 
 final kTestPngBytes = Uint8List.fromList([
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-  0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-  0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0A,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x63,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
 ]);
 
 NaiGeneratedImage _image(String id) => NaiGeneratedImage(
@@ -28,9 +90,56 @@ NaiGeneratedImage _image(String id) => NaiGeneratedImage(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('连续画板滚轮滑行期间不通知全局，停止后才同步选中图', (tester) async {
+    final repo = NovelAiRepository();
+    final vm = StudioViewModel(repository: repo);
+    final controller = CanvasStreamController();
+    addTearDown(vm.dispose);
+    addTearDown(controller.dispose);
+    for (var i = 0; i < 12; i++) {
+      repo.addImageForTesting(_image('scroll-$i'));
+    }
+    vm.selectImage(vm.gallery.first);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListenableBuilder(
+            listenable: vm,
+            builder: (_, _) =>
+                ImageStreamView(viewModel: vm, controller: controller),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final firstId = vm.selectedImage!.id;
+    var notifications = 0;
+    vm.addListener(() => notifications++);
+    final list = find.byType(ListView);
+    for (var i = 0; i < 4; i++) {
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: tester.getCenter(list),
+          scrollDelta: const Offset(0, 400),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 32));
+      expect(notifications, 0);
+      expect(vm.selectedImage!.id, firstId);
+    }
+    expect(controller.scrollController.offset, greaterThan(600));
+    await tester.pumpAndSettle();
+    expect(vm.selectedImage!.id, isNot(firstId));
+    expect(notifications, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   group('CanvasStreamController.scrollToItem Tests', () {
-    testWidgets('centers a far off-screen history image (two-phase scroll)',
-        (tester) async {
+    testWidgets('centers a far off-screen history image (two-phase scroll)', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -68,11 +177,9 @@ void main() {
       final ctx = controller.keyFor(target.id).currentContext;
       expect(ctx, isNotNull, reason: '目标卡片应已完成挂载');
       final box = ctx!.findRenderObject() as RenderBox;
-      final centerY =
-          box.localToGlobal(Offset(0, box.size.height / 2)).dy;
+      final centerY = box.localToGlobal(Offset(0, box.size.height / 2)).dy;
       // 600px 视口的中心是 300；允许 8px 容差
-      expect((centerY - 300).abs(), lessThan(8),
-          reason: '目标图应垂直居中，而不是只露出顶部');
+      expect((centerY - 300).abs(), lessThan(8), reason: '目标图应垂直居中，而不是只露出顶部');
     });
 
     testWidgets('centers an already-built history image', (tester) async {
@@ -116,8 +223,7 @@ void main() {
       final ctx = controller.keyFor(target.id).currentContext;
       expect(ctx, isNotNull);
       final box = ctx!.findRenderObject() as RenderBox;
-      final centerY =
-          box.localToGlobal(Offset(0, box.size.height / 2)).dy;
+      final centerY = box.localToGlobal(Offset(0, box.size.height / 2)).dy;
       expect((centerY - 300).abs(), lessThan(8));
     });
   });
