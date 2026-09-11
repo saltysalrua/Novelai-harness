@@ -182,15 +182,20 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                 const SizedBox(width: 4),
                 Icon(Icons.forum_outlined, size: 15, color: colors.primary),
                 const SizedBox(width: 6),
-                Text(
-                  context.l10n.sessionTitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
+                // 标题可收缩：窄屏 (或大 UI 缩放) 下不与右侧新建按钮争宽导致溢出
+                Expanded(
+                  child: Text(
+                    context.l10n.sessionTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 6),
                 FilledButton.icon(
                   icon: const Icon(Icons.add_rounded, size: 14),
                   label: Text(

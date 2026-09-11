@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/main.dart';
 import 'package:novelai_harness/ui/core/theme/ui_zoom_controller.dart';
 import 'package:novelai_harness/ui/core/widgets/custom_title_bar.dart';
 import 'package:novelai_harness/ui/core/widgets/resizable_split_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_card.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/agent_rewind_view.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/agent_session_list_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/image_canvas_card.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/parameters_page.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_library_view.dart';
@@ -31,6 +34,25 @@ Future<void> pumpApp(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(const NovelAiHarnessApp());
   await tester.pumpAndSettle();
+}
+
+/// 模拟 Android 系统返回键 (物理键 / 侧滑手势)：走真实 `flutter/navigation` 通道
+Future<void> pressSystemBack(WidgetTester tester) async {
+  await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+    'flutter/navigation',
+    const JSONMethodCodec().encodeMethodCall(const MethodCall('popRoute')),
+    (_) {},
+  );
+  await tester.pumpAndSettle();
+}
+
+/// 当前系统返回键是否直接交还系统 (PopScope.canPop = true)
+bool systemBackAllowed(WidgetTester tester) {
+  final scopes = tester.widgetList(
+    find.byWidgetPredicate((widget) => widget is PopScope),
+  );
+  expect(scopes, isNotEmpty, reason: '工作台根级应挂载 PopScope');
+  return (scopes.first as PopScope<Object?>).canPop;
 }
 
 /// 断言当前帧没有任何渲染异常 (RenderFlex overflow 经 FlutterError 上报)
@@ -202,5 +224,115 @@ void main() {
       expect(find.byType(PageView), findsOneWidget);
       expectNoRenderErrors(tester, '窄屏双层');
     });
+  });
+
+  group('系统返回键逐层消费', () {
+    testWidgets('词库 → 卡片 → 交还系统', (tester) async {
+      await pumpApp(tester, const Size(430, 900));
+
+      // 1. 切到画板卡片，再打开词库：第一下返回只关词库，卡片保持不变
+      await tester.tap(find.byKey(const Key('segmented_pill_1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('mobile_nav_library')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PromptLibraryView), findsOneWidget);
+      expect(systemBackAllowed(tester), isFalse);
+
+      await pressSystemBack(tester);
+      expect(find.byType(PromptLibraryView), findsNothing);
+      expectOnlyPillSelected(tester, 1);
+
+      // 2. 第二下返回：非第 0 卡片回第 0 卡片
+      await pressSystemBack(tester);
+      expectOnlyPillSelected(tester, 0);
+      expect(find.byType(ParametersPage), findsOneWidget);
+
+      // 3. 已无层内动作：交还系统 (常态下返回键退出/回桌面)
+      expect(systemBackAllowed(tester), isTrue);
+      await pressSystemBack(tester);
+      expectOnlyPillSelected(tester, 0);
+      expectNoRenderErrors(tester, '返回键逐层消费');
+    });
+
+    testWidgets('对话卡覆盖视图 (会话管理) 优先于卡片回退', (tester) async {
+      await pumpApp(tester, const Size(430, 900));
+
+      await tester.tap(find.byKey(const Key('segmented_pill_2')));
+      await tester.pumpAndSettle();
+      expectOnlyPillSelected(tester, 2);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AgentChatCard),
+          matching: find.widgetWithIcon(IconButton, Icons.forum_outlined),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(AgentSessionListView), findsOneWidget);
+      expect(systemBackAllowed(tester), isFalse);
+
+      // 返回键只收起覆盖视图，不把卡片退回第 0 页
+      await pressSystemBack(tester);
+      expect(find.byType(AgentSessionListView), findsNothing);
+      expectOnlyPillSelected(tester, 2);
+
+      await pressSystemBack(tester);
+      expectOnlyPillSelected(tester, 0);
+      expectNoRenderErrors(tester, '对话卡覆盖视图返回');
+    });
+
+    testWidgets('宽屏三栏：无覆盖层时返回键直接交还系统', (tester) async {
+      await pumpApp(tester, const Size(1280, 900));
+      expect(find.byType(ResizableThreeSplitView), findsOneWidget);
+      expect(systemBackAllowed(tester), isTrue);
+    });
+
+    testWidgets('历史回溯覆盖视图同样先被返回键收起', (tester) async {
+      await pumpApp(tester, const Size(360, 800));
+
+      await tester.tap(find.byKey(const Key('segmented_pill_2')));
+      await tester.pumpAndSettle();
+      tester
+          .state<AgentChatCardState>(find.byType(AgentChatCard))
+          .openRewindView();
+      await tester.pumpAndSettle();
+      expect(find.byType(AgentRewindView), findsOneWidget);
+      expect(systemBackAllowed(tester), isFalse);
+
+      await pressSystemBack(tester);
+      expect(find.byType(AgentRewindView), findsNothing);
+      expectOnlyPillSelected(tester, 2);
+      expectNoRenderErrors(tester, '回溯视图返回');
+    });
+  });
+
+  group('窄屏嵌套视图无溢出', () {
+    for (final width in const [320.0, 360.0, 430.0]) {
+      testWidgets('宽度 ${width.toInt()} 下会话管理与历史回溯无渲染异常', (tester) async {
+        await pumpApp(tester, Size(width, 800));
+        await tester.tap(find.byKey(const Key('segmented_pill_2')));
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AgentChatCard),
+            matching: find.widgetWithIcon(IconButton, Icons.forum_outlined),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(AgentSessionListView), findsOneWidget);
+        expectNoRenderErrors(tester, '会话管理');
+        await pressSystemBack(tester);
+
+        tester
+            .state<AgentChatCardState>(find.byType(AgentChatCard))
+            .openRewindView();
+        await tester.pumpAndSettle();
+        expect(find.byType(AgentRewindView), findsOneWidget);
+        expectNoRenderErrors(tester, '历史回溯');
+        await pressSystemBack(tester);
+        expectNoRenderErrors(tester, '退出回溯');
+      });
+    }
   });
 }

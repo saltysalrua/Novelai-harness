@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- usesCleartextTraffic：ComfyUI Bridge 与本地 OpenAI 兼容 LLM 端点均为
+         http://<局域网 IP>，无法用固定域名白名单的 network_security_config 覆盖，
+         故全局放开明文流量 (仅本机局域网使用场景)。 -->
     <application
         android:label="NovelAI Harness"
         android:name="${applicationName}"

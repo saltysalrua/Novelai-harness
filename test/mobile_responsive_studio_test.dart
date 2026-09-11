@@ -19,7 +19,7 @@ void main() {
   });
 
   testWidgets(
-    '宽屏桌面模式 (>=620px)：渲染 CustomTitleBar、StudioSidebar 与 ResizableThreeSplitView',
+    '宽屏桌面模式 (>=900px)：渲染 CustomTitleBar、StudioSidebar 与 ResizableThreeSplitView',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
@@ -40,7 +40,7 @@ void main() {
     },
   );
 
-  testWidgets('窄屏模式 (<620px)：双层解耦架构 (顶部32px胶囊三卡片 + 底部纯正5功能项导航栏)', (
+  testWidgets('窄屏模式 (<900px)：双层解耦架构 (顶部 32px 胶囊三卡片 + 底部 5 功能项导航栏)', (
     tester,
   ) async {
     // 模拟常见全面屏手机竖屏尺寸：390x844

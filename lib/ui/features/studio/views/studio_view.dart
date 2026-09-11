@@ -1,7 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:window_manager/window_manager.dart';
 import '../../../../data/services/image_metadata_service.dart';
 import '../../../../data/services/window_state_service.dart';
 import '../../../core/context_l10n.dart';
@@ -12,6 +10,7 @@ import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
+import '../../../core/widgets/window_controls.dart';
 import '../../settings/views/settings_dialog.dart';
 import '../view_models/studio_view_model.dart';
 import '../widgets/agent_chat_card.dart';
@@ -50,6 +49,11 @@ class _StudioViewState extends State<StudioView> {
   /// 对话卡状态键：根级双击 ESC 时跨组件调起回溯视图
   final GlobalKey<AgentChatCardState> _chatCardKey =
       GlobalKey<AgentChatCardState>();
+
+  /// 对话卡是否处于覆盖视图 (会话抽屉 / 历史回溯)：
+  /// 该状态在卡片内部，靠 [AgentChatCard.onOverlayViewChanged] 回写到宿主，
+  /// 以便系统返回键的 canPop 判态能跟上变化。
+  bool _chatOverlayView = false;
 
   /// 根级 ESC 首按时刻 (双击窗口判定)
   DateTime? _lastRootEscTime;
@@ -317,11 +321,23 @@ class _StudioViewState extends State<StudioView> {
               builder: (context, constraints) {
                 final isNarrow =
                     constraints.maxWidth < StudioView.wideLayoutMinWidth;
-                return Scaffold(
-                  backgroundColor: context.colors.canvasBackground,
-                  body: isNarrow
-                      ? _buildNarrowLayout(context, isLibraryTab: isLibraryTab)
-                      : _buildWideLayout(context, isLibraryTab: isLibraryTab),
+                // 系统返回键 (Android 手势/物理键) 先在层内消费，无可消费层时交还系统。
+                // canPop 由判态驱动：无层内动作时保持 true，交由系统正常退出/回桌面。
+                return PopScope(
+                  canPop: !_hasSystemBackAction(isNarrow: isNarrow),
+                  onPopInvokedWithResult: (didPop, _) {
+                    if (didPop) return;
+                    _handleSystemBack(isNarrow: isNarrow);
+                  },
+                  child: Scaffold(
+                    backgroundColor: context.colors.canvasBackground,
+                    body: isNarrow
+                        ? _buildNarrowLayout(
+                            context,
+                            isLibraryTab: isLibraryTab,
+                          )
+                        : _buildWideLayout(context, isLibraryTab: isLibraryTab),
+                  ),
                 );
               },
             ),
@@ -401,6 +417,8 @@ class _StudioViewState extends State<StudioView> {
                                   key: _chatCardKey,
                                   viewModel: _viewModel,
                                   onEscape: _handleGlobalEsc,
+                                  onOverlayViewChanged:
+                                      _onChatOverlayViewChanged,
                                 ),
                         ),
                 ),
@@ -483,6 +501,7 @@ class _StudioViewState extends State<StudioView> {
                               key: _chatCardKey,
                               viewModel: _viewModel,
                               onEscape: _handleGlobalEsc,
+                              onOverlayViewChanged: _onChatOverlayViewChanged,
                             ),
                     ],
                   ),
@@ -535,6 +554,51 @@ class _StudioViewState extends State<StudioView> {
   void _selectSidebarTabFromBottomBar(StudioSidebarTab tab) {
     _viewModel.setActiveSidebarTab(tab);
     _setMobilePage(0);
+  }
+
+  /// 对话卡覆盖视图开合回写 (刷新系统返回键判态)
+  void _onChatOverlayViewChanged() {
+    final hasOverlay = _chatCardKey.currentState?.hasOverlayView ?? false;
+    if (_chatOverlayView != hasOverlay) {
+      setState(() => _chatOverlayView = hasOverlay);
+    }
+  }
+
+  /// 系统返回键是否存在可消费的层内动作 (与 [_handleSystemBack] 分支顺序严格一致)
+  bool _hasSystemBackAction({required bool isNarrow}) {
+    if (_viewModel.activeSidebarTab == StudioSidebarTab.library) return true;
+    if (_chatOverlayView) return true;
+    if (_viewModel.board.isAnnotatingImage) return true;
+    if (_viewModel.isEditingCharacterPositions) return true;
+    if (_viewModel.isEditingWatermarkPosition) return true;
+    if (isNarrow && _mobilePageIndex != 0) return true;
+    return false;
+  }
+
+  /// 系统返回键 (Android 物理键/侧滑手势) 单一处理入口：
+  /// 词库覆盖层 → 对话卡覆盖视图 → 批注/定位编辑模式 → 窄屏三卡片回到第 0 卡片；
+  /// 以上均无命中时不动手，由 [PopScope] 的 canPop 交还系统。
+  void _handleSystemBack({required bool isNarrow}) {
+    if (_viewModel.activeSidebarTab == StudioSidebarTab.library) {
+      _viewModel.setActiveSidebarTab(_previousSidebarTab);
+      return;
+    }
+    if (_chatCardKey.currentState?.dismissOverlayView() ?? false) return;
+    if (_viewModel.board.isAnnotatingImage) {
+      _viewModel.board.setAnnotatingImage(false);
+      return;
+    }
+    if (_viewModel.isEditingCharacterPositions) {
+      _viewModel.setEditingCharacterPositions(false);
+      return;
+    }
+    if (_viewModel.isEditingWatermarkPosition) {
+      _viewModel.setEditingWatermarkPosition(false);
+      return;
+    }
+    if (isNarrow && _mobilePageIndex != 0) {
+      _setMobilePage(0);
+    }
   }
 
   /// 全局错误提示微胶囊
@@ -729,80 +793,7 @@ class _MobileTopBar extends StatefulWidget {
   State<_MobileTopBar> createState() => _MobileTopBarState();
 }
 
-class _MobileTopBarState extends State<_MobileTopBar> with WindowListener {
-  bool _isMaximized = false;
-
-  bool get _isDesktop =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.windows ||
-          defaultTargetPlatform == TargetPlatform.linux ||
-          defaultTargetPlatform == TargetPlatform.macOS);
-
-  @override
-  void initState() {
-    super.initState();
-    if (_isDesktop) {
-      windowManager.addListener(this);
-      _checkMaximized();
-    }
-  }
-
-  @override
-  void dispose() {
-    if (_isDesktop) {
-      windowManager.removeListener(this);
-    }
-    super.dispose();
-  }
-
-  Future<void> _checkMaximized() async {
-    try {
-      final maximized = await windowManager.isMaximized();
-      if (mounted) {
-        setState(() => _isMaximized = maximized);
-      }
-    } catch (_) {}
-  }
-
-  @override
-  void onWindowMaximize() {
-    if (mounted) setState(() => _isMaximized = true);
-  }
-
-  @override
-  void onWindowUnmaximize() {
-    if (mounted) setState(() => _isMaximized = false);
-  }
-
-  Future<void> _minimize() async {
-    if (_isDesktop) {
-      try {
-        await windowManager.minimize();
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _toggleMaximize() async {
-    if (_isDesktop) {
-      try {
-        final maximized = await windowManager.isMaximized();
-        if (maximized) {
-          await windowManager.unmaximize();
-        } else {
-          await windowManager.maximize();
-        }
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _close() async {
-    if (_isDesktop) {
-      try {
-        await WindowStateService.instance.closeWindow();
-      } catch (_) {}
-    }
-  }
-
+class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
   static const double _windowControlsWidth = 3 * 24.0;
 
   @override
@@ -819,11 +810,11 @@ class _MobileTopBarState extends State<_MobileTopBar> with WindowListener {
             bottom: BorderSide(color: colors.borderDefault, width: 1),
           ),
         ),
-        child: _buildDraggableArea(
+        child: buildWindowDragArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
               // 可用宽度不足时退化为图标胶囊 (Tooltip 补足语义)，避免窄屏 / 大缩放溢出
-              final reserved = _isDesktop ? _windowControlsWidth : 0.0;
+              final reserved = isDesktopWindow ? _windowControlsWidth : 0.0;
               final compact = constraints.maxWidth - reserved < 360;
 
               return Row(
@@ -865,24 +856,24 @@ class _MobileTopBarState extends State<_MobileTopBar> with WindowListener {
                   ),
 
                   // 右侧：桌面端显示窗口控制三键，移动端不占位
-                  if (_isDesktop) ...[
+                  if (isDesktopWindow) ...[
                     AppWindowButton(
                       icon: Icons.remove,
                       iconSize: 11,
                       height: 32,
                       width: 24,
                       tooltip: '最小化',
-                      onPressed: _minimize,
+                      onPressed: minimizeWindow,
                     ),
                     AppWindowButton(
-                      icon: _isMaximized
+                      icon: windowIsMaximized
                           ? Icons.filter_none_rounded
                           : Icons.crop_square_rounded,
-                      iconSize: _isMaximized ? 10 : 11,
+                      iconSize: windowIsMaximized ? 10 : 11,
                       height: 32,
                       width: 24,
-                      tooltip: _isMaximized ? '向下还原' : '最大化',
-                      onPressed: _toggleMaximize,
+                      tooltip: windowIsMaximized ? '向下还原' : '最大化',
+                      onPressed: toggleMaximizeWindow,
                     ),
                     AppWindowButton(
                       icon: Icons.close_rounded,
@@ -891,7 +882,7 @@ class _MobileTopBarState extends State<_MobileTopBar> with WindowListener {
                       width: 24,
                       tooltip: '关闭',
                       isClose: true,
-                      onPressed: _close,
+                      onPressed: closeAppWindow,
                     ),
                   ],
                 ],
@@ -901,16 +892,5 @@ class _MobileTopBarState extends State<_MobileTopBar> with WindowListener {
         ),
       ),
     );
-  }
-
-  Widget _buildDraggableArea({required Widget child}) {
-    if (_isDesktop) {
-      return GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onDoubleTap: _toggleMaximize,
-        child: DragToMoveArea(child: child),
-      );
-    }
-    return child;
   }
 }

@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart';
-import '../../../../data/services/window_state_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_context_extensions.dart';
+import 'window_controls.dart';
 
 /// 自定义 Notion 风格工作台标题栏 (支持窗口拖动、双击缩放与三键控制)
 class CustomTitleBar extends StatefulWidget implements PreferredSizeWidget {
@@ -16,90 +14,7 @@ class CustomTitleBar extends StatefulWidget implements PreferredSizeWidget {
   State<CustomTitleBar> createState() => _CustomTitleBarState();
 }
 
-class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
-  bool _isMaximized = false;
-
-  bool get _isDesktop =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.windows ||
-          defaultTargetPlatform == TargetPlatform.linux ||
-          defaultTargetPlatform == TargetPlatform.macOS);
-
-  @override
-  void initState() {
-    super.initState();
-    if (_isDesktop) {
-      windowManager.addListener(this);
-      _checkMaximized();
-    }
-  }
-
-  @override
-  void dispose() {
-    if (_isDesktop) {
-      windowManager.removeListener(this);
-    }
-    super.dispose();
-  }
-
-  Future<void> _checkMaximized() async {
-    try {
-      final maximized = await windowManager.isMaximized();
-      if (mounted) {
-        setState(() {
-          _isMaximized = maximized;
-        });
-      }
-    } catch (_) {}
-  }
-
-  @override
-  void onWindowMaximize() {
-    if (mounted) {
-      setState(() {
-        _isMaximized = true;
-      });
-    }
-  }
-
-  @override
-  void onWindowUnmaximize() {
-    if (mounted) {
-      setState(() {
-        _isMaximized = false;
-      });
-    }
-  }
-
-  Future<void> _minimize() async {
-    if (_isDesktop) {
-      try {
-        await windowManager.minimize();
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _toggleMaximize() async {
-    if (_isDesktop) {
-      try {
-        final maximized = await windowManager.isMaximized();
-        if (maximized) {
-          await windowManager.unmaximize();
-        } else {
-          await windowManager.maximize();
-        }
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _close() async {
-    if (_isDesktop) {
-      try {
-        await WindowStateService.instance.closeWindow();
-      } catch (_) {}
-    }
-  }
-
+class _CustomTitleBarState extends WindowControlsState<CustomTitleBar> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -114,7 +29,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
       child: Row(
         children: [
           // 左侧：可拖动区域包裹的应用 Logo 与标题
-          _buildDraggableArea(
+          buildWindowDragArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14.0),
               child: Row(
@@ -142,46 +57,35 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
           ),
 
           // 中间：占据全部剩余空间的窗口拖拽区域（支持双击最大化/向下还原）
-          Expanded(child: _buildDraggableArea(child: const SizedBox.expand())),
+          Expanded(child: buildWindowDragArea(child: const SizedBox.expand())),
 
           // 右侧：窗口控制三键 (最小化、最大化/向下还原、关闭)
-          if (_isDesktop) ...[
+          if (isDesktopWindow) ...[
             AppWindowButton(
               icon: Icons.remove,
               iconSize: 14,
               tooltip: '最小化',
-              onPressed: _minimize,
+              onPressed: minimizeWindow,
             ),
             AppWindowButton(
-              icon: _isMaximized
+              icon: windowIsMaximized
                   ? Icons.filter_none_rounded
                   : Icons.crop_square_rounded,
-              iconSize: _isMaximized ? 11 : 13,
-              tooltip: _isMaximized ? '向下还原' : '最大化',
-              onPressed: _toggleMaximize,
+              iconSize: windowIsMaximized ? 11 : 13,
+              tooltip: windowIsMaximized ? '向下还原' : '最大化',
+              onPressed: toggleMaximizeWindow,
             ),
             AppWindowButton(
               icon: Icons.close_rounded,
               iconSize: 15,
               tooltip: '关闭',
               isClose: true,
-              onPressed: _close,
+              onPressed: closeAppWindow,
             ),
           ],
         ],
       ),
     );
-  }
-
-  Widget _buildDraggableArea({required Widget child}) {
-    if (_isDesktop) {
-      return GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onDoubleTap: _toggleMaximize,
-        child: DragToMoveArea(child: child),
-      );
-    }
-    return child;
   }
 }
 

@@ -105,15 +105,20 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                   const SizedBox(width: 4),
                   Icon(Icons.history_rounded, size: 15, color: colors.primary),
                   const SizedBox(width: 6),
-                  Text(
-                    context.l10n.rewindTitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
+                  // 标题可收缩：窄屏 / 大 UI 缩放下不与右侧退出提示争宽而导致溢出
+                  Expanded(
+                    child: Text(
+                      context.l10n.rewindTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 6),
                   AppBadge(
                     label: context.l10n.rewindEscExit,
                     variant: AppBadgeVariant.neutral,
@@ -332,45 +337,53 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                  Flexible(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        side: BorderSide(color: colors.borderDefault),
+                        foregroundColor: colors.textPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                        ),
                       ),
-                      visualDensity: VisualDensity.compact,
-                      side: BorderSide(color: colors.borderDefault),
-                      foregroundColor: colors.textPrimary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      onPressed: widget.onBack,
+                      child: Text(
+                        context.l10n.rewindCancelButton,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12),
                       ),
-                    ),
-                    onPressed: widget.onBack,
-                    child: Text(
-                      context.l10n.rewindCancelButton,
-                      style: const TextStyle(fontSize: 12),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
+                  Flexible(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                        ),
                       ),
-                      visualDensity: VisualDensity.compact,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      onPressed: _selectedCheckpointIndex != null
+                          ? () => _confirmRewind(checkpoints)
+                          : null,
+                      child: Text(
+                        context.l10n.rewindConfirmButton,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12),
                       ),
-                    ),
-                    onPressed: _selectedCheckpointIndex != null
-                        ? () => _confirmRewind(checkpoints)
-                        : null,
-                    child: Text(
-                      context.l10n.rewindConfirmButton,
-                      style: const TextStyle(fontSize: 12),
                     ),
                   ),
                 ],

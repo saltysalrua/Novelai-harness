@@ -133,7 +133,10 @@ class AppSettingTile extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 420;
-          final isSwitch = this.isSwitch || control is Switch;
+          // 开关行保持横向紧凑排版 (不折行)：显式 flag 优先，未标注时按控件类型兜底。
+          // 注意 [AppSettingTile.switchTile] 把 Switch 包在 Builder 里取主题色，
+          // 类型碊底拿不到它，因此工厂自身必须传 isSwitch: true。
+          final isSwitchRow = isSwitch || control is Switch;
 
           final titleColumn = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -160,7 +163,7 @@ class AppSettingTile extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (isNarrow && !isSwitch) ...[
+              if (isNarrow && !isSwitchRow) ...[
                 titleColumn,
                 const SizedBox(height: AppSpacing.sm),
                 Align(alignment: Alignment.centerLeft, child: control),

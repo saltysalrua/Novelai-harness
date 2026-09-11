@@ -33,7 +33,15 @@ class AgentChatCard extends StatefulWidget {
   final StudioViewModel viewModel;
   final VoidCallback? onEscape;
 
-  const AgentChatCard({super.key, required this.viewModel, this.onEscape});
+  /// 覆盖视图 (会话抽屉 / 历史回溯) 开合通知：宿主据此刷新系统返回键判态
+  final VoidCallback? onOverlayViewChanged;
+
+  const AgentChatCard({
+    super.key,
+    required this.viewModel,
+    this.onEscape,
+    this.onOverlayViewChanged,
+  });
 
   @override
   State<AgentChatCard> createState() => AgentChatCardState();
@@ -500,9 +508,27 @@ class AgentChatCardState extends State<AgentChatCard> {
     if (widget.viewModel.isChatStreaming) {
       widget.viewModel.abortChat();
     }
-    setState(() {
-      _currentView = _AgentCardView.rewind;
-    });
+    _switchView(_AgentCardView.rewind);
+  }
+
+  /// 是否处于覆盖视图 (会话抽屉 / 历史回溯) —— 供宿主判断系统返回键是否有层内动作
+  bool get hasOverlayView => _currentView != _AgentCardView.chat;
+
+  /// 关闭覆盖视图回到对话主视图；返回是否确有覆盖视图被关闭
+  bool dismissOverlayView() {
+    if (!hasOverlayView) return false;
+    _switchView(_AgentCardView.chat);
+    return true;
+  }
+
+  /// 三视图切换单一入口：回对话主视图时同步贴底
+  void _switchView(_AgentCardView view) {
+    if (_currentView == view) return;
+    setState(() => _currentView = view);
+    if (view == _AgentCardView.chat) {
+      _scrollToBottom(animate: false);
+    }
+    widget.onOverlayViewChanged?.call();
   }
 
   void _handleEscKey() {
@@ -544,18 +570,12 @@ class AgentChatCardState extends State<AgentChatCard> {
       case _AgentCardView.sessions:
         return AgentSessionListView(
           viewModel: widget.viewModel,
-          onBack: () {
-            setState(() => _currentView = _AgentCardView.chat);
-            _scrollToBottom(animate: false);
-          },
+          onBack: () => _switchView(_AgentCardView.chat),
         );
       case _AgentCardView.rewind:
         return AgentRewindView(
           viewModel: widget.viewModel,
-          onBack: () {
-            setState(() => _currentView = _AgentCardView.chat);
-            _scrollToBottom(animate: false);
-          },
+          onBack: () => _switchView(_AgentCardView.chat),
         );
       case _AgentCardView.chat:
         break;
@@ -796,11 +816,7 @@ class AgentChatCardState extends State<AgentChatCard> {
             tooltip: context.l10n.chatSessionManagementTooltip,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            onPressed: () {
-              setState(() {
-                _currentView = _AgentCardView.sessions;
-              });
-            },
+            onPressed: () => _switchView(_AgentCardView.sessions),
             visualDensity: VisualDensity.compact,
           ),
         ],
