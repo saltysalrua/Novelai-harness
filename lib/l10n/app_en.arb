@@ -1056,6 +1056,8 @@
   "chatImageParseFailedNotice": "Image parsing failed, please try another image",
   "chatModelNoVisionBeforeSendNotice": "Current model does not support image input, please switch to a multimodal model before sending",
   "chatInputHint": "Enter drawing ideas, or type /nai <prompt> for quick generation...",
+  "chatSendTooltip": "Send (Enter)",
+  "chatSendingTooltip": "Replying",
   "chatThinkingLabel": "Thinking:",
   "chatThinkingEffortNone": "None",
   "chatThinkingEffortLow": "Low",

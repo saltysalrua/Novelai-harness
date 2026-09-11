@@ -2277,6 +2277,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputHint => '输入绘画构思，或输入 /nai <词> 快速生图...';
 
   @override
+  String get chatSendTooltip => '发送（Enter）';
+
+  @override
+  String get chatSendingTooltip => '正在回复';
+
+  @override
   String get chatThinkingLabel => '思考:';
 
   @override

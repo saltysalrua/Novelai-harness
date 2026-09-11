@@ -2388,6 +2388,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter drawing ideas, or type /nai <prompt> for quick generation...';
 
   @override
+  String get chatSendTooltip => 'Send (Enter)';
+
+  @override
+  String get chatSendingTooltip => 'Replying';
+
+  @override
   String get chatThinkingLabel => 'Thinking:';
 
   @override

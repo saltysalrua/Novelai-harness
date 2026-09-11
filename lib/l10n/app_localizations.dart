@@ -4298,6 +4298,18 @@ abstract class AppLocalizations {
   /// **'输入绘画构思，或输入 /nai <词> 快速生图...'**
   String get chatInputHint;
 
+  /// No description provided for @chatSendTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送（Enter）'**
+  String get chatSendTooltip;
+
+  /// No description provided for @chatSendingTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在回复'**
+  String get chatSendingTooltip;
+
   /// No description provided for @chatThinkingLabel.
   ///
   /// In zh, this message translates to:

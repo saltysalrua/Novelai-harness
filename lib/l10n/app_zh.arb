@@ -1056,6 +1056,8 @@
   "chatImageParseFailedNotice": "图片解析失败，请换一张图片重试",
   "chatModelNoVisionBeforeSendNotice": "当前模型不支持图片输入，发送前请切换到多模态模型",
   "chatInputHint": "输入绘画构思，或输入 /nai <词> 快速生图...",
+  "chatSendTooltip": "发送（Enter）",
+  "chatSendingTooltip": "正在回复",
   "chatThinkingLabel": "思考:",
   "chatThinkingEffortNone": "None",
   "chatThinkingEffortLow": "Low",

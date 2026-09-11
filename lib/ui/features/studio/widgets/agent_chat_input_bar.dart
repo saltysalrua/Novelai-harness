@@ -9,7 +9,10 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_async_icon_button.dart';
+import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import 'chat_image_attachment.dart';
 import 'slash_command_overlay.dart';
 import '../view_models/studio_view_model.dart';
@@ -408,14 +411,13 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final isStreaming = widget.viewModel.isChatStreaming;
     final activeProvider = widget.viewModel.config.activeLlmProvider;
     final activeModel = activeProvider.activeModel;
     final currentEffort = widget.viewModel.currentThinkingEffort;
     final usage = widget.viewModel.contextUsage;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: colors.cardBackground,
         border: Border(top: BorderSide(color: colors.borderDefault)),
@@ -473,123 +475,95 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           // 待发送图片附件缩略图栏 (粘贴/选择文件后显示)
           _buildAttachmentPreview(),
 
-          // 2. 消息输入框与发送按钮 (IntrinsicHeight + stretch 像素级高度对齐)
-          IntrinsicHeight(
+          _buildMessageComposer(),
+        ],
+      ),
+    );
+  }
+
+  /// 全宽文本区与定尺寸工具栏分行，按钮不随多行输入膨胀或挤占文字。
+  Widget _buildMessageComposer() {
+    final colors = context.colors;
+    final l10n = context.l10n;
+
+    return ListenableBuilder(
+      listenable: _inputFocusNode,
+      builder: (context, child) => AppCard(
+        radius: AppRadius.md,
+        backgroundColor: colors.canvasBackground,
+        borderColor: _inputFocusNode.hasFocus
+            ? colors.primary
+            : colors.borderDefault,
+        child: child!,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CompositedTransformTarget(
+            link: _layerLink,
+            child: CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.enter): _handleSend,
+              },
+              // 焦点冒泡先处理补全，避免 Enter 被外层发送快捷键抢走。
+              child: Focus(
+                onKeyEvent: _handleSlashKey,
+                child: TextField(
+                  key: _inputFieldKey,
+                  controller: _inputController,
+                  focusNode: _inputFocusNode,
+                  minLines: 1,
+                  maxLines: 6,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: colors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: l10n.chatInputHint,
+                    hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+                    isDense: true,
+                    filled: false,
+                    contentPadding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      AppSpacing.md,
+                      AppSpacing.md,
+                      AppSpacing.sm,
+                    ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.sm,
+              0,
+              AppSpacing.sm,
+              AppSpacing.sm,
+            ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: CompositedTransformTarget(
-                    link: _layerLink,
-                    child: Focus(
-                      onKeyEvent: _handleSlashKey,
-                      child: CallbackShortcuts(
-                        bindings: {
-                          const SingleActivator(LogicalKeyboardKey.enter):
-                              _handleSend,
-                        },
-                        child: TextField(
-                          key: _inputFieldKey,
-                          controller: _inputController,
-                          focusNode: _inputFocusNode,
-                          minLines: 1,
-                          maxLines: 4,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: colors.textPrimary,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: context.l10n.chatInputHint,
-                            hintStyle: TextStyle(
-                              fontSize: 13,
-                              color: colors.textMuted,
-                            ),
-                            fillColor: colors.canvasBackground,
-                            hoverColor: colors.canvasBackground,
-                            filled: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                              borderSide: BorderSide(
-                                color: colors.borderDefault,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                              borderSide: BorderSide(
-                                color: colors.borderDefault,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                              borderSide: BorderSide(
-                                color: colors.primary,
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                AppIconButton(
+                  icon: Icons.attach_file_rounded,
+                  iconSize: 17,
+                  tooltip: l10n.chatAddAttachmentTooltip,
+                  variant: AppIconButtonVariant.ghost,
+                  onPressed: _pickImageFiles,
                 ),
-                const SizedBox(width: 8),
-                // 📎 选择本地图片文件 (多模态参考图)
-                AspectRatio(
-                  aspectRatio: 1.0,
-                  child: Tooltip(
-                    message: context.l10n.chatAddAttachmentTooltip,
-                    child: Material(
-                      color: colors.cardBackground,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      child: InkWell(
-                        onTap: _pickImageFiles,
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        child: Center(
-                          child: Icon(
-                            Icons.attach_file_rounded,
-                            size: 17,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                AspectRatio(
-                  aspectRatio: 1.0,
-                  child: Material(
-                    color: isStreaming
-                        ? colors.textMuted.withValues(alpha: 0.5)
-                        : colors.primary,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    child: InkWell(
-                      onTap: isStreaming ? null : _handleSend,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      child: Center(
-                        child: isStreaming
-                            ? const SizedBox(
-                                width: 15,
-                                height: 15,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                            : const Icon(
-                                Icons.send_rounded,
-                                size: 17,
-                                color: Colors.white,
-                              ),
-                      ),
-                    ),
-                  ),
+                const Spacer(),
+                AppAsyncIconButton(
+                  isLoading: widget.viewModel.isChatStreaming,
+                  icon: Icons.send_rounded,
+                  iconSize: 17,
+                  tooltip: l10n.chatSendTooltip,
+                  loadingTooltip: l10n.chatSendingTooltip,
+                  variant: AppIconButtonVariant.primary,
+                  onPressed: _handleSend,
                 ),
               ],
             ),
