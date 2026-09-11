@@ -39,16 +39,52 @@ extension AgentContext on AgentHarness {
     onContextChanged?.call();
   }
 
-  String forgetReply(int number) {
+  /// 返回该回复无法释放的原因，可释放时返回 null
+  String? _releaseBlocker(int number) {
     final index = _messages.indexWhere((m) => m.replyNumber == number);
     if (index < _contextStartIndex || index < 0) {
-      throw StateError('该回复不存在或已进入摘要，不能单独释放');
+      return '不存在或已进入摘要，不能单独释放';
     }
     final lastUser = _messages.lastIndexWhere((m) => m.role == AgentRole.user);
-    if (index >= lastUser) throw StateError('当前用户轮次的回复不能释放');
+    if (index >= lastUser) return '属于当前用户轮次，不能释放';
+    return null;
+  }
+
+  String forgetReply(int number) {
+    final blocker = _releaseBlocker(number);
+    if (blocker != null) throw StateError('该回复$blocker');
     memory.forgetReply(number);
     memoryChanged();
     return '已释放回复 #$number 及其工具结果；原始历史保留。';
+  }
+
+  /// 批量释放旧回复：逐项处理，单项失败不影响其余，只触发一次上下文变更通知。
+  String forgetReplies(Iterable<int> numbers) {
+    final ids = numbers.toSet().toList()..sort();
+    if (ids.isEmpty) throw ArgumentError('需要至少一个回复编号');
+    final released = <int>[];
+    final blocked = <String>[];
+    for (final number in ids) {
+      final blocker = _releaseBlocker(number);
+      if (blocker != null) {
+        blocked.add('#$number ($blocker)');
+        continue;
+      }
+      memory.forgetReply(number);
+      released.add(number);
+    }
+    if (released.isEmpty) {
+      throw StateError('没有可释放的回复：${blocked.join('、')}');
+    }
+    memoryChanged();
+    final buffer = StringBuffer(
+      '已释放回复 ${released.map((n) => '#$n').join('、')} 及其工具结果；',
+    );
+    if (blocked.isNotEmpty) {
+      buffer.write('未释放 ${blocked.join('、')}；');
+    }
+    buffer.write('原始历史保留。');
+    return buffer.toString();
   }
 
   Map<String, Object?> exportContextState() => {

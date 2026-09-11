@@ -175,12 +175,12 @@ class AddPromptLibraryEntryTool extends AgentTool {
         name: 'add_prompt_library_entry',
         label: '新增词库条目',
         description:
-            '向本地词库新增一条词组合预设。title 与 prompt 必填；分类建议使用标准分类名 '
+            '向本地词库新增词组合预设。title 与 prompt 必填；分类建议使用标准分类名 '
             '(角色/风格/服装/构图/环境/特效/其他)。注意：只有「角色」分类支持负面提示词，'
-            '其他分类的负面提示词会被自动清空。新增成功后返回条目 ID。',
+            '其他分类的负面提示词会被自动清空。新增成功后返回条目 ID。'
+            '需要一次新增多条时用 entries 数组，不要逐条多次调用。',
         parameters: const {
           'type': 'object',
-          'required': ['title', 'prompt'],
           'properties': {
             'title': {'type': 'string', 'description': '条目标题 (如「初音未来」「赛博水彩风」)'},
             'prompt': {
@@ -202,6 +202,26 @@ class AddPromptLibraryEntryTool extends AgentTool {
               'description': '检索用标签列表',
             },
             'favorite': {'type': 'boolean', 'description': '是否收藏'},
+            'entries': {
+              'type': 'array',
+              'description':
+                  '批量新增多个条目：每项字段与顶层同名参数一致 (title 与 prompt 必填)，本次调用内一次全部新增',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'title': {'type': 'string'},
+                  'prompt': {'type': 'string'},
+                  'category': {'type': 'string'},
+                  'negative_prompt': {'type': 'string'},
+                  'tags': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                  },
+                  'favorite': {'type': 'boolean'},
+                },
+                'required': ['title', 'prompt'],
+              },
+            },
           },
         },
       );
@@ -211,48 +231,94 @@ class AddPromptLibraryEntryTool extends AgentTool {
     String toolCallId,
     Map<String, dynamic> args,
   ) async {
-    final title = (args['title'] as String?)?.trim() ?? '';
-    final prompt = (args['prompt'] as String?)?.trim() ?? '';
-    if (title.isEmpty || prompt.isEmpty) {
-      return ToolResult(
-        toolCallId: toolCallId,
-        content: 'title 与 prompt 为必填项，不能为空。',
-        isError: true,
+    final rawSpecs = args['entries'];
+    final specs = <Map<String, dynamic>>[];
+    if (rawSpecs != null) {
+      if (rawSpecs is! List || rawSpecs.isEmpty) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: 'entries 必须是非空对象数组。',
+          isError: true,
+        );
+      }
+      for (final item in rawSpecs) {
+        if (item is! Map) {
+          return ToolResult(
+            toolCallId: toolCallId,
+            content: 'entries 必须是非空对象数组。',
+            isError: true,
+          );
+        }
+        specs.add(item.cast<String, dynamic>());
+      }
+    } else {
+      specs.add(args);
+    }
+
+    // 先整体校验，避免批量新增到一半才发现重名或字段缺失
+    final seen = <String>{};
+    for (final spec in specs) {
+      final title = (spec['title'] as String?)?.trim() ?? '';
+      final prompt = (spec['prompt'] as String?)?.trim() ?? '';
+      if (title.isEmpty || prompt.isEmpty) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: 'title 与 prompt 为必填项，不能为空。',
+          isError: true,
+        );
+      }
+      if (getEntries().any((e) => e.title == title) || !seen.add(title)) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content:
+              '已存在同名条目「$title」。如需覆盖请先用 search_prompt_library 查到 ID 后调用更新工具。',
+          isError: true,
+        );
+      }
+    }
+
+    final created = <PromptComboEntry>[];
+    for (var i = 0; i < specs.length; i++) {
+      final spec = specs[i];
+      final now = DateTime.now();
+      created.add(
+        await addEntry(
+          PromptComboEntry(
+            // 同毫秒内批量新增时补足序号，避免 ID 碰撞
+            id:
+                'combo_${now.millisecondsSinceEpoch}'
+                '${specs.length > 1 ? '_$i' : ''}',
+            title: (spec['title'] as String).trim(),
+            category: (spec['category'] as String?)?.trim().isNotEmpty == true
+                ? (spec['category'] as String).trim()
+                : PromptComboCategories.other,
+            prompt: (spec['prompt'] as String).trim(),
+            negativePrompt: (spec['negative_prompt'] as String?)?.trim() ?? '',
+            createdAt: now,
+            updatedAt: now,
+            isFavorite: spec['favorite'] is bool
+                ? spec['favorite'] as bool
+                : false,
+            tags: _parseTags(spec['tags']),
+          ),
+        ),
       );
     }
 
-    final existing = getEntries();
-    if (existing.any((e) => e.title == title)) {
-      return ToolResult(
-        toolCallId: toolCallId,
-        content: '已存在同名条目「$title」。如需覆盖请先用 search_prompt_library 查到 ID 后调用更新工具。',
-        isError: true,
-      );
-    }
-
-    final now = DateTime.now();
-    final entry = PromptComboEntry(
-      id: 'combo_${now.millisecondsSinceEpoch}',
-      title: title,
-      category: (args['category'] as String?)?.trim().isNotEmpty == true
-          ? (args['category'] as String).trim()
-          : PromptComboCategories.other,
-      prompt: prompt,
-      negativePrompt: (args['negative_prompt'] as String?)?.trim() ?? '',
-      createdAt: now,
-      updatedAt: now,
-      isFavorite: args['favorite'] is bool ? args['favorite'] as bool : false,
-      tags: _parseTags(args['tags']),
+    final details = created
+        .map(
+          (e) =>
+              '• ${e.title} (id: ${e.id}) | 分类: ${e.category}'
+              '${e.isFavorite ? ' | 已收藏' : ''}',
+        )
+        .join('\n');
+    final buffer = StringBuffer(
+      specs.length == 1
+          ? '已新增词库条目：\n${formatPromptComboEntry(created.first)}'
+          : '已新增 ${created.length} 个词库条目：\n$details',
     );
-
-    final created = await addEntry(entry);
-
-    return ToolResult(
-      toolCallId: toolCallId,
-      content:
-          '已新增词库条目：\n${formatPromptComboEntry(created)}\n'
-          '如需为该条目配置预览图，可调用 set_prompt_library_preview 工具。',
-    );
+    buffer.write('\n如需为条目配置预览图，可调用 set_prompt_library_preview 工具。');
+    return ToolResult(toolCallId: toolCallId, content: buffer.toString());
   }
 }
 
@@ -560,10 +626,10 @@ class UpdatePromptLibraryEntryTool extends AgentTool {
          label: '修改词库条目',
          description:
              '按 ID 修改本地词库中的词组合条目。只需传入要修改的字段，未传入的字段保持原值。'
-             'ID 可先用 search_prompt_library 查询获取。',
+             'ID 可先用 search_prompt_library 查询获取；一次修改复数条目时用 updates 数组，'
+             '不要逐条多次调用。',
          parameters: const {
            'type': 'object',
-           'required': ['id'],
            'properties': {
              'id': {'type': 'string', 'description': '要修改的条目 ID'},
              'title': {'type': 'string', 'description': '新标题'},
@@ -583,6 +649,27 @@ class UpdatePromptLibraryEntryTool extends AgentTool {
                'description': '新标签列表 (整体替换)',
              },
              'favorite': {'type': 'boolean', 'description': '是否收藏'},
+             'updates': {
+               'type': 'array',
+               'description':
+                   '批量修改多个条目：每项含 id 与要修改的字段 (字段名与顶层同名参数一致)，本次调用内一次全部应用',
+               'items': {
+                 'type': 'object',
+                 'properties': {
+                   'id': {'type': 'string'},
+                   'title': {'type': 'string'},
+                   'prompt': {'type': 'string'},
+                   'category': {'type': 'string'},
+                   'negative_prompt': {'type': 'string'},
+                   'tags': {
+                     'type': 'array',
+                     'items': {'type': 'string'},
+                   },
+                   'favorite': {'type': 'boolean'},
+                 },
+                 'required': ['id'],
+               },
+             },
            },
          },
        );
@@ -592,50 +679,103 @@ class UpdatePromptLibraryEntryTool extends AgentTool {
     String toolCallId,
     Map<String, dynamic> args,
   ) async {
-    final id = (args['id'] as String?)?.trim() ?? '';
-    if (id.isEmpty) {
+    final batch = args['updates'] != null;
+    final rawSpecs = args['updates'];
+    final specs = <Map<String, dynamic>>[];
+    if (rawSpecs != null) {
+      if (rawSpecs is! List || rawSpecs.isEmpty) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: 'updates 必须是非空对象数组。',
+          isError: true,
+        );
+      }
+      for (final item in rawSpecs) {
+        if (item is! Map) {
+          return ToolResult(
+            toolCallId: toolCallId,
+            content: 'updates 必须是非空对象数组。',
+            isError: true,
+          );
+        }
+        specs.add(item.cast<String, dynamic>());
+      }
+    } else {
+      specs.add(args);
+    }
+
+    if (!batch) {
+      final id = (args['id'] as String?)?.trim() ?? '';
+      if (id.isEmpty) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: 'id 为必填项。',
+          isError: true,
+        );
+      }
+      if (!getEntries().any((e) => e.id == id)) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: '未找到 ID 为 "$id" 的词库条目。可先调用 search_prompt_library 查询。',
+          isError: true,
+        );
+      }
+    }
+
+    final applied = <String>[];
+    final failed = <String>[];
+    for (final spec in specs) {
+      final id = (spec['id'] as String?)?.trim() ?? '';
+      if (id.isEmpty) {
+        failed.add('缺少条目 id');
+        continue;
+      }
+      // 每次重新读取，保证同一批次内对同一条目的多次修改依次生效
+      final current = getEntries().where((e) => e.id == id).firstOrNull;
+      if (current == null) {
+        failed.add('未找到 ID 为 $id 的词库条目');
+        continue;
+      }
+
+      final updated = current.copyWith(
+        title: (spec['title'] as String?)?.trim().isNotEmpty == true
+            ? (spec['title'] as String).trim()
+            : null,
+        prompt: spec.containsKey('prompt')
+            ? ((spec['prompt'] as String?)?.trim() ?? '')
+            : null,
+        category: (spec['category'] as String?)?.trim().isNotEmpty == true
+            ? (spec['category'] as String).trim()
+            : null,
+        negativePrompt: spec.containsKey('negative_prompt')
+            ? ((spec['negative_prompt'] as String?)?.trim() ?? '')
+            : null,
+        isFavorite: spec['favorite'] is bool ? spec['favorite'] as bool : null,
+        tags: spec.containsKey('tags') ? _parseTags(spec['tags']) : null,
+        updatedAt: DateTime.now(),
+      );
+
+      await updateEntry(updated);
+      applied.add('已修改词库条目：\n${formatPromptComboEntry(updated)}');
+    }
+
+    if (applied.isEmpty) {
+      if (batch) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: '未修改任何条目：${failed.join('；')}。',
+          isError: true,
+        );
+      }
       return ToolResult(
         toolCallId: toolCallId,
-        content: 'id 为必填项。',
-        isError: true,
+        content: '未修改任何字段 (没有传入有效的更新内容)。',
       );
     }
 
-    final entries = getEntries();
-    final idx = entries.indexWhere((e) => e.id == id);
-    if (idx == -1) {
-      return ToolResult(
-        toolCallId: toolCallId,
-        content: '未找到 ID 为 "$id" 的词库条目。可先调用 search_prompt_library 查询。',
-        isError: true,
-      );
-    }
-
-    final current = entries[idx];
-    final updated = current.copyWith(
-      title: (args['title'] as String?)?.trim().isNotEmpty == true
-          ? (args['title'] as String).trim()
-          : null,
-      prompt: args.containsKey('prompt')
-          ? ((args['prompt'] as String?)?.trim() ?? '')
-          : null,
-      category: (args['category'] as String?)?.trim().isNotEmpty == true
-          ? (args['category'] as String).trim()
-          : null,
-      negativePrompt: args.containsKey('negative_prompt')
-          ? ((args['negative_prompt'] as String?)?.trim() ?? '')
-          : null,
-      isFavorite: args['favorite'] is bool ? args['favorite'] as bool : null,
-      tags: args.containsKey('tags') ? _parseTags(args['tags']) : null,
-      updatedAt: DateTime.now(),
-    );
-
-    await updateEntry(updated);
-
-    return ToolResult(
-      toolCallId: toolCallId,
-      content: '已修改词库条目：\n${formatPromptComboEntry(updated)}',
-    );
+    final buffer = StringBuffer(applied.join('\n'));
+    if (failed.isNotEmpty) buffer.write('\n未修改：${failed.join('；')}。');
+    return ToolResult(toolCallId: toolCallId, content: buffer.toString());
   }
 }
 
@@ -651,12 +791,17 @@ class DeletePromptLibraryEntryTool extends AgentTool {
          name: 'delete_prompt_library_entry',
          label: '删除词库条目',
          description:
-             '按 ID 删除本地词库中的词组合条目 (不可恢复)。ID 可先用 search_prompt_library 查询获取。',
+             '按 ID 删除本地词库中的词组合条目 (不可恢复)。ID 可先用 search_prompt_library 查询获取；'
+             '删除复数条目时用 ids 数组一次完成，不要逐条多次调用。',
          parameters: const {
            'type': 'object',
-           'required': ['id'],
            'properties': {
-             'id': {'type': 'string', 'description': '要删除的条目 ID'},
+             'id': {'type': 'string', 'description': '要删除的单个条目 ID'},
+             'ids': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '批量删除的条目 ID 列表 (与 id 可并用)',
+             },
            },
          },
        );
@@ -666,8 +811,24 @@ class DeletePromptLibraryEntryTool extends AgentTool {
     String toolCallId,
     Map<String, dynamic> args,
   ) async {
-    final id = (args['id'] as String?)?.trim() ?? '';
-    if (id.isEmpty) {
+    final ids = <String>{};
+    final single = (args['id'] as String?)?.trim() ?? '';
+    if (single.isNotEmpty) ids.add(single);
+    final many = args['ids'];
+    if (many != null) {
+      if (many is! List || many.isEmpty) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: 'ids 必须是非空字符串数组。',
+          isError: true,
+        );
+      }
+      for (final item in many) {
+        final value = '$item'.trim();
+        if (value.isNotEmpty) ids.add(value);
+      }
+    }
+    if (ids.isEmpty) {
       return ToolResult(
         toolCallId: toolCallId,
         content: 'id 为必填项。',
@@ -676,22 +837,28 @@ class DeletePromptLibraryEntryTool extends AgentTool {
     }
 
     final entries = getEntries();
-    final idx = entries.indexWhere((e) => e.id == id);
-    if (idx == -1) {
+    final targets = entries.where((e) => ids.contains(e.id)).toList();
+    if (targets.isEmpty) {
       return ToolResult(
         toolCallId: toolCallId,
-        content: '未找到 ID 为 "$id" 的词库条目。',
+        content: '未找到 ID 为 ${ids.join('、')} 的词库条目。',
         isError: true,
       );
     }
 
-    final target = entries[idx];
-    await deleteEntry(id);
+    for (final target in targets) {
+      await deleteEntry(target.id);
+    }
 
-    return ToolResult(
-      toolCallId: toolCallId,
-      content: '已删除词库条目「${target.title}」($id)。',
+    final missing = ids.where((id) => !targets.any((e) => e.id == id)).toList();
+    final buffer = StringBuffer(
+      targets.length == 1
+          ? '已删除词库条目「${targets.first.title}」(${targets.first.id})。'
+          : '已删除 ${targets.length} 个词库条目：'
+                '${targets.map((e) => '“${e.title}”(${e.id})').join('、')}。',
     );
+    if (missing.isNotEmpty) buffer.write('未找到 ${missing.join('、')}。');
+    return ToolResult(toolCallId: toolCallId, content: buffer.toString());
   }
 }
 

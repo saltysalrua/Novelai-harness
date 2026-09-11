@@ -578,27 +578,171 @@ double? _resolvePercent(Map<String, dynamic> args, String key) {
   return value.clamp(0.0, 100.0);
 }
 
-/// 按编号 (1 起) 或批注 ID 定位批注
-ImageAnnotation? _findAnnotation(
+/// 按编号 (1 起顺序编号) 或批注 ID 定位复数批注
+///
+/// 同时汇总 `annotation`/`annotation_id` 单数与数组形态，用于批量增删改。
+List<ImageAnnotation> _findAnnotations(
   List<ImageAnnotation> annotations,
   Map<String, dynamic> args,
 ) {
-  final rawNumber = args['annotation'];
-  final id = args['annotation_id'] as String?;
+  final numbers = <int>[];
+  final ids = <String>[];
 
-  if (id != null && id.isNotEmpty) {
-    return annotations.where((a) => a.id == id).firstOrNull;
+  void addNumber(Object? raw) {
+    final value = switch (raw) {
+      final int v => v,
+      final num v => v.toInt(),
+      final String v => int.tryParse(v.trim()) ?? -1,
+      _ => -1,
+    };
+    if (value >= 1) numbers.add(value);
   }
-  int number = -1;
-  if (rawNumber is int) {
-    number = rawNumber;
-  } else if (rawNumber is num) {
-    number = rawNumber.toInt();
-  } else if (rawNumber is String) {
-    number = int.tryParse(rawNumber) ?? -1;
+
+  void addId(Object? raw) {
+    if (raw is String && raw.isNotEmpty) ids.add(raw);
   }
-  if (number < 1 || number > annotations.length) return null;
-  return annotations[number - 1];
+
+  addId(args['annotation_id']);
+  addNumber(args['annotation']);
+  final rawNumbers = args['annotations'];
+  if (rawNumbers is List) {
+    for (final item in rawNumbers) {
+      addNumber(item);
+    }
+  }
+  final rawIds = args['annotation_ids'];
+  if (rawIds is List) {
+    for (final item in rawIds) {
+      addId(item);
+    }
+  }
+
+  final result = <ImageAnnotation>[];
+  void collect(ImageAnnotation? match) {
+    if (match != null && !result.any((a) => a.id == match.id)) {
+      result.add(match);
+    }
+  }
+
+  for (final id in ids) {
+    collect(annotations.where((a) => a.id == id).firstOrNull);
+  }
+  for (final number in numbers) {
+    if (number < 1 || number > annotations.length) continue;
+    collect(annotations[number - 1]);
+  }
+  return result;
+}
+
+/// 解析批注工具的单条 / 批量规格参数
+({List<Map<String, dynamic>> specs, String? error}) _resolveAnnotationSpecs(
+  Map<String, dynamic> args, {
+  String key = 'annotations',
+}) {
+  final raw = args[key];
+  if (raw == null) return (specs: [args], error: null);
+  if (raw is! List || raw.isEmpty) {
+    return (specs: const [], error: '$key 必须是非空对象数组。');
+  }
+  final specs = <Map<String, dynamic>>[];
+  for (final item in raw) {
+    if (item is! Map) {
+      return (specs: const [], error: '$key 必须是非空对象数组。');
+    }
+    specs.add(item.cast<String, dynamic>());
+  }
+  return (specs: specs, error: null);
+}
+
+/// 由规格构建单条批注；返回 error 时调用方应整体拒绝本次写入
+({ImageAnnotation? annotation, String? error}) _buildAnnotationFromSpec(
+  Map<String, dynamic> spec,
+  int fallbackColorIndex,
+) {
+  final type = AnnotationType.fromId(spec['type'] as String?);
+  final note = (spec['note'] as String?)?.trim() ?? '';
+  final rawColor = spec['color_index'];
+  final colorIndex = rawColor is int
+      ? rawColor
+      : (rawColor is num ? rawColor.toInt() : fallbackColorIndex);
+  final x = _resolvePercent(spec, 'x');
+  final y = _resolvePercent(spec, 'y');
+  final w = _resolvePercent(spec, 'w');
+  final h = _resolvePercent(spec, 'h');
+
+  switch (type) {
+    case AnnotationType.rect:
+      if (x == null || y == null || w == null || h == null) {
+        return (annotation: null, error: '矩形选区批注需要提供 x/y/w/h 四个百分比坐标 (0~100)。');
+      }
+      return (
+        annotation: ImageAnnotation.rect(
+          normalizedRect: Rect.fromLTWH(
+            x / 100.0,
+            y / 100.0,
+            w / 100.0,
+            h / 100.0,
+          ),
+          note: note,
+          colorIndex: colorIndex,
+        ),
+        error: null,
+      );
+    case AnnotationType.point:
+      if (x == null || y == null) {
+        return (annotation: null, error: '图钉锚点批注需要提供 x/y 两个百分比坐标 (0~100)。');
+      }
+      return (
+        annotation: ImageAnnotation.point(
+          normalizedPoint: Offset(x / 100.0, y / 100.0),
+          note: note,
+          colorIndex: colorIndex,
+        ),
+        error: null,
+      );
+    case AnnotationType.global:
+      return (
+        annotation: ImageAnnotation.global(note: note, colorIndex: colorIndex),
+        error: null,
+      );
+  }
+}
+
+/// 对单条批注应用规格中的字段修改 (未提供的字段保持不变)
+ImageAnnotation _applyAnnotationUpdate(
+  ImageAnnotation annotation,
+  Map<String, dynamic> spec,
+) {
+  final x = _resolvePercent(spec, 'x');
+  final y = _resolvePercent(spec, 'y');
+  final w = _resolvePercent(spec, 'w');
+  final h = _resolvePercent(spec, 'h');
+  final rawColor = spec['color_index'];
+  final colorIndex = rawColor is int
+      ? rawColor
+      : (rawColor is num ? rawColor.toInt() : null);
+  final note = spec['note'] is String ? spec['note'] as String : null;
+
+  var updated = annotation;
+  if (note != null) updated = updated.copyWith(note: note);
+  if (colorIndex != null) {
+    updated = updated.copyWith(colorIndex: colorIndex);
+  }
+
+  if (updated.type == AnnotationType.rect && updated.rect != null) {
+    final cur = updated.rect!;
+    final newL = (x != null ? x / 100.0 : cur.left).clamp(0.0, 1.0);
+    final newT = (y != null ? y / 100.0 : cur.top).clamp(0.0, 1.0);
+    final newW = (w != null ? w / 100.0 : cur.width).clamp(0.0, 1.0);
+    final newH = (h != null ? h / 100.0 : cur.height).clamp(0.0, 1.0);
+    updated = updated.copyWith(rect: Rect.fromLTWH(newL, newT, newW, newH));
+  } else if (updated.type == AnnotationType.point && updated.point != null) {
+    final cur = updated.point!;
+    final newX = (x != null ? x / 100.0 : cur.dx).clamp(0.0, 1.0);
+    final newY = (y != null ? y / 100.0 : cur.dy).clamp(0.0, 1.0);
+    updated = updated.copyWith(point: Offset(newX, newY));
+  }
+  return updated;
 }
 
 String _describeAnnotation(
@@ -648,8 +792,28 @@ class AddImageAnnotationTool extends AgentTool {
                'type': 'integer',
                'description': '颜色索引 0~5（默认自动按顺序取色）。',
              },
+             'annotations': {
+               'type': 'array',
+               'description':
+                   '批量添加多条批注：每项字段与顶层同名参数一致 (type 必填)，本次调用内一次全部写入，不要逐条多次调用',
+               'items': {
+                 'type': 'object',
+                 'properties': {
+                   'type': {
+                     'type': 'string',
+                     'enum': ['rect', 'point', 'global'],
+                   },
+                   'x': {'type': 'number'},
+                   'y': {'type': 'number'},
+                   'w': {'type': 'number'},
+                   'h': {'type': 'number'},
+                   'note': {'type': 'string'},
+                   'color_index': {'type': 'integer'},
+                 },
+                 'required': ['type'],
+               },
+             },
            },
-           'required': ['type'],
          },
        );
 
@@ -677,56 +841,29 @@ class AddImageAnnotationTool extends AgentTool {
     }
 
     final target = history[index];
-    final type = AnnotationType.fromId(args['type'] as String?);
-    final note = (args['note'] as String?)?.trim() ?? '';
-    final rawColor = args['color_index'];
-    final colorIndex = rawColor is int
-        ? rawColor
-        : (rawColor is num ? rawColor.toInt() : target.annotations.length);
-
-    final x = _resolvePercent(args, 'x');
-    final y = _resolvePercent(args, 'y');
-    final w = _resolvePercent(args, 'w');
-    final h = _resolvePercent(args, 'h');
-
-    ImageAnnotation newAnn;
-    switch (type) {
-      case AnnotationType.rect:
-        if (x == null || y == null || w == null || h == null) {
-          return ToolResult(
-            toolCallId: toolCallId,
-            content: '矩形选区批注需要提供 x/y/w/h 四个百分比坐标 (0~100)。',
-            isError: true,
-          );
-        }
-        newAnn = ImageAnnotation.rect(
-          normalizedRect: Rect.fromLTWH(
-            x / 100.0,
-            y / 100.0,
-            w / 100.0,
-            h / 100.0,
-          ),
-          note: note,
-          colorIndex: colorIndex,
-        );
-      case AnnotationType.point:
-        if (x == null || y == null) {
-          return ToolResult(
-            toolCallId: toolCallId,
-            content: '图钉锚点批注需要提供 x/y 两个百分比坐标 (0~100)。',
-            isError: true,
-          );
-        }
-        newAnn = ImageAnnotation.point(
-          normalizedPoint: Offset(x / 100.0, y / 100.0),
-          note: note,
-          colorIndex: colorIndex,
-        );
-      case AnnotationType.global:
-        newAnn = ImageAnnotation.global(note: note, colorIndex: colorIndex);
+    final resolved = _resolveAnnotationSpecs(args);
+    if (resolved.error case final String error) {
+      return ToolResult(toolCallId: toolCallId, content: error, isError: true);
     }
 
-    final updatedList = [...target.annotations, newAnn];
+    // 单条与批量共用同一构建流程；批量时按既有条数顺序自动取色
+    final built = <ImageAnnotation>[];
+    for (var i = 0; i < resolved.specs.length; i++) {
+      final result = _buildAnnotationFromSpec(
+        resolved.specs[i],
+        target.annotations.length + i,
+      );
+      if (result.annotation == null) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: result.error!,
+          isError: true,
+        );
+      }
+      built.add(result.annotation!);
+    }
+
+    final updatedList = [...target.annotations, ...built];
     final ok = await writeAnnotations(target.id, updatedList);
     if (!ok) {
       return ToolResult(
@@ -737,18 +874,24 @@ class AddImageAnnotationTool extends AgentTool {
     }
 
     final dims = await AnlasCalculator.decodeImageDimensions(target.bytes);
-    final summary = _describeAnnotation(
-      newAnn,
-      updatedList.length,
-      dims?.width ?? target.params.width,
-      dims?.height ?? target.params.height,
-    );
+    final width = dims?.width ?? target.params.width;
+    final height = dims?.height ?? target.params.height;
+    final summaries = [
+      for (var i = 0; i < built.length; i++)
+        _describeAnnotation(
+          built[i],
+          target.annotations.length + i + 1,
+          width,
+          height,
+        ),
+    ];
 
     return ToolResult(
       toolCallId: toolCallId,
       toolName: 'add_image_annotation',
       content:
-          '已在图片 (索引 $index) 上添加批注，当前共 ${updatedList.length} 条：\n$summary\n'
+          '已在图片 (索引 $index) 上添加批注，当前共 ${updatedList.length} 条：\n'
+          '${summaries.join('\n')}\n'
           '批注已持久化，并在批注画板打开时实时同步显示。',
     );
   }
@@ -766,8 +909,9 @@ class UpdateImageAnnotationTool extends AgentTool {
          name: 'update_image_annotation',
          label: '修改图片批注',
          description:
-             '修改画板历史图片上的一条既有批注。用 annotation (1 起编号) 或 annotation_id 定位；'
-             '可更新 note 文字、x/y/w/h 百分比坐标 (0~100) 与颜色索引。未提供的字段保持不变。',
+             '修改画板历史图片上的既有批注。用 annotation (1 起编号) 或 annotation_id 定位；'
+             '可更新 note 文字、x/y/w/h 百分比坐标 (0~100) 与颜色索引。未提供的字段保持不变。'
+             '一次修改复数批注时用 updates 数组，避免逐条多次调用。',
          parameters: const {
            'type': 'object',
            'properties': {
@@ -789,6 +933,24 @@ class UpdateImageAnnotationTool extends AgentTool {
              'w': {'type': 'number', 'description': '矩形选区新的宽度百分比 (0~100)。'},
              'h': {'type': 'number', 'description': '矩形选区新的高度百分比 (0~100)。'},
              'color_index': {'type': 'integer', 'description': '新的颜色索引 0~5。'},
+             'updates': {
+               'type': 'array',
+               'description':
+                   '批量修改多条批注：每项用 annotation 或 annotation_id 定位，字段名与顶层同名参数一致，本次调用内一次全部应用',
+               'items': {
+                 'type': 'object',
+                 'properties': {
+                   'annotation': {'type': 'integer'},
+                   'annotation_id': {'type': 'string'},
+                   'note': {'type': 'string'},
+                   'x': {'type': 'number'},
+                   'y': {'type': 'number'},
+                   'w': {'type': 'number'},
+                   'h': {'type': 'number'},
+                   'color_index': {'type': 'integer'},
+                 },
+               },
+             },
            },
            'required': ['index'],
          },
@@ -809,8 +971,46 @@ class UpdateImageAnnotationTool extends AgentTool {
       );
     }
     final target = history[index];
-    final ann = _findAnnotation(target.annotations, args);
-    if (ann == null) {
+    final batch = args['updates'] != null;
+    final resolved = _resolveAnnotationSpecs(args, key: 'updates');
+    if (resolved.error case final String error) {
+      return ToolResult(toolCallId: toolCallId, content: error, isError: true);
+    }
+
+    final updatedList = [...target.annotations];
+    final applied = <({int number, String summary})>[];
+    final failed = <String>[];
+    for (final spec in resolved.specs) {
+      final ann = _findAnnotations(target.annotations, spec).firstOrNull;
+      if (ann == null) {
+        failed.add(
+          '未找到批注 ${spec['annotation_id'] ?? spec['annotation'] ?? '(未指定编号)'}',
+        );
+        continue;
+      }
+      final updated = _applyAnnotationUpdate(ann, spec);
+      final position = updatedList.indexWhere((a) => a.id == updated.id);
+      updatedList[position] = updated;
+      applied.add((
+        number: position + 1,
+        summary: _describeAnnotation(
+          updated,
+          position + 1,
+          target.params.width,
+          target.params.height,
+        ),
+      ));
+    }
+
+    if (applied.isEmpty) {
+      if (batch) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content:
+              '未修改任何批注：${failed.join('；')}。该图片共 ${target.annotations.length} 条批注。',
+          isError: true,
+        );
+      }
       return ToolResult(
         toolCallId: toolCallId,
         content:
@@ -819,39 +1019,6 @@ class UpdateImageAnnotationTool extends AgentTool {
       );
     }
 
-    final x = _resolvePercent(args, 'x');
-    final y = _resolvePercent(args, 'y');
-    final w = _resolvePercent(args, 'w');
-    final h = _resolvePercent(args, 'h');
-    final rawColor = args['color_index'];
-    final colorIndex = rawColor is int
-        ? rawColor
-        : (rawColor is num ? rawColor.toInt() : null);
-    final note = args['note'] is String ? args['note'] as String : null;
-
-    ImageAnnotation updated = ann;
-    if (note != null) updated = updated.copyWith(note: note);
-    if (colorIndex != null) {
-      updated = updated.copyWith(colorIndex: colorIndex);
-    }
-
-    if (updated.type == AnnotationType.rect && updated.rect != null) {
-      final cur = updated.rect!;
-      final newL = (x != null ? x / 100.0 : cur.left).clamp(0.0, 1.0);
-      final newT = (y != null ? y / 100.0 : cur.top).clamp(0.0, 1.0);
-      final newW = (w != null ? w / 100.0 : cur.width).clamp(0.0, 1.0);
-      final newH = (h != null ? h / 100.0 : cur.height).clamp(0.0, 1.0);
-      updated = updated.copyWith(rect: Rect.fromLTWH(newL, newT, newW, newH));
-    } else if (updated.type == AnnotationType.point && updated.point != null) {
-      final cur = updated.point!;
-      final newX = (x != null ? x / 100.0 : cur.dx).clamp(0.0, 1.0);
-      final newY = (y != null ? y / 100.0 : cur.dy).clamp(0.0, 1.0);
-      updated = updated.copyWith(point: Offset(newX, newY));
-    }
-
-    final updatedList = target.annotations
-        .map((a) => a.id == updated.id ? updated : a)
-        .toList();
     final ok = await writeAnnotations(target.id, updatedList);
     if (!ok) {
       return ToolResult(
@@ -861,17 +1028,17 @@ class UpdateImageAnnotationTool extends AgentTool {
       );
     }
 
-    final number = updatedList.indexOf(updated) + 1;
-    final summary = _describeAnnotation(
-      updated,
-      number,
-      target.params.width,
-      target.params.height,
+    final buffer = StringBuffer(
+      applied.length == 1
+          ? '已更新图片 (索引 $index) 的批注 ${applied.first.number}：\n${applied.first.summary}'
+          : '已更新图片 (索引 $index) 的 ${applied.length} 条批注：\n'
+                '${applied.map((e) => e.summary).join('\n')}',
     );
+    if (failed.isNotEmpty) buffer.write('\n未修改：${failed.join('；')}。');
     return ToolResult(
       toolCallId: toolCallId,
       toolName: 'update_image_annotation',
-      content: '已更新图片 (索引 $index) 的批注 $number：\n$summary',
+      content: buffer.toString(),
     );
   }
 }
@@ -888,7 +1055,8 @@ class RemoveImageAnnotationTool extends AgentTool {
          name: 'remove_image_annotation',
          label: '删除图片批注',
          description:
-             '删除画板历史图片上的一条既有批注。用 annotation (1 起编号) 或 annotation_id 定位。',
+             '删除画板历史图片上的既有批注。用 annotation (1 起编号) 或 annotation_id 定位；'
+             '删除复数批注时用 annotations / annotation_ids 数组一次完成，不要逐条多次调用。',
          parameters: const {
            'type': 'object',
            'properties': {
@@ -898,11 +1066,21 @@ class RemoveImageAnnotationTool extends AgentTool {
              },
              'annotation': {
                'type': 'integer',
-               'description': '要删除的批注编号（1 起顺序编号）。',
+               'description': '要删除的单个批注编号（1 起顺序编号）。',
              },
              'annotation_id': {
                'type': 'string',
-               'description': '要删除的批注 ID（与 annotation 二选一，优先使用）。',
+               'description': '要删除的单个批注 ID（与 annotation 二选一，优先使用）。',
+             },
+             'annotations': {
+               'type': 'array',
+               'items': {'type': 'integer'},
+               'description': '批量删除的批注编号列表（1 起顺序编号，与单数参数可并用）',
+             },
+             'annotation_ids': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '批量删除的批注 ID 列表（与单数参数可并用）',
              },
            },
            'required': ['index'],
@@ -924,8 +1102,8 @@ class RemoveImageAnnotationTool extends AgentTool {
       );
     }
     final target = history[index];
-    final ann = _findAnnotation(target.annotations, args);
-    if (ann == null) {
+    final targets = _findAnnotations(target.annotations, args);
+    if (targets.isEmpty) {
       return ToolResult(
         toolCallId: toolCallId,
         content: '未找到指定批注。该图片共 ${target.annotations.length} 条批注。',
@@ -933,8 +1111,9 @@ class RemoveImageAnnotationTool extends AgentTool {
       );
     }
 
+    final removedIds = targets.map((a) => a.id).toSet();
     final updatedList = target.annotations
-        .where((a) => a.id != ann.id)
+        .where((a) => !removedIds.contains(a.id))
         .toList();
     final ok = await writeAnnotations(target.id, updatedList);
     if (!ok) {
@@ -945,11 +1124,17 @@ class RemoveImageAnnotationTool extends AgentTool {
       );
     }
 
+    final described = targets
+        .map(
+          (ann) =>
+              '「[${ann.type.label}] ${ann.note.trim().isEmpty ? '（无文字）' : ann.note.trim()}」',
+        )
+        .join('、');
     return ToolResult(
       toolCallId: toolCallId,
       toolName: 'remove_image_annotation',
       content:
-          '已删除图片 (索引 $index) 的批注「[${ann.type.label}] ${ann.note.trim().isEmpty ? '（无文字）' : ann.note.trim()}」。当前剩余 ${updatedList.length} 条批注。',
+          '已删除图片 (索引 $index) 的 ${targets.length} 条批注：$described。当前剩余 ${updatedList.length} 条批注。',
     );
   }
 }

@@ -267,5 +267,39 @@ void main() {
       expect(r.isError, isTrue);
       expect(r.content, contains('http'));
     });
+
+    test('urls 数组批量提取: 共享正文预算且逐页渲染', () async {
+      final requested = <String>[];
+      final tool = WebExtractTool(
+        service: _svc({
+          'POST /v1/extract': jsonEncode(
+            _ok({
+              'title': '长文',
+              'url': 'https://example.com/long',
+              'content': 'B' * 20000,
+            }),
+          ),
+        }, onRequest: (r) => requested.add(r.body)),
+      );
+
+      final r = await tool.execute('t1', {
+        'urls': ['https://example.com/a', 'https://example.com/b'],
+      });
+
+      expect(r.isError, isFalse);
+      expect(requested, hasLength(2));
+      // 两条 URL 均分 12000 字符预算，各截断一次
+      expect('已截断'.allMatches(r.content).length, 2);
+      expect(r.content.length, lessThan(14000));
+    });
+
+    test('urls 超过 5 条时拦截', () async {
+      final tool = WebExtractTool(service: _svc({}));
+      final r = await tool.execute('t1', {
+        'urls': [for (var i = 0; i < 6; i++) 'https://example.com/$i'],
+      });
+      expect(r.isError, isTrue);
+      expect(r.content, contains('最多提取 5 个 URL'));
+    });
   });
 }

@@ -248,6 +248,70 @@ void main() {
     h.dispose();
   });
 
+  test('批量清理：ids 一次释放复数回复、复数笔记与复数读取', () async {
+    final h = _harness();
+    h.restoreMessages([
+      AgentMessage(id: 'u1', role: AgentRole.user, content: '第一轮要求'),
+      AgentMessage(id: 'a1', role: AgentRole.assistant, content: '旧回复一'),
+      AgentMessage(id: 'u2', role: AgentRole.user, content: '第二轮要求'),
+      AgentMessage(id: 'a2', role: AgentRole.assistant, content: '旧回复二'),
+      AgentMessage(id: 'u3', role: AgentRole.user, content: '当前轮要求'),
+    ]);
+    final tool = ContextMemoryTool(h);
+
+    // 复数笔记一次保存
+    final added = await tool.execute('x', {
+      'action': 'add_note',
+      'texts': ['结论甲', '结论乙'],
+    });
+    expect(added.isError, isFalse);
+    expect(h.memory.notes.length, 2);
+    expect(added.content, contains('#1'));
+    expect(added.content, contains('#2'));
+
+    // 复数读取：一次拿到两条回复的原文
+    final read = await tool.execute('x', {
+      'action': 'read_reply',
+      'ids': [1, 2],
+    });
+    expect(read.isError, isFalse);
+    expect(read.content, contains('旧回复一'));
+    expect(read.content, contains('旧回复二'));
+
+    // 复数释放：不存在的编号只作为部分失败提示，不阻断本次调用
+    final forgotten = await tool.execute('x', {
+      'action': 'forget_reply',
+      'ids': [1, 2, 99],
+    });
+    expect(forgotten.isError, isFalse);
+    expect(h.memory.forgottenReplies, containsAll(<int>[1, 2]));
+    expect(forgotten.content, contains('#99'));
+
+    // 复数删除：仍保留编号与不存在的部分提示
+    final removed = await tool.execute('x', {
+      'action': 'delete_note',
+      'ids': [1, 2],
+    });
+    expect(removed.isError, isFalse);
+    expect(h.memory.notes, isEmpty);
+
+    // 全部失败（不存在或已进入摘要）的批量释放仍按错误返回
+    final allBlocked = await tool.execute('x', {
+      'action': 'forget_reply',
+      'ids': [98, 99],
+    });
+    expect(allBlocked.isError, isTrue);
+    expect(allBlocked.content, contains('没有可释放的回复'));
+
+    // 全部不存在的批量删除同样报错
+    final missing = await tool.execute('x', {
+      'action': 'delete_note',
+      'ids': [42, 43],
+    });
+    expect(missing.isError, isTrue);
+    h.dispose();
+  });
+
   test('请求侧回复编号只保留一层，入库剥离模型回显', () async {
     List<AgentMessage> request = [];
     final h = _harness(

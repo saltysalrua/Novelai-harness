@@ -249,6 +249,49 @@ void main() {
     expect(result.isError, isTrue);
   });
 
+  test('修改工具: updates 数组一次修改复数条目', () async {
+    final tool = UpdatePromptLibraryEntryTool(
+      getEntries: () => entries,
+      updateEntry: updateEntry,
+    );
+    final result = await tool.execute('t1', {
+      'updates': [
+        {'id': 'e1', 'title': '批量改水彩'},
+        {'id': 'e3', 'favorite': true},
+        {'id': 'ghost', 'title': 'x'},
+      ],
+    });
+
+    expect(result.isError, isFalse);
+    // 不存在的 ID 只作部分失败提示，不阻断已命中的条目
+    expect(result.content, contains('未修改'));
+    expect(result.content, contains('ghost'));
+
+    final persisted = await PromptLibraryService.instance.loadEntries();
+    expect(persisted.firstWhere((e) => e.id == 'e1').title, '批量改水彩');
+    // 未传的字段保持原值
+    expect(
+      persisted.firstWhere((e) => e.id == 'e1').prompt,
+      'watercolor, pastel',
+    );
+    expect(persisted.firstWhere((e) => e.id == 'e3').isFavorite, isTrue);
+  });
+
+  test('修改工具: 全部未命中时按错误返回', () async {
+    final tool = UpdatePromptLibraryEntryTool(
+      getEntries: () => entries,
+      updateEntry: updateEntry,
+    );
+    final result = await tool.execute('t1', {
+      'updates': [
+        {'id': 'ghost', 'title': 'x'},
+        {'id': 'nada', 'title': 'y'},
+      ],
+    });
+    expect(result.isError, isTrue);
+    expect(result.content, contains('未修改任何条目'));
+  });
+
   test('删除工具: 正常删除与不存在报错', () async {
     final tool = DeletePromptLibraryEntryTool(
       getEntries: () => entries,
@@ -264,6 +307,80 @@ void main() {
     expect(missing.isError, isTrue);
   });
 
+  test('删除工具: ids 数组一次删除复数条目', () async {
+    final tool = DeletePromptLibraryEntryTool(
+      getEntries: () => entries,
+      deleteEntry: deleteEntry,
+    );
+
+    final result = await tool.execute('t1', {
+      'ids': ['e1', 'e2', 'nope'],
+    });
+    expect(result.isError, isFalse);
+    expect(result.content, contains('未找到 nope'));
+
+    final persisted = await PromptLibraryService.instance.loadEntries();
+    expect(persisted.any((e) => e.id == 'e1' || e.id == 'e2'), isFalse);
+    expect(persisted.any((e) => e.id == 'e3'), isTrue);
+  });
+
+  test('删除工具: 全部未命中时按错误返回且不动数据', () async {
+    final tool = DeletePromptLibraryEntryTool(
+      getEntries: () => entries,
+      deleteEntry: deleteEntry,
+    );
+    final result = await tool.execute('t1', {
+      'ids': ['nope', 'nada'],
+    });
+    expect(result.isError, isTrue);
+    expect(entries, hasLength(3));
+  });
+
+  test('新增工具: entries 数组一次新增复数条目且 ID 不冲突', () async {
+    final tool = AddPromptLibraryEntryTool(
+      getEntries: () => entries,
+      addEntry: addEntry,
+    );
+
+    final result = await tool.execute('t1', {
+      'entries': [
+        {'title': '批量甲', 'prompt': 'alpha', 'category': '风格'},
+        {
+          'title': '批量乙',
+          'prompt': 'beta',
+          'tags': ['beta'],
+        },
+      ],
+    });
+    expect(result.isError, isFalse);
+
+    final persisted = await PromptLibraryService.instance.loadEntries();
+    final created = persisted.where((e) => e.title.startsWith('批量')).toList();
+    expect(created, hasLength(2));
+    expect(created.map((e) => e.id).toSet(), hasLength(2));
+    expect(created.firstWhere((e) => e.title == '批量甲').tags, isEmpty);
+    expect(created.firstWhere((e) => e.title == '批量乙').tags, contains('beta'));
+  });
+
+  test('新增工具: 批量中途重名则整体拒绝', () async {
+    final tool = AddPromptLibraryEntryTool(
+      getEntries: () => entries,
+      addEntry: addEntry,
+    );
+
+    final result = await tool.execute('t1', {
+      'entries': [
+        {'title': '全新条目', 'prompt': 'alpha'},
+        {'title': '水彩风', 'prompt': 'beta'},
+      ],
+    });
+    expect(result.isError, isTrue);
+    expect(result.content, contains('同名'));
+
+    final persisted = await PromptLibraryService.instance.loadEntries();
+    expect(persisted.any((e) => e.title == '全新条目'), isFalse);
+  });
+
   test('工具 Schema: OpenAI Function Definition 格式正确', () {
     final search = SearchPromptLibraryTool(
       getEntries: () => entries,
@@ -274,7 +391,11 @@ void main() {
       getEntries: () => entries,
       addEntry: addEntry,
     ).toOpenAiFunction();
-    expect(add['function']['parameters']['required'], ['title', 'prompt']);
+    // 顶层 title/prompt 与 entries 数组二选一，故不设 required，由工具侧校验
+    expect(
+      add['function']['parameters']['properties'].keys,
+      containsAll(<String>['title', 'prompt', 'entries']),
+    );
 
     final update = UpdatePromptLibraryEntryTool(
       getEntries: () => entries,

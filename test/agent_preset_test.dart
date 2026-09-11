@@ -261,6 +261,43 @@ void main() {
       expect(result.isError, isTrue);
       expect(result.content, contains('custom-lighting'));
     });
+
+    test('LoadSkillTool loads multiple skills in one call', () async {
+      final tool = LoadSkillTool(
+        skillResolver: (name) => BuiltinSkills.findById(name),
+        availableSkillIds: () => BuiltinSkills.all.map((s) => s.id).toList(),
+      );
+
+      final result = await tool.execute('call_batch', {
+        'skill_names': [
+          'v5-architect',
+          'inpaint-specialist',
+          'unknown-skill-xyz',
+        ],
+      });
+
+      expect(result.isError, isFalse);
+      expect(result.content, contains('<skill name="v5-architect">'));
+      expect(result.content, contains('<skill name="inpaint-specialist">'));
+      // 未命中的技能作为部分失败提示追加，不阻断已命中的技能
+      expect(result.content, contains('未找到技能 "unknown-skill-xyz"'));
+    });
+
+    test(
+      'LoadSkillTool reports error when no requested skill exists',
+      () async {
+        final tool = LoadSkillTool(
+          skillResolver: (name) => BuiltinSkills.findById(name),
+          availableSkillIds: () => BuiltinSkills.all.map((s) => s.id).toList(),
+        );
+
+        final result = await tool.execute('call_missing', {
+          'skill_names': ['nope-a', 'nope-b'],
+        });
+        expect(result.isError, isTrue);
+        expect(result.content, contains('未找到技能'));
+      },
+    );
   });
 
   group('NovelAiUpdateParamsTool Execution & Real Mutation Tests', () {

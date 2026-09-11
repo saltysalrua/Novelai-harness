@@ -27,6 +27,13 @@ class ContextMemory {
   }
 
   bool deleteNote(int id) => _notes.remove(id) != null;
+
+  /// 批量删除笔记，返回实际被删除的 ID (不存在的 ID 静默忽略)
+  List<int> deleteNotes(Iterable<int> ids) => {
+    for (final id in ids)
+      if (deleteNote(id)) id,
+  }.toList();
+
   void forgetReply(int number) => _forgottenReplies.add(number);
   void clear() {
     _notes.clear();

@@ -274,6 +274,106 @@ void main() {
       expect(again.isError, isFalse);
       expect(again.content, contains('无需清空'));
     });
+
+    test('批量批注: annotations 数组一次写入复数批注', () async {
+      var history = [_makeImage()];
+      var writes = 0;
+      final tool = AddImageAnnotationTool(
+        getHistory: () => history,
+        writeAnnotations: (_, anns) async {
+          writes++;
+          history = [history.first.copyWith(annotations: anns)];
+          return true;
+        },
+      );
+
+      final result = await tool.execute('t10', {
+        'annotations': [
+          {'type': 'rect', 'x': 10, 'y': 10, 'w': 20, 'h': 20, 'note': '选区一'},
+          {'type': 'point', 'x': 50, 'y': 60, 'note': '锚点一'},
+          {'type': 'global', 'note': '整图意见'},
+        ],
+      });
+
+      expect(result.isError, isFalse);
+      // 三条批注只落盘一次
+      expect(writes, 1);
+      expect(history.first.annotations.length, 5);
+      expect(result.content, contains('选区一'));
+      expect(result.content, contains('锚点一'));
+      expect(result.content, contains('整图意见'));
+    });
+
+    test('批量批注: 任一规格非法则整体拒绝且不落盘', () async {
+      final history = [_makeImage()];
+      var writes = 0;
+      final tool = AddImageAnnotationTool(
+        getHistory: () => history,
+        writeAnnotations: (_, _) async {
+          writes++;
+          return true;
+        },
+      );
+
+      final result = await tool.execute('t11', {
+        'annotations': [
+          {'type': 'rect', 'x': 10, 'y': 10, 'w': 20, 'h': 20},
+          {'type': 'rect', 'x': 10},
+        ],
+      });
+
+      expect(result.isError, isTrue);
+      expect(writes, 0);
+      expect(history.first.annotations.length, 2);
+    });
+
+    test('批量批注: updates 与复数删除一次完成', () async {
+      var history = [_makeImage()];
+      final updateTool = UpdateImageAnnotationTool(
+        getHistory: () => history,
+        writeAnnotations: (_, anns) async {
+          history = [history.first.copyWith(annotations: anns)];
+          return true;
+        },
+      );
+
+      final updated = await updateTool.execute('t12', {
+        'updates': [
+          {'annotation': 1, 'note': '改过的选区'},
+          {'annotation_id': 'ann-B', 'color_index': 4},
+        ],
+      });
+      expect(updated.isError, isFalse);
+      expect(history.first.annotations[0].note, '改过的选区');
+      expect(history.first.annotations[1].colorIndex, 4);
+
+      final removeTool = RemoveImageAnnotationTool(
+        getHistory: () => history,
+        writeAnnotations: (_, anns) async {
+          history = [history.first.copyWith(annotations: anns)];
+          return true;
+        },
+      );
+      final removed = await removeTool.execute('t13', {
+        'annotations': [1, 2],
+      });
+      expect(removed.isError, isFalse);
+      expect(history.first.annotations, isEmpty);
+    });
+
+    test('批量批注: remove 全部未命中时按错误返回', () async {
+      final history = [_makeImage()];
+      final tool = RemoveImageAnnotationTool(
+        getHistory: () => history,
+        writeAnnotations: (_, _) async => true,
+      );
+      final result = await tool.execute('t14', {
+        'annotations': [9],
+        'annotation_ids': ['nope'],
+      });
+      expect(result.isError, isTrue);
+      expect(history.first.annotations.length, 2);
+    });
   });
 
   group('PresetToolKeys 批注工具白名单', () {

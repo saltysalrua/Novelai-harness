@@ -547,6 +547,100 @@ void main() {
       expect(characters, hasLength(1));
     });
 
+    test('batch tools: characters 数组一次添加复数角色', () async {
+      final tool = NovelAiAddCharacterPromptTool(
+        getCharacterPrompts: () => characters,
+        updateCharacterPrompts: update,
+        getCharacterLimit: () => 22,
+      );
+      final result = await tool.execute('t1', {
+        'characters': [
+          {
+            'name': '左边少女',
+            'prompt': 'girl, silver hair',
+            'position_x': 0.2,
+            'position_y': 0.5,
+          },
+          {'prompt': 'girl, red hair'},
+        ],
+      });
+
+      expect(result.isError, isFalse);
+      expect(characters, hasLength(3));
+      expect(characters[1].name, '左边少女');
+      expect(characters[1].useCustomPosition, isTrue);
+      expect(characters[1].positionX, closeTo(0.2, 0.001));
+      // 未传名称时按序号自动命名，且批量新建的 ID 不重复
+      expect(characters[2].name, '角色 3');
+      expect(characters.map((c) => c.id).toSet(), hasLength(characters.length));
+    });
+
+    test(
+      'batch add rejects the whole batch when it exceeds the limit',
+      () async {
+        final tool = NovelAiAddCharacterPromptTool(
+          getCharacterPrompts: () => characters,
+          updateCharacterPrompts: update,
+          getCharacterLimit: () => 6,
+        );
+        final result = await tool.execute('t1', {
+          'characters': [
+            for (var i = 0; i < 6; i++) {'prompt': 'girl'},
+          ],
+        });
+
+        expect(result.isError, isTrue);
+        expect(result.content, contains('名额'));
+        expect(characters, hasLength(1));
+      },
+    );
+
+    test('batch tools: updates 数组一次修改复数角色', () async {
+      characters = [
+        NaiCharacterPrompt(id: 'aaaa0001', name: 'A', prompt: 'girl, a'),
+        NaiCharacterPrompt(id: 'aaaa0002', name: 'B', prompt: 'girl, b'),
+      ];
+      final tool = NovelAiUpdateCharacterPromptTool(
+        getCharacterPrompts: () => characters,
+        updateCharacterPrompts: update,
+      );
+      final result = await tool.execute('t1', {
+        'updates': [
+          {'id': 'aaaa0001', 'prompt': 'girl, blonde', 'enabled': false},
+          {'id': 'aaaa0002', 'position_x': 0.8},
+          {'id': 'ffffffff', 'prompt': 'nope'},
+        ],
+      });
+
+      expect(result.isError, isFalse);
+      expect(characters[0].prompt, 'girl, blonde');
+      expect(characters[0].enabled, isFalse);
+      expect(characters[1].positionX, closeTo(0.8, 0.001));
+      expect(characters[1].useCustomPosition, isTrue);
+      // 不存在的 ID 只作为部分失败提示
+      expect(result.content, contains('未修改'));
+    });
+
+    test('batch tools: ids 数组一次删除复数角色', () async {
+      characters = [
+        NaiCharacterPrompt(id: 'aaaa0001', name: 'A', prompt: 'girl, a'),
+        NaiCharacterPrompt(id: 'aaaa0002', name: 'B', prompt: 'girl, b'),
+        NaiCharacterPrompt(id: 'aaaa0003', name: 'C', prompt: 'girl, c'),
+      ];
+      final tool = NovelAiRemoveCharacterPromptTool(
+        getCharacterPrompts: () => characters,
+        updateCharacterPrompts: update,
+      );
+      final result = await tool.execute('t1', {
+        'ids': ['aaaa0001', 'aaaa0003', 'ffffffff'],
+      });
+
+      expect(result.isError, isFalse);
+      expect(characters, hasLength(1));
+      expect(characters.single.id, 'aaaa0002');
+      expect(result.content, contains('未找到 ffffffff'));
+    });
+
     test('list tool reports characters and global position mode', () async {
       final tool = NovelAiListCharacterPromptsTool(
         getCharacterPrompts: () => characters,
