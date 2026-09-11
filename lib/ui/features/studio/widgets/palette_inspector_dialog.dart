@@ -225,6 +225,7 @@ class _PaletteSwatchTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       onSecondaryTap: onSecondaryTap,
+      onLongPress: onSecondaryTap,
       child: Container(
         width: 92,
         decoration: BoxDecoration(

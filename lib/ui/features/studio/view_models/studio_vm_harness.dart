@@ -21,7 +21,13 @@ mixin _StudioHarnessMixin on _StudioCore {
         repository: _repository,
         configService: _configService,
         getCurrentParams: () => _params,
-        onBeforeGenerate: () => agentWasViewingLatest = isViewingLatest,
+        onBeforeGenerate: () {
+          agentWasViewingLatest = isViewingLatest;
+          if (_params.seedTiming == NaiSeedTiming.before) {
+            _applySeedMutationBefore();
+            notifyListeners();
+          }
+        },
         onProgress: (progress) {
           if (progress.isFinal) {
             _liveProgressController.complete();
@@ -48,6 +54,9 @@ mixin _StudioHarnessMixin on _StudioCore {
             // 发起前在看最新，或生成期间滚回顶部看预览，都视为正在看最新
             wasViewingLatest: agentWasViewingLatest || isViewingLatest,
           );
+          if (_params.seedTiming == NaiSeedTiming.after) {
+            _applySeedMutationAfter(image.seed);
+          }
           notifyListeners();
           refreshAccountInfo();
         },

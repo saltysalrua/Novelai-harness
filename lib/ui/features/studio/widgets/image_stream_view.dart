@@ -5,6 +5,7 @@ import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
+import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
 import 'character_position_canvas_view.dart';
 import 'image_canvas_actions.dart';
@@ -36,7 +37,7 @@ class CanvasStreamController {
     final itemContext = _itemKeys[imageId]?.currentContext;
     if (itemContext != null) {
       _animateAnchor(
-        Scrollable.ensureVisible(
+        _ensureItemVisible(
           itemContext,
           duration: const Duration(milliseconds: 350),
           curve: Curves.easeOutCubic,
@@ -65,7 +66,7 @@ class CanvasStreamController {
             isAdjustingAnchor = false;
             return;
           }
-          Scrollable.ensureVisible(
+          _ensureItemVisible(
             ctx,
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
@@ -79,12 +80,27 @@ class CanvasStreamController {
     final itemContext = _itemKeys[imageId]?.currentContext;
     if (itemContext == null) return;
     isAdjustingAnchor = true;
-    Scrollable.ensureVisible(
-      itemContext,
-      duration: Duration.zero,
-      alignment: 0.5,
-    );
+    _ensureItemVisible(itemContext, duration: Duration.zero, alignment: 0.5);
     isAdjustingAnchor = false;
+  }
+
+  /// 只滚动画板自己的纵向视口，不能用 Scrollable.ensureVisible：
+  /// 后者会继续滚动祖先 PageView，使窄屏参数页短暂滑入画板。
+  Future<void> _ensureItemVisible(
+    BuildContext itemContext, {
+    Duration duration = Duration.zero,
+    Curve curve = Curves.ease,
+    double alignment = 0.5,
+  }) async {
+    if (!scrollController.hasClients || !itemContext.mounted) return;
+    final target = itemContext.findRenderObject();
+    if (target == null || !target.attached) return;
+    await scrollController.position.ensureVisible(
+      target,
+      duration: duration,
+      curve: curve,
+      alignment: alignment,
+    );
   }
 
   void _animateAnchor(Future<void> future) {
@@ -565,88 +581,90 @@ class CanvasImageCard extends StatelessWidget {
     final cacheWidth = (displayWidth * dpr).round().clamp(64, 4096);
 
     return Center(
-      child: GestureDetector(
+      child: StudioContextMenuRegion(
         key: controller.keyFor(item.id),
-        onTap: () => viewModel.selectImage(item),
-        onDoubleTap: isPositionOverlayActive
+        onShow: isPositionOverlayActive
             ? null
-            : () => showImageLightbox(
+            : (position) => showImageContextMenu(
                 context,
-                item,
-                loader: () => viewModel.ensureImageLoaded(item),
-              ),
-        onSecondaryTapUp: isPositionOverlayActive
-            ? null
-            : (details) => showImageContextMenu(
-                context,
-                position: details.globalPosition,
+                position: position,
                 viewModel: viewModel,
                 image: item,
               ),
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: maxCardWidth,
-            maxHeight: maxCardHeight,
-          ),
-          decoration: _canvasCardDecoration(context, isSelected),
-          clipBehavior: Clip.antiAlias,
-          child: AspectRatio(
-            aspectRatio: imageAspectRatioOf(item.params),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ValueListenableBuilder<Map<String, Uint8List>>(
-                  valueListenable: viewModel.imageBytesNotifier,
-                  builder: (context, bytesMap, _) {
-                    final fullBytes = item.bytes.isNotEmpty
-                        ? item.bytes
-                        : bytesMap[item.id];
-                    if (fullBytes != null && fullBytes.isNotEmpty) {
-                      return Image.memory(
-                        fullBytes,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                        cacheWidth: cacheWidth,
-                      );
-                    }
+        child: GestureDetector(
+          onTap: () => viewModel.selectImage(item),
+          onDoubleTap: isPositionOverlayActive
+              ? null
+              : () => showImageLightbox(
+                  context,
+                  item,
+                  loader: () => viewModel.ensureImageLoaded(item),
+                ),
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: maxCardWidth,
+              maxHeight: maxCardHeight,
+            ),
+            decoration: _canvasCardDecoration(context, isSelected),
+            clipBehavior: Clip.antiAlias,
+            child: AspectRatio(
+              aspectRatio: imageAspectRatioOf(item.params),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ValueListenableBuilder<Map<String, Uint8List>>(
+                    valueListenable: viewModel.imageBytesNotifier,
+                    builder: (context, bytesMap, _) {
+                      final fullBytes = item.bytes.isNotEmpty
+                          ? item.bytes
+                          : bytesMap[item.id];
+                      if (fullBytes != null && fullBytes.isNotEmpty) {
+                        return Image.memory(
+                          fullBytes,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                          cacheWidth: cacheWidth,
+                        );
+                      }
 
-                    if (isSelected) {
-                      viewModel.ensureImageLoaded(item);
-                    }
+                      if (isSelected) {
+                        viewModel.ensureImageLoaded(item);
+                      }
 
-                    final thumb = item.thumbnailBytes;
-                    if (thumb != null && thumb.isNotEmpty) {
-                      return Image.memory(
-                        thumb,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                        cacheWidth: cacheWidth,
-                      );
-                    }
+                      final thumb = item.thumbnailBytes;
+                      if (thumb != null && thumb.isNotEmpty) {
+                        return Image.memory(
+                          thumb,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                          cacheWidth: cacheWidth,
+                        );
+                      }
 
-                    return Container(
-                      color: context.colors.mutedBackground,
-                      child: Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              context.colors.primary,
+                      return Container(
+                        color: context.colors.mutedBackground,
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                context.colors.primary,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-                if (isPositionOverlayActive)
-                  if (viewModel.isEditingWatermarkPosition)
-                    WatermarkPositionOverlay(viewModel: viewModel)
-                  else
-                    CharacterPositionOverlay(viewModel: viewModel),
-              ],
+                      );
+                    },
+                  ),
+                  if (isPositionOverlayActive)
+                    if (viewModel.isEditingWatermarkPosition)
+                      WatermarkPositionOverlay(viewModel: viewModel)
+                    else
+                      CharacterPositionOverlay(viewModel: viewModel),
+                ],
+              ),
             ),
           ),
         ),

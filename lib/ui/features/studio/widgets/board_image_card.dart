@@ -486,11 +486,10 @@ class _BoardImageCardState extends State<BoardImageCard> {
           clipBehavior: Clip.none,
           children: [
             // 选框本体：点击选中 + 拖拽移动选区 + 右键发送到修复
-            GestureDetector(
-              onTap: () => widget.viewModel.board.selectAnnotationId(ann.id),
-              onSecondaryTapUp: (details) => showStudioContextMenu(
+            StudioContextMenuRegion(
+              onShow: (position) => showStudioContextMenu(
                 context,
-                position: details.globalPosition,
+                position: position,
                 actions: [
                   ContextMenuItem(
                     icon: Icons.auto_fix_high_outlined,
@@ -502,30 +501,36 @@ class _BoardImageCardState extends State<BoardImageCard> {
                   ),
                 ],
               ),
-              onPanStart: (details) {
-                widget.viewModel.board.selectAnnotationId(ann.id);
-                setState(() {
-                  _draggingAnnotationId = ann.id;
-                  _liveRect = ann.rect;
-                });
-              },
-              onPanUpdate: (details) {
-                final cur = _liveRect ?? ann.rect!;
-                final deltaX = details.delta.dx / canvasSize.width;
-                final deltaY = details.delta.dy / canvasSize.height;
-                final newL = (cur.left + deltaX).clamp(0.0, 1.0 - cur.width);
-                final newT = (cur.top + deltaY).clamp(0.0, 1.0 - cur.height);
-                final next = Rect.fromLTWH(newL, newT, cur.width, cur.height);
-                setState(() => _liveRect = next);
-                widget.live.setAnnotationRect(ann.id, next);
-              },
-              onPanEnd: (_) => _finishAnnotationDrag(ann, rect: _liveRect),
-              onPanCancel: () => _finishAnnotationDrag(ann, rect: _liveRect),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: isActive ? 0.25 : 0.12),
-                  border: Border.all(color: color, width: isActive ? 2.5 : 1.8),
-                  borderRadius: BorderRadius.circular(4),
+              child: GestureDetector(
+                onTap: () => widget.viewModel.board.selectAnnotationId(ann.id),
+                onPanStart: (details) {
+                  widget.viewModel.board.selectAnnotationId(ann.id);
+                  setState(() {
+                    _draggingAnnotationId = ann.id;
+                    _liveRect = ann.rect;
+                  });
+                },
+                onPanUpdate: (details) {
+                  final cur = _liveRect ?? ann.rect!;
+                  final deltaX = details.delta.dx / canvasSize.width;
+                  final deltaY = details.delta.dy / canvasSize.height;
+                  final newL = (cur.left + deltaX).clamp(0.0, 1.0 - cur.width);
+                  final newT = (cur.top + deltaY).clamp(0.0, 1.0 - cur.height);
+                  final next = Rect.fromLTWH(newL, newT, cur.width, cur.height);
+                  setState(() => _liveRect = next);
+                  widget.live.setAnnotationRect(ann.id, next);
+                },
+                onPanEnd: (_) => _finishAnnotationDrag(ann, rect: _liveRect),
+                onPanCancel: () => _finishAnnotationDrag(ann, rect: _liveRect),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: isActive ? 0.25 : 0.12),
+                    border: Border.all(
+                      color: color,
+                      width: isActive ? 2.5 : 1.8,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
             ),

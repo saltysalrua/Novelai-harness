@@ -431,7 +431,7 @@ class _StudioViewState extends State<StudioView> {
   }
 
   /// 移动端 / 窄屏 (宽度 < [StudioView.wideLayoutMinWidth])：
-  /// 1. 顶部 32px 超薄微型多功能条 (三卡片胶囊指示切换、桌面拖拽与控制)；
+  /// 1. 顶部等宽小圆角导航 (移动端 48px 触控区，桌面保留紧凑拖拽条)；
   /// 2. 中间三卡片采用 PageView 组织，一次展示一片，支持水平手势横滑翻页；
   /// 3. 底部沉浸式导航栏 100% 完整继承左侧侧边栏 5 项功能 (参数、提示词、修复、词库、设置)；
   /// 4. 词库以覆盖层形式叠在工作台上并保活 (AppPageStack)，不卸载三卡片 PageView，
@@ -447,7 +447,7 @@ class _StudioViewState extends State<StudioView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 顶部 32px 超薄微型胶囊条 (卡片指示/切换 + 桌面拖拽控制)
+          // 顶部统一导航 (卡片指示/切换 + 桌面拖拽控制)
           _MobileTopBar(
             activeIndex: _mobilePageIndex,
             isChatStreaming: _viewModel.isChatStreaming,
@@ -772,7 +772,7 @@ class _StudioViewState extends State<StudioView> {
   }
 }
 
-/// 移动端 / 窄屏模式下 32px 超薄多功能胶囊条
+/// 移动端 / 窄屏三卡片导航：复用统一分段控件的小圆角、主题色与等宽布局
 ///
 /// - 中间：三卡片分段胶囊指示器 [生图] [画板] [助手]，平滑跟随与点击切页；
 ///   可用宽度不足时自动退化为图标胶囊 (带 Tooltip)，彻底避免窄屏溢出；
@@ -802,7 +802,7 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
     final l10n = context.l10n;
 
     return SizedBox(
-      height: 32.0,
+      height: isDesktopWindow ? 32.0 : 56.0,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.cardBackground,
@@ -821,36 +821,45 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
                 children: [
                   Expanded(
                     child: Center(
-                      child: AppSegmentedPillBar<int>(
-                        items: [
-                          AppSegmentedItem(
-                            value: 0,
-                            label: compact ? '' : l10n.mobileTabStudio,
-                            tooltip: l10n.mobileTabStudio,
-                            icon: Icons.auto_awesome_rounded,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 440),
+                          child: AppSegmentedPillBar<int>(
+                            items: [
+                              AppSegmentedItem(
+                                value: 0,
+                                label: compact ? '' : l10n.mobileTabStudio,
+                                tooltip: l10n.mobileTabStudio,
+                                icon: Icons.auto_awesome_rounded,
+                              ),
+                              AppSegmentedItem(
+                                value: 1,
+                                label: compact ? '' : l10n.mobileTabCanvas,
+                                tooltip: l10n.mobileTabCanvas,
+                                icon: Icons.palette_outlined,
+                              ),
+                              AppSegmentedItem(
+                                value: 2,
+                                label: compact ? '' : l10n.mobileTabChat,
+                                tooltip: l10n.mobileTabChat,
+                                icon: Icons.chat_bubble_outline_rounded,
+                                badge: widget.isChatStreaming,
+                              ),
+                            ],
+                            selectedValue: widget.activeIndex,
+                            onValueChanged: widget.onPageSelected,
+                            variant: AppPillVariant.soft,
+                            expand: true,
+                            radius: AppRadius.md,
+                            minHeight: isDesktopWindow ? 24 : 48,
+                            itemPadding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            spacing: 6,
                           ),
-                          AppSegmentedItem(
-                            value: 1,
-                            label: compact ? '' : l10n.mobileTabCanvas,
-                            tooltip: l10n.mobileTabCanvas,
-                            icon: Icons.palette_outlined,
-                          ),
-                          AppSegmentedItem(
-                            value: 2,
-                            label: compact ? '' : l10n.mobileTabChat,
-                            tooltip: l10n.mobileTabChat,
-                            icon: Icons.chat_bubble_outline_rounded,
-                            badge: widget.isChatStreaming,
-                          ),
-                        ],
-                        selectedValue: widget.activeIndex,
-                        onValueChanged: widget.onPageSelected,
-                        variant: AppPillVariant.soft,
-                        itemPadding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
                         ),
-                        spacing: 3,
                       ),
                     ),
                   ),

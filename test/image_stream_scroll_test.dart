@@ -136,6 +136,78 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final kind in ['mounted', 'lazy', 'silent']) {
+    testWidgets('history $kind anchoring never scrolls the outer mobile page', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(430, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repo = NovelAiRepository();
+      final vm = StudioViewModel(repository: repo);
+      final controller = CanvasStreamController();
+      final pages = PageController(initialPage: 1);
+      addTearDown(vm.dispose);
+      addTearDown(controller.dispose);
+      addTearDown(pages.dispose);
+      for (var i = 0; i < 12; i++) {
+        repo.addImageForTesting(_image('mobile-$i'));
+      }
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PageView(
+              controller: pages,
+              children: [
+                const ColoredBox(color: Colors.red),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ImageStreamView(
+                        viewModel: vm,
+                        controller: controller,
+                      ),
+                    ),
+                    const SizedBox(width: 120),
+                  ],
+                ),
+                const SizedBox.shrink(),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final index = kind == 'lazy' ? vm.gallery.length - 1 : 1;
+      final target = vm.gallery[index];
+      expect(
+        controller.keyFor(target.id).currentContext,
+        kind == 'lazy' ? isNull : isNotNull,
+      );
+      if (kind == 'silent') {
+        controller.anchorToItemSilently(target.id);
+      } else {
+        controller.scrollToItem(index, target.id);
+      }
+      // 不只检查动画结束：原 bug 正是在中间帧把参数卡拉入后又缩回。
+      for (var frame = 0; frame < 60; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(pages.page, closeTo(1, 0.0001), reason: '$kind frame=$frame');
+      }
+      expect(controller.scrollController.offset, greaterThan(0));
+      expect(controller.isAdjustingAnchor, isFalse);
+      final box =
+          controller.keyFor(target.id).currentContext!.findRenderObject()
+              as RenderBox;
+      expect(
+        box.localToGlobal(Offset(0, box.size.height / 2)).dy,
+        closeTo(350, 8),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   group('CanvasStreamController.scrollToItem Tests', () {
     testWidgets('centers a far off-screen history image (two-phase scroll)', (
       tester,

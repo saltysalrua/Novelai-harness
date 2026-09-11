@@ -4,7 +4,28 @@ import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 import 'overlay_anchor.dart';
 
-/// 右键菜单条目 (普通项或分隔线)
+/// 统一上下文手势入口：鼠标右键与触屏长按共用全局坐标回调。
+/// 仅注册菜单手势，不接管子组件的点击、双击或拖拽。
+class StudioContextMenuRegion extends StatelessWidget {
+  final Widget child;
+  final ValueChanged<Offset>? onShow;
+
+  const StudioContextMenuRegion({super.key, required this.child, this.onShow});
+
+  @override
+  Widget build(BuildContext context) {
+    final show = onShow;
+    if (show == null) return child;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onSecondaryTapUp: (details) => show(details.globalPosition),
+      onLongPressStart: (details) => show(details.globalPosition),
+      child: child,
+    );
+  }
+}
+
+/// 上下文菜单条目 (普通项或分隔线)
 sealed class ContextMenuAction {
   const ContextMenuAction();
 }
@@ -44,22 +65,57 @@ void showStudioContextMenu(
   // 窗口全局坐标 → 根 Overlay 布局坐标 (UI 缩放感知，zoom=1 时恒等)
   final overlayPosition = globalToOverlayPosition(overlay, position);
 
-  late final OverlayEntry entry;
-  var removed = false;
-  void dismiss() {
-    if (removed) return;
-    removed = true;
-    if (entry.mounted) entry.remove();
-  }
-
-  entry = OverlayEntry(
-    builder: (_) => _ContextMenuOverlay(
+  final navigator = Navigator.of(context, rootNavigator: true);
+  navigator.push(
+    _StudioContextMenuRoute(
       position: overlayPosition,
       actions: actions,
-      onDismiss: dismiss,
+      themes: InheritedTheme.capture(from: context, to: navigator.context),
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     ),
   );
-  overlay.insert(entry);
+}
+
+/// 菜单独立占一层路由：Android 返回先关闭菜单，不受工作台 PopScope
+/// 的 canPop=false 拦截，也不会触发其回退卡片/退出编辑动作。
+class _StudioContextMenuRoute extends PopupRoute<void> {
+  final Offset position;
+  final List<ContextMenuAction> actions;
+  final CapturedThemes themes;
+
+  _StudioContextMenuRoute({
+    required this.position,
+    required this.actions,
+    required this.themes,
+    required this.barrierLabel,
+  });
+
+  @override
+  final String barrierLabel;
+
+  @override
+  Color? get barrierColor => null;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  Duration get transitionDuration => Duration.zero;
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) => themes.wrap(
+    _ContextMenuOverlay(
+      position: position,
+      actions: actions,
+      onDismiss: () {
+        if (isActive) navigator?.removeRoute(this);
+      },
+    ),
+  );
 }
 
 class _ContextMenuOverlay extends StatefulWidget {
@@ -81,7 +137,10 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
   bool _visible = false;
 
   static const double _menuWidth = 200.0;
-  static const double _itemHeight = 34.0;
+  double get _itemHeight => switch (Theme.of(context).platform) {
+    TargetPlatform.android || TargetPlatform.iOS => 48.0,
+    _ => 34.0,
+  };
   static const double _dividerHeight = 9.0;
   static const double _menuPadding = 4.0;
 
@@ -101,15 +160,27 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final screenSize = MediaQuery.sizeOf(context);
+  Widget build(BuildContext context) => LayoutBuilder(builder: _buildOverlay);
+
+  Widget _buildOverlay(BuildContext context, BoxConstraints constraints) {
+    final padding = MediaQuery.paddingOf(context);
+    final insets = MediaQuery.viewInsetsOf(context);
+    final minLeft = padding.left + 4;
+    final minTop = padding.top + 4;
+    final availableWidth = (constraints.maxWidth - minLeft - padding.right - 4)
+        .clamp(0.0, double.infinity);
+    final availableHeight =
+        (constraints.maxHeight - minTop - padding.bottom - insets.bottom - 4)
+            .clamp(0.0, double.infinity);
+    final menuWidth = _menuWidth.clamp(0.0, availableWidth);
+    final menuHeight = _menuHeight.clamp(0.0, availableHeight);
     final left = widget.position.dx.clamp(
-      4.0,
-      (screenSize.width - _menuWidth - 4.0).clamp(4.0, double.infinity),
+      minLeft,
+      minLeft + availableWidth - menuWidth,
     );
     final top = widget.position.dy.clamp(
-      4.0,
-      (screenSize.height - _menuHeight - 4.0).clamp(4.0, double.infinity),
+      minTop,
+      minTop + availableHeight - menuHeight,
     );
 
     return Stack(
@@ -153,7 +224,8 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
               child: Material(
                 color: Colors.transparent,
                 child: Container(
-                  width: _menuWidth,
+                  width: menuWidth,
+                  constraints: BoxConstraints(maxHeight: menuHeight),
                   padding: const EdgeInsets.all(_menuPadding),
                   decoration: BoxDecoration(
                     color: context.colors.cardBackground,
@@ -161,13 +233,15 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
                     border: Border.all(color: context.colors.borderDefault),
                     boxShadow: context.shadowElevated,
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (var i = 0; i < widget.actions.length; i++)
-                        _buildAction(context, widget.actions[i], i),
-                    ],
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < widget.actions.length; i++)
+                          _buildAction(context, widget.actions[i], i),
+                      ],
+                    ),
                   ),
                 ),
               ),

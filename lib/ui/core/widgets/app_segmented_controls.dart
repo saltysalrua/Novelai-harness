@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_tokens.dart';
+import '../theme/app_colors_extension.dart';
 import '../theme/theme_context_extensions.dart';
 import 'app_badge.dart';
 
@@ -80,6 +81,12 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
   /// 是否均分满宽排布 (每项等宽拉伸，适合两栏对半等对称场景)，默认 false
   final bool expand;
 
+  /// 默认药丸圆角；导航等场景可复用应用标准小圆角。
+  final double radius;
+
+  /// 最小点击高度；触屏导航可设为 48，桌面紧凑控件保持原尺寸。
+  final double minHeight;
+
   const AppSegmentedPillBar({
     super.key,
     required this.items,
@@ -90,6 +97,8 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
     this.spacing = 6.0,
     this.itemPadding = const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
     this.expand = false,
+    this.radius = AppRadius.pill,
+    this.minHeight = 0,
   });
 
   @override
@@ -122,7 +131,7 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
   /// expand 模式下用 Expanded 均分；间距项只插在非末尾项后
   Widget _wrapExpanded(
     BuildContext context,
-    dynamic colors,
+    AppColorsExtension colors,
     AppSegmentedItem<T> item, {
     required int index,
     required bool isLast,
@@ -139,13 +148,13 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
 
   Widget _buildPillItem(
     BuildContext context,
-    dynamic colors,
+    AppColorsExtension colors,
     AppSegmentedItem<T> item,
   ) {
     final isSelected = item.value == selectedValue;
-    final accent = item.activeColor ?? (colors.primary as Color);
+    final accent = item.activeColor ?? colors.primary;
     final activeBackground = item.activeColor == null
-        ? (colors.primaryTint as Color)
+        ? colors.primaryTint
         : accent.withValues(alpha: 0.12);
 
     final (Color bg, Color border, Color fg) = switch (variant) {
@@ -164,30 +173,39 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
     Widget pill = InkWell(
       key: Key('segmented_pill_${item.value}'),
       onTap: () => onValueChanged?.call(item.value),
-      borderRadius: BorderRadius.circular(AppRadius.pill),
+      borderRadius: BorderRadius.circular(radius),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
+        constraints: BoxConstraints(minHeight: minHeight),
         padding: itemPadding,
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
+          borderRadius: BorderRadius.circular(radius),
           border: Border.all(color: border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (item.icon != null) ...[
               Icon(item.icon, size: 13, color: fg),
-              const SizedBox(width: 4),
+              if (item.label.isNotEmpty) const SizedBox(width: 4),
             ],
-            Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: fg,
+            if (item.label.isNotEmpty)
+              Flexible(
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                    color: fg,
+                  ),
+                ),
               ),
-            ),
             if (item.badge) ...[
               const SizedBox(width: 4),
               Container(

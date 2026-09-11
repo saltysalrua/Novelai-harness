@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'context_menu.dart';
 
 /// 统一标准卡片外壳与选区包装器 (Standard Card Shell)
 ///
@@ -26,11 +27,8 @@ class AppCard extends StatefulWidget {
   /// 点击回调；提供时具有鼠标手势与 Hover 悬停边框高亮
   final VoidCallback? onTap;
 
-  /// 右键/次级点击回调 (常用在画板卡片呼出上下文菜单)
-  final GestureTapDownCallback? onSecondaryTapDown;
-
-  /// 右键/次级点击回调
-  final GestureTapCallback? onSecondaryTap;
+  /// 右键/长按菜单回调，坐标为指针全局位置。
+  final ValueChanged<Offset>? onContextMenu;
 
   /// 卡片内边距，默认为空 (由子组件或业务决定)
   final EdgeInsetsGeometry? padding;
@@ -70,8 +68,7 @@ class AppCard extends StatefulWidget {
     required this.child,
     this.isSelected = false,
     this.onTap,
-    this.onSecondaryTapDown,
-    this.onSecondaryTap,
+    this.onContextMenu,
     this.padding,
     this.margin,
     this.radius = AppRadius.lg,
@@ -95,10 +92,7 @@ class _AppCardState extends State<AppCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final isInteractive =
-        widget.onTap != null ||
-        widget.onSecondaryTap != null ||
-        widget.onSecondaryTapDown != null;
+    final isInteractive = widget.onTap != null || widget.onContextMenu != null;
 
     final bgColor = widget.isSelected
         ? (widget.selectedBackgroundColor ?? colors.cardBackground)
@@ -144,12 +138,13 @@ class _AppCardState extends State<AppCard> {
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          onSecondaryTapDown: widget.onSecondaryTapDown,
-          onSecondaryTap: widget.onSecondaryTap,
-          behavior: HitTestBehavior.opaque,
-          child: content,
+        child: StudioContextMenuRegion(
+          onShow: widget.onContextMenu,
+          child: GestureDetector(
+            onTap: widget.onTap,
+            behavior: HitTestBehavior.opaque,
+            child: content,
+          ),
         ),
       );
     }

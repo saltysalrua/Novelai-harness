@@ -163,9 +163,9 @@ class _ImageHistoryThumb extends StatelessWidget {
         viewModel.selectImage(item);
         if (scrollToStream) stream.scrollToItem(index, item.id);
       },
-      onSecondaryTapUp: (details) => showImageContextMenu(
+      onContextMenu: (position) => showImageContextMenu(
         context,
-        position: details.globalPosition,
+        position: position,
         viewModel: viewModel,
         image: item,
       ),

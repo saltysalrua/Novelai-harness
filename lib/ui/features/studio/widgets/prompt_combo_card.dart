@@ -99,8 +99,7 @@ class PromptComboCard extends StatelessWidget {
         File(combo.previewImagePath!).existsSync();
 
     return AppCard(
-      onSecondaryTapDown: (details) =>
-          _showContextMenu(context, details.globalPosition),
+      onContextMenu: (position) => _showContextMenu(context, position),
       elevated: true,
       radius: AppRadius.lg,
       padding: EdgeInsets.zero,

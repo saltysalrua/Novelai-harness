@@ -13,7 +13,7 @@ typedef OnStreamProgressCallback = void Function(NaiStreamProgress progress);
 typedef OnParamsUsedCallback = void Function(NaiGenerationParams params);
 
 /// 回调类型：生图请求真正发出前通知 UI
-/// (供工作台在发起前捕获"是否正在看最新图"快照，与手动生图同语义)
+/// (供工作台捕获浏览位置并应用生图前的种子更新，与手动生图同语义)
 typedef OnBeforeGenerateCallback = void Function();
 
 /// 回调类型：获取当前已缓存的账号信息 (可能为 null，表示未加载)
@@ -99,7 +99,7 @@ class NovelAiGenerateTool extends AgentTool {
         );
       }
 
-      final params = getCurrentParams();
+      var params = getCurrentParams();
       if (params.prompt.trim().isEmpty) {
         return ToolResult(
           toolCallId: toolCallId,
@@ -156,6 +156,9 @@ class NovelAiGenerateTool extends AgentTool {
       // 发起前通知 UI 捕获"是否正在看最新图"快照
       // (此时新图尚未入历史，isViewingLatest 反映的是生成前的真实浏览位置)
       onBeforeGenerate?.call();
+      // 工作台的 before 种子策略在上面的回调中执行。仅更新种子，
+      // 保留已通过费用确认的模型/尺寸等请求快照，不重取整份参数。
+      params = params.copyWith(seed: getCurrentParams().seed);
 
       if (config.enableStreamPreview) {
         final stream = repository.generateStream(
