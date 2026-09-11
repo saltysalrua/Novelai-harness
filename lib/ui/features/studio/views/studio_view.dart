@@ -26,6 +26,13 @@ import '../widgets/studio_sidebar.dart';
 class StudioView extends StatefulWidget {
   const StudioView({super.key});
 
+  /// 宽屏三栏工作台的最小可用宽度 (窄屏双层布局与宽屏三栏布局的唯一切换断点)。
+  ///
+  /// 三栏最小宽度 (左 240 + 中 300 + 右 280) 加分隔条与侧栏余量约需 900px；
+  /// 低于此宽度统一改用窄屏双层布局，避免三栏被压到内容溢出，
+  /// 也保证窄屏形态全应用只有一套。
+  static const double wideLayoutMinWidth = 900;
+
   /// 仅供完整应用测试读取活动 ViewModel (注入消息/断言快捷键状态)
   @visibleForTesting
   static StudioViewModel? testViewModelHook;
@@ -308,7 +315,8 @@ class _StudioViewState extends State<StudioView> {
             autofocus: true,
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 620;
+                final isNarrow =
+                    constraints.maxWidth < StudioView.wideLayoutMinWidth;
                 return Scaffold(
                   backgroundColor: context.colors.canvasBackground,
                   body: isNarrow
@@ -323,7 +331,7 @@ class _StudioViewState extends State<StudioView> {
     );
   }
 
-  /// 桌面端 / 宽屏 (宽度 >= 900px)：保持经典三栏自适应工作台与无边框拖拽标题栏
+  /// 桌面端 / 宽屏 (宽度 >= [StudioView.wideLayoutMinWidth])：保持经典三栏自适应工作台与无边框拖拽标题栏
   Widget _buildWideLayout(BuildContext context, {required bool isLibraryTab}) {
     return Column(
       children: [
@@ -331,8 +339,7 @@ class _StudioViewState extends State<StudioView> {
         const CustomTitleBar(),
 
         // 全局错误提示微胶囊
-        if (_viewModel.errorMessage != null)
-          _buildErrorMessage(context),
+        if (_viewModel.errorMessage != null) _buildErrorMessage(context),
 
         // 主体区域：最左侧导航栏 + 主工作台/全屏词库覆盖视图
         Expanded(
@@ -345,8 +352,7 @@ class _StudioViewState extends State<StudioView> {
                 onTabChanged: (tab) {
                   FocusManager.instance.primaryFocus?.unfocus();
                   if (tab == StudioSidebarTab.library &&
-                      _viewModel.activeSidebarTab !=
-                          StudioSidebarTab.library) {
+                      _viewModel.activeSidebarTab != StudioSidebarTab.library) {
                     _previousSidebarTab = _viewModel.activeSidebarTab;
                   }
                   _viewModel.setActiveSidebarTab(tab);
@@ -362,9 +368,7 @@ class _StudioViewState extends State<StudioView> {
                       ? PromptLibraryView(
                           viewModel: _viewModel,
                           onClose: () {
-                            _viewModel.setActiveSidebarTab(
-                              _previousSidebarTab,
-                            );
+                            _viewModel.setActiveSidebarTab(_previousSidebarTab);
                           },
                         )
                       : ResizableThreeSplitView(
@@ -372,38 +376,27 @@ class _StudioViewState extends State<StudioView> {
                             'split-${_viewModel.board.isAnnotatingImage}',
                           ),
                           initialLeftWidth: _viewModel.splitLeftWidth,
-                          initialRightWidth:
-                              _viewModel.board.isAnnotatingImage
+                          initialRightWidth: _viewModel.board.isAnnotatingImage
                               ? 110.0
                               : _viewModel.splitRightWidth,
-                          minRightWidth:
-                              _viewModel.board.isAnnotatingImage
+                          minRightWidth: _viewModel.board.isAnnotatingImage
                               ? 90.0
                               : 280.0,
-                          maxRightWidth:
-                              _viewModel.board.isAnnotatingImage
+                          maxRightWidth: _viewModel.board.isAnnotatingImage
                               ? 160.0
                               : 560.0,
                           onWidthsChanged: (left, right) {
                             if (!_viewModel.board.isAnnotatingImage) {
-                              _viewModel.updateSplitWidths(
-                                left,
-                                right,
-                              );
+                              _viewModel.updateSplitWidths(left, right);
                             }
                           },
                           leftChild: ParameterCard(
                             viewModel: _viewModel,
                             activeTab: _viewModel.activeSidebarTab,
                           ),
-                          centerChild: ImageCanvasCard(
-                            viewModel: _viewModel,
-                          ),
-                          rightChild:
-                              _viewModel.board.isAnnotatingImage
-                              ? AnnotationHistoryStrip(
-                                  viewModel: _viewModel,
-                                )
+                          centerChild: ImageCanvasCard(viewModel: _viewModel),
+                          rightChild: _viewModel.board.isAnnotatingImage
+                              ? AnnotationHistoryStrip(viewModel: _viewModel)
                               : AgentChatCard(
                                   key: _chatCardKey,
                                   viewModel: _viewModel,
@@ -419,91 +412,129 @@ class _StudioViewState extends State<StudioView> {
     );
   }
 
-  /// 移动端 / 窄屏 (宽度 < 620px)：
-  /// 1. 顶部 32px 超薄微型多功能条 (无大标语/三卡片胶囊指示切换/Windows桌面拖拽与控制)；
+  /// 移动端 / 窄屏 (宽度 < [StudioView.wideLayoutMinWidth])：
+  /// 1. 顶部 32px 超薄微型多功能条 (三卡片胶囊指示切换、桌面拖拽与控制)；
   /// 2. 中间三卡片采用 PageView 组织，一次展示一片，支持水平手势横滑翻页；
   /// 3. 底部沉浸式导航栏 100% 完整继承左侧侧边栏 5 项功能 (参数、提示词、修复、词库、设置)；
-  /// 4. 默认 125% UI 缩放 (AppUiZoomScope)，保障触控舒适度。
-  Widget _buildNarrowLayout(BuildContext context, {required bool isLibraryTab}) {
+  /// 4. 词库以覆盖层形式叠在工作台上并保活 (AppPageStack)，不卸载三卡片 PageView，
+  ///    保证胶囊高亮与当前卡片状态永不脱节；
+  /// 5. UI 缩放完全由根级 [AppUiZoomController] 单一事实源控制，窄屏不再叠加第二层缩放。
+  Widget _buildNarrowLayout(
+    BuildContext context, {
+    required bool isLibraryTab,
+  }) {
     return SafeArea(
       top: true,
       bottom: false,
-      child: AppUiZoomScope(
-        zoom: 1.25,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 顶部 32px 超薄微型胶囊条 (卡片指示/切换 + 桌面拖拽控制)
-            _MobileTopBar(
-              activeIndex: _mobilePageIndex,
-              isChatStreaming: _viewModel.isChatStreaming,
-              onPageSelected: (index) {
-                if (isLibraryTab) {
-                  _viewModel.setActiveSidebarTab(_previousSidebarTab);
-                }
-                if (_mobilePageController.hasClients &&
-                    _mobilePageIndex != index) {
-                  _mobilePageController.animateToPage(
-                    index,
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeOutCubic,
-                  );
-                }
-              },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 顶部 32px 超薄微型胶囊条 (卡片指示/切换 + 桌面拖拽控制)
+          _MobileTopBar(
+            activeIndex: _mobilePageIndex,
+            isChatStreaming: _viewModel.isChatStreaming,
+            onPageSelected: (index) {
+              if (isLibraryTab) {
+                _viewModel.setActiveSidebarTab(_previousSidebarTab);
+              }
+              _setMobilePage(index);
+            },
+          ),
+
+          // 全局错误提示微胶囊 (直接置于顶部栏正下方)
+          if (_viewModel.errorMessage != null) _buildErrorMessage(context),
+
+          // 中间核心区域：三卡片 PageView 始终保活，词库以覆盖层形式叠在其上。
+          // 关键：用 Visibility(maintainSize) 隐藏而非卸载 —— 卸载或 Offstage 会把
+          // PageView 视口压成 0 尺寸，导致 PageController 位置被重置，
+          // 出现「页面回到第 0 页但胶囊仍高亮旧卡片」的状态脱节。
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Visibility(
+                  visible: !isLibraryTab,
+                  maintainState: true,
+                  maintainAnimation: true,
+                  maintainSize: true,
+                  maintainInteractivity: false,
+                  child: PageView(
+                    controller: _mobilePageController,
+                    physics:
+                        (_viewModel.board.isAnnotatingImage ||
+                            (_viewModel.activeSidebarTab ==
+                                    StudioSidebarTab.inpaint &&
+                                _mobilePageIndex == 1))
+                        ? const NeverScrollableScrollPhysics()
+                        : const PageScrollPhysics(),
+                    onPageChanged: _onMobilePageChanged,
+                    children: [
+                      // Page 0: 生图/工作台面板 (参数 / 提示词 / 修复配置 + 底部生成坞)
+                      ParameterCard(
+                        viewModel: _viewModel,
+                        activeTab: _viewModel.activeSidebarTab,
+                      ),
+                      // Page 1: 画布面板
+                      ImageCanvasCard(viewModel: _viewModel),
+                      // Page 2: AI 助手面板 (批注模式时显示批注历史)
+                      _viewModel.board.isAnnotatingImage
+                          ? AnnotationHistoryStrip(viewModel: _viewModel)
+                          : AgentChatCard(
+                              key: _chatCardKey,
+                              viewModel: _viewModel,
+                              onEscape: _handleGlobalEsc,
+                            ),
+                    ],
+                  ),
+                ),
+                if (isLibraryTab)
+                  PromptLibraryView(
+                    viewModel: _viewModel,
+                    onClose: () {
+                      _viewModel.setActiveSidebarTab(_previousSidebarTab);
+                    },
+                  ),
+              ],
             ),
+          ),
 
-            // 全局错误提示微胶囊 (直接置于顶部栏正下方)
-            if (_viewModel.errorMessage != null)
-              _buildErrorMessage(context),
-
-            // 中间核心区域：三卡片 PageView 或 全屏词库
-            Expanded(
-              child: isLibraryTab
-                  ? PromptLibraryView(
-                      viewModel: _viewModel,
-                      onClose: () {
-                        _viewModel.setActiveSidebarTab(_previousSidebarTab);
-                      },
-                    )
-                  : PageView(
-                      controller: _mobilePageController,
-                      physics: (_viewModel.board.isAnnotatingImage ||
-                              (_viewModel.activeSidebarTab ==
-                                      StudioSidebarTab.inpaint &&
-                                  _mobilePageIndex == 1))
-                          ? const NeverScrollableScrollPhysics()
-                          : const PageScrollPhysics(),
-                      onPageChanged: (index) {
-                        setState(() => _mobilePageIndex = index);
-                      },
-                      children: [
-                        // Page 0: 生图/工作台面板 (参数设置 / 提示词管理 / 修复配置 + 底部生成坞)
-                        ParameterCard(
-                          viewModel: _viewModel,
-                          activeTab: _viewModel.activeSidebarTab,
-                        ),
-                        // Page 1: 画布面板
-                        ImageCanvasCard(
-                          viewModel: _viewModel,
-                        ),
-                        // Page 2: AI 助手面板 (批注模式时显示批注历史)
-                        _viewModel.board.isAnnotatingImage
-                            ? AnnotationHistoryStrip(viewModel: _viewModel)
-                            : AgentChatCard(
-                                key: _chatCardKey,
-                                viewModel: _viewModel,
-                                onEscape: _handleGlobalEsc,
-                              ),
-                      ],
-                    ),
-            ),
-
-            // 底部沉浸式导航栏 (100% 完整继承原左侧 5 个核心功能：参数、提示词、修复、词库、设置)
-            _buildMobileBottomBar(context, isLibraryTab: isLibraryTab),
-          ],
-        ),
+          // 底部沉浸式导航栏 (完整承接原左侧 5 个核心功能：参数、提示词、修复、词库、设置)
+          _buildMobileBottomBar(context, isLibraryTab: isLibraryTab),
+        ],
       ),
     );
+  }
+
+  /// 窄屏三卡片切换单一入口：先落状态再动画，保证胶囊高亮与当前页面永不脱节。
+  ///
+  /// 顶部胶囊与底部导航栏的点击、手势横滑全部经此入口；
+  /// 不依赖 PageView 的 `onPageChanged` 回调 (它在重新挂载时不会触发)。
+  void _setMobilePage(int index, {bool animate = true}) {
+    if (index < 0 || index > 2) return;
+    if (_mobilePageIndex != index) {
+      setState(() => _mobilePageIndex = index);
+    }
+    if (!animate || !_mobilePageController.hasClients) return;
+    final current = _mobilePageController.page?.round();
+    if (current == index) return;
+    _mobilePageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  /// 手势横滑翻页后的状态回写 (唯一由 PageView 反向同步索引的入口)
+  void _onMobilePageChanged(int index) {
+    if (_mobilePageIndex != index) {
+      setState(() => _mobilePageIndex = index);
+    }
+  }
+
+  /// 切换底部导航页签并回到工作台卡片
+  void _selectSidebarTabFromBottomBar(StudioSidebarTab tab) {
+    _viewModel.setActiveSidebarTab(tab);
+    _setMobilePage(0);
   }
 
   /// 全局错误提示微胶囊
@@ -511,10 +542,7 @@ class _StudioViewState extends State<StudioView> {
     final colors = context.colors;
     return Container(
       margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: colors.errorSurface,
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -525,11 +553,7 @@ class _StudioViewState extends State<StudioView> {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 16,
-            color: colors.error,
-          ),
+          Icon(Icons.error_outline, size: 16, color: colors.error),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -542,11 +566,7 @@ class _StudioViewState extends State<StudioView> {
             ),
           ),
           IconButton(
-            icon: Icon(
-              Icons.close,
-              size: 14,
-              color: colors.textSecondary,
-            ),
+            icon: Icon(Icons.close, size: 14, color: colors.textSecondary),
             tooltip: context.l10n.close,
             onPressed: () => _viewModel.clearError(),
             visualDensity: VisualDensity.compact,
@@ -567,16 +587,17 @@ class _StudioViewState extends State<StudioView> {
     final l10n = context.l10n;
 
     final isPage0 = !isLibraryTab && _mobilePageIndex == 0;
-    final isParamsSelected = isPage0 && _viewModel.activeSidebarTab == StudioSidebarTab.parameters;
-    final isPromptsSelected = isPage0 && _viewModel.activeSidebarTab == StudioSidebarTab.prompts;
-    final isInpaintSelected = isPage0 && _viewModel.activeSidebarTab == StudioSidebarTab.inpaint;
+    final isParamsSelected =
+        isPage0 && _viewModel.activeSidebarTab == StudioSidebarTab.parameters;
+    final isPromptsSelected =
+        isPage0 && _viewModel.activeSidebarTab == StudioSidebarTab.prompts;
+    final isInpaintSelected =
+        isPage0 && _viewModel.activeSidebarTab == StudioSidebarTab.inpaint;
 
     return Container(
       decoration: BoxDecoration(
         color: colors.cardBackground,
-        border: Border(
-          top: BorderSide(color: colors.borderDefault, width: 1),
-        ),
+        border: Border(top: BorderSide(color: colors.borderDefault, width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -591,16 +612,8 @@ class _StudioViewState extends State<StudioView> {
                 icon: Icons.tune_outlined,
                 label: l10n.sidebarTabParameters,
                 isSelected: isParamsSelected,
-                onTap: () {
-                  _viewModel.setActiveSidebarTab(StudioSidebarTab.parameters);
-                  if (_mobilePageController.hasClients && _mobilePageIndex != 0) {
-                    _mobilePageController.animateToPage(
-                      0,
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                    );
-                  }
-                },
+                onTap: () =>
+                    _selectSidebarTabFromBottomBar(StudioSidebarTab.parameters),
               ),
 
               // 2. 提示词管理
@@ -610,16 +623,8 @@ class _StudioViewState extends State<StudioView> {
                 icon: Icons.edit_note_outlined,
                 label: l10n.tabPrompts,
                 isSelected: isPromptsSelected,
-                onTap: () {
-                  _viewModel.setActiveSidebarTab(StudioSidebarTab.prompts);
-                  if (_mobilePageController.hasClients && _mobilePageIndex != 0) {
-                    _mobilePageController.animateToPage(
-                      0,
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                    );
-                  }
-                },
+                onTap: () =>
+                    _selectSidebarTabFromBottomBar(StudioSidebarTab.prompts),
               ),
 
               // 3. 局部修复
@@ -629,16 +634,8 @@ class _StudioViewState extends State<StudioView> {
                 icon: Icons.auto_fix_high_outlined,
                 label: l10n.sidebarTabInpaint,
                 isSelected: isInpaintSelected,
-                onTap: () {
-                  _viewModel.setActiveSidebarTab(StudioSidebarTab.inpaint);
-                  if (_mobilePageController.hasClients && _mobilePageIndex != 0) {
-                    _mobilePageController.animateToPage(
-                      0,
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                    );
-                  }
-                },
+                onTap: () =>
+                    _selectSidebarTabFromBottomBar(StudioSidebarTab.inpaint),
               ),
 
               // 4. 词库
@@ -653,6 +650,7 @@ class _StudioViewState extends State<StudioView> {
                     _previousSidebarTab = _viewModel.activeSidebarTab;
                     _viewModel.setActiveSidebarTab(StudioSidebarTab.library);
                   } else {
+                    // 关闭词库回到进入前的侧栏页签，并保留当前卡片 (不强制跳回第 0 页)
                     _viewModel.setActiveSidebarTab(_previousSidebarTab);
                   }
                 },
@@ -713,9 +711,10 @@ class _StudioViewState extends State<StudioView> {
 /// 移动端 / 窄屏模式下 32px 超薄多功能胶囊条
 ///
 /// - 中间：三卡片分段胶囊指示器 [生图] [画板] [助手]，平滑跟随与点击切页；
+///   可用宽度不足时自动退化为图标胶囊 (带 Tooltip)，彻底避免窄屏溢出；
 /// - 桌面端 (Windows/macOS/Linux)：背景支持拖拽窗口移动与双击最大化，右侧提供最小化与关闭按键；
 /// - 移动端 (Android/iOS)：纯净展示胶囊指示，无控制按键，零冗余占用。
-class _MobileTopBar extends StatefulWidget implements PreferredSizeWidget {
+class _MobileTopBar extends StatefulWidget {
   final int activeIndex;
   final ValueChanged<int> onPageSelected;
   final bool isChatStreaming;
@@ -725,9 +724,6 @@ class _MobileTopBar extends StatefulWidget implements PreferredSizeWidget {
     required this.onPageSelected,
     this.isChatStreaming = false,
   });
-
-  @override
-  Size get preferredSize => const Size.fromHeight(32.0);
 
   @override
   State<_MobileTopBar> createState() => _MobileTopBarState();
@@ -807,36 +803,12 @@ class _MobileTopBarState extends State<_MobileTopBar> with WindowListener {
     }
   }
 
+  static const double _windowControlsWidth = 3 * 24.0;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final isZh = context.l10n.sidebarTabParameters == '参数';
-
-    final pillBar = AppSegmentedPillBar<int>(
-      items: [
-        AppSegmentedItem(
-          value: 0,
-          label: isZh ? '生图' : 'Studio',
-          icon: Icons.auto_awesome_rounded,
-        ),
-        AppSegmentedItem(
-          value: 1,
-          label: isZh ? '画板' : 'Canvas',
-          icon: Icons.palette_outlined,
-        ),
-        AppSegmentedItem(
-          value: 2,
-          label: isZh ? '助手' : 'Chat',
-          icon: Icons.chat_bubble_outline_rounded,
-          badge: widget.isChatStreaming,
-        ),
-      ],
-      selectedValue: widget.activeIndex,
-      onValueChanged: widget.onPageSelected,
-      variant: AppPillVariant.soft,
-      itemPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      spacing: 3,
-    );
+    final l10n = context.l10n;
 
     return SizedBox(
       height: 32.0,
@@ -848,52 +820,88 @@ class _MobileTopBarState extends State<_MobileTopBar> with WindowListener {
           ),
         ),
         child: _buildDraggableArea(
-        child: Row(
-          children: [
-            // 左侧占位/拖拽区
-            const Spacer(),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // 可用宽度不足时退化为图标胶囊 (Tooltip 补足语义)，避免窄屏 / 大缩放溢出
+              final reserved = _isDesktop ? _windowControlsWidth : 0.0;
+              final compact = constraints.maxWidth - reserved < 360;
 
-            // 中间三卡片胶囊指示器
-            pillBar,
+              return Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: AppSegmentedPillBar<int>(
+                        items: [
+                          AppSegmentedItem(
+                            value: 0,
+                            label: compact ? '' : l10n.mobileTabStudio,
+                            tooltip: l10n.mobileTabStudio,
+                            icon: Icons.auto_awesome_rounded,
+                          ),
+                          AppSegmentedItem(
+                            value: 1,
+                            label: compact ? '' : l10n.mobileTabCanvas,
+                            tooltip: l10n.mobileTabCanvas,
+                            icon: Icons.palette_outlined,
+                          ),
+                          AppSegmentedItem(
+                            value: 2,
+                            label: compact ? '' : l10n.mobileTabChat,
+                            tooltip: l10n.mobileTabChat,
+                            icon: Icons.chat_bubble_outline_rounded,
+                            badge: widget.isChatStreaming,
+                          ),
+                        ],
+                        selectedValue: widget.activeIndex,
+                        onValueChanged: widget.onPageSelected,
+                        variant: AppPillVariant.soft,
+                        itemPadding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        spacing: 3,
+                      ),
+                    ),
+                  ),
 
-            // 右侧：桌面端显示窗口控制三键，移动端为占位 Spacer
-            if (_isDesktop) ...[
-              const Spacer(),
-              AppWindowButton(
-                icon: Icons.remove,
-                iconSize: 11,
-                height: 32,
-                width: 24,
-                tooltip: '最小化',
-                onPressed: _minimize,
-              ),
-              AppWindowButton(
-                icon: _isMaximized
-                    ? Icons.filter_none_rounded
-                    : Icons.crop_square_rounded,
-                iconSize: _isMaximized ? 10 : 11,
-                height: 32,
-                width: 24,
-                tooltip: _isMaximized ? '向下还原' : '最大化',
-                onPressed: _toggleMaximize,
-              ),
-              AppWindowButton(
-                icon: Icons.close_rounded,
-                iconSize: 12,
-                height: 32,
-                width: 24,
-                tooltip: '关闭',
-                isClose: true,
-                onPressed: _close,
-              ),
-            ] else
-              const Spacer(),
-          ],
+                  // 右侧：桌面端显示窗口控制三键，移动端不占位
+                  if (_isDesktop) ...[
+                    AppWindowButton(
+                      icon: Icons.remove,
+                      iconSize: 11,
+                      height: 32,
+                      width: 24,
+                      tooltip: '最小化',
+                      onPressed: _minimize,
+                    ),
+                    AppWindowButton(
+                      icon: _isMaximized
+                          ? Icons.filter_none_rounded
+                          : Icons.crop_square_rounded,
+                      iconSize: _isMaximized ? 10 : 11,
+                      height: 32,
+                      width: 24,
+                      tooltip: _isMaximized ? '向下还原' : '最大化',
+                      onPressed: _toggleMaximize,
+                    ),
+                    AppWindowButton(
+                      icon: Icons.close_rounded,
+                      iconSize: 12,
+                      height: 32,
+                      width: 24,
+                      tooltip: '关闭',
+                      isClose: true,
+                      onPressed: _close,
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildDraggableArea({required Widget child}) {
     if (_isDesktop) {

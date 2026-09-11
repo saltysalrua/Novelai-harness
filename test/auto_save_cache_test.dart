@@ -6,6 +6,7 @@ import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/novelai_service.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -440,6 +441,70 @@ void main() {
       try {
         sessionBase.deleteSync(recursive: true);
         vmSaveDir.deleteSync(recursive: true);
+      } catch (_) {}
+    });
+  });
+
+  group('StudioViewModel.exportImageToDirectory', () {
+    test('遵守命名模板落盘，且同名导出不覆盖', () async {
+      SharedPreferences.setMockInitialValues({});
+      final sessionBase = Directory.systemTemp.createTempSync(
+        'nai_export_vm_session_',
+      );
+      final exportDir = Directory.systemTemp.createTempSync(
+        'nai_export_vm_out_',
+      );
+
+      final repo = NovelAiRepository();
+      final vm = StudioViewModel(
+        repository: repo,
+        sessionLogBaseDir: sessionBase.path,
+      );
+      await vm.init();
+      await vm.updateConfig(
+        vm.config.copyWith(
+          imageSaveTemplate: '{date}/{seed}_{time}',
+          localePreference: AppLocalePreference.zh,
+        ),
+      );
+
+      final image = NaiGeneratedImage(
+        id: 'vm-export-1',
+        bytes: kTestPngBytes,
+        params: _params,
+        seed: 42,
+        isOpusFree: false,
+        createdAt: DateTime.now(),
+      );
+      repo.addImageForTesting(image);
+
+      expect(await vm.exportImageToDirectory(image, exportDir.path), isTrue);
+      // 同种子同秒重复导出：必须自动递增编号，不得覆盖已有文件
+      expect(await vm.exportImageToDirectory(image, exportDir.path), isTrue);
+
+      final exported = Directory(
+        exportDir.path,
+      ).listSync(recursive: true).whereType<File>().toList();
+      expect(exported.length, 2, reason: '重复导出必须产出两个独立文件，不能静默覆盖');
+
+      // 命名模板生效：导出到日期子目录，文件名包含种子；SAF 文件名也同源
+      final expectDir = p.join(
+        exportDir.path,
+        DateFormat('yyyyMMdd', 'en_US').format(image.createdAt),
+      );
+      for (final file in exported) {
+        expect(p.dirname(file.path), expectDir);
+        expect(p.basename(file.path), contains('42'));
+        expect(p.extension(file.path), '.png');
+      }
+      expect(vm.resolveExportFileName(image), contains('42'));
+      expect(vm.resolveExportFileName(image), isNot(contains('/')));
+
+      await vm.flushPendingSaves();
+      vm.dispose();
+      try {
+        sessionBase.deleteSync(recursive: true);
+        exportDir.deleteSync(recursive: true);
       } catch (_) {}
     });
   });

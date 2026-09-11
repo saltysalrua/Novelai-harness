@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_badge.dart';
 
 /// 胶囊按钮项配置
 class AppSegmentedItem<T> {
@@ -19,12 +20,20 @@ class AppSegmentedItem<T> {
   /// 是否显示微徽章/提示点 (可选)
   final bool badge;
 
+  /// 尾部计数徽标文案 (可选，如分类条目数)
+  final String? badgeLabel;
+
+  /// 选中态强调色 (可选，默认使用品牌主色，如角色分类用警示红)
+  final Color? activeColor;
+
   const AppSegmentedItem({
     required this.value,
     required this.label,
     this.icon,
     this.tooltip,
     this.badge = false,
+    this.badgeLabel,
+    this.activeColor,
   });
 }
 
@@ -134,19 +143,21 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
     AppSegmentedItem<T> item,
   ) {
     final isSelected = item.value == selectedValue;
+    final accent = item.activeColor ?? (colors.primary as Color);
+    final activeBackground = item.activeColor == null
+        ? (colors.primaryTint as Color)
+        : accent.withValues(alpha: 0.12);
 
     final (Color bg, Color border, Color fg) = switch (variant) {
       AppPillVariant.solid => (
-        isSelected ? colors.primary : colors.cardBackground,
-        isSelected ? colors.primary : colors.borderDefault,
+        isSelected ? accent : colors.cardBackground,
+        isSelected ? accent : colors.borderDefault,
         isSelected ? Colors.white : colors.textSecondary,
       ),
       AppPillVariant.soft => (
-        isSelected ? colors.primaryTint : colors.cardBackground,
-        isSelected
-            ? colors.primary.withValues(alpha: 0.35)
-            : colors.borderDefault,
-        isSelected ? colors.primary : colors.textSecondary,
+        isSelected ? activeBackground : colors.cardBackground,
+        isSelected ? accent.withValues(alpha: 0.35) : colors.borderDefault,
+        isSelected ? accent : colors.textSecondary,
       ),
     };
 
@@ -182,10 +193,19 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
               Container(
                 width: 5,
                 height: 5,
-                decoration: BoxDecoration(
-                  color: fg,
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
+              ),
+            ],
+            if (item.badgeLabel != null) ...[
+              const SizedBox(width: 5),
+              AppBadge(
+                label: item.badgeLabel!,
+                shape: AppBadgeShape.pill,
+                fontSize: 10,
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                customBackgroundColor: fg.withValues(alpha: 0.12),
+                customForegroundColor: fg,
+                customBorderColor: fg.withValues(alpha: 0.2),
               ),
             ],
           ],

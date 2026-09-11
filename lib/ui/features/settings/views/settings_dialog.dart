@@ -3,6 +3,7 @@ import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_page_stack.dart';
+import '../../../core/widgets/app_segmented_controls.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import '../widgets/bill_settings_tab.dart';
 import '../widgets/defaults_settings_tab.dart';
@@ -33,6 +34,16 @@ class SettingsDialog extends StatefulWidget {
 }
 
 class _SettingsDialogState extends State<SettingsDialog> {
+  /// 设置分类单一事实源 (索引 / 图标 / 文案)：桌面侧栏与窄屏顶部胶囊栏共用，
+  /// 避免两处各抄一份导致新增分类漏改。
+  static const List<({IconData icon, String label})> _settingsTabs = [
+    (icon: Icons.tune_outlined, label: 'General'),
+    (icon: Icons.smart_toy_outlined, label: 'Models'),
+    (icon: Icons.psychology_outlined, label: 'Presets'),
+    (icon: Icons.layers_outlined, label: 'Defaults'),
+    (icon: Icons.receipt_long_outlined, label: 'Bill'),
+  ];
+
   int _activeTabIndex = 0;
 
   late final GeneralSettingsDraft _generalDraft;
@@ -156,10 +167,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
     return Dialog(
       backgroundColor: colors.cardBackground,
-      insetPadding: isNarrow ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      insetPadding: isNarrow
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(borderRadius),
-        side: isNarrow ? BorderSide.none : BorderSide(color: colors.borderDefault),
+        side: isNarrow
+            ? BorderSide.none
+            : BorderSide(color: colors.borderDefault),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
@@ -179,7 +194,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         child: AppPageStack(
                           index: _activeTabIndex,
                           itemCount: _tabBuilders.length,
-                          itemBuilder: (context, index) => _tabBuilders[index](),
+                          itemBuilder: (context, index) =>
+                              _tabBuilders[index](),
                         ),
                       ),
                       _buildFooter(context),
@@ -222,16 +238,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
     );
   }
 
-  /// 窄屏顶部横向滚动分类标签
+  /// 窄屏顶部横向滚动分类胶囊栏 (复用 AppSegmentedPillBar，与全应用观感一致)
   Widget _buildHorizontalTabs(BuildContext context) {
     final colors = context.colors;
-    final tabs = [
-      (0, Icons.tune_outlined, 'General'),
-      (1, Icons.smart_toy_outlined, 'Models'),
-      (2, Icons.psychology_outlined, 'Presets'),
-      (3, Icons.layers_outlined, 'Defaults'),
-      (4, Icons.receipt_long_outlined, 'Bill'),
-    ];
 
     return Container(
       decoration: BoxDecoration(
@@ -239,49 +248,19 @@ class _SettingsDialogState extends State<SettingsDialog> {
         border: Border(bottom: BorderSide(color: colors.borderDefault)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: tabs.map((tab) {
-            final isSelected = _activeTabIndex == tab.$1;
-            return Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: InkWell(
-                onTap: () => setState(() => _activeTabIndex = tab.$1),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isSelected ? colors.primaryTint : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isSelected ? colors.primary.withValues(alpha: 0.4) : Colors.transparent,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        tab.$2,
-                        size: 15,
-                        color: isSelected ? colors.primary : colors.textMuted,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        tab.$3,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                          color: isSelected ? colors.primary : colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
+      child: AppSegmentedPillBar<int>(
+        scrollable: true,
+        variant: AppPillVariant.soft,
+        selectedValue: _activeTabIndex,
+        onValueChanged: (index) => setState(() => _activeTabIndex = index),
+        items: [
+          for (var i = 0; i < _settingsTabs.length; i++)
+            AppSegmentedItem<int>(
+              value: i,
+              label: _settingsTabs[i].label,
+              icon: _settingsTabs[i].icon,
+            ),
+        ],
       ),
     );
   }
@@ -312,32 +291,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
             ),
           ),
 
-          // 导航选项卡
-          _buildSidebarItem(
-            index: 0,
-            icon: Icons.tune_outlined,
-            label: 'General',
-          ),
-          _buildSidebarItem(
-            index: 1,
-            icon: Icons.smart_toy_outlined,
-            label: 'Models',
-          ),
-          _buildSidebarItem(
-            index: 2,
-            icon: Icons.psychology_outlined,
-            label: 'Presets',
-          ),
-          _buildSidebarItem(
-            index: 3,
-            icon: Icons.layers_outlined,
-            label: 'Defaults',
-          ),
-          _buildSidebarItem(
-            index: 4,
-            icon: Icons.receipt_long_outlined,
-            label: 'Bill',
-          ),
+          // 导航选项卡 (与窄屏顶部胶囊栏共用同一份分类清单)
+          for (var i = 0; i < _settingsTabs.length; i++)
+            _buildSidebarItem(
+              index: i,
+              icon: _settingsTabs[i].icon,
+              label: _settingsTabs[i].label,
+            ),
         ],
       ),
     );

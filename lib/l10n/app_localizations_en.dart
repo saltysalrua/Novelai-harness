@@ -1771,6 +1771,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get canvasSaveImage => 'Save Image';
 
   @override
+  String get canvasSaveToFolder => 'Save to Folder...';
+
+  @override
+  String get mobileTabStudio => 'Studio';
+
+  @override
+  String get mobileTabCanvas => 'Canvas';
+
+  @override
+  String get mobileTabChat => 'Chat';
+
+  @override
   String get canvasUnseenLatestBanner =>
       'New image generated · Click to view latest';
 

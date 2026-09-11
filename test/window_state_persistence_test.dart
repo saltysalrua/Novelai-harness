@@ -26,8 +26,8 @@ void main() {
       'clamps window size if saved size is smaller than minimum limits',
       () async {
         SharedPreferences.setMockInitialValues({
-          'novelai_window_width': 500.0,
-          'novelai_window_height': 300.0,
+          'novelai_window_width': 300.0,
+          'novelai_window_height': 400.0,
           'novelai_window_pos_x': 100.0,
           'novelai_window_pos_y': 150.0,
           'novelai_window_maximized': false,
@@ -36,8 +36,10 @@ void main() {
         final configService = ConfigService();
         final state = await configService.loadWindowState();
 
-        expect(state.width, 960.0); // Clamped to minWidth 960
-        expect(state.height, 600.0); // Clamped to minHeight 600
+        // 窗口最小尺寸单一事实源：与 main.dart 的 minimumSize 必须一致，
+        // 否则用户缩到小窗口后重启会被旧下限弹回大尺寸。
+        expect(state.width, ConfigService.minWindowWidth);
+        expect(state.height, ConfigService.minWindowHeight);
         expect(state.posX, 100.0);
         expect(state.posY, 150.0);
         expect(state.isMaximized, isFalse);

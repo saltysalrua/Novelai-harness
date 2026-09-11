@@ -1692,6 +1692,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get canvasSaveImage => '保存图片';
 
   @override
+  String get canvasSaveToFolder => '保存至指定文件夹...';
+
+  @override
+  String get mobileTabStudio => '生图';
+
+  @override
+  String get mobileTabCanvas => '画板';
+
+  @override
+  String get mobileTabChat => '助手';
+
+  @override
   String get canvasUnseenLatestBanner => '已生成新图片 · 点击查看最新';
 
   @override

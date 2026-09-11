@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' show Color, Locale, Offset, Rect;
 import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import '../../../../core/harness/agent_harness.dart';
 import '../../../../core/harness/context_memory.dart';
@@ -36,7 +34,9 @@ import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/comfyui_service.dart';
+import '../../../../data/services/image_file_store.dart';
 import '../../../../data/services/image_metadata_service.dart';
+import '../../../../data/services/image_save_path_service.dart';
 import '../../../../data/services/palette_service.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../data/services/inpaint_service.dart';
@@ -495,11 +495,14 @@ mixin _StudioCore on ChangeNotifier {
   /// 手动保存当前选中的未保存 (缓存) 图片到本地存储目录 (支持自定义目录)
   Future<bool> saveCurrentImageToDisk({String? customDir});
 
-  /// 导出任意图片到指定文件夹 (由原生文件选择器挑选)
+  /// 导出任意图片到指定文件夹 (由原生文件选择器挑选，遵守命名模板与无覆盖落盘)
   Future<bool> exportImageToDirectory(
     NaiGeneratedImage image,
     String targetDir,
   );
+
+  /// 解析当前命名模板下的导出文件名 (不含目录)，供系统 SAF 单文件保存使用
+  String resolveExportFileName(NaiGeneratedImage image);
 
   /// 强行中止当前对话生成与工具执行
   Future<void> abortChat();

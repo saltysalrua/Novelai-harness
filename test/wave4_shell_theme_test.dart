@@ -288,43 +288,6 @@ void main() {
       expect(container.color, AppColorsExtension.dark.canvasBackground);
     });
 
-    testWidgets('renders narrow screen TabBar semantic colors', (tester) async {
-      tester.view.physicalSize = const Size(600, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.darkTheme,
-          home: const Scaffold(
-            body: ResizableThreeSplitView(
-              leftChild: Text('L'),
-              centerChild: Text('C'),
-              rightChild: Text('R'),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).last);
-      expect(
-        scaffold.backgroundColor,
-        AppColorsExtension.dark.canvasBackground,
-      );
-
-      final appBar = tester.widget<AppBar>(find.byType(AppBar));
-      expect(appBar.backgroundColor, AppColorsExtension.dark.cardBackground);
-
-      final tabBar = tester.widget<TabBar>(find.byType(TabBar));
-      expect(tabBar.indicatorColor, AppColorsExtension.dark.primary);
-      expect(tabBar.labelColor, AppColorsExtension.dark.textPrimary);
-      expect(
-        tabBar.unselectedLabelColor,
-        AppColorsExtension.dark.textSecondary,
-      );
-    });
-
     testWidgets('dragging split dividers triggers onWidthsChanged callback', (
       tester,
     ) async {

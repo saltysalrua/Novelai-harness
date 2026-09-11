@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors_extension.dart';
 import '../theme/theme_context_extensions.dart';
 
-/// 可拖拽三栏自适应分割容器
+/// 可拖拽三栏自适应分割容器 (仅负责宽屏三栏)。
+///
+/// 窄屏 / 移动端形态由 `StudioView` 的双层窄屏布局 (顶部胶囊条 + 三卡片 PageView +
+/// 底部导航栏) 统一承接，本组件不再自带任何降级 TabBar，避免两套窄屏体系并存。
 class ResizableThreeSplitView extends StatefulWidget {
   final Widget leftChild;
   final Widget centerChild;
@@ -10,10 +13,10 @@ class ResizableThreeSplitView extends StatefulWidget {
   final double initialLeftWidth;
   final double initialRightWidth;
   final double minLeftWidth;
-  final double maxLeftWidth;
   final double minCenterWidth;
   final double minRightWidth;
   final double maxRightWidth;
+  final double maxLeftWidth;
   final void Function(double leftWidth, double rightWidth)? onWidthsChanged;
 
   const ResizableThreeSplitView({
@@ -23,7 +26,7 @@ class ResizableThreeSplitView extends StatefulWidget {
     required this.rightChild,
     this.initialLeftWidth = 320.0,
     this.initialRightWidth = 380.0,
-    this.minLeftWidth = 240.0,
+    this.minLeftWidth = 300.0,
     this.maxLeftWidth = 480.0,
     this.minCenterWidth = 300.0,
     this.minRightWidth = 280.0,
@@ -69,47 +72,7 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
 
-        // 小屏幕自适应处理（宽度低于 800 时，降级为卡片自适应平铺或 Tab）
-        if (totalWidth < 768) {
-          return DefaultTabController(
-            length: 3,
-            child: Scaffold(
-              backgroundColor: colors.canvasBackground,
-              appBar: AppBar(
-                backgroundColor: colors.cardBackground,
-                toolbarHeight: 0,
-                bottom: TabBar(
-                  tabs: const [
-                    Tab(text: '参数设置'),
-                    Tab(text: '图片画板'),
-                    Tab(text: 'AI 对话'),
-                  ],
-                  indicatorColor: colors.primary,
-                  labelColor: colors.textPrimary,
-                  unselectedLabelColor: colors.textSecondary,
-                ),
-              ),
-              body: TabBarView(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: widget.leftChild,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: widget.centerChild,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: widget.rightChild,
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        // 桌面大屏：三栏自由拖拽分割模式
+        // 三栏自由拖拽分割模式；中央区域不足时按比例压缩左右两栏
         // 计算中央区域可用宽度
         double availableCenter =
             totalWidth - _leftWidth - _rightWidth - 16; // 16 为两个分割条的宽度

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pasteboard/pasteboard.dart';
@@ -98,22 +99,49 @@ Future<void> pickAndImportReferenceImage(
   }
 }
 
-/// 弹出原生系统文件夹选择器并保存当前图片到选定目录 (支持 Android SAF 与桌面资源管理器)
+/// 是否为移动端 (Android / iOS)：导出走系统 SAF 单文件写入，
+/// 因为 `getDirectoryPath` 返回的 SAF 目录不能被 dart:io 可靠写入 (Android 10+ 作用域存储)。
+bool get isMobilePlatform =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
+
+/// 导出图片到用户亲自挑选的位置 (含水印/脱敏处理)：
+///
+/// - 移动端：`FilePicker.saveFile(bytes:)` 经 SAF/ContentResolver 单文件写入，
+///   命名沿用全局命名模板的纯文件名；
+/// - 桌面端：目录选择 + 命名模板 / 无覆盖落盘 (ImageSavePathService + ImageFileStore)。
 Future<void> exportImageToCustomDirectory(
   BuildContext context,
   StudioViewModel viewModel,
   NaiGeneratedImage image,
 ) async {
   try {
+    if (isMobilePlatform) {
+      final bytes = await viewModel.getExportImageBytes(image, raw: false);
+      if (bytes.isEmpty) {
+        if (context.mounted) {
+          showCanvasSnackBar(
+            context,
+            viewModel.errorMessage ?? context.l10n.canvasSaveFailed,
+          );
+        }
+        return;
+      }
+      final savedPath = await FilePicker.platform.saveFile(
+        fileName: viewModel.resolveExportFileName(image),
+        bytes: bytes,
+        type: FileType.image,
+      );
+      if (!context.mounted || savedPath == null) return;
+      showCanvasSnackBar(context, context.l10n.canvasSavedImage(savedPath));
+      return;
+    }
+
     final selectedDir = await FilePicker.platform.getDirectoryPath();
     if (selectedDir == null || selectedDir.isEmpty) return;
 
-    final bool ok;
-    if (image.isUnsaved) {
-      ok = await viewModel.saveCurrentImageToDisk(customDir: selectedDir);
-    } else {
-      ok = await viewModel.exportImageToDirectory(image, selectedDir);
-    }
+    final ok = await viewModel.exportImageToDirectory(image, selectedDir);
 
     if (!context.mounted) return;
     showCanvasSnackBar(
@@ -143,8 +171,6 @@ void showImageContextMenu(
   final isGenerating = viewModel.isGenerating;
   final showCopyRaw = viewModel.stripMetadata || viewModel.enableWatermark;
   final l10n = context.l10n;
-  final saveToFolderLabel =
-      l10n.canvasSaveImage == '保存图片' ? '保存至指定文件夹...' : 'Save to Folder...';
 
   showStudioContextMenu(
     context,
@@ -171,7 +197,7 @@ void showImageContextMenu(
       ),
       ContextMenuItem(
         icon: Icons.drive_file_move_outlined,
-        label: saveToFolderLabel,
+        label: l10n.canvasSaveToFolder,
         onTap: () => exportImageToCustomDirectory(context, viewModel, image),
       ),
       const ContextMenuDivider(),

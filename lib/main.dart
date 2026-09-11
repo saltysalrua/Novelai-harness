@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'data/services/config_service.dart';
 import 'data/services/tag_dictionary_service.dart';
@@ -39,7 +41,10 @@ void main() async {
 
     final windowOptions = WindowOptions(
       size: Size(windowState.width, windowState.height),
-      minimumSize: const Size(360, 500),
+      minimumSize: const Size(
+        ConfigService.minWindowWidth,
+        ConfigService.minWindowHeight,
+      ),
       center: !hasValidPosition,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
@@ -66,13 +71,58 @@ void main() async {
   // 启动即按持久化配置校正主题模式与 UI 缩放，避免深色用户闪亮屏、
   // 缩放用户首帧尺寸跳动 (配置加载与 StudioViewModel 的 init 各自独立，
   // 这里多解析一次换取首帧即正确)
-  final bootConfig = await ConfigService().loadConfig();
+  final configService = ConfigService();
+  final bootConfig = await _seedMobileDefaults(
+    configService,
+    await configService.loadConfig(),
+  );
   AppThemeModeController.instance.syncFromConfig(bootConfig);
   AppAccentController.instance.syncFromConfig(bootConfig);
   AppLocaleController.instance.syncFromConfig(bootConfig);
   AppUiZoomController.instance.syncFromConfig(bootConfig);
 
   runApp(const NovelAiHarnessApp());
+}
+
+/// 移动端首次启动的舒适默认值 (只在用户未显式配置时写入一次)：
+///
+/// - UI 缩放 125%：触控目标更易命中。缩放始终只由 [AppUiZoomController] 一处生效，
+///   窄屏布局不再自带第二层缩放的 `AppUiZoomScope`，设置页数值即刻所见即所得；
+/// - 本地存储目录回退到应用私有文档目录：Android/iOS 上 `saveDirectory` 为空会让
+///   自动保存与历史持久化静默空转 (且 SAF 目录不能直接用 dart:io 写入)，
+///   先在应用私有目录落盘保证开箱即有持久化。用户可随时在设置中改为 SAF 目录导出。
+Future<AppConfig> _seedMobileDefaults(
+  ConfigService configService,
+  AppConfig config,
+) async {
+  final isMobile =
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+  if (!isMobile) return config;
+
+  var next = config;
+  var changed = false;
+
+  if (!await configService.hasStoredUiZoom()) {
+    next = next.copyWith(uiZoom: ConfigService.mobileDefaultUiZoom);
+    changed = true;
+  }
+
+  if (next.saveDirectory.trim().isEmpty) {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      next = next.copyWith(saveDirectory: p.join(docs.path, 'NovelAI Harness'));
+      changed = true;
+    } catch (_) {
+      // 获取系统目录失败时保持为空，用户仍可在设置页手动选择
+    }
+  }
+
+  if (changed) {
+    await configService.saveConfig(next);
+  }
+  return next;
 }
 
 class NovelAiHarnessApp extends StatelessWidget {

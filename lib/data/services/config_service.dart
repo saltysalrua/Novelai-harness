@@ -1189,6 +1189,20 @@ class ConfigService {
   static const double minUiZoom = 0.8;
   static const double maxUiZoom = 1.75;
 
+  /// 移动端首次启动的舒适缩放档位 (触控目标更易命中，仅作为初始种子)
+  static const double mobileDefaultUiZoom = 1.25;
+
+  /// 窗口最小可用尺寸单一事实源：`main.dart` 的 minimumSize 与窗口状态钳制共用，
+  /// 两者必须一致，否则用户缩到小窗口后重启会被旧下限弹回大尺寸。
+  static const double minWindowWidth = 360.0;
+  static const double minWindowHeight = 500.0;
+
+  /// 是否已存在用户显式设置的 UI 缩放 (用于移动端仅首次写入默认档位)
+  Future<bool> hasStoredUiZoom() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey(_keyUiZoom);
+  }
+
   Future<void> saveSplitWidths(double left, double right) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keySplitLeftWidth, left);
@@ -1371,8 +1385,8 @@ class ConfigService {
   loadWindowState({
     double defaultWidth = 1380.0,
     double defaultHeight = 860.0,
-    double minWidth = 960.0,
-    double minHeight = 600.0,
+    double minWidth = minWindowWidth,
+    double minHeight = minWindowHeight,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final w = prefs.getDouble(_keyWindowWidth) ?? defaultWidth;

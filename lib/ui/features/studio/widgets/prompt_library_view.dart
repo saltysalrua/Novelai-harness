@@ -11,6 +11,7 @@ import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_search_field.dart';
+import '../../../core/widgets/app_segmented_controls.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_combo_card.dart';
 import 'prompt_combo_edit_dialog.dart';
@@ -343,222 +344,261 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
-  /// 窄屏顶部横向滚动分类胶囊栏
+  /// 窄屏顶部横向滚动分类胶囊栏 (复用 AppSegmentedPillBar，与全应用观感一致)
   Widget _buildHorizontalCategoryBar(
     BuildContext context,
     List<String> categories,
     List<PromptComboEntry> allEntries,
   ) {
     final colors = context.colors;
+    final l10n = context.l10n;
 
     return Container(
       color: colors.cardBackground,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: categories.map((cat) {
-            final isSelected = _selectedCategory == cat;
-            final count = cat == '全部'
-                ? allEntries.length
-                : allEntries.where((e) => e.category.trim() == cat).length;
-            final icon = _getCategoryIcon(cat);
+      child: AppSegmentedPillBar<String>(
+        scrollable: true,
+        variant: AppPillVariant.soft,
+        itemPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        selectedValue: _selectedCategory,
+        onValueChanged: (cat) => setState(() => _selectedCategory = cat),
+        items: [
+          for (final cat in categories)
+            AppSegmentedItem<String>(
+              value: cat,
+              label: comboCategoryLabelOf(l10n, cat),
+              tooltip: comboCategoryLabelOf(l10n, cat),
+              icon: _getCategoryIcon(cat),
+              activeColor: PromptComboEntry.isCharacterCategory(cat)
+                  ? colors.error
+                  : null,
+              badgeLabel:
+                  '${cat == '全部' ? allEntries.length : allEntries.where((e) => e.category.trim() == cat).length}',
+            ),
+        ],
+      ),
+    );
+  }
 
-            return Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: InkWell(
-                onTap: () => setState(() => _selectedCategory = cat),
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: isSelected ? colors.primaryTint : colors.mutedBackground,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(
-                      color: isSelected ? colors.primary.withValues(alpha: 0.5) : colors.borderDefault,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        icon,
-                        size: 14,
-                        color: isSelected ? colors.primary : colors.textSecondary,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        cat,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                          color: isSelected ? colors.primary : colors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: isSelected ? colors.primary : colors.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
+  /// 顶部操作栏：宽屏单行完整排布；窄屏 (移动端 / 小窗口) 收成两行
+  /// (标题+图标化操作钮 / 整宽搜索框)，彻底避开固定子项溢出让「新建词组合」被裁到屏外。
+  Widget _buildTopBar(BuildContext context, int totalCount) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 560;
+
+        final title = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.collections_bookmark_outlined,
+              size: 20,
+              color: colors.primary,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                l10n.tabLibrary,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
                 ),
               ),
-            );
-          }).toList(),
+            ),
+            const SizedBox(width: 8),
+            AppBadge(
+              label: '$totalCount',
+              variant: AppBadgeVariant.primary,
+              shape: AppBadgeShape.pill,
+              fontSize: 11,
+            ),
+          ],
+        );
+
+        final searchField = AppSearchField(
+          controller: _searchController,
+          hintText: l10n.librarySearchHint,
+          debounceDuration: const Duration(milliseconds: 150),
+          onChanged: (val) {
+            final q = val.trim();
+            if (q != _searchQuery) {
+              setState(() => _searchQuery = q);
+            }
+          },
+          onClear: () {
+            setState(() => _searchQuery = '');
+          },
+        );
+
+        if (isNarrow) {
+          return Container(
+            color: colors.cardBackground,
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: title),
+                    _buildManageMenu(context, compact: true),
+                    const SizedBox(width: 8),
+                    _buildNewComboButton(context, compact: true),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(height: 36, child: searchField),
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          color: colors.cardBackground,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Expanded(child: title),
+
+              const SizedBox(width: 20),
+
+              // 搜索框
+              Expanded(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  child: searchField,
+                ),
+              ),
+
+              const SizedBox(width: 16),
+
+              _buildManageMenu(context, compact: false),
+
+              const SizedBox(width: 10),
+
+              _buildNewComboButton(context, compact: false),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 导入/导出菜单 (compact 时仅图标)
+  Widget _buildManageMenu(BuildContext context, {required bool compact}) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    return PopupMenuButton<String>(
+      tooltip: l10n.libraryDataManagement,
+      onSelected: (val) {
+        if (val == 'export') _handleExport();
+        if (val == 'import') _handleImport();
+      },
+      itemBuilder: (ctx) => [
+        PopupMenuItem(
+          value: 'export',
+          child: Row(
+            children: [
+              Icon(
+                Icons.file_download_outlined,
+                size: 16,
+                color: colors.textPrimary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                l10n.libraryExportJson,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'import',
+          child: Row(
+            children: [
+              Icon(
+                Icons.file_upload_outlined,
+                size: 16,
+                color: colors.textPrimary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                l10n.libraryImportJson,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ],
+      child: Container(
+        padding: compact
+            ? const EdgeInsets.symmetric(horizontal: 8, vertical: 7)
+            : const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: colors.mutedBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: colors.borderDefault),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.more_horiz, size: 16, color: colors.textSecondary),
+            if (!compact) ...[
+              const SizedBox(width: 4),
+              Text(
+                l10n.libraryManageButton,
+                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+              ),
+            ],
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildTopBar(BuildContext context, int totalCount) {
+  /// + 新建词组合 (compact 时仅图标 + Tooltip)
+  Widget _buildNewComboButton(BuildContext context, {required bool compact}) {
     final colors = context.colors;
     final l10n = context.l10n;
-    return Container(
-      color: colors.cardBackground,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    final button = ElevatedButton(
+      onPressed: () {
+        PromptComboEditDialog.show(context, viewModel: widget.viewModel);
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: compact
+            ? const EdgeInsets.symmetric(horizontal: 10, vertical: 10)
+            : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+      ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // 标题与条目统计
-          Icon(
-            Icons.collections_bookmark_outlined,
-            size: 20,
-            color: colors.primary,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            l10n.tabLibrary,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
-            ),
-          ),
-          const SizedBox(width: 8),
-          AppBadge(
-            label: '$totalCount',
-            variant: AppBadgeVariant.primary,
-            shape: AppBadgeShape.pill,
-            fontSize: 11,
-          ),
-
-          const SizedBox(width: 20),
-
-          // 搜索框
-          Expanded(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: AppSearchField(
-                controller: _searchController,
-                hintText: l10n.librarySearchHint,
-                debounceDuration: const Duration(milliseconds: 150),
-                onChanged: (val) {
-                  final q = val.trim();
-                  if (q != _searchQuery) {
-                    setState(() => _searchQuery = q);
-                  }
-                },
-                onClear: () {
-                  setState(() => _searchQuery = '');
-                },
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // 导入/导出
-          PopupMenuButton<String>(
-            tooltip: l10n.libraryDataManagement,
-            onSelected: (val) {
-              if (val == 'export') _handleExport();
-              if (val == 'import') _handleImport();
-            },
-            itemBuilder: (ctx) => [
-              PopupMenuItem(
-                value: 'export',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.file_download_outlined,
-                      size: 16,
-                      color: colors.textPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      l10n.libraryExportJson,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'import',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.file_upload_outlined,
-                      size: 16,
-                      color: colors.textPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      l10n.libraryImportJson,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: colors.mutedBackground,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(color: colors.borderDefault),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.more_horiz, size: 16, color: colors.textSecondary),
-                  const SizedBox(width: 4),
-                  Text(
-                    l10n.libraryManageButton,
-                    style: TextStyle(fontSize: 12, color: colors.textPrimary),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          // + 新建词组合
-          ElevatedButton.icon(
-            onPressed: () {
-              PromptComboEditDialog.show(context, viewModel: widget.viewModel);
-            },
-            icon: const Icon(Icons.add, size: 16),
-            label: Text(
+          const Icon(Icons.add, size: 16),
+          if (!compact) ...[
+            const SizedBox(width: 8),
+            Text(
               l10n.libraryNewCombo,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
+    return compact
+        ? Tooltip(message: l10n.libraryNewCombo, child: button)
+        : button;
   }
 
   IconData _getCategoryIcon(String cat) {

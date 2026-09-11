@@ -3248,6 +3248,30 @@ abstract class AppLocalizations {
   /// **'保存图片'**
   String get canvasSaveImage;
 
+  /// No description provided for @canvasSaveToFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存至指定文件夹...'**
+  String get canvasSaveToFolder;
+
+  /// No description provided for @mobileTabStudio.
+  ///
+  /// In zh, this message translates to:
+  /// **'生图'**
+  String get mobileTabStudio;
+
+  /// No description provided for @mobileTabCanvas.
+  ///
+  /// In zh, this message translates to:
+  /// **'画板'**
+  String get mobileTabCanvas;
+
+  /// No description provided for @mobileTabChat.
+  ///
+  /// In zh, this message translates to:
+  /// **'助手'**
+  String get mobileTabChat;
+
   /// No description provided for @canvasUnseenLatestBanner.
   ///
   /// In zh, this message translates to:

@@ -76,7 +76,10 @@ mixin _StudioGenerationMixin on _StudioCore {
     }
   }
 
-  /// 导出任意图片到指定文件夹 (由原生文件选择器挑选)
+  /// 导出任意图片到指定文件夹 (由原生文件选择器挑选)。
+  ///
+  /// 与常规导出共用命名单一事实源 (ImageSavePathService) 与无覆盖落盘
+  /// (ImageFileStore)：遵守全局命名模板与分目录、不覆盖同名文件、不改写图片自身状态。
   @override
   Future<bool> exportImageToDirectory(
     NaiGeneratedImage image,
@@ -86,12 +89,15 @@ mixin _StudioGenerationMixin on _StudioCore {
     try {
       final bytes = await getExportImageBytes(image, raw: false);
       if (bytes.isEmpty) return false;
-      final now = DateTime.now();
-      final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
-      final fileName = 'nai_${timeStr}_${image.seed}.png';
-      final file = File(p.join(targetDir, fileName));
-      await file.writeAsBytes(bytes);
-      _statusMessage = vmL10n.vmGenSavedTo(file.path);
+      final path = ImageFileStore.write(
+        root: targetDir,
+        relativePath: ImageSavePathService.resolve(
+          _config.imageSaveTemplate,
+          ImageSaveContext.fromImage(image),
+        ),
+        bytes: bytes,
+      );
+      _statusMessage = vmL10n.vmGenSavedTo(path);
       notifyListeners();
       return true;
     } catch (e) {
@@ -100,6 +106,18 @@ mixin _StudioGenerationMixin on _StudioCore {
       return false;
     }
   }
+
+  /// 解析当前命名模板下的导出文件名 (仅纯文件名，供系统 SAF 单文件保存使用)。
+  ///
+  /// `ImageSavePathService` / `ImageFileStore` 均为 data 层单一事实源，
+  /// 由根文件 `studio_view_model.dart` 统一 import 后供各 part 分部共用。
+  @override
+  String resolveExportFileName(NaiGeneratedImage image) => p.basename(
+    ImageSavePathService.resolve(
+      _config.imageSaveTemplate,
+      ImageSaveContext.fromImage(image),
+    ),
+  );
 
   /// 强行中止当前正在执行的生图流
   Future<void> abortGeneration() async {
