@@ -689,8 +689,8 @@ class _AdvancedSettingsSection extends StatelessWidget {
     return AppCollapsibleSection(
       title: l10n.paramsSectionAdvanced,
       isCard: false,
-      headerPadding: EdgeInsets.zero,
-      contentPadding: const EdgeInsets.only(top: 6, bottom: 8),
+      headerPadding: const EdgeInsets.symmetric(vertical: 10),
+      contentPadding: const EdgeInsets.only(top: 8, bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
