@@ -32,10 +32,7 @@ class AgentQuestionPrompt {
   final List<AgentQuestion> questions;
   final Completer<List<String>?> completer;
 
-  AgentQuestionPrompt({
-    required this.questions,
-    required this.completer,
-  });
+  AgentQuestionPrompt({required this.questions, required this.completer});
 
   bool get isCompleted => completer.isCompleted;
 

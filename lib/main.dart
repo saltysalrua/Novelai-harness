@@ -60,7 +60,7 @@ void main() async {
       await windowManager.focus();
     });
 
-    WindowStateService.instance.initialize();
+    await WindowStateService.instance.initialize();
   }
 
   // 启动即按持久化配置校正主题模式与 UI 缩放，避免深色用户闪亮屏、

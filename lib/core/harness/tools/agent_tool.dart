@@ -47,7 +47,9 @@ class CustomAgentTool extends AgentTool {
 
   @override
   Future<ToolResult> execute(
-      String toolCallId, Map<String, dynamic> args) async {
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
     if (outputTemplate.isNotEmpty) {
       String result = outputTemplate;
       args.forEach((k, v) {
@@ -62,12 +64,12 @@ class CustomAgentTool extends AgentTool {
   }
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'label': label,
-        'description': description,
-        'parameters': parameters,
-        'outputTemplate': outputTemplate,
-      };
+    'name': name,
+    'label': label,
+    'description': description,
+    'parameters': parameters,
+    'outputTemplate': outputTemplate,
+  };
 
   factory CustomAgentTool.fromJson(Map<String, dynamic> json) =>
       CustomAgentTool(
@@ -76,10 +78,7 @@ class CustomAgentTool extends AgentTool {
         description: json['description'] as String? ?? '',
         parameters: json['parameters'] is Map<String, dynamic>
             ? json['parameters'] as Map<String, dynamic>
-            : const {
-                'type': 'object',
-                'properties': {},
-              },
+            : const {'type': 'object', 'properties': {}},
         outputTemplate: json['outputTemplate'] as String? ?? '',
       );
 }

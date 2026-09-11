@@ -95,8 +95,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
   Future<void> _close() async {
     if (_isDesktop) {
       try {
-        await WindowStateService.instance.saveCurrentState();
-        await windowManager.close();
+        await WindowStateService.instance.closeWindow();
       } catch (_) {}
     }
   }
@@ -108,7 +107,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
       height: 38.0,
       decoration: BoxDecoration(
         color: colors.canvasBackground,
-        border: Border(bottom: BorderSide(color: colors.borderDefault, width: 1)),
+        border: Border(
+          bottom: BorderSide(color: colors.borderDefault, width: 1),
+        ),
       ),
       child: Row(
         children: [

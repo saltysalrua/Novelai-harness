@@ -296,10 +296,7 @@ void main() {
     expect(ReplyMarker.strip('参考 [3]'), '参考 [3]');
     expect(ReplyMarker.strip('见 [文档](https://x.y)'), '见 [文档](https://x.y)');
     expect(ReplyMarker.strip('正文**'), '正文**');
-    expect(
-      ReplyMarker.strip('- [x] 已完成\n- [ ] 未完成'),
-      '- [x] 已完成\n- [ ] 未完成',
-    );
+    expect(ReplyMarker.strip('- [x] 已完成\n- [ ] 未完成'), '- [x] 已完成\n- [ ] 未完成');
   });
 
   test('恢复旧会话时清洗正文里任意位置的回复标记', () {

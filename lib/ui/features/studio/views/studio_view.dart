@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/services/image_metadata_service.dart';
+import '../../../../data/services/window_state_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
@@ -46,12 +47,17 @@ class _StudioViewState extends State<StudioView> {
     super.initState();
     _viewModel = StudioViewModel();
     _viewModel.init();
+    WindowStateService.instance.beforeClose = _viewModel.flushPendingSaves;
     StudioView.testViewModelHook = _viewModel;
     HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvents);
   }
 
   @override
   void dispose() {
+    if (WindowStateService.instance.beforeClose ==
+        _viewModel.flushPendingSaves) {
+      WindowStateService.instance.beforeClose = null;
+    }
     HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvents);
     if (StudioView.testViewModelHook == _viewModel) {
       StudioView.testViewModelHook = null;

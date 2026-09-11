@@ -73,13 +73,13 @@ mixin _StudioInpaintMixin on _StudioCore {
 
   void updateInpaintParams(InpaintParams newParams) {
     _inpaintParams = newParams;
+    _scheduleParameterSave();
     notifyListeners();
   }
 
   void setInpaintMode(InpaintMode mode) {
     if (_inpaintParams.mode == mode) return;
-    _inpaintParams = _inpaintParams.copyWith(mode: mode);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(mode: mode));
   }
 
   void setInpaintTool(InpaintTool tool) {
@@ -98,27 +98,23 @@ mixin _StudioInpaintMixin on _StudioCore {
 
   void setInpaintContextPadding(double padding) {
     if (_inpaintParams.contextPadding == padding) return;
-    _inpaintParams = _inpaintParams.copyWith(contextPadding: padding);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(contextPadding: padding));
   }
 
   void setInpaintStrength(double strength) {
     if (_inpaintParams.strength == strength) return;
-    _inpaintParams = _inpaintParams.copyWith(strength: strength);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(strength: strength));
   }
 
   void setInpaintNoise(double noise) {
     if (_inpaintParams.noise == noise) return;
-    _inpaintParams = _inpaintParams.copyWith(noise: noise);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(noise: noise));
   }
 
   void setInpaintBrushRadius(double radius) {
     final clamped = radius.clamp(0.005, 0.25);
     if ((_inpaintParams.brushRadius - clamped).abs() < 0.0001) return;
-    _inpaintParams = _inpaintParams.copyWith(brushRadius: clamped);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(brushRadius: clamped));
   }
 
   /// 提交一条画笔描边 (归一化轨迹点，来自修复画板拖拽；单点 = 盖章一个圆点)。
@@ -161,47 +157,44 @@ mixin _StudioInpaintMixin on _StudioCore {
   }
 
   void setInpaintCustomPrompt(String prompt) {
-    _inpaintParams = _inpaintParams.copyWith(customPrompt: prompt);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(customPrompt: prompt));
   }
 
   void setInpaintCustomNegativePrompt(String negPrompt) {
-    _inpaintParams = _inpaintParams.copyWith(customNegativePrompt: negPrompt);
-    notifyListeners();
+    updateInpaintParams(
+      _inpaintParams.copyWith(customNegativePrompt: negPrompt),
+    );
   }
 
   void setInpaintUseMainPrompt(bool use) {
     if (_inpaintParams.useMainPrompt == use) return;
-    _inpaintParams = _inpaintParams.copyWith(useMainPrompt: use);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(useMainPrompt: use));
   }
 
   void setInpaintUseMainNegative(bool use) {
     if (_inpaintParams.useMainNegative == use) return;
-    _inpaintParams = _inpaintParams.copyWith(useMainNegative: use);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(useMainNegative: use));
   }
 
   void setInpaintCustomModel(NaiModel? model) {
-    _inpaintParams = _inpaintParams.copyWith(
-      customModel: model,
-      clearCustomModel: model == null,
+    updateInpaintParams(
+      _inpaintParams.copyWith(
+        customModel: model,
+        clearCustomModel: model == null,
+      ),
     );
-    notifyListeners();
   }
 
   /// AI 整图编辑生图比例 (空 = 跟随原图)
   void setInpaintAiEditAspectRatio(String ratio) {
     if (_inpaintParams.aiEditAspectRatio == ratio) return;
-    _inpaintParams = _inpaintParams.copyWith(aiEditAspectRatio: ratio);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(aiEditAspectRatio: ratio));
   }
 
   /// AI 整图编辑生图分辨率 (空 = 默认)
   void setInpaintAiEditResolution(String resolution) {
     if (_inpaintParams.aiEditResolution == resolution) return;
-    _inpaintParams = _inpaintParams.copyWith(aiEditResolution: resolution);
-    notifyListeners();
+    updateInpaintParams(_inpaintParams.copyWith(aiEditResolution: resolution));
   }
 
   void setInpaintSourceImage(NaiGeneratedImage? img) {

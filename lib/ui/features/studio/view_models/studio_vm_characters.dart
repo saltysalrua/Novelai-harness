@@ -32,7 +32,7 @@ mixin _StudioCharactersMixin on _StudioCore {
       }
       if (_params.characterAiPosition) {
         _params = _params.copyWith(characterAiPosition: false);
-        _configService.saveCharacterAiPosition(false);
+        _scheduleParameterSave();
       }
       if ((_selectedCharacterId == null ||
               !_params.characterPrompts.any(

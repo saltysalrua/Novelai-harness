@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/widgets/app_badge.dart';
@@ -101,9 +102,12 @@ void main() {
     late StudioViewModel viewModel;
 
     setUp(() {
+      SharedPreferences.setMockInitialValues({});
       viewModel = StudioViewModel();
       viewModel.setInpaintSourceImage(_image('img-0'));
     });
+
+    tearDown(() => viewModel.dispose());
 
     testWidgets('InpaintPage 成功渲染模式切换、几何卡片与滑块', (tester) async {
       await tester.pumpWidget(
@@ -476,6 +480,7 @@ void main() {
       expect(viewModel.inpaintParams.selectionRect, annotation.rect);
       expect(viewModel.inpaintParams.customPrompt, '修复这里的眼睛');
       expect(viewModel.inpaintParams.useMainPrompt, isFalse);
+      await tester.pump(const Duration(milliseconds: 300));
     });
 
     testWidgets('AI 整图编辑模式渲染生图比例与生图分辨率 AppDropdown，并支持交互切换', (tester) async {
@@ -502,6 +507,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(viewModel.inpaintParams.aiEditResolution, '2K');
       expect(find.text('2K'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
     });
 
     testWidgets('修复提示词卡片：开启复用时展示已复用链接卡，关闭复用时展示 PromptEditorCard', (

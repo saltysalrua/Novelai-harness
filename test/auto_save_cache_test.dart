@@ -434,6 +434,8 @@ void main() {
       expect(vm.selectedImage!.originalFilePath, cacheFile.path);
       expect(vm.statusMessage, contains('已保存到'));
 
+      // 模拟正常关闭：会话检查点等异步写队列完成后才能删除临时目录。
+      await vm.flushPendingSaves();
       vm.dispose();
       try {
         sessionBase.deleteSync(recursive: true);

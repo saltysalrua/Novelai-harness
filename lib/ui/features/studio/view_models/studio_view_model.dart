@@ -202,6 +202,11 @@ mixin _StudioCore on ChangeNotifier {
   /// 全局配置防抖保存计时器
   Timer? _configSaveDebounceTimer;
 
+  /// 参数保存按调用顺序串行，旧快照不可晚到覆盖新值。
+  Future<void> _lastParameterSave = Future<void>.value();
+  Future<void> _lastConfigSave = Future<void>.value();
+  bool _hasRestoredParameterState = false;
+
   /// 测试注入用：会话日志根目录 (默认走系统 Documents/NovelAI_Sessions)
   late final String? _sessionLogBaseDir;
 
@@ -373,27 +378,35 @@ mixin _StudioCore on ChangeNotifier {
     _params = newParams;
     notifyListeners();
 
-    _paramSaveDebounceTimer?.cancel();
-    _paramSaveDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-      _configService.saveLastPrompt(_params.prompt);
-      _configService.saveApplyFixedPrompts(_params.applyFixedPrompts);
-      _configService.saveCharacterPrompts(_params.characterPrompts);
-      _configService.saveCharacterAiPosition(_params.characterAiPosition);
-      _configService.saveSeedMode(_params.seedMode);
-      _configService.saveSeedTiming(_params.seedTiming);
-      if (_params.negativePrompt != _config.negativePrompt ||
-          _params.prefixPrompt != _config.prefixPrompt ||
-          _params.suffixPrompt != _config.suffixPrompt) {
-        final updatedConfig = _config.copyWith(
-          negativePrompt: _params.negativePrompt,
-          prefixPrompt: _params.prefixPrompt ?? '',
-          suffixPrompt: _params.suffixPrompt ?? '',
-        );
-        _config = updatedConfig;
-        _configService.saveConfig(updatedConfig);
-      }
-    });
+    _scheduleParameterSave();
   }
+
+  /// UI、Agent、种子自动变更与修复偏好共用的防抖保存入口。
+  void _scheduleParameterSave() {
+    _paramSaveDebounceTimer?.cancel();
+    _paramSaveDebounceTimer = Timer(
+      const Duration(milliseconds: 300),
+      _saveParameterSnapshot,
+    );
+  }
+
+  Future<void> _saveParameterSnapshot() {
+    _paramSaveDebounceTimer?.cancel();
+    _paramSaveDebounceTimer = null;
+    final generation = _params;
+    final inpaint = _inpaintParams;
+    final save = _lastParameterSave.then(
+      (_) => _configService.saveStudioParameters(generation, inpaint),
+    );
+    // 防抖回调的异常被记录；显式 flush 仍返回原始 Future，使关闭流程可重试。
+    _lastParameterSave = save.catchError((Object error, StackTrace stack) {
+      debugPrint('工作台参数保存失败: $error');
+    });
+    return save;
+  }
+
+  /// 取消防抖并等待前序写入完成，关闭窗口及测试重启前使用。
+  Future<void> flushPendingParameterSave() => _saveParameterSnapshot();
 
   /// 便捷更新主提示词
   void updatePrompt(String prompt) {
@@ -689,14 +702,10 @@ class StudioViewModel extends ChangeNotifier
     // 加载词组合库
     await loadPromptLibrary();
 
-    // 后台预载提示词分词器 (T5/Qwen 词表解析一次性开销)；
-    // 完成后通知重建，让提示词卡片从启发式估算切到真分词计数
-    unawaited(_precachePromptTokenizers());
-
     _currentThinkingEffort =
         _config.activeLlmProvider.activeModel.defaultThinkingEffort;
 
-    _params = NaiGenerationParams(
+    final legacyParams = NaiGenerationParams(
       prompt: lastPrompt,
       negativePrompt: _config.negativePrompt,
       model: _config.defaultModel,
@@ -715,6 +724,12 @@ class StudioViewModel extends ChangeNotifier
       seedMode: await _configService.loadSeedMode(),
       seedTiming: await _configService.loadSeedTiming(),
     );
+    final savedParams = await _configService.loadStudioParameters(legacyParams);
+    _params = savedParams.generation;
+    _inpaintParams = savedParams.inpaint;
+    _hasRestoredParameterState = true;
+    // 恢复模型后再预载，避免启动时错误加载出厂模型的分词器。
+    unawaited(_precachePromptTokenizers());
 
     // 参数时间轴基线：后续每轮对话发出前再各记一次快照，供回溯时回滚
     _paramJournal.reset(_params);
@@ -832,8 +847,11 @@ class StudioViewModel extends ChangeNotifier
         _comfyBridgeState = null;
       }
     }
+    _applyChangedGenerationDefaults(oldConfig, newConfig);
     notifyListeners();
-    await _configService.saveConfig(newConfig);
+    _configSaveDebounceTimer?.cancel();
+    _lastConfigSave = _configService.saveConfig(newConfig);
+    await _lastConfigSave;
 
     // 仅在生效供应商/模型真正变化时才重置思考强度；
     // 保存无关设置 (如存储目录) 不应吞掉用户在对话卡选定的强度
@@ -887,11 +905,72 @@ class StudioViewModel extends ChangeNotifier
     }
   }
 
+  /// 用户显式修改默认参数时应用改动项；保存主题等无关设置不能重置工作台。
+  void _applyChangedGenerationDefaults(AppConfig old, AppConfig next) {
+    if (old.defaultModel == next.defaultModel &&
+        old.defaultSampler == next.defaultSampler &&
+        old.defaultNoiseSchedule == next.defaultNoiseSchedule &&
+        old.customWidth == next.customWidth &&
+        old.customHeight == next.customHeight &&
+        old.defaultSteps == next.defaultSteps &&
+        old.defaultScale == next.defaultScale &&
+        old.defaultCfgRescale == next.defaultCfgRescale &&
+        old.negativePrompt == next.negativePrompt &&
+        old.prefixPrompt == next.prefixPrompt &&
+        old.suffixPrompt == next.suffixPrompt) {
+      return;
+    }
+    updateParams(
+      _params.copyWith(
+        model: old.defaultModel != next.defaultModel ? next.defaultModel : null,
+        sampler: old.defaultSampler != next.defaultSampler
+            ? next.defaultSampler
+            : null,
+        noiseSchedule: old.defaultNoiseSchedule != next.defaultNoiseSchedule
+            ? next.defaultNoiseSchedule
+            : null,
+        width: old.customWidth != next.customWidth ? next.customWidth : null,
+        height: old.customHeight != next.customHeight
+            ? next.customHeight
+            : null,
+        steps: old.defaultSteps != next.defaultSteps ? next.defaultSteps : null,
+        scale: old.defaultScale != next.defaultScale ? next.defaultScale : null,
+        cfgRescale: old.defaultCfgRescale != next.defaultCfgRescale
+            ? next.defaultCfgRescale
+            : null,
+        negativePrompt: old.negativePrompt != next.negativePrompt
+            ? next.negativePrompt
+            : null,
+        prefixPrompt: old.prefixPrompt != next.prefixPrompt
+            ? next.prefixPrompt
+            : null,
+        suffixPrompt: old.suffixPrompt != next.suffixPrompt
+            ? next.suffixPrompt
+            : null,
+      ),
+    );
+  }
+
+  /// 关闭前冲刷工作台、布局、全局配置与对话日志，不能只 cancel 防抖计时器。
+  Future<void> flushPendingSaves() async {
+    // 启动尚未读完偏好时直接关闭：保留磁盘原值，不用空工作台覆盖它，
+    // 也不等待初始化尾部的账号网络查询才能退出。
+    if (!_hasRestoredParameterState) return;
+    await flushPendingParameterSave();
+    await flushPendingLayoutSave();
+    _uiZoomSaveTimer?.cancel();
+    await _configService.saveUiZoom(_config.uiZoom);
+    _configSaveDebounceTimer?.cancel();
+    await _lastConfigSave;
+    await _configService.saveConfig(_config);
+    await _sessionLog.flush();
+  }
+
   /// 防抖保存全局配置 (避免滑块/高频拖拽频繁写盘)
   void _debounceSaveConfig() {
     _configSaveDebounceTimer?.cancel();
     _configSaveDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-      _configService.saveConfig(_config);
+      _lastConfigSave = _configService.saveConfig(_config);
     });
   }
 
@@ -1313,6 +1392,7 @@ class StudioViewModel extends ChangeNotifier
     _harness.dispose();
     _generationSubscription?.cancel();
     _paramSaveDebounceTimer?.cancel();
+    _configSaveDebounceTimer?.cancel();
     _splitWidthSaveTimer?.cancel();
     _uiZoomSaveTimer?.cancel();
     _promptHeightsSaveTimer?.cancel();

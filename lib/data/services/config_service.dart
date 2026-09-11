@@ -501,6 +501,8 @@ class ConfigService {
   static const String _keyEnableWatermark = 'novelai_enable_watermark';
   static const String _keyKeepOriginalImage = 'novelai_keep_original_image';
   static const String _keyWatermarkConfig = 'novelai_watermark_config';
+  // 完整工作台快照独立于设置页默认值；旧散项仅用于首次迁移。
+  static const String _keyStudioParameters = 'novelai_studio_parameters';
   static const String _keyLastPrompt = 'novelai_last_prompt';
   static const String _keyApplyFixedPrompts = 'novelai_apply_fixed_prompts';
   static const String _keyCharacterPrompts = 'novelai_character_prompts';
@@ -1011,6 +1013,68 @@ class ConfigService {
     await prefs.setString(_keyLlmApiKey, active.apiKey);
     await prefs.setString(_keyLlmModel, active.activeModel.id);
     await prefs.setDouble(_keyLlmTemperature, active.activeModel.temperature);
+  }
+
+  /// 恢复完整工作台参数。旧版本散项由调用方组成 fallback；缺失字段也沿用它。
+  /// 修复只恢复可复用设置，不恢复绑定旧图片的选区、笔迹和蒙版包围盒。
+  Future<({NaiGenerationParams generation, InpaintParams inpaint})>
+  loadStudioParameters(NaiGenerationParams fallback) async {
+    var generation = fallback;
+    var inpaint = const InpaintParams();
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.get(_keyStudioParameters);
+    if (raw is! String || raw.isEmpty) {
+      return (generation: generation, inpaint: inpaint);
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        final savedGeneration = decoded['generation'];
+        if (savedGeneration is Map<String, dynamic>) {
+          try {
+            generation = NaiGenerationParams.fromJson({
+              ...fallback.toJson(),
+              ...savedGeneration,
+            });
+          } catch (_) {
+            // 损坏的生图快照不影响修复设置恢复。
+          }
+        }
+        final savedInpaint = decoded['inpaint'];
+        if (savedInpaint is Map<String, dynamic>) {
+          inpaint = InpaintParams.fromJson({
+            ...savedInpaint,
+            'selectionRect': null,
+            'brushStrokes': const [],
+            'maskBounds': null,
+          });
+        }
+      }
+    } catch (_) {
+      // 旧数据损坏或类型不匹配时回退，不阻塞工作台启动。
+    }
+    return (generation: generation, inpaint: inpaint);
+  }
+
+  /// 一次写入完整快照，避免多项异步保存只落盘一半。
+  Future<void> saveStudioParameters(
+    NaiGenerationParams generation,
+    InpaintParams inpaint,
+  ) async {
+    final encoded = jsonEncode({
+      'generation': generation.toJson(),
+      'inpaint': inpaint
+          .copyWith(
+            clearSelectionRect: true,
+            clearBrushStrokes: true,
+            clearMaskBounds: true,
+          )
+          .toJson(),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setString(_keyStudioParameters, encoded)) {
+      throw const FileSystemException('工作台参数保存失败');
+    }
   }
 
   /// 加载上次保存的草稿提示词

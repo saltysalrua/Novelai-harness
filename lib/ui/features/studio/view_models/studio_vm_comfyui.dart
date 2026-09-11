@@ -181,6 +181,7 @@ mixin _StudioComfyMixin on _StudioCore {
       if (seed < 0) {
         seed = generateRandomSeed();
         _params = _params.copyWith(seed: seed);
+        _scheduleParameterSave();
       }
 
       // 冻结此次请求参数，轮询期间用户修改工作台不能改写成品命名快照。

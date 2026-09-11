@@ -736,9 +736,7 @@ class AddImageAnnotationTool extends AgentTool {
       );
     }
 
-    final dims = await AnlasCalculator.decodeImageDimensions(
-      target.bytes,
-    );
+    final dims = await AnlasCalculator.decodeImageDimensions(target.bytes);
     final summary = _describeAnnotation(
       newAnn,
       updatedList.length,

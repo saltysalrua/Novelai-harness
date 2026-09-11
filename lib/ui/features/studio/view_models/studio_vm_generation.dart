@@ -266,6 +266,7 @@ mixin _StudioGenerationMixin on _StudioCore {
       case NaiSeedMode.fixed:
         break;
     }
+    if (_params.seedMode != NaiSeedMode.fixed) _scheduleParameterSave();
   }
 
   /// 生图后根据种子模式更新种子 (当 timing == after 时触发)
@@ -286,6 +287,7 @@ mixin _StudioGenerationMixin on _StudioCore {
       case NaiSeedMode.fixed:
         break;
     }
+    if (_params.seedMode != NaiSeedMode.fixed) _scheduleParameterSave();
   }
 
   /// 超分放大当前图片 (官方新超分模型，固定倍率输出)

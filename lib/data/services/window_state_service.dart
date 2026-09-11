@@ -7,16 +7,20 @@ import 'config_service.dart';
 class WindowStateService with WindowListener {
   static final WindowStateService instance = WindowStateService._();
   WindowStateService._({ConfigService? configService})
-      : _configService = configService ?? ConfigService();
+    : _configService = configService ?? ConfigService();
 
   @visibleForTesting
   WindowStateService.forTesting({required ConfigService configService})
-      : this._(configService: configService);
+    : this._(configService: configService);
 
   final ConfigService _configService;
   Timer? _saveTimer;
   Future<void>? _lastSaveFuture;
   bool _isInitialized = false;
+  Future<void>? _closeFuture;
+
+  /// 宿主注入的关闭前落盘动作；服务不依赖具体 ViewModel。
+  Future<void> Function()? beforeClose;
 
   bool get isInitialized => _isInitialized;
 
@@ -33,12 +37,14 @@ class WindowStateService with WindowListener {
           defaultTargetPlatform == TargetPlatform.macOS);
 
   /// 初始化窗口监听
-  void initialize() {
+  Future<void> initialize() async {
     if (_isInitialized) return;
-    _isInitialized = true;
     if (_isDesktop) {
+      // 同时拦截标题栏关闭、Alt+F4 与系统关闭请求，等待异步落盘。
+      await windowManager.setPreventClose(true);
       windowManager.addListener(this);
     }
+    _isInitialized = true;
   }
 
   /// 销毁监听与计时器
@@ -49,6 +55,7 @@ class WindowStateService with WindowListener {
     _saveTimer?.cancel();
     _saveTimer = null;
     _isInitialized = false;
+    beforeClose = null;
   }
 
   /// 调度防抖保存 (500ms 节流)
@@ -138,10 +145,24 @@ class WindowStateService with WindowListener {
     _scheduleSave();
   }
 
+  /// 重复关闭请求共用一个任务；保存失败时保留窗口，允许再次关闭重试。
+  Future<void> closeWindow() =>
+      _closeFuture ??= _flushAndClose().whenComplete(() => _closeFuture = null);
+
+  Future<void> _flushAndClose() async {
+    if (!_isDesktop) return;
+    await beforeClose?.call();
+    await flushPendingSave();
+    await saveCurrentState();
+    await windowManager.destroy();
+  }
+
   @override
   void onWindowClose() {
-    _saveTimer?.cancel();
-    _saveTimer = null;
-    saveCurrentState();
+    unawaited(
+      closeWindow().catchError((Object error, StackTrace stack) {
+        debugPrint('关闭前保存失败，窗口已保留: $error');
+      }),
+    );
   }
 }

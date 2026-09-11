@@ -455,6 +455,15 @@ classDiagram
 
 ---
 
+### 3.6.1 工作台参数持久化
+
+- **完整快照**：`ConfigService.saveStudioParameters` 将 `NaiGenerationParams.toJson()` 与可复用修复设置合写到 SharedPreferences 的 `novelai_studio_parameters`。覆盖模型、宽高、Prompt Guidance / CFG、CFG Rescale、步数、采样器、噪声调度、种子数值/模式/时机、张数、质量词开关/档位、UC 档位、透明背景、正负提示词、固定词缀以及角色提示词/坐标/定位模式；修复保存模式、强度、噪声、外延、画笔大小、独立提示词/模型/采样覆盖项及 AI 编辑比例/分辨率。选区、笔迹、蒙版包围盒不保存，也不从损坏或旧快照恢复，避免套用到另一张图。
+- **恢复与默认值**：启动优先读完整快照；缺失字段或无快照时兼容旧版提示词/角色/种子散项及设置页默认值。工作台调整不反写默认设置；用户显式修改默认设置时，仅将改动项应用到工作台，不因保存主题等无关设置重置现有参数。损坏 JSON/类型回退，不阻塞启动。
+- **保存时机**：`_StudioCore._scheduleParameterSave()` 统一 300ms 防抖，写入按调用顺序串行，防止慢旧快照覆盖新值。UI、Agent、元数据回填、回溯及普通/ComfyUI 生图自动变更种子均沿用此入口。
+- **正常退出**：`WindowStateService` 拦截系统关闭请求，标题栏也走同一 `closeWindow()`；通过宿主注入的 `beforeClose` 回调等待 `StudioViewModel.flushPendingSaves()`（参数、待保存布局、全局配置、会话写队列），再保存窗口状态并销毁窗口。重复关闭合并，参数保存失败则保留窗口以便重试。启动尚未恢复本地参数时关闭不写空默认值，也不等待账号网络查询。强制终止进程不属于此保证范围。
+
+---
+
 ### 3.7 标签补全多源合并管线 (Tag Suggestion Pipeline)
 
 标签自动补全、标签灵感库、提示词高亮与 Agent 离线标签检索均汇聚到 `TagDictionaryService.search()` 单一漏斗，内部按四个数据源公平打分合并：
