@@ -12,6 +12,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatStopOutput => 'Stop output (Esc)';
 
   @override
+  String get chatStopOutputMobile => 'Stop output';
+
+  @override
+  String get chatContextTitle => 'Context and usage';
+
+  @override
+  String chatContextEstimate(int tokens, int window) {
+    return 'Context ≈$tokens / $window';
+  }
+
+  @override
+  String chatContextNotes(int count) {
+    return 'Notes $count';
+  }
+
+  @override
+  String get chatContextCompacting => 'Compacting in background';
+
+  @override
+  String get chatContextFailed => 'Compaction failed';
+
+  @override
+  String get chatContextExplanation =>
+      'Estimated current request context, including system instructions, tools, summaries and notes; not cumulative session usage. Use /compact to compact manually.';
+
+  @override
   String get sessionManage => 'Manage sessions';
 
   @override

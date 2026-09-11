@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/widgets/app_pan_gesture_region.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../view_models/studio_view_model.dart';
 
@@ -193,7 +194,8 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
                   children: [
                     // 水印图像主体 (拖拽移动位置，拖拽中仅本地 setState，拖拽结束统一提交)
                     Positioned.fill(
-                      child: GestureDetector(
+                      child: AppPanGestureRegion(
+                        key: const ValueKey('watermark_move_surface'),
                         behavior: HitTestBehavior.opaque,
                         onPanStart: (details) {
                           setState(() {
@@ -272,9 +274,11 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
 
                     // 右下角自由缩放控制手柄 (拖向右下时左上角锁定不动，本地流畅放大)
                     Positioned(
-                      right: -9,
-                      bottom: -9,
-                      child: GestureDetector(
+                      // 手柄必须位于父盒命中范围内，不能露出半边却点不到。
+                      right: 0,
+                      bottom: 0,
+                      child: AppPanGestureRegion(
+                        key: const ValueKey('watermark_resize_surface'),
                         behavior: HitTestBehavior.opaque,
                         onPanStart: (details) {
                           setState(() {
@@ -336,8 +340,8 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
                         child: MouseRegion(
                           cursor: SystemMouseCursors.resizeDownRight,
                           child: Container(
-                            width: 18,
-                            height: 18,
+                            width: 24,
+                            height: 24,
                             decoration: BoxDecoration(
                               color: colors.cardBackground,
                               shape: BoxShape.circle,

@@ -56,6 +56,9 @@ class AppNavTile extends StatefulWidget {
   /// 内边距，默认水平 10，垂直 8
   final EdgeInsetsGeometry padding;
 
+  /// 横向列表项或紧凑底部导航 (图标在文字上方)。
+  final Axis axis;
+
   const AppNavTile({
     super.key,
     required this.title,
@@ -72,6 +75,7 @@ class AppNavTile extends StatefulWidget {
     this.trailing,
     this.radius = AppRadius.md,
     this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    this.axis = Axis.horizontal,
   });
 
   @override
@@ -132,77 +136,103 @@ class _AppNavTileState extends State<AppNavTile> {
                 borderRadius: BorderRadius.circular(widget.radius),
                 border: Border.all(color: effectiveBorderColor, width: 1.0),
               ),
-              child: Row(
-                children: [
-                  if (widget.icon != null) ...[
-                    Icon(widget.icon, size: 16, color: iconFg),
-                    // 图标间距对齐旧设置侧栏的 10px 节奏
-                    const SizedBox(width: 10),
-                  ],
-                  Expanded(
-                    child: Column(
+              child: widget.axis == Axis.vertical
+                  ? Column(
                       mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        if (widget.icon != null) ...[
+                          Icon(widget.icon, size: 18, color: iconFg),
+                          const SizedBox(height: 2),
+                        ],
                         Text(
                           widget.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 13,
-                            // 未选中态 w500 对齐替换前旧侧栏字重，避免 MiSans w400 过细显糊
+                            fontSize: 10,
+                            height: 1.2,
                             fontWeight: widget.isSelected
                                 ? FontWeight.w600
                                 : FontWeight.w500,
                             color: effectiveFg,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        if (widget.subtitle != null &&
-                            widget.subtitle!.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.subtitle!,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: colors.textMuted,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        if (widget.icon != null) ...[
+                          Icon(widget.icon, size: 16, color: iconFg),
+                          // 图标间距对齐旧设置侧栏的 10px 节奏
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.title,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  // 未选中态 w500 对齐替换前旧侧栏字重，避免 MiSans w400 过细显糊
+                                  fontWeight: widget.isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                  color: effectiveFg,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (widget.subtitle != null &&
+                                  widget.subtitle!.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  widget.subtitle!,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: colors.textMuted,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ],
                           ),
+                        ),
+                        if (displayBadge != null) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: widget.isSelected
+                                  ? (widget.badgeColor ?? resolvedActiveColor)
+                                        .withValues(alpha: 0.15)
+                                  : colors.mutedBackground,
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.pill,
+                              ),
+                            ),
+                            child: Text(
+                              displayBadge,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: widget.isSelected
+                                    ? (widget.badgeColor ?? resolvedActiveColor)
+                                    : colors.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (widget.trailing != null) ...[
+                          const SizedBox(width: 6),
+                          widget.trailing!,
                         ],
                       ],
                     ),
-                  ),
-                  if (displayBadge != null) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1.5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: widget.isSelected
-                            ? (widget.badgeColor ?? resolvedActiveColor)
-                                  .withValues(alpha: 0.15)
-                            : colors.mutedBackground,
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
-                      ),
-                      child: Text(
-                        displayBadge,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: widget.isSelected
-                              ? (widget.badgeColor ?? resolvedActiveColor)
-                              : colors.textMuted,
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (widget.trailing != null) ...[
-                    const SizedBox(width: 6),
-                    widget.trailing!,
-                  ],
-                ],
-              ),
             ),
           ),
         ),

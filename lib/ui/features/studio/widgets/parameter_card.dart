@@ -11,11 +11,13 @@ import 'prompts_page.dart';
 class ParameterCard extends StatelessWidget {
   final StudioViewModel viewModel;
   final StudioSidebarTab activeTab;
+  final bool compact;
 
   const ParameterCard({
     super.key,
     required this.viewModel,
     this.activeTab = StudioSidebarTab.parameters,
+    this.compact = false,
   });
 
   @override
@@ -47,7 +49,7 @@ class ParameterCard extends StatelessWidget {
             ),
 
             // 底部常驻操作面板 (账号/体力/免点/刷新 + 主操作按钮：生成图片/开始修复)
-            GenerateDock(viewModel: viewModel),
+            GenerateDock(viewModel: viewModel, compact: compact),
           ],
         ),
       ),

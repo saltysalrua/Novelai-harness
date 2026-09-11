@@ -1,6 +1,22 @@
 {
   "@@locale": "zh",
   "chatStopOutput": "停止输出 (Esc)",
+  "chatStopOutputMobile": "停止输出",
+  "chatContextTitle": "上下文与用量",
+  "chatContextEstimate": "上下文 ≈{tokens} / {window}",
+  "@chatContextEstimate": {
+    "placeholders": {
+      "tokens": {"type": "int"},
+      "window": {"type": "int"}
+    }
+  },
+  "chatContextNotes": "笔记 {count}",
+  "@chatContextNotes": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "chatContextCompacting": "后台压缩中",
+  "chatContextFailed": "压缩失败",
+  "chatContextExplanation": "当前请求上下文估算，含系统提示词、工具、摘要和笔记；不是会话累计用量。可用 /compact 手动压缩。",
   "sessionManage": "批量管理",
   "sessionSelectAll": "全选搜索结果",
   "sessionSelectedCount": "已选 {count} 项",

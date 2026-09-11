@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/widgets/app_pan_gesture_region.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../view_models/studio_view_model.dart';
@@ -260,7 +261,7 @@ class _CharacterPositionOverlayState extends State<CharacterPositionOverlay> {
       key: ValueKey('anchor-${character.id}'),
       left: centerX - diameter / 2,
       top: centerY - diameter / 2,
-      child: GestureDetector(
+      child: AppPanGestureRegion(
         behavior: HitTestBehavior.opaque,
         onPanStart: (_) {
           viewModel.selectCharacterId(character.id);
@@ -284,8 +285,7 @@ class _CharacterPositionOverlayState extends State<CharacterPositionOverlay> {
         },
         onPanEnd: (_) =>
             _commitDrag(viewModel, character, isGridMode: isGridMode),
-        onPanCancel: () =>
-            _commitDrag(viewModel, character, isGridMode: isGridMode),
+        onPanCancel: () => setState(() => _draggingId = null),
         child: _AnchorCircle(
           index: index + 1,
           diameter: diameter,

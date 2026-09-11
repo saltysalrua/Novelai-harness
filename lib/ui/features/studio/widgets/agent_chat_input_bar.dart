@@ -13,6 +13,7 @@ import '../../../core/widgets/app_async_icon_button.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import 'chat_context_status.dart';
 import 'chat_image_attachment.dart';
 import 'slash_command_overlay.dart';
 import '../view_models/studio_view_model.dart';
@@ -21,11 +22,17 @@ import '../view_models/studio_view_model.dart';
 /// 模型/思考强度一体化胶囊卡片 + 消息输入框与发送按钮
 class AgentChatInputBar extends StatefulWidget {
   final StudioViewModel viewModel;
+  final bool compact;
 
   /// 发送成功后的回调 (用于滚动到消息流底部)
   final VoidCallback? onSent;
 
-  const AgentChatInputBar({super.key, required this.viewModel, this.onSent});
+  const AgentChatInputBar({
+    super.key,
+    required this.viewModel,
+    this.onSent,
+    this.compact = false,
+  });
 
   @override
   State<AgentChatInputBar> createState() => _AgentChatInputBarState();
@@ -414,7 +421,12 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     final activeProvider = widget.viewModel.config.activeLlmProvider;
     final activeModel = activeProvider.activeModel;
     final currentEffort = widget.viewModel.currentThinkingEffort;
-    final usage = widget.viewModel.contextUsage;
+    final contextStatus = ChatContextStatus(
+      usage: widget.viewModel.contextUsage,
+      modelName: '${activeProvider.name} · ${activeModel.name}',
+      sessionUsage: _buildSessionUsageTooltip(context.l10n),
+      compact: widget.compact,
+    );
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -426,46 +438,16 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. 模型切换与思考强度控制栏 (扩大版一体化胶囊卡片，自适应防溢出)
-          _buildCombinedModelThinkingCard(
-            activeProvider,
-            activeModel,
-            currentEffort,
-          ),
-          const SizedBox(height: 12),
-
-          Tooltip(
-            message:
-                usage.error ??
-                '当前请求上下文估算，含系统提示词、工具、摘要和笔记；不是会话累计用量。可用 /compact 手动压缩。',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  '上下文 ≈${usage.tokens} / ${usage.window} · ${(usage.fraction * 100).toStringAsFixed(0)}%'
-                  ' · 笔记 ${usage.noteCount}'
-                  '${usage.compacting
-                      ? ' · 后台压缩中'
-                      : usage.error != null
-                      ? ' · 压缩失败'
-                      : ''}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: usage.error != null
-                        ? colors.error
-                        : colors.textMuted,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                LinearProgressIndicator(
-                  value: usage.fraction,
-                  minHeight: 2,
-                  color: usage.fraction >= 0.85 ? colors.error : colors.primary,
-                ),
-              ],
+          if (!widget.compact) ...[
+            _buildCombinedModelThinkingCard(
+              activeProvider,
+              activeModel,
+              currentEffort,
             ),
-          ),
-          const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.md),
+            contextStatus,
+            const SizedBox(height: AppSpacing.sm),
+          ],
           // 斜杠指令补全悬浮层 (渲染到根 Overlay，锚定在输入框上方)
           OverlayPortal(
             controller: _overlayController,
@@ -476,20 +458,72 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           _buildAttachmentPreview(),
 
           _buildMessageComposer(),
+          if (widget.compact) ...[
+            const SizedBox(height: AppSpacing.xs),
+            // 辅助控制独立成行；容量、笔记与压缩状态不再截断。
+            Row(
+              children: [
+                if (activeModel.supportsThinking) ...[
+                  SizedBox(
+                    width: 112,
+                    child: _buildInlineThinkingDropdown(
+                      activeModel,
+                      currentEffort,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+                Expanded(child: contextStatus),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  /// 全宽文本区与定尺寸工具栏分行，按钮不随多行输入膨胀或挤占文字。
+  /// 全宽正文 + 独立工具行；手机模型选择嵌入附件与发送之间，避免多层卡片。
+  /// 两种布局复用同一个编辑器、控制器和按键链，切换不丢草稿或附件。
   Widget _buildMessageComposer() {
     final colors = context.colors;
     final l10n = context.l10n;
+    final field = _buildMessageField();
+    final activeProvider = widget.viewModel.config.activeLlmProvider;
+    final attachment = AppIconButton(
+      icon: Icons.attach_file_rounded,
+      size: widget.compact ? 48 : 28,
+      iconSize: widget.compact ? 20 : 17,
+      tooltip: l10n.chatAddAttachmentTooltip,
+      variant: AppIconButtonVariant.ghost,
+      onPressed: _pickImageFiles,
+    );
+    final Widget send = widget.compact && widget.viewModel.isChatStreaming
+        ? AppIconButton(
+            key: const ValueKey('chat_send_button'),
+            icon: Icons.stop_rounded,
+            size: 48,
+            iconSize: 20,
+            tooltip: l10n.chatStopOutputMobile,
+            iconColor: colors.error,
+            variant: AppIconButtonVariant.outlined,
+            onPressed: widget.viewModel.abortChat,
+          )
+        : AppAsyncIconButton(
+            key: const ValueKey('chat_send_button'),
+            isLoading: widget.viewModel.isChatStreaming,
+            icon: Icons.send_rounded,
+            size: widget.compact ? 48 : 28,
+            iconSize: widget.compact ? 20 : 17,
+            tooltip: l10n.chatSendTooltip,
+            loadingTooltip: l10n.chatSendingTooltip,
+            variant: AppIconButtonVariant.primary,
+            onPressed: _handleSend,
+          );
 
     return ListenableBuilder(
       listenable: _inputFocusNode,
       builder: (context, child) => AppCard(
-        radius: AppRadius.md,
+        radius: widget.compact ? AppRadius.lg : AppRadius.md,
         backgroundColor: colors.canvasBackground,
         borderColor: _inputFocusNode.hasFocus
             ? colors.primary
@@ -500,75 +534,77 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CompositedTransformTarget(
-            link: _layerLink,
-            child: CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.enter): _handleSend,
-              },
-              // 焦点冒泡先处理补全，避免 Enter 被外层发送快捷键抢走。
-              child: Focus(
-                onKeyEvent: _handleSlashKey,
-                child: TextField(
-                  key: _inputFieldKey,
-                  controller: _inputController,
-                  focusNode: _inputFocusNode,
-                  minLines: 1,
-                  maxLines: 6,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: colors.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: l10n.chatInputHint,
-                    hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
-                    isDense: true,
-                    filled: false,
-                    contentPadding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md,
-                      AppSpacing.md,
-                      AppSpacing.md,
-                      AppSpacing.sm,
-                    ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                  ),
-                ),
-              ),
-            ),
-          ),
+          field,
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.sm,
+            padding: EdgeInsets.fromLTRB(
+              widget.compact ? AppSpacing.xs : AppSpacing.sm,
               0,
-              AppSpacing.sm,
-              AppSpacing.sm,
+              widget.compact ? AppSpacing.xs : AppSpacing.sm,
+              widget.compact ? AppSpacing.xs : AppSpacing.sm,
             ),
             child: Row(
               children: [
-                AppIconButton(
-                  icon: Icons.attach_file_rounded,
-                  iconSize: 17,
-                  tooltip: l10n.chatAddAttachmentTooltip,
-                  variant: AppIconButtonVariant.ghost,
-                  onPressed: _pickImageFiles,
-                ),
-                const Spacer(),
-                AppAsyncIconButton(
-                  isLoading: widget.viewModel.isChatStreaming,
-                  icon: Icons.send_rounded,
-                  iconSize: 17,
-                  tooltip: l10n.chatSendTooltip,
-                  loadingTooltip: l10n.chatSendingTooltip,
-                  variant: AppIconButtonVariant.primary,
-                  onPressed: _handleSend,
-                ),
+                attachment,
+                if (widget.compact) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _buildModelDropdown(
+                      activeProvider,
+                      activeProvider.activeModel,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                ] else
+                  const Spacer(),
+                send,
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMessageField() {
+    final colors = context.colors;
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.enter): _handleSend,
+        },
+        // 焦点冒泡先处理补全，避免 Enter 被外层发送快捷键抢走。
+        child: Focus(
+          onKeyEvent: _handleSlashKey,
+          child: TextField(
+            key: _inputFieldKey,
+            controller: _inputController,
+            focusNode: _inputFocusNode,
+            minLines: 1,
+            maxLines: widget.compact ? 3 : 6,
+            style: TextStyle(
+              fontSize: widget.compact ? 15 : 14,
+              height: 1.5,
+              color: colors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: context.l10n.chatInputHint,
+              hintMaxLines: widget.compact ? 2 : null,
+              hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+              isDense: true,
+              filled: false,
+              contentPadding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.sm,
+              ),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -580,11 +616,6 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     ThinkingEffort currentEffort,
   ) {
     final colors = context.colors;
-    final models = activeProvider.models;
-    final currentModelId = models.any((m) => m.id == activeModel.id)
-        ? activeModel.id
-        : (models.isNotEmpty ? models.first.id : null);
-
     return Container(
       height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -595,128 +626,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       ),
       child: Row(
         children: [
-          // 1. 模型选择区 (Expanded 弹性自适应，长文本自动省略；悬停显示会话用量)
-          Expanded(
-            child: Tooltip(
-              message: _buildSessionUsageTooltip(context.l10n),
-              waitDuration: const Duration(milliseconds: 400),
-              textStyle: TextStyle(
-                fontSize: 11,
-                color: colors.textPrimary,
-                height: 1.5,
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: currentModelId,
-                  isDense: true,
-                  isExpanded: true,
-                  dropdownColor: colors.cardBackground,
-                  icon: Icon(
-                    Icons.arrow_drop_down_rounded,
-                    size: 18,
-                    color: colors.textSecondary,
-                  ),
-                  selectedItemBuilder: (context) {
-                    return models.map((m) {
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.smart_toy_outlined,
-                            size: 15,
-                            color: colors.textMuted,
-                          ),
-                          const SizedBox(width: 5),
-                          Flexible(
-                            child: Text(
-                              m.name,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: colors.textPrimary,
-                              ),
-                            ),
-                          ),
-                          if (m.isMultimodal) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.visibility_outlined,
-                              size: 13,
-                              color: colors.success,
-                            ),
-                          ],
-                          if (m.supportsThinking) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.psychology_outlined,
-                              size: 13,
-                              color: colors.primary,
-                            ),
-                          ],
-                        ],
-                      );
-                    }).toList();
-                  },
-                  menuMaxHeight: 400.0,
-                  borderRadius: BorderRadius.circular(8),
-                  items: models.map((m) {
-                    return DropdownMenuItem(
-                      value: m.id,
-                      child: Tooltip(
-                        message: m.name,
-                        waitDuration: const Duration(milliseconds: 500),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.smart_toy_outlined,
-                              size: 15,
-                              color: colors.textMuted,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                m.name,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: colors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            if (m.isMultimodal) ...[
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.visibility_outlined,
-                                size: 13,
-                                color: colors.success,
-                              ),
-                            ],
-                            if (m.supportsThinking) ...[
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.psychology_outlined,
-                                size: 13,
-                                color: colors.primary,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (modelId) {
-                    if (modelId != null) {
-                      widget.viewModel.switchActiveModel(modelId);
-                    }
-                  },
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: _buildModelDropdown(activeProvider, activeModel)),
 
           // 2. 思考强度控制区 (同在一个卡片内，以垂直细线分隔)
           if (activeModel.supportsThinking) ...[
@@ -733,6 +643,55 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     );
   }
 
+  Widget _buildModelDropdown(
+    LlmProviderConfig provider,
+    LlmModelConfig activeModel,
+  ) {
+    return Tooltip(
+      message: _buildSessionUsageTooltip(context.l10n),
+      child: AppDropdown<String>(
+        key: const ValueKey('chat_model_selector'),
+        value: activeModel.id,
+        danglingLabel: activeModel.name,
+        minHeight: widget.compact ? 48 : 0,
+        multilineMenu: widget.compact,
+        variant: widget.compact
+            ? AppDropdownVariant.pill
+            : AppDropdownVariant.inline,
+        menuWidth: widget.compact
+            ? MediaQuery.sizeOf(context).width - 32
+            : null,
+        items: provider.models
+            .map(
+              (model) => AppDropdownItem(
+                value: model.id,
+                label: model.name,
+                icon: widget.compact ? null : Icons.smart_toy_outlined,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (model.isMultimodal)
+                      Icon(
+                        Icons.visibility_outlined,
+                        size: 13,
+                        color: context.colors.success,
+                      ),
+                    if (model.supportsThinking && !widget.compact)
+                      Icon(
+                        Icons.psychology_outlined,
+                        size: 13,
+                        color: context.colors.primary,
+                      ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: widget.viewModel.switchActiveModel,
+      ),
+    );
+  }
+
   /// 一体化卡片内部的思考强度下拉选择框 (none / low / medium / high / xhigh / max)
   Widget _buildInlineThinkingDropdown(
     LlmModelConfig model,
@@ -742,6 +701,28 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         ? [ThinkingEffort.none, ...model.supportedThinkingLevels]
         : ThinkingEffort.values;
 
+    final dropdown = AppDropdown<ThinkingEffort>(
+      key: const ValueKey('chat_thinking_selector'),
+      value: currentEffort,
+      items: availableLevels
+          .map(
+            (effort) => AppDropdownItem<ThinkingEffort>(
+              value: effort,
+              label: widget.compact
+                  ? '${context.l10n.chatThinkingLabel} ${_effortLabel(effort)}'
+                  : _effortLabel(effort),
+            ),
+          )
+          .toList(),
+      onChanged: widget.viewModel.setThinkingEffort,
+      variant: widget.compact
+          ? AppDropdownVariant.pill
+          : AppDropdownVariant.compact,
+      minHeight: widget.compact ? 48 : 0,
+      width: widget.compact ? null : 92,
+      menuWidth: 200,
+    );
+    if (widget.compact) return dropdown;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -760,21 +741,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           ),
         ),
         const SizedBox(width: 6),
-        AppDropdown<ThinkingEffort>(
-          value: currentEffort,
-          items: availableLevels
-              .map(
-                (effort) => AppDropdownItem<ThinkingEffort>(
-                  value: effort,
-                  label: _effortLabel(effort),
-                ),
-              )
-              .toList(),
-          onChanged: (effort) => widget.viewModel.setThinkingEffort(effort),
-          variant: AppDropdownVariant.compact,
-          width: 92,
-          menuWidth: 200,
-        ),
+        dropdown,
       ],
     );
   }

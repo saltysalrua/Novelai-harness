@@ -7,6 +7,7 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/theme/ui_zoom_controller.dart';
 import '../../../core/widgets/app_page_stack.dart';
+import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
@@ -431,7 +432,7 @@ class _StudioViewState extends State<StudioView> {
   }
 
   /// 移动端 / 窄屏 (宽度 < [StudioView.wideLayoutMinWidth])：
-  /// 1. 顶部等宽小圆角导航 (移动端 48px 触控区，桌面保留紧凑拖拽条)；
+  /// 1. 移动端顶部无底色文字页签，桌面保留窗口内的紧凑胶囊拖拽条；
   /// 2. 中间三卡片采用 PageView 组织，一次展示一片，支持水平手势横滑翻页；
   /// 3. 底部沉浸式导航栏 100% 完整继承左侧侧边栏 5 项功能 (参数、提示词、修复、词库、设置)；
   /// 4. 词库以覆盖层形式叠在工作台上并保活 (AppPageStack)，不卸载三卡片 PageView，
@@ -489,6 +490,7 @@ class _StudioViewState extends State<StudioView> {
                     children: [
                       // Page 0: 生图/工作台面板 (参数 / 提示词 / 修复配置 + 底部生成坞)
                       ParameterCard(
+                        compact: true,
                         viewModel: _viewModel,
                         activeTab: _viewModel.activeSidebarTab,
                       ),
@@ -499,6 +501,7 @@ class _StudioViewState extends State<StudioView> {
                           ? AnnotationHistoryStrip(viewModel: _viewModel)
                           : AgentChatCard(
                               key: _chatCardKey,
+                              compact: true,
                               viewModel: _viewModel,
                               onEscape: _handleGlobalEsc,
                               onOverlayViewChanged: _onChatOverlayViewChanged,
@@ -518,7 +521,9 @@ class _StudioViewState extends State<StudioView> {
           ),
 
           // 底部沉浸式导航栏 (完整承接原左侧 5 个核心功能：参数、提示词、修复、词库、设置)
-          _buildMobileBottomBar(context, isLibraryTab: isLibraryTab),
+          // 软键盘展开时让出底部快捷栏占用，不挤压输入与消息区。
+          if (MediaQuery.viewInsetsOf(context).bottom == 0)
+            _buildMobileBottomBar(context, isLibraryTab: isLibraryTab),
         ],
       ),
     );
@@ -531,6 +536,7 @@ class _StudioViewState extends State<StudioView> {
   void _setMobilePage(int index, {bool animate = true}) {
     if (index < 0 || index > 2) return;
     if (_mobilePageIndex != index) {
+      FocusManager.instance.primaryFocus?.unfocus();
       setState(() => _mobilePageIndex = index);
     }
     if (!animate || !_mobilePageController.hasClients) return;
@@ -546,6 +552,7 @@ class _StudioViewState extends State<StudioView> {
   /// 手势横滑翻页后的状态回写 (唯一由 PageView 反向同步索引的入口)
   void _onMobilePageChanged(int index) {
     if (_mobilePageIndex != index) {
+      FocusManager.instance.primaryFocus?.unfocus();
       setState(() => _mobilePageIndex = index);
     }
   }
@@ -665,71 +672,75 @@ class _StudioViewState extends State<StudioView> {
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          height: 52,
-          child: Row(
-            children: [
-              // 1. 参数设置
-              _buildBottomBarItem(
-                context,
-                key: const Key('mobile_nav_parameters'),
-                icon: Icons.tune_outlined,
-                label: l10n.sidebarTabParameters,
-                isSelected: isParamsSelected,
-                onTap: () =>
-                    _selectSidebarTabFromBottomBar(StudioSidebarTab.parameters),
-              ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(4, 2, 4, 0),
+          child: SizedBox(
+            height: 46,
+            child: Row(
+              children: [
+                // 1. 参数设置
+                _buildBottomBarItem(
+                  context,
+                  key: const Key('mobile_nav_parameters'),
+                  icon: Icons.tune_outlined,
+                  label: l10n.sidebarTabParameters,
+                  isSelected: isParamsSelected,
+                  onTap: () => _selectSidebarTabFromBottomBar(
+                    StudioSidebarTab.parameters,
+                  ),
+                ),
 
-              // 2. 提示词管理
-              _buildBottomBarItem(
-                context,
-                key: const Key('mobile_nav_prompts'),
-                icon: Icons.edit_note_outlined,
-                label: l10n.tabPrompts,
-                isSelected: isPromptsSelected,
-                onTap: () =>
-                    _selectSidebarTabFromBottomBar(StudioSidebarTab.prompts),
-              ),
+                // 2. 提示词管理
+                _buildBottomBarItem(
+                  context,
+                  key: const Key('mobile_nav_prompts'),
+                  icon: Icons.edit_note_outlined,
+                  label: l10n.tabPrompts,
+                  isSelected: isPromptsSelected,
+                  onTap: () =>
+                      _selectSidebarTabFromBottomBar(StudioSidebarTab.prompts),
+                ),
 
-              // 3. 局部修复
-              _buildBottomBarItem(
-                context,
-                key: const Key('mobile_nav_inpaint'),
-                icon: Icons.auto_fix_high_outlined,
-                label: l10n.sidebarTabInpaint,
-                isSelected: isInpaintSelected,
-                onTap: () =>
-                    _selectSidebarTabFromBottomBar(StudioSidebarTab.inpaint),
-              ),
+                // 3. 局部修复
+                _buildBottomBarItem(
+                  context,
+                  key: const Key('mobile_nav_inpaint'),
+                  icon: Icons.auto_fix_high_outlined,
+                  label: l10n.sidebarTabInpaint,
+                  isSelected: isInpaintSelected,
+                  onTap: () =>
+                      _selectSidebarTabFromBottomBar(StudioSidebarTab.inpaint),
+                ),
 
-              // 4. 词库
-              _buildBottomBarItem(
-                context,
-                key: const Key('mobile_nav_library'),
-                icon: Icons.collections_bookmark_outlined,
-                label: l10n.tabLibrary,
-                isSelected: isLibraryTab,
-                onTap: () {
-                  if (!isLibraryTab) {
-                    _previousSidebarTab = _viewModel.activeSidebarTab;
-                    _viewModel.setActiveSidebarTab(StudioSidebarTab.library);
-                  } else {
-                    // 关闭词库回到进入前的侧栏页签，并保留当前卡片 (不强制跳回第 0 页)
-                    _viewModel.setActiveSidebarTab(_previousSidebarTab);
-                  }
-                },
-              ),
+                // 4. 词库
+                _buildBottomBarItem(
+                  context,
+                  key: const Key('mobile_nav_library'),
+                  icon: Icons.collections_bookmark_outlined,
+                  label: l10n.tabLibrary,
+                  isSelected: isLibraryTab,
+                  onTap: () {
+                    if (!isLibraryTab) {
+                      _previousSidebarTab = _viewModel.activeSidebarTab;
+                      _viewModel.setActiveSidebarTab(StudioSidebarTab.library);
+                    } else {
+                      // 关闭词库回到进入前的侧栏页签，并保留当前卡片 (不强制跳回第 0 页)
+                      _viewModel.setActiveSidebarTab(_previousSidebarTab);
+                    }
+                  },
+                ),
 
-              // 5. 设置
-              _buildBottomBarItem(
-                context,
-                key: const Key('mobile_nav_settings'),
-                icon: Icons.settings_outlined,
-                label: l10n.settings,
-                isSelected: false,
-                onTap: () => SettingsDialog.show(context, _viewModel),
-              ),
-            ],
+                // 5. 设置
+                _buildBottomBarItem(
+                  context,
+                  key: const Key('mobile_nav_settings'),
+                  icon: Icons.settings_outlined,
+                  label: l10n.settings,
+                  isSelected: false,
+                  onTap: () => SettingsDialog.show(context, _viewModel),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -744,40 +755,26 @@ class _StudioViewState extends State<StudioView> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    final colors = context.colors;
-    final itemColor = isSelected ? colors.primary : colors.textMuted;
-
     return Expanded(
-      child: InkWell(
+      child: AppNavTile(
         key: key,
+        title: label,
+        icon: icon,
+        isSelected: isSelected,
         onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: itemColor),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: itemColor,
-              ),
-            ),
-          ],
-        ),
+        axis: Axis.vertical,
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
       ),
     );
   }
 }
 
-/// 移动端 / 窄屏三卡片导航：复用统一分段控件的小圆角、主题色与等宽布局
+/// 移动端 / 窄屏三卡片导航：复用统一分段控件，移动端使用无框文字页签
 ///
 /// - 中间：三卡片分段胶囊指示器 [生图] [画板] [助手]，平滑跟随与点击切页；
 ///   可用宽度不足时自动退化为图标胶囊 (带 Tooltip)，彻底避免窄屏溢出；
 /// - 桌面端 (Windows/macOS/Linux)：背景支持拖拽窗口移动与双击最大化，右侧提供最小化与关闭按键；
-/// - 移动端 (Android/iOS)：纯净展示胶囊指示，无控制按键，零冗余占用。
+/// - 移动端 (Android/iOS)：不渲染胶囊外框和装饰图标，仅保留文字与选中下划线。
 class _MobileTopBar extends StatefulWidget {
   final int activeIndex;
   final ValueChanged<int> onPageSelected;
@@ -802,7 +799,8 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
     final l10n = context.l10n;
 
     return SizedBox(
-      height: isDesktopWindow ? 32.0 : 56.0,
+      key: const ValueKey('mobile_top_bar'),
+      height: isDesktopWindow ? 32.0 : 48.0,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.cardBackground,
@@ -815,7 +813,7 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
             builder: (context, constraints) {
               // 可用宽度不足时退化为图标胶囊 (Tooltip 补足语义)，避免窄屏 / 大缩放溢出
               final reserved = isDesktopWindow ? _windowControlsWidth : 0.0;
-              final compact = constraints.maxWidth - reserved < 360;
+              final compact = constraints.maxWidth - reserved < 280;
 
               return Row(
                 children: [
@@ -829,35 +827,49 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
                             items: [
                               AppSegmentedItem(
                                 value: 0,
-                                label: compact ? '' : l10n.mobileTabStudio,
+                                label: compact && isDesktopWindow
+                                    ? ''
+                                    : l10n.mobileTabStudio,
                                 tooltip: l10n.mobileTabStudio,
-                                icon: Icons.auto_awesome_rounded,
+                                icon: isDesktopWindow
+                                    ? Icons.auto_awesome_rounded
+                                    : null,
                               ),
                               AppSegmentedItem(
                                 value: 1,
-                                label: compact ? '' : l10n.mobileTabCanvas,
+                                label: compact && isDesktopWindow
+                                    ? ''
+                                    : l10n.mobileTabCanvas,
                                 tooltip: l10n.mobileTabCanvas,
-                                icon: Icons.palette_outlined,
+                                icon: isDesktopWindow
+                                    ? Icons.palette_outlined
+                                    : null,
                               ),
                               AppSegmentedItem(
                                 value: 2,
-                                label: compact ? '' : l10n.mobileTabChat,
+                                label: compact && isDesktopWindow
+                                    ? ''
+                                    : l10n.mobileTabChat,
                                 tooltip: l10n.mobileTabChat,
-                                icon: Icons.chat_bubble_outline_rounded,
+                                icon: isDesktopWindow
+                                    ? Icons.chat_bubble_outline_rounded
+                                    : null,
                                 badge: widget.isChatStreaming,
                               ),
                             ],
                             selectedValue: widget.activeIndex,
                             onValueChanged: widget.onPageSelected,
-                            variant: AppPillVariant.soft,
+                            variant: isDesktopWindow
+                                ? AppPillVariant.soft
+                                : AppPillVariant.underline,
                             expand: true,
-                            radius: AppRadius.md,
+                            radius: isDesktopWindow ? AppRadius.md : 0,
                             minHeight: isDesktopWindow ? 24 : 48,
                             itemPadding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 2,
                             ),
-                            spacing: 6,
+                            spacing: isDesktopWindow ? 6 : 0,
                           ),
                         ),
                       ),

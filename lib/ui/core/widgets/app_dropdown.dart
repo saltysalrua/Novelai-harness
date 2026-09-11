@@ -12,6 +12,9 @@ enum AppDropdownVariant {
 
   /// 紧凑形态 (高 32px，圆角 8px，适合标题栏/工具条内嵌)
   compact,
+
+  /// 无边框工具栏形态，嵌入已有卡片时避免多层描边。
+  inline,
 }
 
 /// 下拉选项数据契约
@@ -49,6 +52,12 @@ class AppDropdown<T> extends StatelessWidget {
   final double? width;
   final bool isExpanded;
 
+  /// 最小触控高度；手机工具栏设为 48，默认不改变桌面尺寸。
+  final double minHeight;
+
+  /// 菜单长标签允许折行 (最多两行后省略)，收起态仍保持单行。
+  final bool multilineMenu;
+
   /// 展开菜单的宽度上限；胶囊变体默认 220 防截断，其余变体默认跟随按钮宽
   final double? menuWidth;
 
@@ -64,6 +73,8 @@ class AppDropdown<T> extends StatelessWidget {
     this.hintText,
     this.width,
     this.isExpanded = true,
+    this.minHeight = 0,
+    this.multilineMenu = false,
     this.menuWidth,
     this.danglingLabel = '未识别',
   });
@@ -145,6 +156,12 @@ class AppDropdown<T> extends StatelessWidget {
         12.0,
         const EdgeInsets.symmetric(horizontal: 8),
       ),
+      AppDropdownVariant.inline => (
+        32.0,
+        AppRadius.md,
+        12.0,
+        const EdgeInsets.symmetric(horizontal: 4),
+      ),
     };
 
     // 胶囊变体按钮较窄，菜单宽度默认 220 防止选项文本被截断
@@ -154,18 +171,25 @@ class AppDropdown<T> extends StatelessWidget {
 
     return Container(
       width: width,
-      height: height,
+      height: minHeight == 0 ? height : null,
+      constraints: BoxConstraints(
+        minHeight: minHeight > height ? minHeight : height,
+      ),
       padding: padding,
       decoration: BoxDecoration(
-        color: colors.cardBackground,
+        color: variant == AppDropdownVariant.inline
+            ? Colors.transparent
+            : colors.cardBackground,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: colors.borderDefault),
+        border: variant == AppDropdownVariant.inline
+            ? null
+            : Border.all(color: colors.borderDefault),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
           value: value,
           isExpanded: isExpanded,
-          isDense: true,
+          isDense: minHeight < kMinInteractiveDimension,
           dropdownColor: colors.cardBackground,
           borderRadius: BorderRadius.circular(AppRadius.md),
           menuMaxHeight: 400.0,
@@ -228,7 +252,7 @@ class AppDropdown<T> extends StatelessWidget {
                       child: Text(
                         item.label,
                         overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                        maxLines: multilineMenu ? 2 : 1,
                         style: TextStyle(
                           fontSize: fontSize,
                           fontWeight: isSelected

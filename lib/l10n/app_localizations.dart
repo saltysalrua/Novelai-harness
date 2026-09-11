@@ -104,6 +104,48 @@ abstract class AppLocalizations {
   /// **'停止输出 (Esc)'**
   String get chatStopOutput;
 
+  /// No description provided for @chatStopOutputMobile.
+  ///
+  /// In zh, this message translates to:
+  /// **'停止输出'**
+  String get chatStopOutputMobile;
+
+  /// No description provided for @chatContextTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'上下文与用量'**
+  String get chatContextTitle;
+
+  /// No description provided for @chatContextEstimate.
+  ///
+  /// In zh, this message translates to:
+  /// **'上下文 ≈{tokens} / {window}'**
+  String chatContextEstimate(int tokens, int window);
+
+  /// No description provided for @chatContextNotes.
+  ///
+  /// In zh, this message translates to:
+  /// **'笔记 {count}'**
+  String chatContextNotes(int count);
+
+  /// No description provided for @chatContextCompacting.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台压缩中'**
+  String get chatContextCompacting;
+
+  /// No description provided for @chatContextFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'压缩失败'**
+  String get chatContextFailed;
+
+  /// No description provided for @chatContextExplanation.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前请求上下文估算，含系统提示词、工具、摘要和笔记；不是会话累计用量。可用 /compact 手动压缩。'**
+  String get chatContextExplanation;
+
   /// No description provided for @sessionManage.
   ///
   /// In zh, this message translates to:

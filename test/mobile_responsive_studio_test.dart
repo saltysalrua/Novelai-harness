@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/main.dart';
-import 'package:novelai_harness/ui/core/theme/app_tokens.dart';
 import 'package:novelai_harness/ui/core/widgets/app_segmented_controls.dart';
 import 'package:novelai_harness/ui/core/widgets/custom_title_bar.dart';
 import 'package:novelai_harness/ui/core/widgets/resizable_split_view.dart';
@@ -42,7 +41,7 @@ void main() {
     },
   );
 
-  testWidgets('窄屏模式 (<900px)：等宽小圆角三卡片导航 + 底部 5 功能项导航栏', (tester) async {
+  testWidgets('窄屏模式 (<900px)：无框文字页签三卡片导航 + 底部 5 功能项导航栏', (tester) async {
     // 模拟常见全面屏手机竖屏尺寸：390x844
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
@@ -55,7 +54,7 @@ void main() {
     // 1. 顶部桌面原生标题栏完全移除，零多余空间浪费
     expect(find.byType(CustomTitleBar), findsNothing);
 
-    // 2. 顶部微型胶囊栏存在三卡片指示器 [生图] [画板] [助手]
+    // 2. 顶部无框文字页签存在三卡片指示器 [生图] [画板] [助手]
     expect(find.byKey(const Key('segmented_pill_0')), findsOneWidget);
     expect(find.byKey(const Key('segmented_pill_1')), findsOneWidget);
     expect(find.byKey(const Key('segmented_pill_2')), findsOneWidget);
@@ -63,9 +62,14 @@ void main() {
       find.byType(AppSegmentedPillBar<int>).first,
     );
     expect(navigation.expand, isTrue);
-    expect(navigation.radius, AppRadius.md);
+    // 手机不用圆角胶囊外框，仅以底部细线标记选中项
+    expect(navigation.variant, AppPillVariant.underline);
     final firstSize = tester.getSize(find.byKey(const Key('segmented_pill_0')));
-    expect(firstSize.height, greaterThanOrEqualTo(48));
+    expect(firstSize.height, 48);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('mobile_top_bar'))).height,
+      48,
+    );
     for (final index in [1, 2]) {
       final size = tester.getSize(find.byKey(Key('segmented_pill_$index')));
       expect(size.width, closeTo(firstSize.width, 0.01));

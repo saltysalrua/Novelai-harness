@@ -1,6 +1,22 @@
 {
   "@@locale": "en",
   "chatStopOutput": "Stop output (Esc)",
+  "chatStopOutputMobile": "Stop output",
+  "chatContextTitle": "Context and usage",
+  "chatContextEstimate": "Context ≈{tokens} / {window}",
+  "@chatContextEstimate": {
+    "placeholders": {
+      "tokens": {"type": "int"},
+      "window": {"type": "int"}
+    }
+  },
+  "chatContextNotes": "Notes {count}",
+  "@chatContextNotes": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "chatContextCompacting": "Compacting in background",
+  "chatContextFailed": "Compaction failed",
+  "chatContextExplanation": "Estimated current request context, including system instructions, tools, summaries and notes; not cumulative session usage. Use /compact to compact manually.",
   "sessionManage": "Manage sessions",
   "sessionSelectAll": "Select search results",
   "sessionSelectedCount": "{count} selected",

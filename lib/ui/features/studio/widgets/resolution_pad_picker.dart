@@ -8,6 +8,7 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_pan_gesture_region.dart';
 
 /// Notion 浅色风格与 2D 可视化交互手写板相结合的分辨率选择器
 class ResolutionPadPicker extends StatefulWidget {
@@ -33,6 +34,10 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
   static const int _padMax = 2048;
 
   String? _dragMode; // 'corner', 'top', 'right', 'both'
+  ({int width, int height})? _dragDimensions;
+
+  int get _width => _dragDimensions?.width ?? widget.width;
+  int get _height => _dragDimensions?.height ?? widget.height;
 
   late TextEditingController _widthController;
   late TextEditingController _heightController;
@@ -67,7 +72,27 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
     final clampedH = ((h / _snap).round() * _snap).clamp(_snap, _padMax);
     _widthController.text = '$clampedW';
     _heightController.text = '$clampedH';
-    widget.onChanged((width: clampedW, height: clampedH));
+    final dimensions = (width: clampedW, height: clampedH);
+    if (_dragMode != null) {
+      // 高频拖拽只刷新本选择器，松手后才提交 ViewModel / 参数保存队列。
+      setState(() => _dragDimensions = dimensions);
+    } else {
+      widget.onChanged(dimensions);
+    }
+  }
+
+  void _finishDrag({bool cancelled = false}) {
+    final dimensions = _dragDimensions;
+    setState(() {
+      _dragMode = null;
+      _dragDimensions = null;
+    });
+    if (!cancelled && dimensions != null) {
+      widget.onChanged(dimensions);
+    } else {
+      _widthController.text = '${widget.width}';
+      _heightController.text = '${widget.height}';
+    }
   }
 
   void _swapDimensions() {
@@ -75,8 +100,8 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
   }
 
   String _computeRatioAndMp() {
-    final w = widget.width;
-    final h = widget.height;
+    final w = _width;
+    final h = _height;
     final mp = (w * h) / 1000000.0;
 
     int gcd(int a, int b) => b == 0 ? a : gcd(b, a % b);
@@ -100,14 +125,8 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
-    final category = ResolutionCategory.fromDimensions(
-      widget.width,
-      widget.height,
-    );
-    final orientation = ResolutionOrientation.fromDimensions(
-      widget.width,
-      widget.height,
-    );
+    final category = ResolutionCategory.fromDimensions(_width, _height);
+    final orientation = ResolutionOrientation.fromDimensions(_width, _height);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,7 +332,18 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
                   size.height - (size.height - side) / 2,
                 );
 
-                return GestureDetector(
+                return AppPanGestureRegion(
+                  key: const ValueKey('resolution_pan_surface'),
+                  onTapUp: (details) {
+                    final pos = details.localPosition;
+                    final handles = _getHandles(origin, side);
+                    if (_hit(pos, handles.corner, 18) ||
+                        _hit(pos, handles.top, 16) ||
+                        _hit(pos, handles.right, 16)) {
+                      return;
+                    }
+                    _handlePos(pos, origin, side, 'corner');
+                  },
                   onPanDown: (details) {
                     final pos = details.localPosition;
                     final hd = _getHandles(origin, side);
@@ -338,13 +368,13 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
                       );
                     }
                   },
-                  onPanEnd: (_) => _dragMode = null,
-                  onPanCancel: () => _dragMode = null,
+                  onPanEnd: (_) => _finishDrag(),
+                  onPanCancel: () => _finishDrag(cancelled: true),
                   child: CustomPaint(
                     size: size,
                     painter: _NotionResolutionPadPainter(
-                      width: widget.width,
-                      height: widget.height,
+                      width: _width,
+                      height: _height,
                       padMax: _padMax,
                       origin: origin,
                       side: side,
@@ -387,8 +417,8 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
     Offset origin,
     double side,
   ) {
-    final fx = (widget.width / _padMax).clamp(0.0, 1.0);
-    final fy = (widget.height / _padMax).clamp(0.0, 1.0);
+    final fx = (_width / _padMax).clamp(0.0, 1.0);
+    final fy = (_height / _padMax).clamp(0.0, 1.0);
 
     final corner = Offset(origin.dx + fx * side, origin.dy - fy * side);
     final top = Offset(origin.dx + (fx * side) / 2, corner.dy);
@@ -414,9 +444,9 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
     );
 
     if (mode == 'top') {
-      _applyDimensions(widget.width, targetH);
+      _applyDimensions(_width, targetH);
     } else if (mode == 'right') {
-      _applyDimensions(targetW, widget.height);
+      _applyDimensions(targetW, _height);
     } else {
       _applyDimensions(targetW, targetH);
     }

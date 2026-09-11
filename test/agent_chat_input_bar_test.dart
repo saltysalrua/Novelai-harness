@@ -82,6 +82,7 @@ Widget _wrap(
   Brightness brightness = Brightness.light,
   Locale locale = const Locale('zh'),
   VoidCallback? onSent,
+  bool compact = false,
 }) => MaterialApp(
   theme: AppTheme.buildTheme(brightness),
   locale: locale,
@@ -94,8 +95,11 @@ Widget _wrap(
         width: width,
         child: ListenableBuilder(
           listenable: viewModel,
-          builder: (context, _) =>
-              AgentChatInputBar(viewModel: viewModel, onSent: onSent),
+          builder: (context, _) => AgentChatInputBar(
+            viewModel: viewModel,
+            onSent: onSent,
+            compact: compact,
+          ),
         ),
       ),
     ),
@@ -252,6 +256,59 @@ void main() {
     expect(viewModel._sent.single.text, isEmpty);
     expect(viewModel._sent.single.images, hasLength(1));
     expect(find.byType(ChatImageThumbnail), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final width in [320.0, 390.0]) {
+    testWidgets('竖屏 $width：紧凑三行输入、模型/思考入口和发送保持可用', (tester) async {
+      await tester.pumpWidget(_wrap(viewModel, width: width, compact: true));
+      final field = find.byType(TextField);
+      final input = find.byType(AgentChatInputBar);
+      final send = find.byType(AppAsyncIconButton);
+      expect(tester.getSize(input).height, lessThanOrEqualTo(210));
+      expect(tester.getSize(send), const Size(48, 48));
+      expect(tester.widget<TextField>(field).maxLines, 3);
+      expect(
+        tester.getTopLeft(send).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(field).dy),
+      );
+      expect(
+        tester.getSize(find.byType(EditableText)).width,
+        closeTo(width - 50, 1),
+        reason: '手机正文同样使用整行，不被附件和发送挤占',
+      );
+      await tester.enterText(field, List.filled(3, '多行').join('\n'));
+      await tester.pump();
+      final threeLines = tester.getSize(field);
+      await tester.enterText(field, List.filled(8, '多行').join('\n'));
+      await tester.pump();
+      expect(tester.getSize(field), threeLines);
+      expect(tester.getSize(input).height, lessThanOrEqualTo(250));
+      await tester.tap(send);
+      await tester.pump();
+      expect(viewModel._sent, hasLength(1));
+      expect(viewModel.chatDraft, isEmpty);
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('紧凑输入仍支持斜杠补全，切换布局不丢草稿', (tester) async {
+    await tester.pumpWidget(_wrap(viewModel, compact: true));
+    await tester.enterText(find.byType(TextField), '/hel');
+    await tester.pump();
+    expect(find.byType(SlashSuggestionPanel), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(viewModel.chatDraft, '/help ');
+    expect(viewModel._sent, isEmpty);
+    await tester.pumpWidget(_wrap(viewModel));
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '/help ',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
     expect(tester.takeException(), isNull);
   });
 

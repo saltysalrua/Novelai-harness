@@ -12,6 +12,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatStopOutput => '停止输出 (Esc)';
 
   @override
+  String get chatStopOutputMobile => '停止输出';
+
+  @override
+  String get chatContextTitle => '上下文与用量';
+
+  @override
+  String chatContextEstimate(int tokens, int window) {
+    return '上下文 ≈$tokens / $window';
+  }
+
+  @override
+  String chatContextNotes(int count) {
+    return '笔记 $count';
+  }
+
+  @override
+  String get chatContextCompacting => '后台压缩中';
+
+  @override
+  String get chatContextFailed => '压缩失败';
+
+  @override
+  String get chatContextExplanation =>
+      '当前请求上下文估算，含系统提示词、工具、摘要和笔记；不是会话累计用量。可用 /compact 手动压缩。';
+
+  @override
   String get sessionManage => '批量管理';
 
   @override

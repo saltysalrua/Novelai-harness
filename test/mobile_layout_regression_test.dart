@@ -61,7 +61,7 @@ void expectNoRenderErrors(WidgetTester tester, String step) {
   expect(error, isNull, reason: '$step 出现渲染异常: $error');
 }
 
-/// 读取胶囊按钮当前背景色 (选中态为主色浅底，未选中为卡片底色)
+/// 读取导航选中指示色 (手机为底线，桌面为胶囊背景)。
 Color pillBackground(WidgetTester tester, int index) {
   final container = tester.widget<AnimatedContainer>(
     find.descendant(
@@ -69,7 +69,10 @@ Color pillBackground(WidgetTester tester, int index) {
       matching: find.byType(AnimatedContainer),
     ),
   );
-  return (container.decoration! as BoxDecoration).color!;
+  final decoration = container.decoration! as BoxDecoration;
+  return decoration.color == Colors.transparent
+      ? (decoration.border! as Border).bottom.color
+      : decoration.color!;
 }
 
 /// 断言仅指定序号的胶囊处于选中态

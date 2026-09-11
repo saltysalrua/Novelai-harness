@@ -45,6 +45,9 @@ enum AppPillVariant {
 
   /// 柔和淡彩模式 (选中态为 12% 浅蓝底色 + 品牌深蓝文字/图标)
   soft,
+
+  /// 无底色文字页签，仅以底部细线标记选中项 (移动端页面导航)。
+  underline,
 }
 
 /// 统一水平胶囊分段单选条 (AppSegmentedPillBar)
@@ -107,7 +110,7 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
 
     final children = <Widget>[
       for (int i = 0; i < items.length; i++) ...[
-        if (i > 0) expand ? SizedBox(width: spacing) : SizedBox(width: spacing),
+        if (i > 0) SizedBox(width: spacing),
         _wrapExpanded(
           context,
           colors,
@@ -168,6 +171,11 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
         isSelected ? accent.withValues(alpha: 0.35) : colors.borderDefault,
         isSelected ? accent : colors.textSecondary,
       ),
+      AppPillVariant.underline => (
+        Colors.transparent,
+        isSelected ? accent : Colors.transparent,
+        isSelected ? colors.textPrimary : colors.textMuted,
+      ),
     };
 
     Widget pill = InkWell(
@@ -180,8 +188,12 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
         padding: itemPadding,
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(radius),
-          border: Border.all(color: border),
+          borderRadius: variant == AppPillVariant.underline
+              ? null
+              : BorderRadius.circular(radius),
+          border: variant == AppPillVariant.underline
+              ? Border(bottom: BorderSide(color: border, width: 2))
+              : Border.all(color: border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -198,7 +210,7 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: variant == AppPillVariant.underline ? 14 : 12,
                     fontWeight: isSelected
                         ? FontWeight.w600
                         : FontWeight.normal,
@@ -211,7 +223,12 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
               Container(
                 width: 5,
                 height: 5,
-                decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  // 未选中项的前景色是次级灰，徽点改用强调色，
+                  // 后台流式输出在其它页签也能被看见
+                  color: isSelected ? fg : accent,
+                  shape: BoxShape.circle,
+                ),
               ),
             ],
             if (item.badgeLabel != null) ...[
@@ -235,7 +252,7 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
       pill = Tooltip(message: item.tooltip!, child: pill);
     }
 
-    return pill;
+    return Semantics(selected: isSelected, button: true, child: pill);
   }
 }
 

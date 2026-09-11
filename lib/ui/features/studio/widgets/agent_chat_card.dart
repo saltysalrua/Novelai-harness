@@ -32,6 +32,7 @@ enum _AgentCardView { chat, sessions, rewind }
 class AgentChatCard extends StatefulWidget {
   final StudioViewModel viewModel;
   final VoidCallback? onEscape;
+  final bool compact;
 
   /// 覆盖视图 (会话抽屉 / 历史回溯) 开合通知：宿主据此刷新系统返回键判态
   final VoidCallback? onOverlayViewChanged;
@@ -40,6 +41,7 @@ class AgentChatCard extends StatefulWidget {
     super.key,
     required this.viewModel,
     this.onEscape,
+    this.compact = false,
     this.onOverlayViewChanged,
   });
 
@@ -663,9 +665,10 @@ class AgentChatCardState extends State<AgentChatCard> {
               ),
             ),
 
-            // 底部控制与消息输入区 (单一底栏，高度与左侧生成坞对齐)
+            // 底部控制与消息输入区：窄屏独立压缩，不与生成坞强行等高。
             AgentChatInputBar(
               viewModel: widget.viewModel,
+              compact: widget.compact,
               onSent: _scrollToBottom,
             ),
           ],
@@ -684,8 +687,8 @@ class AgentChatCardState extends State<AgentChatCard> {
         : (presets.isNotEmpty ? presets.first.id : null);
 
     return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: widget.compact ? 40 : 48,
+      padding: EdgeInsets.symmetric(horizontal: widget.compact ? 8 : 12),
       decoration: BoxDecoration(
         color: colors.cardBackground,
         border: Border(bottom: BorderSide(color: colors.borderDefault)),
