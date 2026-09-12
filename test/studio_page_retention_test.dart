@@ -140,4 +140,63 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('窄屏三卡片往返保留工作台滚动位置与控件 State', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+
+    final parametersState = tester.state(find.byType(ParametersPage));
+    final parameterScroll = tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(ParametersPage),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position;
+    parameterScroll.jumpTo(250);
+    await tester.pumpAndSettle();
+    expect(parameterScroll.pixels, 250);
+
+    // 窄屏 PageView 视口只构建当前页：离开视口的卡片必须保活，
+    // 不能因为切页就把整张工作台卡片卸载重建 (表现为滚动位置回顶、
+    // 折叠状态与输入框高度一起被重置)。
+    await tester.tap(find.byKey(const Key('segmented_pill_2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('segmented_pill_0')));
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(ParametersPage)), same(parametersState));
+    expect(parameterScroll.pixels, 250);
+
+    // 底部导航栏在同一张工作台卡片内切页 (参数 ↔ 提示词) 同样不得重置位置
+    await tester.tap(find.byKey(const Key('mobile_nav_prompts')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PromptsPage), findsOneWidget);
+    await tester.tap(find.byKey(const Key('mobile_nav_parameters')));
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(ParametersPage)), same(parametersState));
+    expect(parameterScroll.pixels, 250);
+
+    // 画板与助手卡片同样保留 State，往返不重建
+    await tester.tap(find.byKey(const Key('segmented_pill_2')));
+    await tester.pumpAndSettle();
+    final chatState = tester.state(find.byType(AgentChatCard));
+    await tester.tap(find.byKey(const Key('segmented_pill_1')));
+    await tester.pumpAndSettle();
+    final canvasState = tester.state(find.byType(ImageCanvasCard));
+    await tester.tap(find.byKey(const Key('segmented_pill_2')));
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(AgentChatCard)), same(chatState));
+    await tester.tap(find.byKey(const Key('segmented_pill_1')));
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(ImageCanvasCard)), same(canvasState));
+    expect(tester.takeException(), isNull);
+  });
 }

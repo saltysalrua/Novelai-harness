@@ -7,6 +7,7 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/theme/ui_zoom_controller.dart';
 import '../../../core/widgets/app_page_stack.dart';
+import '../../../core/widgets/app_keep_alive_page.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/custom_title_bar.dart';
@@ -464,9 +465,11 @@ class _StudioViewState extends State<StudioView> {
           if (_viewModel.errorMessage != null) _buildErrorMessage(context),
 
           // 中间核心区域：三卡片 PageView 始终保活，词库以覆盖层形式叠在其上。
-          // 关键：用 Visibility(maintainSize) 隐藏而非卸载 —— 卸载或 Offstage 会把
+          // 关键点一：用 Visibility(maintainSize) 隐藏而非卸载 —— 卸载或 Offstage 会把
           // PageView 视口压成 0 尺寸，导致 PageController 位置被重置，
           // 出现「页面回到第 0 页但胶囊仍高亮旧卡片」的状态脱节。
+          // 关键点二：三张卡片各自套 AppKeepAlivePage —— PageView 视口只构建当前页，
+          // 不保活则切页会把整张卡片卸载重建，滚回顶部、折叠与缩放状态全部丢失。
           Expanded(
             child: Stack(
               fit: StackFit.expand,
@@ -489,23 +492,32 @@ class _StudioViewState extends State<StudioView> {
                     onPageChanged: _onMobilePageChanged,
                     children: [
                       // Page 0: 生图/工作台面板 (参数 / 提示词 / 修复配置 + 底部生成坞)
-                      ParameterCard(
-                        compact: true,
-                        viewModel: _viewModel,
-                        activeTab: _viewModel.activeSidebarTab,
+                      AppKeepAlivePage(
+                        active: _mobilePageIndex == 0,
+                        child: ParameterCard(
+                          compact: true,
+                          viewModel: _viewModel,
+                          activeTab: _viewModel.activeSidebarTab,
+                        ),
                       ),
                       // Page 1: 画布面板
-                      ImageCanvasCard(viewModel: _viewModel),
+                      AppKeepAlivePage(
+                        active: _mobilePageIndex == 1,
+                        child: ImageCanvasCard(viewModel: _viewModel),
+                      ),
                       // Page 2: AI 助手面板 (批注模式时显示批注历史)
-                      _viewModel.board.isAnnotatingImage
-                          ? AnnotationHistoryStrip(viewModel: _viewModel)
-                          : AgentChatCard(
-                              key: _chatCardKey,
-                              compact: true,
-                              viewModel: _viewModel,
-                              onEscape: _handleGlobalEsc,
-                              onOverlayViewChanged: _onChatOverlayViewChanged,
-                            ),
+                      AppKeepAlivePage(
+                        active: _mobilePageIndex == 2,
+                        child: _viewModel.board.isAnnotatingImage
+                            ? AnnotationHistoryStrip(viewModel: _viewModel)
+                            : AgentChatCard(
+                                key: _chatCardKey,
+                                compact: true,
+                                viewModel: _viewModel,
+                                onEscape: _handleGlobalEsc,
+                                onOverlayViewChanged: _onChatOverlayViewChanged,
+                              ),
+                      ),
                     ],
                   ),
                 ),
