@@ -54,11 +54,19 @@ class ImageLightboxDialog extends StatefulWidget {
   State<ImageLightboxDialog> createState() => _ImageLightboxDialogState();
 }
 
-class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
+class _ImageLightboxDialogState extends State<ImageLightboxDialog>
+    with SingleTickerProviderStateMixin {
   static const double _minScale = 0.2;
   static const double _maxScale = 10.0;
 
   late final TransformationController _transformationController;
+  late final AnimationController _zoomController;
+  Matrix4Tween? _zoomTween;
+  double? _wheelTargetScale;
+  double _wheelDirection = 0;
+  Offset _lastFocalPoint = Offset.zero;
+  double _lastGestureScale = 1;
+  int _gesturePointerCount = 0;
   Uint8List? _activeBytes;
   bool _isLoading = false;
 
@@ -66,6 +74,10 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
   void initState() {
     super.initState();
     _transformationController = TransformationController();
+    _zoomController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    )..addListener(_handleZoomFrame);
     _activeBytes = widget.bytes;
     if ((_activeBytes == null || _activeBytes!.isEmpty) &&
         widget.loader != null) {
@@ -85,62 +97,117 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
 
   @override
   void dispose() {
+    _zoomController.dispose();
     _transformationController.dispose();
     super.dispose();
   }
 
-  void _handlePointerSignal(PointerSignalEvent event, Size viewportSize) {
-    if (event is! PointerScrollEvent) return;
+  // 此处只有二维等比缩放，Z 始终为 1。不能用 getMaxScaleOnAxis：
+  // 缩至 1 以下时它仍返回 Z 轴的 1，下一次滚轮便会算错比例并跳位。
+  double get _currentScale => _transformationController.value.entry(0, 0);
 
-    final double dy = event.scrollDelta.dy;
-    if (dy == 0) return;
-
-    // dy < 0 向上滚轮（放大），dy > 0 向下滚轮（缩小）
-    // 指数因子支持离散滚轮与触控板平滑缩放
-    final double zoomMultiplier = math.exp(-dy / 300.0).clamp(0.5, 2.0);
-
-    final Matrix4 currentMatrix = _transformationController.value;
-    final double currentScale = currentMatrix.getMaxScaleOnAxis();
-    final double targetScale = (currentScale * zoomMultiplier).clamp(
-      _minScale,
-      _maxScale,
+  Matrix4 _scaleAround(
+    double targetScale,
+    Offset anchor, {
+    Offset? nextAnchor,
+  }) {
+    final scenePoint = _transformationController.toScene(anchor);
+    final destination = nextAnchor ?? anchor;
+    final scale = targetScale.clamp(_minScale, _maxScale);
+    return Matrix4.diagonal3Values(scale, scale, 1)..setTranslationRaw(
+      destination.dx - scenePoint.dx * scale,
+      destination.dy - scenePoint.dy * scale,
+      0,
     );
-
-    if (currentScale == targetScale || currentScale <= 0) return;
-
-    final double effectiveMultiplier = targetScale / currentScale;
-
-    // 以视口中心为固定缩放原点（无论鼠标当前悬停在何处，均在中心纯缩放）
-    final Offset center = Offset(
-      viewportSize.width / 2,
-      viewportSize.height / 2,
-    );
-
-    final double tx = currentMatrix.storage[12];
-    final double ty = currentMatrix.storage[13];
-
-    final double newTx =
-        effectiveMultiplier * tx + (1.0 - effectiveMultiplier) * center.dx;
-    final double newTy =
-        effectiveMultiplier * ty + (1.0 - effectiveMultiplier) * center.dy;
-
-    _transformationController.value = Matrix4.diagonal3Values(
-      targetScale,
-      targetScale,
-      1.0,
-    )..setTranslationRaw(newTx, newTy, 0.0);
   }
 
-  void _handleDoubleTap() {
-    final double currentScale = _transformationController.value
-        .getMaxScaleOnAxis();
-    if ((currentScale - 1.0).abs() > 0.01) {
-      // 非 1:1 原图状态下双击重置
-      _transformationController.value = Matrix4.identity();
-    } else {
-      // 1:1 状态下双击放大到 2x
-      _transformationController.value = Matrix4.diagonal3Values(2.0, 2.0, 1.0);
+  void _handleZoomFrame() {
+    if (_zoomTween case final tween?) {
+      _transformationController.value = tween.transform(
+        Curves.easeOutCubic.transform(_zoomController.value),
+      );
     }
+  }
+
+  void _animateTo(Matrix4 target) {
+    _zoomTween = Matrix4Tween(
+      begin: _transformationController.value.clone(),
+      end: target,
+    );
+    _zoomController.forward(from: 0);
+  }
+
+  void _stopZoom() {
+    // 新手势从实际显示的位置接管，绝不让旧动画在下一帧写回旧平移量。
+    _zoomController.stop();
+    _zoomTween = null;
+    _wheelTargetScale = null;
+    _wheelDirection = 0;
+  }
+
+  void _handlePointerSignal(PointerSignalEvent event, Size viewportSize) {
+    if (event is PointerScrollEvent) {
+      final dy = event.scrollDelta.dy;
+      if (!dy.isFinite || dy == 0) return;
+      GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+        final multiplier = math.exp(-dy / 300).clamp(0.5, 2.0);
+        // 连续同向滚轮累加目标，不丢步；反向立即以当前画面为起点，
+        // 避免用户已经缩小，画面却仍在追赶上一次放大的目标。
+        final baseScale =
+            _zoomController.isAnimating && _wheelDirection == dy.sign
+            ? _wheelTargetScale ?? _currentScale
+            : _currentScale;
+        final targetScale = (baseScale * multiplier).clamp(
+          _minScale,
+          _maxScale,
+        );
+        _wheelTargetScale = targetScale;
+        _wheelDirection = dy.sign;
+        _animateTo(_scaleAround(targetScale, viewportSize.center(Offset.zero)));
+      });
+    } else if (event is PointerScaleEvent) {
+      if (!event.scale.isFinite || event.scale <= 0) return;
+      GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+        _stopZoom();
+        _transformationController.value = _scaleAround(
+          _currentScale * event.scale,
+          event.localPosition,
+        );
+      });
+    }
+  }
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    _stopZoom();
+    _lastFocalPoint = details.localFocalPoint;
+    _lastGestureScale = 1;
+    _gesturePointerCount = details.pointerCount;
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    if (!details.scale.isFinite || details.scale <= 0) return;
+    _stopZoom();
+    // 手指数变化会改变质心，只重建基准，不把质心跳变误算成平移。
+    if (_gesturePointerCount == details.pointerCount) {
+      _transformationController.value = _scaleAround(
+        _currentScale * details.scale / _lastGestureScale,
+        _lastFocalPoint,
+        nextAnchor: details.localFocalPoint,
+      );
+    }
+    _lastFocalPoint = details.localFocalPoint;
+    _lastGestureScale = details.scale;
+    _gesturePointerCount = details.pointerCount;
+  }
+
+  void _handleDoubleTap(Size viewportSize) {
+    _stopZoom();
+    // 1 倍表示适应视口，并非原图像素 1:1；双击与滚轮共用中心锚点。
+    _animateTo(
+      (_currentScale - 1).abs() > 0.01
+          ? Matrix4.identity()
+          : _scaleAround(2, viewportSize.center(Offset.zero)),
+    );
   }
 
   @override
@@ -161,51 +228,60 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog> {
               // 1. 全屏自由平移与滚轮纯缩放画板
               Positioned.fill(
                 child: Listener(
+                  onPointerDown: (_) => _stopZoom(),
+                  onPointerPanZoomStart: (_) => _stopZoom(),
                   onPointerSignal: (event) =>
                       _handlePointerSignal(event, viewportSize),
                   child: GestureDetector(
-                    onDoubleTap: _handleDoubleTap,
-                    child: InteractiveViewer(
-                      transformationController: _transformationController,
-                      minScale: _minScale,
-                      maxScale: _maxScale,
-                      scaleEnabled: false, // 禁用默认的以鼠标为原点缩放，交由 Listener 统一在中心纯缩放
-                      panEnabled: true,
-                      boundaryMargin: const EdgeInsets.all(double.infinity),
-                      child: Center(
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            if (_activeBytes != null &&
-                                _activeBytes!.isNotEmpty)
-                              Image.memory(
-                                _activeBytes!,
-                                fit: BoxFit.contain,
-                                gaplessPlayback: true,
-                              )
-                            else if (widget.placeholderBytes != null &&
-                                widget.placeholderBytes!.isNotEmpty)
-                              Image.memory(
-                                widget.placeholderBytes!,
-                                fit: BoxFit.contain,
-                                gaplessPlayback: true,
-                              )
-                            else
-                              const SizedBox(width: 100, height: 100),
-                            if (_isLoading)
-                              const Center(
-                                child: SizedBox(
-                                  width: 32,
-                                  height: 32,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white70,
+                    behavior: HitTestBehavior.opaque,
+                    onDoubleTap: () => _handleDoubleTap(viewportSize),
+                    onScaleStart: _handleScaleStart,
+                    onScaleUpdate: _handleScaleUpdate,
+                    // 手势与矩阵只有一个写入方；不叠加 InteractiveViewer 的
+                    // 触控板平移和拖拽惯性。松手即停，图片解码层不逐帧重建。
+                    child: ClipRect(
+                      child: ValueListenableBuilder<Matrix4>(
+                        valueListenable: _transformationController,
+                        builder: (context, matrix, child) =>
+                            Transform(transform: matrix, child: child),
+                        child: RepaintBoundary(
+                          child: Center(
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                if (_activeBytes != null &&
+                                    _activeBytes!.isNotEmpty)
+                                  Image.memory(
+                                    _activeBytes!,
+                                    fit: BoxFit.contain,
+                                    gaplessPlayback: true,
+                                  )
+                                else if (widget.placeholderBytes != null &&
+                                    widget.placeholderBytes!.isNotEmpty)
+                                  Image.memory(
+                                    widget.placeholderBytes!,
+                                    fit: BoxFit.contain,
+                                    gaplessPlayback: true,
+                                  )
+                                else
+                                  const SizedBox(width: 100, height: 100),
+                                if (_isLoading)
+                                  const Center(
+                                    child: SizedBox(
+                                      width: 32,
+                                      height: 32,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white70,
+                                            ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
-                          ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
