@@ -84,10 +84,7 @@ void main() async {
 Future<bool> _syncControllersFromBootConfig() async {
   try {
     final configService = ConfigService();
-    final bootConfig = await _seedMobileDefaults(
-      configService,
-      await configService.loadConfig(),
-    );
+    final bootConfig = await configService.loadConfig();
     AppThemeModeController.instance.syncFromConfig(bootConfig);
     AppAccentController.instance.syncFromConfig(bootConfig);
     AppLocaleController.instance.syncFromConfig(bootConfig);
@@ -97,37 +94,6 @@ Future<bool> _syncControllersFromBootConfig() async {
     debugPrint('Boot config load failed: $error\n$stackTrace');
     return false;
   }
-}
-
-/// 移动端首次启动的舒适默认值 (只在用户未显式配置时写入一次)：
-///
-/// - UI 缩放 125%：触控目标更易命中。缩放始终只由 [AppUiZoomController] 一处生效，
-///   窄屏布局不再自带第二层缩放的 `AppUiZoomScope`，设置页数值即刻所见即所得；
-/// - 图片存储目录不在此处种子化：安卓空/不可写目录的探测与回退统一由
-///   [ImageStorageDirectoryService] 在 loadConfig 阶段收敛 (落盘 NovelAI_Output)，
-///   避免双入口各自默认目录导致两次启动路径不一致。
-Future<AppConfig> _seedMobileDefaults(
-  ConfigService configService,
-  AppConfig config,
-) async {
-  final isMobile =
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.iOS);
-  if (!isMobile) return config;
-
-  var next = config;
-  var changed = false;
-
-  if (!await configService.hasStoredUiZoom()) {
-    next = next.copyWith(uiZoom: ConfigService.mobileDefaultUiZoom);
-    changed = true;
-  }
-
-  if (changed) {
-    await configService.saveConfig(next);
-  }
-  return next;
 }
 
 /// 启动配置加载失败的轻量降级页：展示原因提示并支持原地重试，
