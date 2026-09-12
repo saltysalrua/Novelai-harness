@@ -676,16 +676,27 @@ class StudioViewModel extends ChangeNotifier
     );
   }
 
-  /// 安卓公共图库导出钩子：自动保存的成品同步写入系统媒体库
-  /// (MediaStore `Pictures/NovelAI/<命名模板子目录>`)，相册与文件管理器
-  /// 立即可见；写入失败由仓储捕获吞掉，不阻塞落图主流程。
+  /// 安卓公共图库导出钩子：自动保存的成品同步写入用户可见的公共目录。
+  ///
+  /// 优先写入用户自选的 SAF 导出目录 (含命名模板子目录)；未选择或授权
+  /// 失效时回退系统媒体库 `Pictures/NovelAI/<子目录>`。写入失败由仓储
+  /// 捕获吞掉，不阻塞落图主流程。
   void _syncGalleryExportHook() {
     final mediaStore = MediaStoreService.instance;
     if (!mediaStore.isSupported || !_config.androidGalleryExport) {
       _repository.galleryExportFn = null;
       return;
     }
+    final treeUri = _config.androidExportTreeUri;
     _repository.galleryExportFn = (bytes, relativePath) async {
+      if (treeUri.isNotEmpty) {
+        try {
+          await mediaStore.saveImageToDirectory(bytes, treeUri, relativePath);
+          return;
+        } on MediaStoreException {
+          // 自选目录授权失效或写入失败：回退默认图库，保证成品始终可见
+        }
+      }
       final dir = p.dirname(relativePath);
       await mediaStore.saveImage(
         bytes,

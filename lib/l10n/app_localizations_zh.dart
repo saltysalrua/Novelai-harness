@@ -334,6 +334,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsGalleryExportTitle => '同步导出到系统图库';
 
   @override
+  String get settingsExportFolderTitle => '导出文件夹';
+
+  @override
+  String get settingsExportFolderSubtitle => '自动保存与手动导出的成品写入此文件夹，其他应用可见';
+
+  @override
+  String get settingsExportFolderNone => '未选择，默认写入系统图库 Pictures/NovelAI';
+
+  @override
+  String settingsExportFolderSelected(Object name) {
+    return '已选择：$name';
+  }
+
+  @override
+  String get settingsExportFolderClear => '清除';
+
+  @override
   String get settingsGalleryExportSubtitle =>
       '自动保存的成品同时写入公共 Pictures/NovelAI 目录 (系统媒体库登记，相册与其他应用可见)';
 

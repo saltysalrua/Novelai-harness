@@ -114,9 +114,9 @@ bool get isMobilePlatform =>
 
 /// 导出图片到用户亲自挑选的位置 (含水印/脱敏处理)：
 ///
-/// - Android：优先经 MediaStore 写入公共 `Pictures/` (媒体库原生登记，
-///   相册与文件管理器立即可见；模板含目录时落 `Pictures/NovelAI/<子目录>`)；
-///   Android 9 及以下缺存储权限时回退 SAF 单文件写入；
+/// - Android：优先写入设置页自选的 SAF 导出目录 (含命名模板子目录)；
+///   未选择时经 MediaStore 写入公共 `Pictures/NovelAI` (媒体库原生登记，
+///   相册与文件管理器立即可见)；再失败回退 SAF 单文件写入；
 /// - iOS：`FilePicker.saveFile(bytes:)` 经 SAF/ContentResolver 单文件写入，
 ///   命名沿用全局命名模板的纯文件名；
 /// - 桌面端：目录选择 + 命名模板 / 无覆盖落盘 (ImageSavePathService + ImageFileStore)。
@@ -138,12 +138,30 @@ Future<void> exportImageToCustomDirectory(
         return;
       }
       final mediaStore = MediaStoreService.instance;
+      final fileName = viewModel.resolveExportFileName(image);
+      final subDir = viewModel.resolveExportSubDir(image);
+      final treeUri = viewModel.config.androidExportTreeUri;
+      if (mediaStore.isSupported && treeUri.isNotEmpty) {
+        try {
+          final relativePath = subDir.isEmpty ? fileName : '$subDir/$fileName';
+          final location = await mediaStore.saveImageToDirectory(
+            bytes,
+            treeUri,
+            relativePath,
+          );
+          if (!context.mounted) return;
+          showCanvasSnackBar(context, context.l10n.canvasSavedImage(location));
+          return;
+        } on MediaStoreException catch (error) {
+          // 自选目录授权失效或写入失败：继续走默认图库与 SAF 兑底链。
+          debugPrint('自选目录导出失败，回退默认链: $error');
+        }
+      }
       if (mediaStore.isSupported) {
         try {
-          final subDir = viewModel.resolveExportSubDir(image);
           final location = await mediaStore.saveImage(
             bytes,
-            viewModel.resolveExportFileName(image),
+            fileName,
             subDir: subDir.isEmpty ? 'NovelAI' : 'NovelAI/$subDir',
           );
           if (!context.mounted) return;

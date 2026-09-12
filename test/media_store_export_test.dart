@@ -182,6 +182,105 @@ void main() {
       );
     });
 
+    test('目录选择与校验通道透传并解析 SafDirectoryInfo', () async {
+      TestDefaultBinaryMessengerBinding
+          .instance
+          .defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel(MediaStoreService.channelName),
+            (call) async {
+              switch (call.method) {
+                case 'pickDirectory':
+                  return {'uri': 'content://tree/primary%3AData%2Ftest', 'name': 'test'};
+                case 'getTreeInfo':
+                  expect(call.arguments['uri'], equals('content://tree/primary%3AData'));
+                  return {'uri': 'content://tree/primary%3AData', 'name': 'Data'};
+                default:
+                  return null;
+              }
+            },
+          );
+
+      final service = mobileService();
+      final picked = await service.pickExportDirectory();
+      expect(picked?.uri, equals('content://tree/primary%3AData%2Ftest'));
+      expect(picked?.name, equals('test'));
+
+      final verified = await service.verifyExportDirectory('content://tree/primary%3AData');
+      expect(verified?.name, equals('Data'));
+
+      final missing = await service.verifyExportDirectory('');
+      expect(missing, isNull);
+
+      // 用户取消选择返回 null
+      TestDefaultBinaryMessengerBinding
+          .instance
+          .defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel(MediaStoreService.channelName),
+            (call) async => null,
+          );
+      expect(await service.pickExportDirectory(), isNull);
+    });
+
+    test('saveImageToDirectory 透传相对路径并映射异常', () async {
+      Object? capturedBytes;
+      String? capturedTree;
+      String? capturedRelative;
+      TestDefaultBinaryMessengerBinding
+          .instance
+          .defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel(MediaStoreService.channelName),
+            (call) async {
+              capturedBytes = call.arguments['bytes'];
+              capturedTree = call.arguments['treeUri'];
+              capturedRelative = call.arguments['relativePath'];
+              return 'DCIM/Novel/2026-09/demo.png';
+            },
+          );
+
+      final location = await mobileService().saveImageToDirectory(
+        _testPngBytes,
+        'content://tree/primary%3ADCIM',
+        '2026-09/demo.png',
+      );
+
+      expect(location, equals('DCIM/Novel/2026-09/demo.png'));
+      expect(capturedBytes, equals(_testPngBytes));
+      expect(capturedTree, equals('content://tree/primary%3ADCIM'));
+      expect(capturedRelative, equals('2026-09/demo.png'));
+
+      // 授权失效映射为可判定错误码
+      TestDefaultBinaryMessengerBinding
+          .instance
+          .defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel(MediaStoreService.channelName),
+            (call) async => throw PlatformException(
+              code: 'PERMISSION_DENIED',
+              message: '目录授权已失效',
+            ),
+          );
+      await expectLater(
+        mobileService().saveImageToDirectory(
+          _testPngBytes,
+          'content://tree/primary%3ADCIM',
+          'a.png',
+        ),
+        throwsA(
+          isA<MediaStoreException>()
+              .having((e) => e.isPermissionDenied, 'isPermissionDenied', isTrue),
+        ),
+      );
+
+      // 未选择目录拒绝调用
+      await expectLater(
+        mobileService().saveImageToDirectory(_testPngBytes, '', 'a.png'),
+        throwsA(isA<MediaStoreException>()),
+      );
+    });
+
     test('空字节与非安卓平台被拒绝', () async {
       final mobile = mobileService();
       await expectLater(

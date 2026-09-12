@@ -128,6 +128,16 @@
   "settingsAutoSaveSubtitleOn": "Images are written to the storage directory automatically (metadata & watermark follow export settings)",
   "settingsAutoSaveSubtitleOff": "Images go to the cache directory (no watermark) first; save manually from the canvas, and cache beyond the history limit is pruned automatically",
   "settingsGalleryExportTitle": "Also Export to System Gallery",
+  "settingsExportFolderTitle": "Export Folder",
+  "settingsExportFolderSubtitle": "Auto-saved and manually exported images are written here, visible to other apps",
+  "settingsExportFolderNone": "Not selected; defaults to system gallery Pictures/NovelAI",
+  "settingsExportFolderSelected": "Selected: {name}",
+  "settingsExportFolderClear": "Clear",
+  "@settingsExportFolderSelected": {
+    "placeholders": {
+      "name": {}
+    }
+  },
   "settingsGalleryExportSubtitle": "Auto-saved images are also written to the public Pictures/NovelAI folder (registered in MediaStore, visible to gallery and other apps)",
   "settingsStreamPreviewTitle": "Live Generation Preview",
   "settingsStreamPreviewSubtitle": "Receive and render intermediate denoising previews during generation (Stream Preview)",

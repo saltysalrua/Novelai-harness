@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/models/nai_generation_params.dart';
 import '../../../../data/services/image_save_path_service.dart';
+import '../../../../data/services/media_store_service.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -72,6 +73,8 @@ class GeneralSettingsDraft {
       maxPersistentImages = config.maxPersistentImages,
       autoSaveImages = config.autoSaveImages,
       androidGalleryExport = config.androidGalleryExport,
+      androidExportTreeUri = config.androidExportTreeUri,
+      androidExportFolderName = '',
       comfyUiEnabled = config.comfyUiEnabled;
 
   final TextEditingController naiKeyController;
@@ -140,6 +143,12 @@ class GeneralSettingsDraft {
   /// 安卓专用：自动保存的成品同步写入公共图片库 (MediaStore Pictures/NovelAI)
   bool androidGalleryExport;
 
+  /// 安卓自选导出目录 SAF 树 URI (空 = 未选择，默认 Pictures/NovelAI)
+  String androidExportTreeUri;
+
+  /// 自选目录显示名 (选择器返回后填充，不入库、不持久化)
+  String androidExportFolderName;
+
   void dispose() {
     naiKeyController.dispose();
     anySearchKeyController.dispose();
@@ -180,6 +189,52 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
   void initState() {
     super.initState();
     _refreshDictInfo();
+    _refreshExportFolderName();
+  }
+
+  /// 启动时校验已选导出目录的授权与显示名 (授权被撤销则清空展示)。
+  Future<void> _refreshExportFolderName() async {
+    final mediaStore = MediaStoreService.instance;
+    if (!mediaStore.isSupported || _draft.androidExportTreeUri.isEmpty) {
+      return;
+    }
+    try {
+      final info = await mediaStore.verifyExportDirectory(
+        _draft.androidExportTreeUri,
+      );
+      if (!mounted) return;
+      setState(() {
+        _draft.androidExportFolderName = info?.name ?? '';
+        if (info == null) _draft.androidExportTreeUri = '';
+      });
+    } catch (_) {
+      // 校验失败不阻塞设置页；写入时原生侧会再火报错并回退默认图库
+    }
+  }
+
+  /// 唤起安卓系统目录选择器 (SAF)，选中后持久化读写授权。
+  Future<void> _pickExportFolder() async {
+    final mediaStore = MediaStoreService.instance;
+    if (!mediaStore.isSupported) return;
+    try {
+      final info = await mediaStore.pickExportDirectory();
+      if (!mounted || info == null) return;
+      setState(() {
+        _draft.androidExportTreeUri = info.uri;
+        _draft.androidExportFolderName = info.name;
+      });
+    } on MediaStoreException {
+      if (mounted) {
+        setState(() => _draft.androidExportFolderName = '');
+      }
+    }
+  }
+
+  Future<void> _clearExportFolder() async {
+    setState(() {
+      _draft.androidExportTreeUri = '';
+      _draft.androidExportFolderName = '';
+    });
   }
 
   Future<void> _refreshDictInfo() async {
@@ -401,6 +456,34 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   ),
                 ),
               ),
+              if (isAndroid) ...[
+                AppSettingTile(
+                  title: l10n.settingsExportFolderTitle,
+                  subtitle: _draft.androidExportTreeUri.isEmpty
+                      ? l10n.settingsExportFolderNone
+                      : l10n.settingsExportFolderSelected(
+                          _draft.androidExportFolderName,
+                        ),
+                  control: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppActionButton(
+                        icon: Icons.folder_open_rounded,
+                        label: l10n.settingsChooseButton,
+                        onPressed: _pickExportFolder,
+                      ),
+                      if (_draft.androidExportTreeUri.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        AppActionButton(
+                          icon: Icons.close_rounded,
+                          label: l10n.settingsExportFolderClear,
+                          onPressed: _clearExportFolder,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _draft.saveTemplateController,
                 builder: (context, value, child) => ImageSaveTemplateSettings(

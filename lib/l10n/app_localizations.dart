@@ -710,6 +710,36 @@ abstract class AppLocalizations {
   /// **'同步导出到系统图库'**
   String get settingsGalleryExportTitle;
 
+  /// No description provided for @settingsExportFolderTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出文件夹'**
+  String get settingsExportFolderTitle;
+
+  /// No description provided for @settingsExportFolderSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动保存与手动导出的成品写入此文件夹，其他应用可见'**
+  String get settingsExportFolderSubtitle;
+
+  /// No description provided for @settingsExportFolderNone.
+  ///
+  /// In zh, this message translates to:
+  /// **'未选择，默认写入系统图库 Pictures/NovelAI'**
+  String get settingsExportFolderNone;
+
+  /// No description provided for @settingsExportFolderSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择：{name}'**
+  String settingsExportFolderSelected(Object name);
+
+  /// No description provided for @settingsExportFolderClear.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除'**
+  String get settingsExportFolderClear;
+
   /// No description provided for @settingsGalleryExportSubtitle.
   ///
   /// In zh, this message translates to:

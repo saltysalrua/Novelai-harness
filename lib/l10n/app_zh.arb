@@ -128,6 +128,16 @@
   "settingsAutoSaveSubtitleOn": "生成图片自动写入本地存储目录 (按导出设置处理元数据与水印)",
   "settingsAutoSaveSubtitleOff": "生成图片先存入缓存目录 (无水印)，在画板右下角点击保存按钮手动保存；超出历史上限的缓存图片自动删除",
   "settingsGalleryExportTitle": "同步导出到系统图库",
+  "settingsExportFolderTitle": "导出文件夹",
+  "settingsExportFolderSubtitle": "自动保存与手动导出的成品写入此文件夹，其他应用可见",
+  "settingsExportFolderNone": "未选择，默认写入系统图库 Pictures/NovelAI",
+  "settingsExportFolderSelected": "已选择：{name}",
+  "settingsExportFolderClear": "清除",
+  "@settingsExportFolderSelected": {
+    "placeholders": {
+      "name": {}
+    }
+  },
   "settingsGalleryExportSubtitle": "自动保存的成品同时写入公共 Pictures/NovelAI 目录 (系统媒体库登记，相册与其他应用可见)",
   "settingsStreamPreviewTitle": "实时生图预览",
   "settingsStreamPreviewSubtitle": "生图过程中接收并实时渲染中间去噪步数预览图 (Stream Preview)",

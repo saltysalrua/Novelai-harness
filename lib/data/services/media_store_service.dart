@@ -82,11 +82,95 @@ class MediaStoreService {
     }
   }
 
+  /// 唤起系统目录选择器 (SAF `ACTION_OPEN_DOCUMENT_TREE`)。
+  ///
+  /// 返回自选导出目录信息；用户取消返回 null。选中后原生侧持久化
+  /// 读写授权，重启后仍可写入。失败抛 [MediaStoreException]。
+  Future<SafDirectoryInfo?> pickExportDirectory() async {
+    _ensureSupported('pickExportDirectory');
+    try {
+      final info = await _channel.invokeMethod<Map<Object?, Object?>?>(
+        'pickDirectory',
+      );
+      if (info == null) return null;
+      return SafDirectoryInfo.fromChannelMap(info);
+    } on PlatformException catch (error) {
+      throw MediaStoreException.fromPlatform(error);
+    }
+  }
+
+  /// 校验已保存的自选目录授权是否仍然有效 (用户可能在系统设置中撤销)。
+  ///
+  /// 授权失效或目录不存在时返回 null；有效时返回最新目录信息。
+  Future<SafDirectoryInfo?> verifyExportDirectory(String treeUri) async {
+    _ensureSupported('verifyExportDirectory');
+    if (treeUri.isEmpty) return null;
+    try {
+      final info = await _channel.invokeMethod<Map<Object?, Object?>?>(
+        'getTreeInfo',
+        {'uri': treeUri},
+      );
+      if (info == null) return null;
+      return SafDirectoryInfo.fromChannelMap(info);
+    } on PlatformException catch (error) {
+      throw MediaStoreException.fromPlatform(error);
+    }
+  }
+
+  /// 把 PNG 字节写入自选 SAF 目录树。
+  ///
+  /// [relativePath] 形如 `2026-09/model/name.png`：目录段不存在时自动
+  /// 创建，同名文件由 DocumentsProvider 自动改名，绝不覆盖。返回原生
+  /// 侧拼好的展示路径。授权失效抛 [MediaStoreException]。
+  Future<String> saveImageToDirectory(
+    Uint8List bytes,
+    String treeUri,
+    String relativePath,
+  ) async {
+    _ensureSupported('saveImageToDirectory');
+    if (bytes.isEmpty) {
+      throw const MediaStoreException('图片字节为空');
+    }
+    if (treeUri.isEmpty) {
+      throw const MediaStoreException('未选择导出目录', code: 'NO_DIRECTORY');
+    }
+    try {
+      final location = await _channel.invokeMethod<String>('saveImageToTree', {
+        'bytes': bytes,
+        'treeUri': treeUri,
+        'relativePath': relativePath,
+      });
+      if (location == null || location.isEmpty) {
+        throw const MediaStoreException('未返回保存路径');
+      }
+      return location;
+    } on PlatformException catch (error) {
+      throw MediaStoreException.fromPlatform(error);
+    }
+  }
+
   void _ensureSupported(String operation) {
     if (!_isAndroid) {
       throw UnsupportedError('MediaStoreService.$operation 仅支持 Android');
     }
   }
+}
+
+/// 自选 SAF 导出目录信息 (原生目录选择器返回)。
+class SafDirectoryInfo {
+  const SafDirectoryInfo({required this.uri, required this.name});
+
+  factory SafDirectoryInfo.fromChannelMap(Map<Object?, Object?> map) =>
+      SafDirectoryInfo(
+        uri: map['uri'] as String? ?? '',
+        name: map['name'] as String? ?? '',
+      );
+
+  /// SAF 目录树 URI (`content://...`)，持久授权后跨重启可用。
+  final String uri;
+
+  /// 目录友好显示名 (设置页展示)。
+  final String name;
 }
 
 /// 媒体库/剪贴板写入失败的统一异常，携带原生错误码与原因。

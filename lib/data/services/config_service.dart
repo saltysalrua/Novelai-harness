@@ -176,6 +176,10 @@ class AppConfig {
   /// 仅在 Android 平台生效，其他平台忽略。
   final bool androidGalleryExport;
 
+  /// 安卓自选导出目录的 SAF 树 URI (content://...)，空 = 未选择。
+  /// 选择后原生侧持久化读写授权，成品直接写入该目录，其他应用可见。
+  final String androidExportTreeUri;
+
   final String prefixPrompt;
   final String suffixPrompt;
   final String negativePrompt;
@@ -305,6 +309,7 @@ class AppConfig {
     this.maxPersistentImages = 50,
     this.autoSaveImages = false,
     this.androidGalleryExport = true,
+    this.androidExportTreeUri = '',
     this.prefixPrompt = '',
     this.suffixPrompt = '',
     this.negativePrompt = '',
@@ -365,6 +370,7 @@ class AppConfig {
     int? maxPersistentImages,
     bool? autoSaveImages,
     bool? androidGalleryExport,
+    String? androidExportTreeUri,
     String? prefixPrompt,
     String? suffixPrompt,
     String? negativePrompt,
@@ -430,6 +436,7 @@ class AppConfig {
       maxPersistentImages: maxPersistentImages ?? this.maxPersistentImages,
       autoSaveImages: autoSaveImages ?? this.autoSaveImages,
       androidGalleryExport: androidGalleryExport ?? this.androidGalleryExport,
+      androidExportTreeUri: androidExportTreeUri ?? this.androidExportTreeUri,
       prefixPrompt: prefixPrompt ?? this.prefixPrompt,
       suffixPrompt: suffixPrompt ?? this.suffixPrompt,
       negativePrompt: negativePrompt ?? this.negativePrompt,
@@ -512,6 +519,8 @@ class ConfigService {
   static const String _keyAutoSaveImages = 'novelai_auto_save_images';
   static const String _keyAndroidGalleryExport =
       'novelai_android_gallery_export';
+  static const String _keyAndroidExportTreeUri =
+      'novelai_android_export_tree_uri';
   static const String _keyPrefix = 'novelai_prefix';
   static const String _keySuffix = 'novelai_suffix';
   static const String _keyNegative = 'novelai_negative';
@@ -640,6 +649,8 @@ class ConfigService {
     int maxPersistImgs = prefs.getInt(_keyMaxPersistentImages) ?? 50;
     bool autoSaveImgs = prefs.getBool(_keyAutoSaveImages) ?? false;
     bool androidGalleryExport = prefs.getBool(_keyAndroidGalleryExport) ?? true;
+    String androidExportTreeUri =
+        prefs.getString(_keyAndroidExportTreeUri) ?? '';
     String saveDir = prefs.getString(_keySaveDir) ?? '';
     bool stripMeta = prefs.getBool(_keyStripMetadata) ?? false;
     bool enableWm = prefs.getBool(_keyEnableWatermark) ?? false;
@@ -878,6 +889,7 @@ class ConfigService {
       maxPersistentImages: maxPersistImgs,
       autoSaveImages: autoSaveImgs,
       androidGalleryExport: androidGalleryExport,
+      androidExportTreeUri: androidExportTreeUri,
       prefixPrompt: prefix,
       suffixPrompt: suffix,
       negativePrompt: negative,
@@ -966,6 +978,10 @@ class ConfigService {
     await prefs.setInt(_keyMaxPersistentImages, config.maxPersistentImages);
     await prefs.setBool(_keyAutoSaveImages, config.autoSaveImages);
     await prefs.setBool(_keyAndroidGalleryExport, config.androidGalleryExport);
+    await prefs.setString(
+      _keyAndroidExportTreeUri,
+      config.androidExportTreeUri,
+    );
     await prefs.setString(_keyPrefix, config.prefixPrompt);
     await prefs.setString(_keySuffix, config.suffixPrompt);
     await prefs.setString(_keyNegative, config.negativePrompt);

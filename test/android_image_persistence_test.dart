@@ -227,10 +227,15 @@ void main() {
       );
       final isAndroid = platform == TargetPlatform.android;
       expect(field.readOnly, isAndroid);
-      expect(find.text('选择'), isAndroid ? findsNothing : findsOneWidget);
+      // 桌面「本地存储目录」与安卓「导出文件夹」各有一个选择按钮，互不叠加
+      expect(find.text('选择'), findsOneWidget);
       if (isAndroid) {
         expect(find.textContaining('重启后保留'), findsOneWidget);
         expect(find.textContaining('卸载应用'), findsOneWidget);
+        // 安卓自选 SAF 导出目录入口：未选择时展示默认图库提示，不出现清除按钮
+        expect(find.text('导出文件夹'), findsOneWidget);
+        expect(find.textContaining('未选择，默认写入系统图库'), findsOneWidget);
+        expect(find.text('清除'), findsNothing);
       }
       expect(tester.takeException(), isNull);
     }, variant: TargetPlatformVariant({platform}));

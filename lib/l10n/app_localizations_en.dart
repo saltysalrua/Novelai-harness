@@ -345,6 +345,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsGalleryExportTitle => 'Also Export to System Gallery';
 
   @override
+  String get settingsExportFolderTitle => 'Export Folder';
+
+  @override
+  String get settingsExportFolderSubtitle =>
+      'Auto-saved and manually exported images are written here, visible to other apps';
+
+  @override
+  String get settingsExportFolderNone =>
+      'Not selected; defaults to system gallery Pictures/NovelAI';
+
+  @override
+  String settingsExportFolderSelected(Object name) {
+    return 'Selected: $name';
+  }
+
+  @override
+  String get settingsExportFolderClear => 'Clear';
+
+  @override
   String get settingsGalleryExportSubtitle =>
       'Auto-saved images are also written to the public Pictures/NovelAI folder (registered in MediaStore, visible to gallery and other apps)';
 
