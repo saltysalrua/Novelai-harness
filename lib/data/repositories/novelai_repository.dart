@@ -373,9 +373,7 @@ class NovelAiRepository {
       // 都同步写入系统媒体库；失败不阻塞主流程 (本地已有缓存兜底)。
       try {
         await galleryExport(
-          fileBytes is Uint8List
-              ? fileBytes
-              : Uint8List.fromList(fileBytes),
+          fileBytes is Uint8List ? fileBytes : Uint8List.fromList(fileBytes),
           relativePath,
         );
       } catch (error) {

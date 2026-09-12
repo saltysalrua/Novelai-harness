@@ -10,12 +10,73 @@ import 'package:path/path.dart' as p;
 
 /// 1x1 测试 PNG 字节 (与 auto_save_cache_test 同构，避免跨文件依赖)
 final _testPngBytes = Uint8List.fromList([
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-  0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-  0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0A,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x63,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
 ]);
 
 class _FakeNovelAiService extends NovelAiService {
@@ -35,9 +96,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   tearDown(() {
-    TestDefaultBinaryMessengerBinding
-        .instance
-        .defaultBinaryMessenger
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
           const MethodChannel(MediaStoreService.channelName),
           null,
@@ -54,9 +113,7 @@ void main() {
       Object? capturedBytes;
       String? capturedName;
       String? capturedSubDir;
-      TestDefaultBinaryMessengerBinding
-          .instance
-          .defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
             const MethodChannel(MediaStoreService.channelName),
             (call) async {
@@ -80,9 +137,7 @@ void main() {
     });
 
     test('saveImage 把原生异常映射为 MediaStoreException', () async {
-      TestDefaultBinaryMessengerBinding
-          .instance
-          .defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
             const MethodChannel(MediaStoreService.channelName),
             (call) async => throw PlatformException(
@@ -94,17 +149,18 @@ void main() {
       await expectLater(
         mobileService().saveImage(_testPngBytes, 'demo.png'),
         throwsA(
-          isA<MediaStoreException>()
-              .having((e) => e.isPermissionDenied, 'isPermissionDenied', isTrue),
+          isA<MediaStoreException>().having(
+            (e) => e.isPermissionDenied,
+            'isPermissionDenied',
+            isTrue,
+          ),
         ),
       );
     });
 
     test('copyImageToClipboard 透传字节且失败抛 MediaStoreException', () async {
       var callCount = 0;
-      TestDefaultBinaryMessengerBinding
-          .instance
-          .defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
             const MethodChannel(MediaStoreService.channelName),
             (call) async {

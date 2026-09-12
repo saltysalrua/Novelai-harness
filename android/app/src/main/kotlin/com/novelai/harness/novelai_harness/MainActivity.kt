@@ -150,7 +150,12 @@ class MainActivity : FlutterActivity() {
             throw IllegalStateException("无法创建公共图片目录")
         }
         val baseName = cleanName.removeSuffix(".png")
-        val existingNames = dir.listFiles()?.map { it.name }?.toSet().orEmpty()
+        val existingNames =
+            dir
+                .listFiles()
+                ?.map { it.name }
+                ?.toSet()
+                .orEmpty()
         val candidate =
             generateSequence(0) { it + 1 }
                 .map { index -> if (index == 0) cleanName else "${baseName}_$index.png" }

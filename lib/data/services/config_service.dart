@@ -965,10 +965,7 @@ class ConfigService {
     );
     await prefs.setInt(_keyMaxPersistentImages, config.maxPersistentImages);
     await prefs.setBool(_keyAutoSaveImages, config.autoSaveImages);
-    await prefs.setBool(
-      _keyAndroidGalleryExport,
-      config.androidGalleryExport,
-    );
+    await prefs.setBool(_keyAndroidGalleryExport, config.androidGalleryExport);
     await prefs.setString(_keyPrefix, config.prefixPrompt);
     await prefs.setString(_keySuffix, config.suffixPrompt);
     await prefs.setString(_keyNegative, config.negativePrompt);

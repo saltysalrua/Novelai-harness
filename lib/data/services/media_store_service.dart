@@ -6,10 +6,8 @@ import 'package:flutter/services.dart';
 /// 公共图库导出钩子签名：(处理后的成品字节, 命名模板相对路径)。
 ///
 /// 由 [MediaStoreService.saveImage] 消费，也可在测试中注入替身。
-typedef MediaGalleryExportFn = Future<void> Function(
-  Uint8List bytes,
-  String relativePath,
-);
+typedef MediaGalleryExportFn =
+    Future<void> Function(Uint8List bytes, String relativePath);
 
 /// 安卓系统媒体库 (MediaStore) 与剪贴板的原生通道封装。
 ///
@@ -20,11 +18,9 @@ typedef MediaGalleryExportFn = Future<void> Function(
 /// 仅在 Android 平台真实可用 ([isSupported] 为 false 时调用抛
 /// [UnsupportedError])；构造函数支持注入平台判定与通道，便于测试替身。
 class MediaStoreService {
-  MediaStoreService({
-    bool? isAndroid,
-    MethodChannel? channel,
-  }) : _isAndroid = isAndroid ?? (!kIsWeb && Platform.isAndroid),
-       _channel = channel ?? const MethodChannel(channelName);
+  MediaStoreService({bool? isAndroid, MethodChannel? channel})
+    : _isAndroid = isAndroid ?? (!kIsWeb && Platform.isAndroid),
+      _channel = channel ?? const MethodChannel(channelName);
 
   /// 原生方法通道名 (MainActivity.kt 注册同名处理器)。
   static const String channelName = 'novelai_harness/media_store';
@@ -107,8 +103,7 @@ class MediaStoreException implements Exception {
   bool get isPermissionDenied => code == 'PERMISSION_DENIED';
 
   @override
-  String toString() =>
-      code == null
+  String toString() => code == null
       ? 'MediaStoreException: $message'
       : 'MediaStoreException($code): $message';
 }

@@ -117,6 +117,7 @@ mixin _StudioGenerationMixin on _StudioCore {
     );
     return p.dirname(relative);
   }
+
   @override
   String resolveExportFileName(NaiGeneratedImage image) => p.basename(
     ImageSavePathService.resolve(
