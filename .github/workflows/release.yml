@@ -4,8 +4,8 @@ name: Release
 # 若 pubspec 里的 version 没有新增（对应 Release 已存在），流程会在检查阶段直接跳过。
 #
 # 产物：
-#   - Windows x64 绿色包 (zip)  ← build-windows
-#   - Android 通用 APK          ← build-android
+#   - Windows x64 绿色包 (zip)              ← build-windows
+#   - Android 分 ABI APK (arm64/armv7/x86_64) ← build-android
 # 两端构建并行，全部完成后由 release 阶段统一建 tag 并上传 Release 资产。
 #
 # Android 签名（可选）：在仓库 Secrets 中配置下列四项后自动启用正式签名，
@@ -101,7 +101,9 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-  # 阶段二 B：构建 Android 通用 APK（与 Windows 并行）
+  # 阶段二 B：构建 Android 分 ABI APK（与 Windows 并行）
+  # --split-per-abi 由 Flutter Gradle 插件接管 ABI 拆分，
+  # 各 APK 自动携带互不冲突的 versionCode，可直接上架/侧载。
   build-android:
     needs: check
     if: needs.check.outputs.skip == 'false'
@@ -145,26 +147,29 @@ jobs:
           } > android/key.properties
           echo "已写入 android/key.properties（正式签名）。"
 
-      - name: Build Android APK
+      - name: Build Android APK (split per ABI)
         run: |
           flutter pub get
-          flutter build apk --release \
+          flutter build apk --release --split-per-abi \
             --build-number ${{ github.run_number }}
 
-      - name: Rename APK
+      - name: Rename APKs
         env:
           VERSION: ${{ needs.check.outputs.version }}
         run: |
-          APK="NovelAI-Harness-v${VERSION}-android.apk"
-          cp build/app/outputs/flutter-apk/app-release.apk "$APK"
-          ls -lh "$APK"
+          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
+            abi=$(basename "$apk" | sed -E 's/^app-(.*)-release\.apk$/\1/')
+            out="NovelAI-Harness-v${VERSION}-android-${abi}.apk"
+            cp "$apk" "$out"
+          done
+          ls -lh NovelAI-Harness-*-android-*.apk
 
       # actions/upload-artifact v7.0.1
       - name: Upload Android artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: android-apk
-          path: NovelAI-Harness-*-android.apk
+          path: NovelAI-Harness-*-android-*.apk
           if-no-files-found: error
           retention-days: 3
 
@@ -246,13 +251,18 @@ jobs:
             fi
 
             WIN_ZIP="NovelAI-Harness-v${VERSION}-windows-x64.zip"
-            APK="NovelAI-Harness-v${VERSION}-android.apk"
             echo "### 下载"
             echo ""
             echo "| 平台 | 文件 |"
             echo "| --- | --- |"
             echo "| Windows x64 | \`$WIN_ZIP\` |"
-            echo "| Android | \`$APK\` |"
+            for APK in dist/NovelAI-Harness-v${VERSION}-android-*.apk; do
+              [ -e "$APK" ] || continue
+              APK_NAME=$(basename "$APK")
+              ABI=$(echo "$APK_NAME" | sed -E \
+                's/^NovelAI-Harness-v[0-9.]+-android-(.*)\.apk$/\1/')
+              echo "| Android ($ABI) | \`$APK_NAME\` |"
+            done
             echo ""
           } > "$NOTES"
 
