@@ -81,8 +81,9 @@ class ImageEditService {
   /// 执行整图编辑
   ///
   /// [aspectRatio] 生图比例 (如 "16:9"，空 = 跟随原图)；[imageResolution]
-  /// 分辨率档位 ("1K" / "2K" / "4K"，空 = 默认)。两者均按多写法冗余写入请求体，
-  /// 不同网关认不同字段，Go 系网关对未知的顶层字段直接忽略，多传无害。
+  /// 分辨率档位 ("1K" / "2K" / "4K"，空 = 默认)。同时适配 OpenRouter 的
+  /// 顶层 image_config 与 new-api 的 extra_body.google.image_config；
+  /// 只写顶层字段会被 new-api 的 Gemini 转换器忽略，退回默认输出档位。
   Future<ImageEditResult> editImage({
     required String baseUrl,
     required String apiKey,
@@ -99,6 +100,10 @@ class ImageEditService {
     }
 
     final dataUrl = 'data:image/png;base64,${base64Encode(imageBytes)}';
+    final imageConfig = <String, String>{
+      if (aspectRatio.isNotEmpty) 'aspect_ratio': aspectRatio,
+      if (imageResolution.isNotEmpty) 'image_size': imageResolution,
+    };
     final body = jsonEncode({
       'model': modelId,
       'messages': [
@@ -114,21 +119,22 @@ class ImageEditService {
         },
       ],
       'modalities': ['image', 'text'],
-      // 生图比例与分辨率：各家网关无统一约定，同时写入三种常见拼写——
-      // - aspect_ratio: OpenAI 兼容扩展惯例 (OpenRouter Image API 同名)
-      // - image_config: {aspect_ratio, image_size} 对齐 google-genai SDK
-      //   的 snake_case 命名，部分代理直接透传 generationConfig.imageConfig
-      // - size: new-api 系网关的尺寸字段 (imagen 分支接受含冒号的比例写法)
+      if (imageConfig.isNotEmpty) ...{
+        // OpenRouter 的 /chat/completions 图像输出扩展。
+        'image_config': imageConfig,
+        // new-api: relaykit/relayconvert/internal/oai_chat/to_gemini_chat_req.go
+        // 仅从此层级提取配置并转换为 generationConfig.imageConfig。
+        // 这里是直接发送的 HTTP JSON，不是 OpenAI SDK 的 extra_body 合并参数。
+        'extra_body': {
+          'google': {'image_config': imageConfig},
+        },
+      },
+      // 保留旧代理的比例别名；new-api 的 chat 转换不依赖这两个字段
+      // (其 size 比例处理属于 /images 的 imagen 分支，不能代替上述配置)。
       if (aspectRatio.isNotEmpty) ...{
         'aspect_ratio': aspectRatio,
-        'image_config': {
-          'aspect_ratio': aspectRatio,
-          if (imageResolution.isNotEmpty) 'image_size': imageResolution,
-        },
         'size': aspectRatio,
       },
-      if (imageResolution.isNotEmpty && aspectRatio.isEmpty)
-        'image_config': {'image_size': imageResolution},
     });
 
     final headers = <String, String>{

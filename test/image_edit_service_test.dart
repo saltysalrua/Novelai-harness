@@ -141,6 +141,7 @@ void main() {
       // 未选比例/分辨率时相关字段不写入
       expect(sent.containsKey('aspect_ratio'), isFalse);
       expect(sent.containsKey('image_config'), isFalse);
+      expect(sent.containsKey('extra_body'), isFalse);
       expect(sent.containsKey('size'), isFalse);
       final content = (sent['messages'] as List).first['content'] as List;
       expect(content.first['type'], 'text');
@@ -192,8 +193,13 @@ void main() {
         'aspect_ratio': '16:9',
         'image_size': '2K',
       });
+      expect(sent['extra_body'], {
+        'google': {
+          'image_config': {'aspect_ratio': '16:9', 'image_size': '2K'},
+        },
+      });
 
-      // 仅分辨率无比例时：只写 image_config.image_size
+      // 仅分辨率无比例时：两种协议都传 4K，不能因跟随原图而漏传。
       await service.editImage(
         baseUrl: 'https://api.example.com/v1',
         apiKey: '',
@@ -206,6 +212,28 @@ void main() {
       expect(sent2.containsKey('aspect_ratio'), isFalse);
       expect(sent2.containsKey('size'), isFalse);
       expect(sent2['image_config'], {'image_size': '4K'});
+      expect(sent2['extra_body'], {
+        'google': {
+          'image_config': {'image_size': '4K'},
+        },
+      });
+
+      // 仅指定比例，不覆盖供应商默认分辨率。
+      await service.editImage(
+        baseUrl: 'https://api.example.com/v1',
+        apiKey: '',
+        modelId: 'gemini-3.1-flash-image',
+        prompt: '保持竖幅',
+        imageBytes: png,
+        aspectRatio: '2:3',
+      );
+      final sent3 = jsonDecode(captured!.body) as Map<String, dynamic>;
+      expect(sent3['image_config'], {'aspect_ratio': '2:3'});
+      expect(sent3['extra_body'], {
+        'google': {
+          'image_config': {'aspect_ratio': '2:3'},
+        },
+      });
     });
 
     test('解析 content 字符串内嵌 markdown base64 图片', () async {
