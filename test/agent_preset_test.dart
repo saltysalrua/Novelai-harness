@@ -212,6 +212,12 @@ void main() {
         contains(BuiltinSkills.v5PromptArchitect.systemPrompt),
       );
       expect(result.content, contains('不强制额外生图探测'));
+      expect(result.content, contains('严禁擅自添加衣服/发型等 tag'));
+      expect(result.content, contains('xxx(角色名) (xxx/皮肤名) (xxx/作品名)'));
+      expect(
+        result.content,
+        contains('非用户明确要求，绝对不应该添加任何衣服、发型等 tag 来干扰模型'),
+      );
 
       final inpaintResult = await tool.execute('call_inpaint', {
         'skill_name': 'inpaint-specialist',
@@ -228,6 +234,7 @@ void main() {
       );
       expect(inpaintResult.content, contains('prompt 留空复用工作台提示词'));
       expect(inpaintResult.content, contains('费用以工具返回及账号状态为准'));
+      expect(inpaintResult.content, contains('严禁擅自追加衣服与发型 tag'));
     });
 
     test('LoadSkillTool returns error for unknown skill', () async {
