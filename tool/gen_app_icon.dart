@@ -32,7 +32,9 @@ void main(List<String> args) {
     return;
   }
   final side = source.width < source.height ? source.width : source.height;
-  print('源图: $sourcePath (${source.width}x${source.height}, 取中心 ${side}x$side 裁切)');
+  print(
+    '源图: $sourcePath (${source.width}x${source.height}, 取中心 ${side}x$side 裁切)',
+  );
 
   // 统一先裁成正方形 (取居中最大正方形)，避免非正方形源图拉伸变形
   final square = side == source.width && side == source.height
@@ -46,11 +48,11 @@ void main(List<String> args) {
         );
 
   Image scaled(int size) => copyResize(
-        square,
-        width: size,
-        height: size,
-        interpolation: Interpolation.average,
-      );
+    square,
+    width: size,
+    height: size,
+    interpolation: Interpolation.average,
+  );
   void writePng(String path, Image image) {
     File(path)
       ..parent.createSync(recursive: true)
@@ -61,9 +63,7 @@ void main(List<String> args) {
   // 1. Windows ICO (多尺寸合一；目录项 + PNG-in-ICO 数据块，Vista+ 原生支持)
   //   image 包的 IcoEncoder 未从主库导出，此处按官方 ICO 二进制格式手工封装。
   final icoSizes = [16, 24, 32, 48, 64, 128, 256];
-  final icoBytes = _encodeMultiSizeIco(
-    icoSizes.map(scaled).toList(),
-  );
+  final icoBytes = _encodeMultiSizeIco(icoSizes.map(scaled).toList());
   File('windows/runner/resources/app_icon.ico').writeAsBytesSync(icoBytes);
   print('  ✓ windows/runner/resources/app_icon.ico ($icoSizes)');
 
@@ -97,12 +97,11 @@ void main(List<String> args) {
 /// 多尺寸 ICO 封装：16 字节目录项/帧 + 依次拼接的 PNG 数据块。
 /// 256px 宽高在目录项中以 0 表示 (官方 ICO 规范)。
 Uint8List _encodeMultiSizeIco(List<Image> frames) {
-  final pngBlobs = [
-    for (final frame in frames) encodePng(frame),
-  ];
+  final pngBlobs = [for (final frame in frames) encodePng(frame)];
   final count = frames.length;
   final headerLength = 6 + count * 16;
-  final totalLength = headerLength + pngBlobs.fold<int>(0, (sum, b) => sum + b.length);
+  final totalLength =
+      headerLength + pngBlobs.fold<int>(0, (sum, b) => sum + b.length);
   final out = ByteData(totalLength);
 
   // 文件头: 保留字 0 / 类型 1 (ICO) / 帧数

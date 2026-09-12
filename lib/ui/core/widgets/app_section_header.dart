@@ -61,7 +61,11 @@ class AppSectionHeader extends StatelessWidget {
           if (trailing != null && constraints.maxWidth < 480) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [buildTitle(), const SizedBox(height: AppSpacing.xs), trailing!],
+              children: [
+                buildTitle(),
+                const SizedBox(height: AppSpacing.xs),
+                trailing!,
+              ],
             );
           }
 
