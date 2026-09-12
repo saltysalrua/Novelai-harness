@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/harness/presets/agent_preset.dart';
 import '../../core/harness/skills/skills.dart';
 import '../../core/harness/tools/agent_tool.dart';
 import '../models/novelai_models.dart';
+import 'image_storage_directory_service.dart';
 
 /// 主题模式偏好 (跟随系统 / 亮色 / 深色)
 ///
@@ -462,6 +462,16 @@ class AppConfig {
 
 /// 配置持久化与自适应加载服务
 class ConfigService {
+  ConfigService({ImageStorageDirectoryService? imageStorageDirectoryService})
+    : _imageStorageDirectories =
+          imageStorageDirectoryService ?? ImageStorageDirectoryService();
+
+  final ImageStorageDirectoryService _imageStorageDirectories;
+
+  /// 启动与设置变更共用：安卓需真实读写探测，失败回退应用文档目录。
+  Future<String> resolveImageSaveDirectory(String configuredDirectory) =>
+      _imageStorageDirectories.resolve(configuredDirectory);
+
   static const String _keyNovelAiKey = 'novelai_key';
   static const String _keyAnySearchApiKey = 'anysearch_api_key';
   static const String _keyModel = 'novelai_model';
@@ -683,9 +693,11 @@ class ConfigService {
           '';
     }
 
-    // 确定默认保存目录
-    if (saveDir.isEmpty) {
-      saveDir = await _getDefaultSaveDirectory();
+    // 修复安卓旧版本选中的不可写公共目录；将修正路径落盘，重启保持一致。
+    final resolvedSaveDir = await resolveImageSaveDirectory(saveDir);
+    if (resolvedSaveDir != saveDir) {
+      saveDir = resolvedSaveDir;
+      await prefs.setString(_keySaveDir, saveDir);
     }
 
     // LLM 多供应商配置加载与平滑迁移
@@ -1446,18 +1458,5 @@ class ConfigService {
       }
     } catch (_) {}
     return null;
-  }
-
-  Future<String> _getDefaultSaveDirectory() async {
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final outputDir = Directory(p.join(dir.path, 'NovelAI_Output'));
-      if (!outputDir.existsSync()) {
-        outputDir.createSync(recursive: true);
-      }
-      return outputDir.path;
-    } catch (_) {
-      return '';
-    }
   }
 }

@@ -824,6 +824,13 @@ class StudioViewModel extends ChangeNotifier
   @override
   Future<void> updateConfig(AppConfig newConfig) async {
     final oldConfig = _config;
+    if (newConfig.saveDirectory != oldConfig.saveDirectory) {
+      newConfig = newConfig.copyWith(
+        saveDirectory: await _configService.resolveImageSaveDirectory(
+          newConfig.saveDirectory,
+        ),
+      );
+    }
     _config = newConfig;
     // 主题模式即时生效：MaterialApp 根节点监听全局控制器局部刷新，
     // 200ms 平滑切色，不走 notifyListeners 全局重绘

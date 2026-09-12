@@ -119,6 +119,7 @@ Novelai-harness/
 │   │   │   ├── watermark_service.dart          # 图像导出管道单一事实源 (可见水印/自动对比度/智能选位/Koch-Zhao DCT 盲水印)
 │   │   │   ├── image_save_path_service.dart    # 图片命名宏、生成快照、相对目录模板校验与安全净化
 │   │   │   ├── image_file_store.dart           # 递归目录、独占占位、防覆盖编号与配对原图副本写入
+│   │   │   ├── image_storage_directory_service.dart # 安卓存储目录读写探测、旧配置修复与应用文档目录回退
 │   │   │   ├── image_edit_service.dart         # 外部绘图模型整图编辑服务 (OpenAI 兼容 /chat/completions 传图返图)
 │   │   │   ├── comfyui_service.dart            # ComfyUI PromptToolkit AI Bridge 客户端 (注册表探测/参数下发/采样器选项实时拉取)
 │   │   │   ├── image_metadata_service.dart     # PNG Chunks 与 Alpha LSB 隐写读取、元数据脱敏抹除与注入
@@ -392,6 +393,15 @@ $$\text{原始原图} \xrightarrow{\text{步骤 1}} \text{可见水印合成} \x
 - **安全与冲突**：不允许绝对路径、`..`、空目录或占用根下的 `cache` / `board_refs`；宏值先净化，提示词中的斜杠不会生成目录。Windows 设备名、尾随点空格、控制字符被净化，Unicode 按 UTF-8 字节截短；模板最长 512 字符、最多 7 层子目录，展开相对路径预算 180 字节（冲突编号另计）。无效模板在设置中阻止保存，外部损坏配置在导出时回退默认模板。
 - **无覆盖落盘**：`ImageFileStore` 检查子目录链接逃逸，以 `File.createSync(exclusive: true)` 占位，已有同名文件/目录自动递增 `_2`、`_3`。成品与 `_raw` 副本作为配对路径共同选取编号，写入异常清理本次占位，不触碰旧文件。
 - **缓存隔离**：`cache/` 原图仍使用内部平铺命名，且同样不覆盖；命名模板不改变历史索引、画布布局或缓存清理语义。正式导出失败时保留缓存和未保存状态，支持修改目录或模板后重试。导出处理顺序仍为可见水印 → 元数据 → 盲水印。
+
+---
+
+### 3.4.2 安卓图片持久化与系统导出
+
+- **目录能力分离**：安卓 `FilePicker.getDirectoryPath()` 返回的公共目录即使存在、已获 SAF 授权，也不等于 `dart:io` 能写 PNG、JSON 与子目录。`ImageStorageDirectoryService` 在启动及目录配置变更时验证普通绝对路径，通过独占临时子目录与 JSON 读写探针检查持久化能力；仅清理自身探针，不修改已有文件。
+- **旧配置修复**：保留仍可读写的旧目录；空串、相对路径、`content://` URI 或不可写目录回退 `getApplicationDocumentsDirectory()/NovelAI_Output`，修正后写回 `novelai_save_dir`。安卓应用目录也失败时显式抛错，不再退成空串导致仅存内存；桌面自定义目录语义不变。
+- **界面入口**：安卓设置页目录只读，不再提供公共目录选择器。内部图片缓存、正式导出、历史索引与画布沿用同一仓储和持久目录，自动保存关闭时也可重启恢复未保存图片。导出公共目录仍走长按图片 → 保存到文件夹 → 系统单文件保存（`FilePicker.saveFile(bytes:)`），不把 SAF 返回值当成本地缓存路径。应用私有图片会随卸载/清除应用数据删除，设置页明确提示。
+- **回归覆盖**：`android_image_persistence_test.dart` 覆盖目录回退、保留旧数据、探针清理、配置修复落盘、运行时变更以及自动/手动保存下新 ViewModel 重启恢复和懒加载原图；所有绘图请求均 Mock。
 
 ---
 

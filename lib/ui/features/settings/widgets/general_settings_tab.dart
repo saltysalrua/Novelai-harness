@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../data/services/config_service.dart';
@@ -232,6 +233,8 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final isAndroid =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 600;
@@ -358,7 +361,9 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile(
                 title: l10n.settingsSaveDirTitle,
-                subtitle: l10n.settingsSaveDirSubtitle,
+                subtitle: isAndroid
+                    ? l10n.settingsAndroidSaveDirSubtitle
+                    : l10n.settingsSaveDirSubtitle,
                 control: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 320),
                   child: Row(
@@ -368,6 +373,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                           height: 36,
                           child: TextField(
                             controller: _draft.saveDirController,
+                            readOnly: isAndroid,
                             style: const TextStyle(fontSize: 12),
                             decoration: InputDecoration(
                               hintText: l10n.settingsSaveDirHint,
@@ -379,12 +385,14 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      AppActionButton(
-                        icon: Icons.folder_open_rounded,
-                        label: l10n.settingsChooseButton,
-                        onPressed: _pickDirectory,
-                      ),
+                      if (!isAndroid) ...[
+                        const SizedBox(width: 8),
+                        AppActionButton(
+                          icon: Icons.folder_open_rounded,
+                          label: l10n.settingsChooseButton,
+                          onPressed: _pickDirectory,
+                        ),
+                      ],
                     ],
                   ),
                 ),

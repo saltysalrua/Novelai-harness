@@ -311,6 +311,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsSaveDirSubtitle => '生成的高清图像与元数据自动保存至此路径';
 
   @override
+  String get settingsAndroidSaveDirSubtitle =>
+      '图片与历史保存在应用可写目录，重启后保留。要导出到公共目录，请长按图片选择保存到文件夹。卸载应用会删除应用内图片。';
+
+  @override
   String get settingsSaveDirHint => '存储路径...';
 
   @override

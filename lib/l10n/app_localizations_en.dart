@@ -321,6 +321,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Generated images and metadata are saved to this path';
 
   @override
+  String get settingsAndroidSaveDirSubtitle =>
+      'Images and history use app-writable storage and survive restarts. To export to a public folder, long-press an image and choose Save to folder. Uninstalling the app deletes its private images.';
+
+  @override
   String get settingsSaveDirHint => 'Storage path...';
 
   @override

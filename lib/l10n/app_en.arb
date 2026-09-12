@@ -121,6 +121,7 @@
   "settingsImageSaveTooLong": "Use at most 512 characters and 7 levels of subfolders.",
   "settingsSaveDirTitle": "Local Storage Directory",
   "settingsSaveDirSubtitle": "Generated images and metadata are saved to this path",
+  "settingsAndroidSaveDirSubtitle": "Images and history use app-writable storage and survive restarts. To export to a public folder, long-press an image and choose Save to folder. Uninstalling the app deletes its private images.",
   "settingsSaveDirHint": "Storage path...",
   "settingsChooseButton": "Choose",
   "settingsAutoSaveTitle": "Auto-save Generated Images",
