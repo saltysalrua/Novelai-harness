@@ -578,6 +578,7 @@ class AgentChatCardState extends State<AgentChatCard> {
         return AgentRewindView(
           viewModel: widget.viewModel,
           onBack: () => _switchView(_AgentCardView.chat),
+          compact: widget.compact,
         );
       case _AgentCardView.chat:
         break;

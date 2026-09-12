@@ -3373,4 +3373,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cacheUsageInputUncached => 'Input (uncached)';
+
+  @override
+  String get windowMinimize => 'Minimize';
+
+  @override
+  String get windowRestore => 'Restore Down';
+
+  @override
+  String get windowMaximize => 'Maximize';
+
+  @override
+  String get settingsTabGeneral => 'General';
+
+  @override
+  String get settingsTabModels => 'Models';
+
+  @override
+  String get settingsTabPresets => 'Presets';
+
+  @override
+  String get settingsTabDefaults => 'Defaults';
+
+  @override
+  String get settingsTabBill => 'Bill';
+
+  @override
+  String get bootLoadFailedTitle => 'Failed to load startup configuration';
+
+  @override
+  String get bootLoadFailedHint =>
+      'The image storage directory is unavailable. Check storage permissions and free space, then retry.';
+
+  @override
+  String get bootRetry => 'Retry';
 }

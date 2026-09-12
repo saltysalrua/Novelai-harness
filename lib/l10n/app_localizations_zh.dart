@@ -3213,4 +3213,37 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cacheUsageInputUncached => '输入（未缓存）';
+
+  @override
+  String get windowMinimize => '最小化';
+
+  @override
+  String get windowRestore => '向下还原';
+
+  @override
+  String get windowMaximize => '最大化';
+
+  @override
+  String get settingsTabGeneral => '常规';
+
+  @override
+  String get settingsTabModels => '模型';
+
+  @override
+  String get settingsTabPresets => '预设';
+
+  @override
+  String get settingsTabDefaults => '默认';
+
+  @override
+  String get settingsTabBill => '账单';
+
+  @override
+  String get bootLoadFailedTitle => '启动配置加载失败';
+
+  @override
+  String get bootLoadFailedHint => '图片存储目录不可用，请检查存储权限与剩余空间后重试。';
+
+  @override
+  String get bootRetry => '重试';
 }

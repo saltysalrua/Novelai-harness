@@ -4,6 +4,7 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import '../widgets/bill_settings_tab.dart';
 import '../widgets/defaults_settings_tab.dart';
@@ -34,15 +35,26 @@ class SettingsDialog extends StatefulWidget {
 }
 
 class _SettingsDialogState extends State<SettingsDialog> {
-  /// 设置分类单一事实源 (索引 / 图标 / 文案)：桌面侧栏与窄屏顶部胶囊栏共用，
-  /// 避免两处各抄一份导致新增分类漏改。
-  static const List<({IconData icon, String label})> _settingsTabs = [
-    (icon: Icons.tune_outlined, label: 'General'),
-    (icon: Icons.smart_toy_outlined, label: 'Models'),
-    (icon: Icons.psychology_outlined, label: 'Presets'),
-    (icon: Icons.layers_outlined, label: 'Defaults'),
-    (icon: Icons.receipt_long_outlined, label: 'Bill'),
+  /// 设置分类单一事实源 (图标)：桌面侧栏与窄屏顶部胶囊栏共用，
+  /// 避免两处各抄一份导致新增分类漏改；文案经 [_settingsTabLabel] 接入 l10n。
+  static const List<IconData> _settingsTabIcons = [
+    Icons.tune_outlined,
+    Icons.smart_toy_outlined,
+    Icons.psychology_outlined,
+    Icons.layers_outlined,
+    Icons.receipt_long_outlined,
   ];
+
+  /// 分类文案 l10n 取词 (索引与 [_settingsTabIcons] 严格对齐)
+  static String _settingsTabLabel(AppLocalizations l10n, int index) =>
+      switch (index) {
+        0 => l10n.settingsTabGeneral,
+        1 => l10n.settingsTabModels,
+        2 => l10n.settingsTabPresets,
+        3 => l10n.settingsTabDefaults,
+        4 => l10n.settingsTabBill,
+        _ => l10n.settings,
+      };
 
   int _activeTabIndex = 0;
 
@@ -241,6 +253,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   /// 窄屏顶部横向滚动分类胶囊栏 (复用 AppSegmentedPillBar，与全应用观感一致)
   Widget _buildHorizontalTabs(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
 
     return Container(
       decoration: BoxDecoration(
@@ -254,11 +267,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
         selectedValue: _activeTabIndex,
         onValueChanged: (index) => setState(() => _activeTabIndex = index),
         items: [
-          for (var i = 0; i < _settingsTabs.length; i++)
+          for (var i = 0; i < _settingsTabIcons.length; i++)
             AppSegmentedItem<int>(
               value: i,
-              label: _settingsTabs[i].label,
-              icon: _settingsTabs[i].icon,
+              label: _settingsTabLabel(l10n, i),
+              icon: _settingsTabIcons[i],
             ),
         ],
       ),
@@ -268,6 +281,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   /// 左侧导航栏
   Widget _buildSidebar(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Container(
       width: 200,
       decoration: BoxDecoration(
@@ -292,11 +306,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ),
 
           // 导航选项卡 (与窄屏顶部胶囊栏共用同一份分类清单)
-          for (var i = 0; i < _settingsTabs.length; i++)
+          for (var i = 0; i < _settingsTabIcons.length; i++)
             _buildSidebarItem(
               index: i,
-              icon: _settingsTabs[i].icon,
-              label: _settingsTabs[i].label,
+              icon: _settingsTabIcons[i],
+              label: _settingsTabLabel(l10n, i),
             ),
         ],
       ),
@@ -324,12 +338,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final colors = context.colors;
     final l10n = context.l10n;
     final (title, subtitle) = switch (_activeTabIndex) {
-      0 => ('General', l10n.settingsSubtitleGeneral),
-      1 => ('Models', l10n.settingsSubtitleModels),
-      2 => ('Presets', l10n.settingsSubtitlePresets),
-      3 => ('Defaults', l10n.settingsSubtitleDefaults),
-      4 => ('Bill', l10n.settingsSubtitleBill),
-      _ => ('Settings', ''),
+      0 => (l10n.settingsTabGeneral, l10n.settingsSubtitleGeneral),
+      1 => (l10n.settingsTabModels, l10n.settingsSubtitleModels),
+      2 => (l10n.settingsTabPresets, l10n.settingsSubtitlePresets),
+      3 => (l10n.settingsTabDefaults, l10n.settingsSubtitleDefaults),
+      4 => (l10n.settingsTabBill, l10n.settingsSubtitleBill),
+      _ => (l10n.settings, ''),
     };
 
     return Padding(

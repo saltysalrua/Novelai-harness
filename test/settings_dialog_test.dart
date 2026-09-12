@@ -38,8 +38,8 @@ void main() {
     expect(find.text('Opus 免点数保护'), findsOneWidget);
     expect(find.textContaining('配置 NovelAI 绘图服务凭证'), findsOneWidget);
 
-    // 切到 Models (IndexedStack 常驻构建，用头部副标题断言激活页)
-    await tester.tap(sidebarItem('Models'));
+    // 切到 Models (IndexedStack 常驻构建，用头部副标题断言激活页；zh 环境下侧栏标签已接入 l10n)
+    await tester.tap(sidebarItem('模型'));
     await tester.pumpAndSettle();
     expect(find.textContaining('按供应商管理大语言模型服务'), findsOneWidget);
     expect(find.text('当前供应商'), findsOneWidget);
@@ -47,7 +47,7 @@ void main() {
     expect(find.text('在线拉取模型'), findsOneWidget);
 
     // 切到 Presets
-    await tester.tap(sidebarItem('Presets'));
+    await tester.tap(sidebarItem('预设'));
     await tester.pumpAndSettle();
     expect(find.textContaining('管理 Agent 预设'), findsOneWidget);
     expect(find.text('当前预设'), findsOneWidget);
@@ -56,28 +56,28 @@ void main() {
     expect(find.text('Modifiable Parameters'), findsOneWidget);
 
     // 切到 Defaults
-    await tester.tap(sidebarItem('Defaults'));
+    await tester.tap(sidebarItem('默认'));
     await tester.pumpAndSettle();
     expect(find.textContaining('配置启动时的出厂默认生图模型'), findsOneWidget);
     expect(find.text('默认生图模型'), findsOneWidget);
     expect(find.text('默认 CFG Scale'), findsOneWidget);
 
     // 切到 Bill
-    await tester.tap(sidebarItem('Bill'));
+    await tester.tap(sidebarItem('账单'));
     await tester.pumpAndSettle();
     expect(find.textContaining('按周期统计各模型的 Token 用量账单'), findsOneWidget);
     expect(find.text('Usage Bill'), findsOneWidget);
 
     // 切回 General 输入内容，再多次切页验证 IndexedStack 状态保持 (输入内容不丢)
-    await tester.tap(sidebarItem('General'));
+    await tester.tap(sidebarItem('常规'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextField, 'pst-...'),
       'pst-test-key',
     );
-    await tester.tap(sidebarItem('Models'));
+    await tester.tap(sidebarItem('模型'));
     await tester.pumpAndSettle();
-    await tester.tap(sidebarItem('General'));
+    await tester.tap(sidebarItem('常规'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, 'pst-test-key'), findsOneWidget);
 
@@ -103,7 +103,7 @@ void main() {
 
     await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
-    await tester.tap(sidebarItem('Models'));
+    await tester.tap(sidebarItem('模型'));
     await tester.pumpAndSettle();
 
     expect(find.text('2 / 2 个模型'), findsOneWidget);

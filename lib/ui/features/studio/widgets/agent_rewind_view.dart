@@ -14,10 +14,14 @@ class AgentRewindView extends StatefulWidget {
   final StudioViewModel viewModel;
   final VoidCallback onBack;
 
+  /// 窄屏/触屏紧凑形态：隐藏「Esc 退出」徽章 (移动端通常无物理键盘)
+  final bool compact;
+
   const AgentRewindView({
     super.key,
     required this.viewModel,
     required this.onBack,
+    this.compact = false,
   });
 
   @override
@@ -119,12 +123,13 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  AppBadge(
-                    label: context.l10n.rewindEscExit,
-                    variant: AppBadgeVariant.neutral,
-                    shape: AppBadgeShape.pill,
-                    fontSize: 10,
-                  ),
+                  if (!widget.compact)
+                    AppBadge(
+                      label: context.l10n.rewindEscExit,
+                      variant: AppBadgeVariant.neutral,
+                      shape: AppBadgeShape.pill,
+                      fontSize: 10,
+                    ),
                 ],
               ),
             ),

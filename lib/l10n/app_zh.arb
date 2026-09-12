@@ -1432,5 +1432,16 @@
   "settingsCacheAffinityDesc": "仅在网关支持时启用，帮助同一会话路由至同一缓存；不保证命中。",
   "cacheUsageUnreported": "未报告",
   "cacheUsagePartial": "部分报告",
-  "cacheUsageInputUncached": "输入（未缓存）"
+  "cacheUsageInputUncached": "输入（未缓存）",
+  "windowMinimize": "最小化",
+  "windowRestore": "向下还原",
+  "windowMaximize": "最大化",
+  "settingsTabGeneral": "常规",
+  "settingsTabModels": "模型",
+  "settingsTabPresets": "预设",
+  "settingsTabDefaults": "默认",
+  "settingsTabBill": "账单",
+  "bootLoadFailedTitle": "启动配置加载失败",
+  "bootLoadFailedHint": "图片存储目录不可用，请检查存储权限与剩余空间后重试。",
+  "bootRetry": "重试"
 }

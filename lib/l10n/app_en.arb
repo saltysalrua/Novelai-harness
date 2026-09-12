@@ -1432,5 +1432,16 @@
   "settingsCacheAffinityDesc": "Enable only when supported by the gateway. Helps route a session to the same cache; hits are not guaranteed.",
   "cacheUsageUnreported": "Not reported",
   "cacheUsagePartial": "Partially reported",
-  "cacheUsageInputUncached": "Input (uncached)"
+  "cacheUsageInputUncached": "Input (uncached)",
+  "windowMinimize": "Minimize",
+  "windowRestore": "Restore Down",
+  "windowMaximize": "Maximize",
+  "settingsTabGeneral": "General",
+  "settingsTabModels": "Models",
+  "settingsTabPresets": "Presets",
+  "settingsTabDefaults": "Defaults",
+  "settingsTabBill": "Bill",
+  "bootLoadFailedTitle": "Failed to load startup configuration",
+  "bootLoadFailedHint": "The image storage directory is unavailable. Check storage permissions and free space, then retry.",
+  "bootRetry": "Retry"
 }

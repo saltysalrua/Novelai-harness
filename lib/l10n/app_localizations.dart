@@ -5935,6 +5935,72 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'输入（未缓存）'**
   String get cacheUsageInputUncached;
+
+  /// No description provided for @windowMinimize.
+  ///
+  /// In zh, this message translates to:
+  /// **'最小化'**
+  String get windowMinimize;
+
+  /// No description provided for @windowRestore.
+  ///
+  /// In zh, this message translates to:
+  /// **'向下还原'**
+  String get windowRestore;
+
+  /// No description provided for @windowMaximize.
+  ///
+  /// In zh, this message translates to:
+  /// **'最大化'**
+  String get windowMaximize;
+
+  /// No description provided for @settingsTabGeneral.
+  ///
+  /// In zh, this message translates to:
+  /// **'常规'**
+  String get settingsTabGeneral;
+
+  /// No description provided for @settingsTabModels.
+  ///
+  /// In zh, this message translates to:
+  /// **'模型'**
+  String get settingsTabModels;
+
+  /// No description provided for @settingsTabPresets.
+  ///
+  /// In zh, this message translates to:
+  /// **'预设'**
+  String get settingsTabPresets;
+
+  /// No description provided for @settingsTabDefaults.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认'**
+  String get settingsTabDefaults;
+
+  /// No description provided for @settingsTabBill.
+  ///
+  /// In zh, this message translates to:
+  /// **'账单'**
+  String get settingsTabBill;
+
+  /// No description provided for @bootLoadFailedTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'启动配置加载失败'**
+  String get bootLoadFailedTitle;
+
+  /// No description provided for @bootLoadFailedHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片存储目录不可用，请检查存储权限与剩余空间后重试。'**
+  String get bootLoadFailedHint;
+
+  /// No description provided for @bootRetry.
+  ///
+  /// In zh, this message translates to:
+  /// **'重试'**
+  String get bootRetry;
 }
 
 class _AppLocalizationsDelegate

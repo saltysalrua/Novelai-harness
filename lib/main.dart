@@ -1,13 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'data/services/config_service.dart';
 import 'data/services/tag_dictionary_service.dart';
 import 'data/services/window_state_service.dart';
 import 'l10n/app_localizations.dart';
+import 'ui/core/context_l10n.dart';
 import 'ui/core/locale/app_locale_controller.dart';
 import 'ui/core/theme/app_accent_controller.dart';
 import 'ui/core/theme/app_theme.dart';
@@ -70,27 +69,43 @@ void main() async {
 
   // 启动即按持久化配置校正主题模式与 UI 缩放，避免深色用户闪亮屏、
   // 缩放用户首帧尺寸跳动 (配置加载与 StudioViewModel 的 init 各自独立，
-  // 这里多解析一次换取首帧即正确)
-  final configService = ConfigService();
-  final bootConfig = await _seedMobileDefaults(
-    configService,
-    await configService.loadConfig(),
-  );
-  AppThemeModeController.instance.syncFromConfig(bootConfig);
-  AppAccentController.instance.syncFromConfig(bootConfig);
-  AppLocaleController.instance.syncFromConfig(bootConfig);
-  AppUiZoomController.instance.syncFromConfig(bootConfig);
+  // 这里多解析一次换取首帧即正确)。
+  // 安卓存储目录探测失败会让 loadConfig 显式抛错：降级到带重试的
+  // [_BootFailureApp] 轻量错误页，而不是在 runApp 之前直接崩溃黑屏。
+  if (await _syncControllersFromBootConfig()) {
+    runApp(const NovelAiHarnessApp());
+  } else {
+    runApp(const _BootFailureApp());
+  }
+}
 
-  runApp(const NovelAiHarnessApp());
+/// 加载启动配置并同步全局控制器：任何异常都降级为 false，由 [main]
+/// 展示重试错误页，不让主 isolate 在首帧前直接终止。
+Future<bool> _syncControllersFromBootConfig() async {
+  try {
+    final configService = ConfigService();
+    final bootConfig = await _seedMobileDefaults(
+      configService,
+      await configService.loadConfig(),
+    );
+    AppThemeModeController.instance.syncFromConfig(bootConfig);
+    AppAccentController.instance.syncFromConfig(bootConfig);
+    AppLocaleController.instance.syncFromConfig(bootConfig);
+    AppUiZoomController.instance.syncFromConfig(bootConfig);
+    return true;
+  } catch (error, stackTrace) {
+    debugPrint('Boot config load failed: $error\n$stackTrace');
+    return false;
+  }
 }
 
 /// 移动端首次启动的舒适默认值 (只在用户未显式配置时写入一次)：
 ///
 /// - UI 缩放 125%：触控目标更易命中。缩放始终只由 [AppUiZoomController] 一处生效，
 ///   窄屏布局不再自带第二层缩放的 `AppUiZoomScope`，设置页数值即刻所见即所得；
-/// - 本地存储目录回退到应用私有文档目录：Android/iOS 上 `saveDirectory` 为空会让
-///   自动保存与历史持久化静默空转 (且 SAF 目录不能直接用 dart:io 写入)，
-///   先在应用私有目录落盘保证开箱即有持久化。用户可随时在设置中改为 SAF 目录导出。
+/// - 图片存储目录不在此处种子化：安卓空/不可写目录的探测与回退统一由
+///   [ImageStorageDirectoryService] 在 loadConfig 阶段收敛 (落盘 NovelAI_Output)，
+///   避免双入口各自默认目录导致两次启动路径不一致。
 Future<AppConfig> _seedMobileDefaults(
   ConfigService configService,
   AppConfig config,
@@ -109,20 +124,97 @@ Future<AppConfig> _seedMobileDefaults(
     changed = true;
   }
 
-  if (next.saveDirectory.trim().isEmpty) {
-    try {
-      final docs = await getApplicationDocumentsDirectory();
-      next = next.copyWith(saveDirectory: p.join(docs.path, 'NovelAI Harness'));
-      changed = true;
-    } catch (_) {
-      // 获取系统目录失败时保持为空，用户仍可在设置页手动选择
-    }
-  }
-
   if (changed) {
     await configService.saveConfig(next);
   }
   return next;
+}
+
+/// 启动配置加载失败的轻量降级页：展示原因提示并支持原地重试，
+/// 重试成功后用正式应用整树替换当前错误页。
+/// 预主题阶段，直接用内置中性色，不依赖未同步的主题控制器。
+class _BootFailureApp extends StatefulWidget {
+  const _BootFailureApp();
+
+  @override
+  State<_BootFailureApp> createState() => _BootFailureAppState();
+}
+
+class _BootFailureAppState extends State<_BootFailureApp> {
+  bool _retrying = false;
+
+  Future<void> _retry() async {
+    if (_retrying) return;
+    setState(() => _retrying = true);
+    if (await _syncControllersFromBootConfig()) {
+      runApp(const NovelAiHarnessApp());
+      return;
+    }
+    if (mounted) setState(() => _retrying = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      debugShowCheckedModeBanner: false,
+      home: Builder(
+        builder: (context) {
+          final l10n = context.l10n;
+          return Scaffold(
+            backgroundColor: const Color(0xFF191919),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    size: 44,
+                    color: Color(0xFFE2B714),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    l10n.bootLoadFailedTitle,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFE9E9E7),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.bootLoadFailedHint,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF9B9B97),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: _retrying ? null : _retry,
+                    child: _retrying
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(l10n.bootRetry),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 class NovelAiHarnessApp extends StatelessWidget {

@@ -79,7 +79,7 @@ void main() {
     await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
 
-    expect(find.text('General'), findsWidgets);
+    expect(find.text('常规'), findsWidgets);
     expect(find.text('保存设置'), findsOneWidget);
 
     // 关闭设置弹窗

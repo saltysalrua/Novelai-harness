@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../context_l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_context_extensions.dart';
 import 'window_controls.dart';
@@ -18,6 +19,7 @@ class _CustomTitleBarState extends WindowControlsState<CustomTitleBar> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     return Container(
       height: 38.0,
       decoration: BoxDecoration(
@@ -64,7 +66,7 @@ class _CustomTitleBarState extends WindowControlsState<CustomTitleBar> {
             AppWindowButton(
               icon: Icons.remove,
               iconSize: 14,
-              tooltip: '最小化',
+              tooltip: l10n.windowMinimize,
               onPressed: minimizeWindow,
             ),
             AppWindowButton(
@@ -72,13 +74,15 @@ class _CustomTitleBarState extends WindowControlsState<CustomTitleBar> {
                   ? Icons.filter_none_rounded
                   : Icons.crop_square_rounded,
               iconSize: windowIsMaximized ? 11 : 13,
-              tooltip: windowIsMaximized ? '向下还原' : '最大化',
+              tooltip: windowIsMaximized
+                  ? l10n.windowRestore
+                  : l10n.windowMaximize,
               onPressed: toggleMaximizeWindow,
             ),
             AppWindowButton(
               icon: Icons.close_rounded,
               iconSize: 15,
-              tooltip: '关闭',
+              tooltip: l10n.close,
               isClose: true,
               onPressed: closeAppWindow,
             ),

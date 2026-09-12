@@ -52,11 +52,6 @@ class _StudioViewState extends State<StudioView> {
   final GlobalKey<AgentChatCardState> _chatCardKey =
       GlobalKey<AgentChatCardState>();
 
-  /// 对话卡是否处于覆盖视图 (会话抽屉 / 历史回溯)：
-  /// 该状态在卡片内部，靠 [AgentChatCard.onOverlayViewChanged] 回写到宿主，
-  /// 以便系统返回键的 canPop 判态能跟上变化。
-  bool _chatOverlayView = false;
-
   /// 根级 ESC 首按时刻 (双击窗口判定)
   DateTime? _lastRootEscTime;
 
@@ -575,18 +570,20 @@ class _StudioViewState extends State<StudioView> {
     _setMobilePage(0);
   }
 
-  /// 对话卡覆盖视图开合回写 (刷新系统返回键判态)
+  /// 对话卡覆盖视图开合回写：canPop 判态在 build 中动态读取卡片 State，
+  /// 这里只需触发一次重建让 [PopScope] 跟上新状态。
+  /// 注意不能在宿主缓存布尔——批注模式会把 AgentChatCard 整体卸载，
+  /// 缓存会滞留 true 导致系统返回键被死锁拦截。
   void _onChatOverlayViewChanged() {
-    final hasOverlay = _chatCardKey.currentState?.hasOverlayView ?? false;
-    if (_chatOverlayView != hasOverlay) {
-      setState(() => _chatOverlayView = hasOverlay);
-    }
+    setState(() {});
   }
 
   /// 系统返回键是否存在可消费的层内动作 (与 [_handleSystemBack] 分支顺序严格一致)
   bool _hasSystemBackAction({required bool isNarrow}) {
     if (_viewModel.activeSidebarTab == StudioSidebarTab.library) return true;
-    if (_chatOverlayView) return true;
+    // 动态读取卡片当前 State：卡片被批注模式卸载后 currentState 为 null，
+    // 判态自然归 false，不会吞掉返回键。
+    if (_chatCardKey.currentState?.hasOverlayView ?? false) return true;
     if (_viewModel.board.isAnnotatingImage) return true;
     if (_viewModel.isEditingCharacterPositions) return true;
     if (_viewModel.isEditingWatermarkPosition) return true;
@@ -896,7 +893,7 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
                       iconSize: 11,
                       height: 32,
                       width: 24,
-                      tooltip: '最小化',
+                      tooltip: l10n.windowMinimize,
                       onPressed: minimizeWindow,
                     ),
                     AppWindowButton(
@@ -906,7 +903,9 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
                       iconSize: windowIsMaximized ? 10 : 11,
                       height: 32,
                       width: 24,
-                      tooltip: windowIsMaximized ? '向下还原' : '最大化',
+                      tooltip: windowIsMaximized
+                          ? l10n.windowRestore
+                          : l10n.windowMaximize,
                       onPressed: toggleMaximizeWindow,
                     ),
                     AppWindowButton(
@@ -914,7 +913,7 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
                       iconSize: 12,
                       height: 32,
                       width: 24,
-                      tooltip: '关闭',
+                      tooltip: l10n.close,
                       isClose: true,
                       onPressed: closeAppWindow,
                     ),
