@@ -5,6 +5,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_control_flow.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
@@ -57,32 +58,37 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
         children: [
           AppSectionHeader(title: l10n.settingsSectionUsageBill),
 
-          // 周期切换胶囊组
+          // 周期切换胶囊组 (宽屏首尾分居，窄屏自动折行)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Row(
-              children: [
-                AppSegmentedPillBar<BillPeriod>(
-                  items: [
-                    for (final period in BillPeriod.values)
-                      AppSegmentedItem(
-                        value: period,
-                        label: _periodLabel(l10n, period),
-                      ),
-                  ],
-                  selectedValue: _billPeriod,
-                  onValueChanged: (period) =>
-                      setState(() => _billPeriod = period),
-                ),
-                const Spacer(),
-                Text(
-                  l10n.billSummaryRequestsAndTokens(
-                    summary.requests,
-                    UsageLedgerService.formatTokens(summary.usage.total),
+            child: SizedBox(
+              width: double.infinity,
+              child: AppControlFlow(
+                spacing: AppSpacing.md,
+                alignment: WrapAlignment.spaceBetween,
+                children: [
+                  AppSegmentedPillBar<BillPeriod>(
+                    scrollable: true,
+                    items: [
+                      for (final period in BillPeriod.values)
+                        AppSegmentedItem(
+                          value: period,
+                          label: _periodLabel(l10n, period),
+                        ),
+                    ],
+                    selectedValue: _billPeriod,
+                    onValueChanged: (period) =>
+                        setState(() => _billPeriod = period),
                   ),
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
-                ),
-              ],
+                  Text(
+                    l10n.billSummaryRequestsAndTokens(
+                      summary.requests,
+                      UsageLedgerService.formatTokens(summary.usage.total),
+                    ),
+                    style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  ),
+                ],
+              ),
             ),
           ),
 

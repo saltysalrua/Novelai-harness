@@ -7,6 +7,7 @@ import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
+import '../../../core/widgets/app_control_flow.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_icon_button.dart';
@@ -398,8 +399,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         AppSettingTile(
           title: l10n.settingsCurrentProvider,
           subtitle: l10n.settingsCurrentProviderSubtitle,
-          control: Row(
-            mainAxisSize: MainAxisSize.min,
+          control: AppControlFlow(
             children: [
               AppDropdown<String>(
                 value: _draft.selectedProviderId,
@@ -414,7 +414,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
               AppActionButton(
                 icon: Icons.add_rounded,
                 label: l10n.settingsNewProviderButton,
@@ -427,8 +426,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                   ),
                 ),
               ),
-              if (_draft.providers.length > 1) ...[
-                const SizedBox(width: 4),
+              if (_draft.providers.length > 1)
                 AppIconButton(
                   icon: Icons.delete_outline_rounded,
                   iconSize: 18,
@@ -437,7 +435,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                   onPressed: () =>
                       setState(() => _draft.deleteCurrentProvider()),
                 ),
-              ],
             ],
           ),
         ),
@@ -467,8 +464,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         AppSettingTile(
           title: l10n.settingsApiEndpointAndProtocol,
           subtitle: l10n.settingsApiEndpointAndProtocolSubtitle,
-          control: Row(
-            mainAxisSize: MainAxisSize.min,
+          control: AppControlFlow(
             children: [
               SizedBox(
                 width: 250,
@@ -485,7 +481,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
               AppDropdown<LlmProtocol>(
                 value: _draft.protocol,
                 variant: AppDropdownVariant.compact,
@@ -576,8 +571,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         AppSettingTile(
           title: l10n.settingsModelsListTitle,
           subtitle: l10n.settingsModelsListSubtitle,
-          control: Row(
-            mainAxisSize: MainAxisSize.min,
+          control: AppControlFlow(
             children: [
               // 在线拉取模型按钮
               ElevatedButton.icon(
@@ -621,7 +615,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
               AppActionButton(
                 icon: Icons.add_rounded,
                 label: l10n.settingsAddModel,
@@ -677,11 +670,8 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         AppSettingTile(
           title: l10n.settingsImageEditModelTitle,
           subtitle: l10n.settingsImageEditModelSubtitle,
-          control: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          control: AppControlFlow(
             alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               AppDropdown<String>(
                 value: _draft.imageEditProviderId,
@@ -698,7 +688,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 onChanged: (val) =>
                     setState(() => _draft.setImageEditProvider(val)),
               ),
-              const SizedBox(width: 8),
               AppDropdown<String>(
                 value: _draft.imageEditModelId,
                 width: 240,
@@ -856,61 +845,85 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
   }
 
   /// 搜索 / 排序 / 计数工具条
+  ///
+  /// 单行自然宽度约 650px：低于阈值改用折行布局 (搜索框独占一行，
+  /// 其余控件流式排布)，彻底杜绝窄屏溢出。
   Widget _buildToolbar(int visibleCount) {
     final colors = context.colors;
     final l10n = context.l10n;
     final total = widget.provider.models.length;
+
+    Widget buildSearch({required bool fillWidth}) => SizedBox(
+      width: fillWidth ? double.infinity : 280,
+      child: AppSearchField(
+        controller: _searchController,
+        hintText: l10n.settingsSearchModelHint,
+        debounceDuration: Duration.zero,
+        onChanged: (_) {},
+      ),
+    );
+    final sortDropdown = AppDropdown<_ModelSortMode>(
+      value: _sortMode,
+      variant: AppDropdownVariant.compact,
+      width: 150,
+      items: _ModelSortMode.values
+          .map(
+            (m) => AppDropdownItem(
+              value: m,
+              label: switch (m) {
+                _ModelSortMode.defaultOrder => l10n.settingsModelSortDefault,
+                _ModelSortMode.nameAsc => l10n.settingsModelSortNameAsc,
+                _ModelSortMode.nameDesc => l10n.settingsModelSortNameDesc,
+              },
+            ),
+          )
+          .toList(),
+      onChanged: (val) => setState(() => _sortMode = val),
+    );
+    // 仅绘图模型过滤 (快速定位图像输出能力的模型)
+    final imageOnlyChip = AppToolChip(
+      icon: Icons.auto_awesome,
+      iconSize: 13,
+      fontSize: 11,
+      label: l10n.settingsFilterImageOnly,
+      isSelected: _imageOnly,
+      variant: AppToolChipVariant.tinted,
+      tooltip: l10n.settingsFilterImageOnlyTooltip,
+      onTap: () => setState(() => _imageOnly = !_imageOnly),
+    );
+    final countText = Text(
+      l10n.settingsModelCount(visibleCount, total),
+      style: TextStyle(fontSize: 12, color: colors.textMuted),
+    );
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 280,
-            child: AppSearchField(
-              controller: _searchController,
-              hintText: l10n.settingsSearchModelHint,
-              debounceDuration: Duration.zero,
-              onChanged: (_) {},
-            ),
-          ),
-          const SizedBox(width: 8),
-          AppDropdown<_ModelSortMode>(
-            value: _sortMode,
-            variant: AppDropdownVariant.compact,
-            width: 150,
-            items: _ModelSortMode.values
-                .map(
-                  (m) => AppDropdownItem(
-                    value: m,
-                    label: switch (m) {
-                      _ModelSortMode.defaultOrder =>
-                        l10n.settingsModelSortDefault,
-                      _ModelSortMode.nameAsc => l10n.settingsModelSortNameAsc,
-                      _ModelSortMode.nameDesc => l10n.settingsModelSortNameDesc,
-                    },
-                  ),
-                )
-                .toList(),
-            onChanged: (val) => setState(() => _sortMode = val),
-          ),
-          const SizedBox(width: 8),
-          // 仅绘图模型过滤 (快速定位图像输出能力的模型)
-          AppToolChip(
-            icon: Icons.auto_awesome,
-            iconSize: 13,
-            fontSize: 11,
-            label: l10n.settingsFilterImageOnly,
-            isSelected: _imageOnly,
-            variant: AppToolChipVariant.tinted,
-            tooltip: l10n.settingsFilterImageOnlyTooltip,
-            onTap: () => setState(() => _imageOnly = !_imageOnly),
-          ),
-          const Spacer(),
-          Text(
-            l10n.settingsModelCount(visibleCount, total),
-            style: TextStyle(fontSize: 12, color: colors.textMuted),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 660) {
+            return Row(
+              children: [
+                buildSearch(fillWidth: false),
+                const SizedBox(width: 8),
+                sortDropdown,
+                const SizedBox(width: 8),
+                imageOnlyChip,
+                const Spacer(),
+                countText,
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              buildSearch(fillWidth: true),
+              const SizedBox(height: 8),
+              AppControlFlow(
+                children: [sortDropdown, imageOnlyChip, countText],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

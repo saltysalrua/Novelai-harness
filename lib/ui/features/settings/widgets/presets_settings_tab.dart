@@ -10,6 +10,7 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_control_flow.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
@@ -342,8 +343,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           AppSettingTile(
             title: l10n.presetCurrentPreset,
             subtitle: l10n.presetCurrentPresetSubtitle,
-            control: Row(
-              mainAxisSize: MainAxisSize.min,
+            control: AppControlFlow(
               children: [
                 AppDropdown<String>(
                   value: _draft.selectedPresetId,
@@ -367,7 +367,6 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                         _draft.switchPreset(val, l10n.presetDefaultCustomName),
                   ),
                 ),
-                const SizedBox(width: 8),
 
                 // 设为默认按钮
                 if (!isSelectedActive)
@@ -378,7 +377,6 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     ),
                   ),
 
-                const SizedBox(width: 6),
                 AppActionButton(
                   icon: Icons.add_rounded,
                   label: l10n.presetNewButton,
@@ -396,7 +394,6 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
                 AppActionButton(
                   icon: Icons.copy_rounded,
                   label: l10n.copy,
@@ -413,8 +410,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                 ),
 
                 // 删除按钮 (多于1个且非内置时可删)
-                if (_draft.presets.length > 1 && !currentPreset.isBuiltin) ...[
-                  const SizedBox(width: 4),
+                if (_draft.presets.length > 1 && !currentPreset.isBuiltin)
                   AppIconButton(
                     icon: Icons.delete_outline_rounded,
                     iconSize: 18,
@@ -428,7 +424,6 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                       ),
                     ),
                   ),
-                ],
               ],
             ),
           ),
@@ -514,7 +509,8 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           // 3. 可用 Skill 库 (Pi 标准按需加载小卡片组)
           AppSectionHeader(
             title: l10n.settingsSectionAvailableSkills,
-            trailing: Row(
+            trailing: AppControlFlow(
+              spacing: 6,
               children: [
                 AppActionButton(
                   icon: Icons.file_upload_outlined,
@@ -522,7 +518,6 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   iconSize: 14,
                   onPressed: _openImportSkillDialog,
                 ),
-                const SizedBox(width: 6),
                 AppActionButton(
                   icon: Icons.add_rounded,
                   label: l10n.presetNewSkill,
