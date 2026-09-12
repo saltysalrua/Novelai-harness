@@ -71,6 +71,7 @@ class GeneralSettingsDraft {
       enableImagePersistence = config.enableImagePersistence,
       maxPersistentImages = config.maxPersistentImages,
       autoSaveImages = config.autoSaveImages,
+      androidGalleryExport = config.androidGalleryExport,
       comfyUiEnabled = config.comfyUiEnabled;
 
   final TextEditingController naiKeyController;
@@ -135,6 +136,9 @@ class GeneralSettingsDraft {
   bool enableImagePersistence;
   int maxPersistentImages;
   bool autoSaveImages;
+
+  /// 安卓专用：自动保存的成品同步写入公共图片库 (MediaStore Pictures/NovelAI)
+  bool androidGalleryExport;
 
   void dispose() {
     naiKeyController.dispose();
@@ -414,6 +418,14 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 value: _draft.autoSaveImages,
                 onChanged: (val) => setState(() => _draft.autoSaveImages = val),
               ),
+              if (isAndroid)
+                AppSettingTile.switchTile(
+                  title: l10n.settingsGalleryExportTitle,
+                  subtitle: l10n.settingsGalleryExportSubtitle,
+                  value: _draft.androidGalleryExport,
+                  onChanged: (val) =>
+                      setState(() => _draft.androidGalleryExport = val),
+                ),
               AppSettingTile.switchTile(
                 title: l10n.settingsStreamPreviewTitle,
                 subtitle: l10n.settingsStreamPreviewSubtitle,

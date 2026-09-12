@@ -671,7 +671,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsAndroidSaveDirSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'图片与历史保存在应用可写目录，重启后保留。要导出到公共目录，请长按图片选择保存到文件夹。卸载应用会删除应用内图片。'**
+  /// **'图片与历史保存在应用可写目录，重启后保留。长按图片选择保存到文件夹可写入公共 Pictures 目录；开启同步导出到系统图库后自动保存也会写入。卸载应用会删除应用内图片。'**
   String get settingsAndroidSaveDirSubtitle;
 
   /// No description provided for @settingsSaveDirHint.
@@ -703,6 +703,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'生成图片先存入缓存目录 (无水印)，在画板右下角点击保存按钮手动保存；超出历史上限的缓存图片自动删除'**
   String get settingsAutoSaveSubtitleOff;
+
+  /// No description provided for @settingsGalleryExportTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步导出到系统图库'**
+  String get settingsGalleryExportTitle;
+
+  /// No description provided for @settingsGalleryExportSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动保存的成品同时写入公共 Pictures/NovelAI 目录 (系统媒体库登记，相册与其他应用可见)'**
+  String get settingsGalleryExportSubtitle;
 
   /// No description provided for @settingsStreamPreviewTitle.
   ///

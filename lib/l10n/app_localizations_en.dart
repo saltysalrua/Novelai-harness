@@ -322,7 +322,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsAndroidSaveDirSubtitle =>
-      'Images and history use app-writable storage and survive restarts. To export to a public folder, long-press an image and choose Save to folder. Uninstalling the app deletes its private images.';
+      'Images and history use app-writable storage and survive restarts. Long-press an image and choose Save to folder to write into the public Pictures directory; with gallery export enabled, auto-saved images go there too. Uninstalling the app deletes its private images.';
 
   @override
   String get settingsSaveDirHint => 'Storage path...';
@@ -340,6 +340,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsAutoSaveSubtitleOff =>
       'Images go to the cache directory (no watermark) first; save manually from the canvas, and cache beyond the history limit is pruned automatically';
+
+  @override
+  String get settingsGalleryExportTitle => 'Also Export to System Gallery';
+
+  @override
+  String get settingsGalleryExportSubtitle =>
+      'Auto-saved images are also written to the public Pictures/NovelAI folder (registered in MediaStore, visible to gallery and other apps)';
 
   @override
   String get settingsStreamPreviewTitle => 'Live Generation Preview';

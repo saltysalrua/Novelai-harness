@@ -37,6 +37,7 @@ import '../../../../data/services/comfyui_service.dart';
 import '../../../../data/services/image_file_store.dart';
 import '../../../../data/services/image_metadata_service.dart';
 import '../../../../data/services/image_save_path_service.dart';
+import '../../../../data/services/media_store_service.dart';
 import '../../../../data/services/palette_service.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../data/services/inpaint_service.dart';
@@ -504,6 +505,10 @@ mixin _StudioCore on ChangeNotifier {
   /// 解析当前命名模板下的导出文件名 (不含目录)，供系统 SAF 单文件保存使用
   String resolveExportFileName(NaiGeneratedImage image);
 
+  /// 解析当前命名模板下的导出相对子目录 (空 = 模板未分目录)，
+  /// 供安卓 MediaStore 图库导出拼 `Pictures/<subDir>` 使用
+  String resolveExportSubDir(NaiGeneratedImage image);
+
   /// 强行中止当前对话生成与工具执行
   Future<void> abortChat();
 
@@ -671,11 +676,31 @@ class StudioViewModel extends ChangeNotifier
     );
   }
 
+  /// 安卓公共图库导出钩子：自动保存的成品同步写入系统媒体库
+  /// (MediaStore `Pictures/NovelAI/<命名模板子目录>`)，相册与文件管理器
+  /// 立即可见；写入失败由仓储捕获吞掉，不阻塞落图主流程。
+  void _syncGalleryExportHook() {
+    final mediaStore = MediaStoreService.instance;
+    if (!mediaStore.isSupported || !_config.androidGalleryExport) {
+      _repository.galleryExportFn = null;
+      return;
+    }
+    _repository.galleryExportFn = (bytes, relativePath) async {
+      final dir = p.dirname(relativePath);
+      await mediaStore.saveImage(
+        bytes,
+        p.basename(relativePath),
+        subDir: (dir == '.' || dir.isEmpty) ? 'NovelAI' : 'NovelAI/$dir',
+      );
+    };
+  }
+
   // ------------------------- 初始化 -------------------------
 
   /// 初始化 Studio
   Future<void> init() async {
     _config = await _configService.loadConfig();
+    _syncGalleryExportHook();
     final lastPrompt = await _configService.loadLastPrompt();
     final applyFixed = await _configService.loadApplyFixedPrompts();
 
@@ -832,6 +857,7 @@ class StudioViewModel extends ChangeNotifier
       );
     }
     _config = newConfig;
+    _syncGalleryExportHook();
     // 主题模式即时生效：MaterialApp 根节点监听全局控制器局部刷新，
     // 200ms 平滑切色，不走 notifyListeners 全局重绘
     AppThemeModeController.instance.syncFromConfig(newConfig);

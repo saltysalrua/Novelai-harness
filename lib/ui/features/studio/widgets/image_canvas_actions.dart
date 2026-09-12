@@ -7,6 +7,7 @@ import 'package:pasteboard/pasteboard.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/services/media_store_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../../core/widgets/context_menu.dart';
@@ -43,10 +44,15 @@ Future<void> copyImageToClipboard(
   bool raw = false,
 }) async {
   var success = false;
+  final mediaStore = MediaStoreService.instance;
   try {
     final bytes = await viewModel.getExportImageBytes(image, raw: raw);
-
-    if (raw) {
+    if (mediaStore.isSupported) {
+      // 安卓：Pasteboard 插件不支持安卓写入，系统剪贴板只认 content URI；
+      // 走原生通道写缓存文件 + FileProvider URI，完整 PNG 字节含元数据。
+      await mediaStore.copyImageToClipboard(bytes);
+      success = true;
+    } else if (raw) {
       // 原图复制走临时文件路径，保留完整 PNG Chunks 元数据 (位图化会丢失元数据)
       final tempDir = await getTemporaryDirectory();
       final tempFile = File(
@@ -108,7 +114,10 @@ bool get isMobilePlatform =>
 
 /// 导出图片到用户亲自挑选的位置 (含水印/脱敏处理)：
 ///
-/// - 移动端：`FilePicker.saveFile(bytes:)` 经 SAF/ContentResolver 单文件写入，
+/// - Android：优先经 MediaStore 写入公共 `Pictures/` (媒体库原生登记，
+///   相册与文件管理器立即可见；模板含目录时落 `Pictures/NovelAI/<子目录>`)；
+///   Android 9 及以下缺存储权限时回退 SAF 单文件写入；
+/// - iOS：`FilePicker.saveFile(bytes:)` 经 SAF/ContentResolver 单文件写入，
 ///   命名沿用全局命名模板的纯文件名；
 /// - 桌面端：目录选择 + 命名模板 / 无覆盖落盘 (ImageSavePathService + ImageFileStore)。
 Future<void> exportImageToCustomDirectory(
@@ -127,6 +136,23 @@ Future<void> exportImageToCustomDirectory(
           );
         }
         return;
+      }
+      final mediaStore = MediaStoreService.instance;
+      if (mediaStore.isSupported) {
+        try {
+          final subDir = viewModel.resolveExportSubDir(image);
+          final location = await mediaStore.saveImage(
+            bytes,
+            viewModel.resolveExportFileName(image),
+            subDir: subDir.isEmpty ? 'NovelAI' : 'NovelAI/$subDir',
+          );
+          if (!context.mounted) return;
+          showCanvasSnackBar(context, context.l10n.canvasSavedImage(location));
+          return;
+        } on MediaStoreException catch (error) {
+          // Android 9 及以下无存储权限或媒体库写入失败：回退 SAF 单文件导出。
+          debugPrint('MediaStore 导出失败，回退 SAF: $error');
+        }
       }
       final savedPath = await FilePicker.platform.saveFile(
         fileName: viewModel.resolveExportFileName(image),

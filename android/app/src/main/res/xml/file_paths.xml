@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  复制图像到系统剪贴板时，PNG 字节先写入应用缓存 clipboard/ 子目录，
+  经 FileProvider 暴露为 content:// URI 后放入 ClipData。
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path
+        name="clipboard"
+        path="clipboard/" />
+</paths>

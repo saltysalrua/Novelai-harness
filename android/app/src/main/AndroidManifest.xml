@@ -1,5 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 9 及以下直接写公共 Pictures 目录时需要；
+         Android 10+ 作用域存储经 MediaStore 写入，不再需要该权限。 -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
 
     <!-- usesCleartextTraffic：ComfyUI Bridge 与本地 OpenAI 兼容 LLM 端点均为
          http://<局域网 IP>，无法用固定域名白名单的 network_security_config 覆盖，
@@ -36,6 +41,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- 复制图像到剪贴板：缓存文件经 FileProvider 暴露为 content:// URI 后放入 ClipData -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

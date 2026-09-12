@@ -135,6 +135,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       enableImagePersistence: _generalDraft.enableImagePersistence,
       maxPersistentImages: _generalDraft.maxPersistentImages,
       autoSaveImages: _generalDraft.autoSaveImages,
+      androidGalleryExport: _generalDraft.androidGalleryExport,
       comfyUiEnabled: _generalDraft.comfyUiEnabled,
       comfyUiBaseUrl: _generalDraft.comfyBaseUrlController.text.trim(),
       comfyUiPromptNodeId: _generalDraft.comfyPromptNodeController.text.trim(),

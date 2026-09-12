@@ -400,7 +400,12 @@ $$\text{原始原图} \xrightarrow{\text{步骤 1}} \text{可见水印合成} \x
 
 - **目录能力分离**：安卓 `FilePicker.getDirectoryPath()` 返回的公共目录即使存在、已获 SAF 授权，也不等于 `dart:io` 能写 PNG、JSON 与子目录。`ImageStorageDirectoryService` 在启动及目录配置变更时验证普通绝对路径，通过独占临时子目录与 JSON 读写探针检查持久化能力；仅清理自身探针，不修改已有文件。
 - **旧配置修复**：保留仍可读写的旧目录；空串、相对路径、`content://` URI 或不可写目录回退 `getApplicationDocumentsDirectory()/NovelAI_Output`，修正后写回 `novelai_save_dir`。安卓应用目录也失败时显式抛错，不再退成空串导致仅存内存；桌面自定义目录语义不变。
-- **界面入口**：安卓设置页目录只读，不再提供公共目录选择器。内部图片缓存、正式导出、历史索引与画布沿用同一仓储和持久目录，自动保存关闭时也可重启恢复未保存图片。导出公共目录仍走长按图片 → 保存到文件夹 → 系统单文件保存（`FilePicker.saveFile(bytes:)`），不把 SAF 返回值当成本地缓存路径。应用私有图片会随卸载/清除应用数据删除，设置页明确提示。
+- **界面入口**：安卓设置页目录只读，不再提供公共目录选择器。内部图片缓存、正式导出、历史索引与画布沿用同一仓储和持久目录，自动保存关闭时也可重启恢复未保存图片。应用私有图片会随卸载/清除应用数据删除，设置页明确提示。
+- **MediaStore 公共图库导出 (2026-12)**：安卓成品导出不再依赖 SAF 单文件写入，改经 `MainActivity` 原生平台通道 (`novelai_harness/media_store`) 写入系统媒体库：
+  - **手动导出** (长按图片 → 保存到文件夹)：Android 10+ 走 `MediaStore.Images` `RELATIVE_PATH` 写入公共 `Pictures/NovelAI/<命名模板子目录>`，媒体库原生登记、相册与文件管理器立即可见；Android 9 及以下缺 `WRITE_EXTERNAL_STORAGE` 权限或媒体库写入失败时自动回退 `FilePicker.saveFile(bytes:)` SAF 单文件导出 (iOS 维持 SAF 不变)。
+  - **自动保存联动**：`AppConfig.androidGalleryExport` (默认开，设置页 → 常规 → 同步导出到系统图库) 开启时，`StudioViewModel._syncGalleryExportHook` 向 `NovelAiRepository.galleryExportFn` 注入 MediaStore 导出钩子，`_persistImageFiles` 在自动保存的成品落盘后同步写入图库 (与本地文件字节一致)；钩子抛错被仓储吞掉不阻塞落图，未保存缓存与关闭开关时不触发。手动导出与自动联动均复用 `MediaStoreService` (Dart 侧封装，含平台判定与通道注入，`MediaStoreException` 携带原生错误码)。
+  - **剪贴板复制**：安卓 `Pasteboard` 插件不支持写入，复制图像改走同通道 `copyImage` —— 字节写入应用缓存 `clipboard/` 子目录 (仅保留最近 8 个)，经 `FileProvider` 转为 `content://` URI 后 `ClipData.newUri` 放入系统剪贴板；完整 PNG 字节含元数据，聊天/编辑类应用可直接粘贴。清单注册 `WRITE_EXTERNAL_STORAGE` (maxSdk 28) 与 FileProvider paths。
+  - **回归覆盖**：`media_store_export_test.dart` 覆盖通道参数透传、异常映射 (`PERMISSION_DENIED` 判定)、空字节/非安卓拒绝、仓储钩子的成品字节一致性、抛错不阻塞主流程与未保存不触发；Kotlin 侧经 `:app:compileDebugKotlin` 编译门禁。
 - **回归覆盖**：`android_image_persistence_test.dart` 覆盖目录回退、保留旧数据、探针清理、配置修复落盘、运行时变更以及自动/手动保存下新 ViewModel 重启恢复和懒加载原图；所有绘图请求均 Mock。
 
 ---

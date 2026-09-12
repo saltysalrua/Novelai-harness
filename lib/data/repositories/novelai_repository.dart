@@ -13,6 +13,7 @@ import '../services/image_file_store.dart';
 import '../services/image_save_path_service.dart';
 import '../services/inpaint_service.dart';
 import '../services/isolated_compute.dart';
+import '../services/media_store_service.dart' show MediaGalleryExportFn;
 import '../services/skia_image_codec.dart';
 import '../services/watermark_service.dart';
 import '../services/novelai_service.dart';
@@ -85,6 +86,12 @@ class NovelAiRepository {
   static const int maxLruCacheSize = 5;
   final LinkedHashMap<String, Uint8List> _lruImageCache =
       LinkedHashMap<String, Uint8List>();
+
+  /// 公共图库导出钩子 (安卓自动保存联动系统媒体库)：
+  ///
+  /// 参数为 (处理后的成品字节, 命名模板相对路径)；由 ViewModel 在配置变化时
+  /// 注入或置空。自动保存的成品会在本地落盘后调用一次，失败不阻塞主流程。
+  MediaGalleryExportFn? galleryExportFn;
 
   NovelAiRepository({
     NovelAiService? service,
@@ -344,19 +351,35 @@ class NovelAiRepository {
           )
         : rawBytes;
     String? filePath;
+    final relativePath = ImageSavePathService.resolve(
+      imageSaveTemplate,
+      namingContext,
+    );
     if (saveDir.isNotEmpty) {
       try {
         filePath = ImageFileStore.write(
           root: saveDir,
-          relativePath: ImageSavePathService.resolve(
-            imageSaveTemplate,
-            namingContext,
-          ),
+          relativePath: relativePath,
           bytes: fileBytes,
           originalBytes: needsProcessing && keepOriginalImage ? rawBytes : null,
         );
       } on FileSystemException {
         // 导出失败仍保留原图缓存与未保存状态，允许用户更换目录后重试。
+      }
+    }
+    final galleryExport = galleryExportFn;
+    if (galleryExport != null) {
+      // 安卓公共图库联动：无论本地正式导出是否成功，自动保存的成品
+      // 都同步写入系统媒体库；失败不阻塞主流程 (本地已有缓存兜底)。
+      try {
+        await galleryExport(
+          fileBytes is Uint8List
+              ? fileBytes
+              : Uint8List.fromList(fileBytes),
+          relativePath,
+        );
+      } catch (error) {
+        debugPrint('公共图库导出失败: $error');
       }
     }
     return (

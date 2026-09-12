@@ -107,10 +107,16 @@ mixin _StudioGenerationMixin on _StudioCore {
     }
   }
 
-  /// 解析当前命名模板下的导出文件名 (仅纯文件名，供系统 SAF 单文件保存使用)。
-  ///
-  /// `ImageSavePathService` / `ImageFileStore` 均为 data 层单一事实源，
-  /// 由根文件 `studio_view_model.dart` 统一 import 后供各 part 分部共用。
+  /// 解析当前命名模板下的导出相对子目录 (空 = 模板未分目录)，
+  /// 供安卓 MediaStore 图库导出拼 Pictures/subDir 使用。
+  @override
+  String resolveExportSubDir(NaiGeneratedImage image) {
+    final relative = ImageSavePathService.resolve(
+      _config.imageSaveTemplate,
+      ImageSaveContext.fromImage(image),
+    );
+    return p.dirname(relative);
+  }
   @override
   String resolveExportFileName(NaiGeneratedImage image) => p.basename(
     ImageSavePathService.resolve(
