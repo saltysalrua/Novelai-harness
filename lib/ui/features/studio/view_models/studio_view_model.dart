@@ -30,6 +30,7 @@ import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/models/comfyui_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../../data/models/skill_package.dart';
 import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
@@ -44,6 +45,7 @@ import '../../../../data/services/inpaint_service.dart';
 import '../../../../data/services/watermark_service.dart';
 import '../../../../data/services/prompt_library_service.dart';
 import '../../../../data/services/session_log_service.dart';
+import '../../../../data/services/skill_package_service.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
@@ -86,6 +88,8 @@ mixin _StudioCore on ChangeNotifier {
   late final ConfigService _configService;
   late final NovelAiRepository _repository;
   PromptLibraryService _promptLibraryService = PromptLibraryService.instance;
+  late final SkillPackageService _skillPackageService;
+  Future<void> _skillWriteQueue = Future<void>.value();
   final SessionLogService _sessionLog = SessionLogService();
   final UsageLedgerService _usageLedger = UsageLedgerService();
   late final ToolRegistry _toolRegistry;
@@ -636,6 +640,7 @@ class StudioViewModel extends ChangeNotifier
     ConfigService? configService,
     NovelAiRepository? repository,
     PromptLibraryService? promptLibraryService,
+    SkillPackageService? skillPackageService,
     String? sessionLogBaseDir,
   }) {
     // Mixin 的 late final 字段无法进初始化列表，统一在构造体内注入
@@ -643,6 +648,7 @@ class StudioViewModel extends ChangeNotifier
     _repository = repository ?? NovelAiRepository();
     _promptLibraryService =
         promptLibraryService ?? PromptLibraryService.instance;
+    _skillPackageService = skillPackageService ?? SkillPackageService();
     _sessionLogBaseDir = sessionLogBaseDir;
     _toolRegistry = ToolRegistry();
     _harness = AgentHarness(
@@ -1012,6 +1018,7 @@ class StudioViewModel extends ChangeNotifier
     // 启动尚未读完偏好时直接关闭：保留磁盘原值，不用空工作台覆盖它，
     // 也不等待初始化尾部的账号网络查询才能退出。
     if (!_hasRestoredParameterState) return;
+    await _skillWriteQueue;
     await flushPendingParameterSave();
     await flushPendingLayoutSave();
     _uiZoomSaveTimer?.cancel();

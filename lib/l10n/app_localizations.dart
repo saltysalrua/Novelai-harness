@@ -1391,7 +1391,7 @@ abstract class AppLocalizations {
   /// No description provided for @presetExportSkillSuccess.
   ///
   /// In zh, this message translates to:
-  /// **'已复制 Skill [{name}] 为标准 SKILL.md 至剪贴板'**
+  /// **'已导出技能包 {name}'**
   String presetExportSkillSuccess(String name);
 
   /// No description provided for @presetBuiltinNotice.
@@ -1439,7 +1439,7 @@ abstract class AppLocalizations {
   /// No description provided for @presetImportSkill.
   ///
   /// In zh, this message translates to:
-  /// **'导入 SKILL.md'**
+  /// **'导入技能'**
   String get presetImportSkill;
 
   /// No description provided for @presetNewSkill.
@@ -1535,7 +1535,7 @@ abstract class AppLocalizations {
   /// No description provided for @skillTooltipExport.
   ///
   /// In zh, this message translates to:
-  /// **'导出为 SKILL.md'**
+  /// **'导出技能包 (.zip)'**
   String get skillTooltipExport;
 
   /// No description provided for @skillTooltipEdit.
@@ -1559,7 +1559,7 @@ abstract class AppLocalizations {
   /// No description provided for @skillDialogImportTitle.
   ///
   /// In zh, this message translates to:
-  /// **'导入标准 SKILL.md'**
+  /// **'导入技能'**
   String get skillDialogImportTitle;
 
   /// No description provided for @skillDialogNewTitle.
@@ -1663,6 +1663,60 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'粘贴或编辑标准 SKILL.md (含 YAML Frontmatter 与 Markdown Body)：'**
   String get skillRawEditorHelp;
+
+  /// No description provided for @skillImportFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择文件 (.zip / .skill / .md)'**
+  String get skillImportFile;
+
+  /// No description provided for @skillImportFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择技能文件夹'**
+  String get skillImportFolder;
+
+  /// No description provided for @skillImportPaste.
+  ///
+  /// In zh, this message translates to:
+  /// **'粘贴 SKILL.md'**
+  String get skillImportPaste;
+
+  /// No description provided for @skillPackageImportHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入含 SKILL.md 的单个技能包，保留 scripts、references、assets 等文件。ZIP 可包含外层目录；脚本不会自动执行。手机请使用压缩包。'**
+  String get skillPackageImportHelp;
+
+  /// No description provided for @skillPackageResourceHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'配套文件会随编辑保留，供 Agent 按需读取；脚本只读不执行。'**
+  String get skillPackageResourceHelp;
+
+  /// No description provided for @skillPackageFiles.
+  ///
+  /// In zh, this message translates to:
+  /// **'配套文件：{count} 个'**
+  String skillPackageFiles(int count);
+
+  /// No description provided for @skillDuplicateId.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能标识 {id} 已存在，请修改标识后再导入。'**
+  String skillDuplicateId(String id);
+
+  /// No description provided for @skillOperationFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能操作失败：{error}'**
+  String skillOperationFailed(String error);
+
+  /// No description provided for @skillImportedEnableHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能已导入。内置预设只读，请复制预设后勾选此技能。'**
+  String get skillImportedEnableHint;
 
   /// No description provided for @skillIdEmptyError.
   ///

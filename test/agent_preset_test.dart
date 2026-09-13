@@ -218,6 +218,9 @@ void main() {
         result.content,
         contains('非用户明确要求，绝对不应该添加任何衣服、发型等 tag 来干扰模型'),
       );
+      expect(result.content, contains('画面不够精细与构图透视修正'));
+      expect(result.content, contains('严禁乱加新东西凑细节'));
+      expect(result.content, contains('就用画面里已有的东西，说清楚它们的位置和相互关系'));
 
       final inpaintResult = await tool.execute('call_inpaint', {
         'skill_name': 'inpaint-specialist',

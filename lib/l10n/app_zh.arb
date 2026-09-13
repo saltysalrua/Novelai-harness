@@ -319,7 +319,7 @@
       "name": { "type": "String" }
     }
   },
-  "presetExportSkillSuccess": "已复制 Skill [{name}] 为标准 SKILL.md 至剪贴板",
+  "presetExportSkillSuccess": "已导出技能包 {name}",
   "@presetExportSkillSuccess": {
     "placeholders": {
       "name": { "type": "String" }
@@ -332,7 +332,7 @@
   "presetDescriptionHint": "如 擅长 V5 自然语言散文提示词...",
   "presetSystemPrompt": "系统提示词 (System Prompt - 作为对话首要根基指令)",
   "presetSystemPromptHint": "输入 AI 助手的核心人设与工作流指引...",
-  "presetImportSkill": "导入 SKILL.md",
+  "presetImportSkill": "导入技能",
   "presetNewSkill": "新建 Skill",
   "presetNewCustomTool": "新建自定义工具",
   "presetParamPrompt": "提示词",
@@ -348,11 +348,11 @@
   "presetParamNoiseSchedule": "噪声调度",
   "presetParamQualityPreset": "质量标签",
   "presetParamCharacterAiPosition": "角色定位模式",
-  "skillTooltipExport": "导出为 SKILL.md",
+  "skillTooltipExport": "导出技能包 (.zip)",
   "skillTooltipEdit": "查看与编辑 Skill",
   "skillTooltipDelete": "删除 Skill",
   "skillNoDescription": "暂无描述",
-  "skillDialogImportTitle": "导入标准 SKILL.md",
+  "skillDialogImportTitle": "导入技能",
   "skillDialogNewTitle": "新建 Skill",
   "skillDialogEditTitle": "编辑 Skill ({name})",
   "@skillDialogEditTitle": {
@@ -375,6 +375,36 @@
   "skillFieldDisableInvocation": "禁止自动调用",
   "skillFieldPromptHint": "输入该技能加载后生效的完整提示词与规范...",
   "skillRawEditorHelp": "粘贴或编辑标准 SKILL.md (含 YAML Frontmatter 与 Markdown Body)：",
+  "skillImportFile": "选择文件 (.zip / .skill / .md)",
+  "skillImportFolder": "选择技能文件夹",
+  "skillImportPaste": "粘贴 SKILL.md",
+  "skillPackageImportHelp": "导入含 SKILL.md 的单个技能包，保留 scripts、references、assets 等文件。ZIP 可包含外层目录；脚本不会自动执行。手机请使用压缩包。",
+  "skillPackageResourceHelp": "配套文件会随编辑保留，供 Agent 按需读取；脚本只读不执行。",
+  "skillPackageFiles": "配套文件：{count} 个",
+  "skillDuplicateId": "技能标识 {id} 已存在，请修改标识后再导入。",
+  "skillOperationFailed": "技能操作失败：{error}",
+  "skillImportedEnableHint": "技能已导入。内置预设只读，请复制预设后勾选此技能。",
+  "@skillPackageFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@skillDuplicateId": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "@skillOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "skillIdEmptyError": "Skill 标识 (ID) 不能为空",
   "toolTooltipEdit": "编辑工具",
   "toolTooltipInspectSchema": "查看 Schema",

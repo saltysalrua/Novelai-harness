@@ -81,7 +81,7 @@ Novelai-harness/
 │   │       │   ├── canvas_view_tool.dart       # 画板历史图片查看工具 (view_canvas_image，支持索引与覆盖层)
 │   │       │   ├── character_prompt_tools.dart  # 多角色提示词增删改查四件套工具
 │   │       │   ├── danbooru_search_tools.dart  # Danbooru 离线/在线语义搜索与 NPMI 画师推荐工具
-│   │       │   ├── load_skill_tool.dart        # Pi 标准按需加载专业技能工具 (load_skill)
+│   │       │   ├── load_skill_tool.dart        # 技能指令、资源清单与包内文件按需加载 (load_skill)
 │   │       │   ├── novelai_tools.dart          # 生图、新版超分、官方标签联想与账号查询工具
 │   │       │   ├── novelai_inpaint_tool.dart   # 局部修复与焦点特写工具 (novelai_inpaint / get_inpaint_geometry)
 │   │       │   ├── ai_edit_image_tool.dart    # AI 整图编辑工具 (ai_edit_image，外部多模态模型整图重绘)
@@ -104,6 +104,7 @@ Novelai-harness/
 │   │   │   ├── nai_account_info.dart           # 账号等级、V5 体力池余量与官方 Tag 联想模型
 │   │   │   ├── nai_prompt_presets.dart         # 质量词/UC 预设与提示词文本后处理
 │   │   │   ├── prompt_library_models.dart     # 词组合预设分类常量与 PromptComboEntry 实体
+│   │   │   ├── skill_package.dart             # 技能包导入预览快照 (Skill + 相对路径文件字节)
 │   │   │   ├── llm_models.dart                # LLM 供应商、模型卡片、思考参数格式与图像输出能力
 │   │   │   ├── tag_models.dart                 # Danbooru 标签分类、联想条目与 NovelAI Token 结构
 │   │   │   ├── nai_special_tags.dart           # NovelAI 官方专属标签事实源 (画质/美学/复杂度/数据集/透明通道/改名/其他 + 年代样例)
@@ -129,6 +130,7 @@ Novelai-harness/
 │   │   │   ├── prompt_token_counter_service.dart # 提示词 Token 计数单一事实源 (T5/Qwen 真分词、V3 CLIP 启发式、黄/红双档阈值)
 │   │   │   ├── tokenizers/                     # 分词器实现 (T5 SentencePiece / Qwen3.5 BPE，词表资产 assets/tokenizers/)
 │   │   │   ├── prompt_library_service.dart     # 词组合预设库本地持久化、检索与 JSON 导入导出
+│   │   │   ├── skill_package_service.dart      # 技能目录/ZIP 安全导入、应用托管存储、资源读取与整包导出
 │   │   │   ├── config_service.dart             # 本地配置与 ~/.pi/agent/novelai.json 自动识别与内置预设同步
 │   │   │   ├── session_log_service.dart        # Pi 官方标准 JSONL 格式会话记录与多分支恢复
 │   │   │   ├── usage_ledger_service.dart       # Token 增量账本记录、去重与多维聚合统计
@@ -167,7 +169,7 @@ Novelai-harness/
 │           │       ├── model_card.dart         # 模型小卡片 (选中态/能力胶囊/参数配置)
 │           │       ├── model_profile_dialog.dart # 单模型档案弹窗 (上下文长度/思考格式/图像输出能力配置)
 │           │       ├── skill_card.dart          # 技能卡片 (启用开关/导出/编辑)
-│           │       ├── skill_editor_dialog.dart  # 自定义技能编辑弹窗 (SKILL.md 导入导出)
+│           │       ├── skill_editor_dialog.dart  # 技能文档编辑、包内资源清单与保存校验
 │           │       ├── tool_card.dart           # 工具卡片 (启用开关/Schema 查看)
 │           │       └── tool_editor_dialog.dart  # 自定义模板工具编辑弹窗
 │           └── studio/                         # 核心工作台功能区
@@ -304,6 +306,18 @@ sequenceDiagram
   - 视觉模型在多轮对话中如果不断重新读取旧大图，会导致上下文迅速爆满并破坏 Prompt Cache。
   - 系统引入 `imageEpoch` 机制：**图片只给模型看一次**。旧轮次历史图片自动折叠为固定占位文本，仅当前轮新增附件与画板审查结果发送图片数据；
   - `VisionImageCodec` 统一将视觉图片等比缩放至最长边 ≤ 1024px 并转码为 PNG，显著降低多模态 Token 消耗；模型若需查看微观细节，可显式指定 `full_resolution: true` 请求未压缩原图。
+
+---
+
+### 3.1.1 标准技能包导入与资源按需加载
+
+- **入口与格式**：设置 → 预设 → Available Skills → 导入技能。支持桌面文件夹、`.zip` / `.skill`（ZIP 容器）以及单个 `.md` 或粘贴 SKILL.md。包内须有唯一的 `SKILL.md`，允许外层包装目录；多个技能应分别导入。移动端使用文件导入，不把 SAF 目录 URI 当普通磁盘路径。参考格式：[Agent Skills specification](https://agentskills.io/specification)。
+- **元数据**：`Skill.fromSkillMd` 用 `package:yaml` 解析多行、引号、嵌套字段；`extraFrontmatter` 保留 `license`、`compatibility`、`metadata`、`allowed-tools` 等。旧版无包技能 JSON 与无 Frontmatter 文本继续兼容。标准包校验 ID 与 description；`allowed-tools` 仅保存为元数据，不提升工具权限。
+- **存储与确认**：`SkillPackage` 仅为内存预览，取消不落盘；确认保存后 `SkillPackageService` 将技能根目录下的文件复制到 `getApplicationSupportDirectory()/skill_packages/pkg_<随机键>/`，不依赖原始导入路径。`Skill.packageId`、`resourcePaths` 与元数据沿用 `agent_custom_skills_json` 持久化，二进制资源不塞进 SharedPreferences。文件写完才提交配置，配置失败回收本次安装；技能写入串行，正常退出等待写队列。删除只清理托管副本，重名导入拒绝静默覆盖。
+- **编辑与启用**：编辑保留配套资源和扩展元数据，改 ID 同步预设引用；逻辑 SKILL.md 以配置中的最新 Skill 为准，资源读取/ZIP 导出使用此最新正文。保存失败保持编辑器与草稿，原文模式复制不覆盖未同步的新文本。内置预设保持只读，导入后提示复制预设并启用技能；自定义预设在设置草稿中勾选新技能，保存设置后生效。
+- **渐进式披露**：默认 `load_skill(skill_name/skill_names)` 只返回指令与首屏文件清单；`list_resources=true` 配合 `offset` / `limit` 分页列资源（默认 60，最多 100 条）。`skill_name + path/paths` 按技能根目录相对路径读取，最多 8 个文件；文本按字符分页，默认 4,000、单文件最多 12,000、批量正文预算 16,000 字符。单张图片在视觉模型下沿用 `VisionImageCodec` 和 `imageEpoch` 管线；非文本二进制可整包导出。脚本可阅读和导出，**不执行**；读取和列清单均受当前预设技能白名单与 `load_skill` 工具权限约束。
+- **导出与边界**：卡片导出保存完整 ZIP（最新 SKILL.md + 资源字节），编辑器仍可单独复制 SKILL.md。包体和解压总量上限 32 MiB、单文件 8 MiB、SKILL.md 256 KiB、512 个文件。ZIP 解压检查实际输出大小与 CRC，拒绝加密、不支持的压缩算法、路径穿越/绝对路径、链接/特殊文件、Windows 设备名/ADS、大小写重名与文件目录冲突；忽略 `.git`、`__MACOSX`、`.DS_Store`。读取时重新校验资源清单及托管目录边界。
+- **回归**：`skill_package_test.dart`、`skill_package_view_model_test.dart`、`skill_editor_package_test.dart` 覆盖格式往返、源目录脱离后读取、安全边界、分页权限、持久化回滚、并发重名、编辑保留资源及保存失败；无真实 NovelAI 请求。
 
 ---
 

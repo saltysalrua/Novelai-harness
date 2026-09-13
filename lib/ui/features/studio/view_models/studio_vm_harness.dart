@@ -278,6 +278,9 @@ mixin _StudioHarnessMixin on _StudioCore {
         },
         availableSkillIds: () =>
             _harness.currentPreset.enabledSkillIds.toList(),
+        readResource: _skillPackageService.readResource,
+        isModelMultimodal: () =>
+            _config.activeLlmProvider.activeModel.isMultimodal,
       ),
     );
 
@@ -469,31 +472,140 @@ mixin _StudioHarnessMixin on _StudioCore {
 
   // ------------------------- 技能管理 -------------------------
 
-  /// 保存/更新自定义技能
-  Future<void> saveCustomSkill(Skill skill) async {
-    final customList = _config.customSkills.toList();
-    final idx = customList.indexWhere((s) => s.id == skill.id);
-    if (idx >= 0) {
-      customList[idx] = skill;
-    } else {
-      customList.add(skill);
+  Future<T> _withSkillWrite<T>(Future<T> Function() operation) {
+    final result = _skillWriteQueue.then((_) => operation());
+    _skillWriteQueue = result.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {},
+    );
+    return result;
+  }
+
+  Future<SkillPackage> readSkillImportFile(String path) =>
+      _skillPackageService.readImportFile(path);
+  Future<SkillPackage> readSkillImportDirectory(String path) =>
+      _skillPackageService.readImportDirectory(path);
+  Future<Uint8List> exportSkillPackage(Skill skill) =>
+      _skillPackageService.exportPackage(skill);
+  Future<void> writeSkillExportFile(String path, Uint8List bytes) =>
+      _skillPackageService.writeExportFile(path, bytes);
+
+  /// 确认后才安装。重名拒绝覆盖（可在编辑框改 ID），配置提交失败清理本次安装。
+  Future<Skill> importSkillPackage(SkillPackage package, Skill edited) =>
+      _withSkillWrite(() async {
+        _checkSkillConflict(edited.id);
+        if (package.skill.resourcePaths.isNotEmpty) {
+          SkillPackageService.validateSkill(edited);
+        }
+        final installed = await _skillPackageService.install(package, edited);
+        try {
+          await _saveSkill(installed, requireNew: true);
+          return installed;
+        } catch (_) {
+          await _discardSkillPackage(installed);
+          rethrow;
+        }
+      });
+
+  void _checkSkillConflict(String id, {String? originalId}) {
+    if (id.trim().isEmpty) throw FormatException(vmL10n.skillIdEmptyError);
+    final conflict = availableSkills.any(
+      (s) => s.id.toLowerCase() == id.toLowerCase() && s.id != originalId,
+    );
+    if (conflict) throw FormatException(vmL10n.skillDuplicateId(id));
+  }
+
+  /// 编辑保留托管资源；改 ID 时同步预设引用，避免旧条目与资源丢失。
+  Future<void> saveCustomSkill(
+    Skill skill, {
+    String? originalId,
+    bool requireNew = false,
+  }) => _withSkillWrite(
+    () => _saveSkill(skill, originalId: originalId, requireNew: requireNew),
+  );
+
+  Future<void> _saveSkill(
+    Skill skill, {
+    String? originalId,
+    bool requireNew = false,
+  }) async {
+    final oldId = requireNew ? null : (originalId ?? skill.id);
+    _checkSkillConflict(skill.id, originalId: oldId);
+    final old = oldId == null ? null : _skillRegistry.get(oldId);
+    if (old?.isBuiltin == true && skill.id != old!.id) {
+      throw FormatException(vmL10n.skillDuplicateId(skill.id));
     }
-    _config = _config.copyWith(customSkills: customList);
-    await _configService.saveConfig(_config);
+    final saved = old == null
+        ? skill
+        : skill.copyWith(
+            packageId: old.packageId,
+            resourcePaths: old.resourcePaths,
+            isBuiltin: old.isBuiltin,
+          );
+    final customList = _config.customSkills.where((s) => s.id != oldId).toList()
+      ..add(saved);
+    final updatedPresets = _config.presets
+        .map(
+          (preset) => oldId != null && oldId != saved.id
+              ? preset.copyWith(
+                  enabledSkillIds: preset.enabledSkillIds
+                      .map((id) => id == oldId ? saved.id : id)
+                      .toList(),
+                )
+              : preset,
+        )
+        .toList();
+    await _commitSkillConfig(
+      _config.copyWith(customSkills: customList, presets: updatedPresets),
+    );
+  }
+
+  Future<void> _commitSkillConfig(AppConfig next) async {
+    final previous = _config;
+    _config = next;
+    try {
+      await _configService.saveConfig(next);
+    } catch (_) {
+      if (identical(_config, next)) _config = previous;
+      rethrow;
+    }
     _setupHarnessAndTools();
     notifyListeners();
   }
 
-  /// 删除自定义技能
-  Future<void> deleteCustomSkill(String skillId) async {
-    final customList = _config.customSkills
-        .where((s) => s.id != skillId)
-        .toList();
-    _config = _config.copyWith(customSkills: customList);
-    await _configService.saveConfig(_config);
-    _setupHarnessAndTools();
-    notifyListeners();
+  Future<void> _discardSkillPackage(Skill skill) async {
+    try {
+      await _skillPackageService.deletePackage(skill);
+    } catch (error) {
+      // 已提交的配置不回滚；清理失败最多遗留不可寻址的托管资源。
+      debugPrint('Skill package cleanup failed: $error');
+    }
   }
+
+  /// 先提交移除配置，再清理托管包；绝不删除用户导入源。
+  Future<void> deleteCustomSkill(String skillId) => _withSkillWrite(() async {
+    final old = _skillRegistry.get(skillId);
+    if (old == null || old.isBuiltin) return;
+    await _commitSkillConfig(
+      _config.copyWith(
+        customSkills: _config.customSkills
+            .where((s) => s.id != skillId)
+            .toList(),
+        presets: _config.presets
+            .map(
+              (preset) => preset.copyWith(
+                enabledSkillIds: preset.enabledSkillIds
+                    .where((id) => id != skillId)
+                    .toList(),
+              ),
+            )
+            .toList(),
+      ),
+    );
+    if (!_config.customSkills.any((s) => s.packageId == old.packageId)) {
+      await _discardSkillPackage(old);
+    }
+  });
 
   /// 从标准 SKILL.md 导入技能
   Future<Skill> importSkillFromMd(String mdContent, {String? defaultId}) async {

@@ -4,6 +4,7 @@ import '../../../../core/harness/skills/skills.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_collapsible_section.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
@@ -12,8 +13,14 @@ import '../../../core/context_l10n.dart';
 class SkillEditorDialog extends StatefulWidget {
   final Skill? skill;
   final bool isImportMode;
+  final Future<void> Function(Skill skill)? onSave;
 
-  const SkillEditorDialog({super.key, this.skill, this.isImportMode = false});
+  const SkillEditorDialog({
+    super.key,
+    this.skill,
+    this.isImportMode = false,
+    this.onSave,
+  });
 
   @override
   State<SkillEditorDialog> createState() => _SkillEditorDialogState();
@@ -29,6 +36,8 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
   late final TextEditingController _rawMdController;
 
   bool _disableInvocation = false;
+  bool _saving = false;
+  Map<String, Object?> _extraFrontmatter = const {};
   _SkillEditorViewMode _viewMode = _SkillEditorViewMode.structured;
 
   @override
@@ -40,6 +49,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     _descController = TextEditingController(text: s?.description ?? '');
     _promptController = TextEditingController(text: s?.systemPrompt ?? '');
     _disableInvocation = s?.disableModelInvocation ?? false;
+    _extraFrontmatter = s?.extraFrontmatter ?? const {};
 
     _rawMdController = TextEditingController(
       text: s != null ? s.toSkillMd() : '',
@@ -59,20 +69,39 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     super.dispose();
   }
 
-  void _syncFromRaw() {
-    final parsed = Skill.fromSkillMd(
-      _rawMdController.text,
-      defaultId: _idController.text.trim().isNotEmpty
-          ? _idController.text.trim()
-          : 'imported-skill',
+  bool _syncFromRaw() {
+    try {
+      final parsed = Skill.fromSkillMd(
+        _rawMdController.text,
+        defaultId: _idController.text.trim().isNotEmpty
+            ? _idController.text.trim()
+            : 'imported-skill',
+      );
+      setState(() {
+        _idController.text = parsed.id;
+        _nameController.text = parsed.name;
+        _descController.text = parsed.description;
+        _promptController.text = parsed.systemPrompt;
+        _disableInvocation = parsed.disableModelInvocation;
+        _extraFrontmatter = parsed.extraFrontmatter;
+      });
+      return true;
+    } catch (error) {
+      _showError(error);
+      return false;
+    }
+  }
+
+  void _showError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error is FormatException
+              ? error.message
+              : context.l10n.skillOperationFailed(error.toString()),
+        ),
+      ),
     );
-    setState(() {
-      _idController.text = parsed.id;
-      _nameController.text = parsed.name;
-      _descController.text = parsed.description;
-      _promptController.text = parsed.systemPrompt;
-      _disableInvocation = parsed.disableModelInvocation;
-    });
   }
 
   void _syncToRaw() {
@@ -82,6 +111,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
       description: _descController.text.trim(),
       systemPrompt: _promptController.text.trim(),
       disableModelInvocation: _disableInvocation,
+      extraFrontmatter: _extraFrontmatter,
     );
     _rawMdController.text = skill.toSkillMd();
   }
@@ -123,7 +153,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                   onValueChanged: (mode) {
                     if (mode == _SkillEditorViewMode.structured &&
                         _viewMode == _SkillEditorViewMode.raw) {
-                      _syncFromRaw();
+                      if (!_syncFromRaw()) return;
                     } else if (mode == _SkillEditorViewMode.raw &&
                         _viewMode == _SkillEditorViewMode.structured) {
                       _syncToRaw();
@@ -142,6 +172,31 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
               ],
             ),
             const SizedBox(height: 16),
+            if (widget.skill?.resourcePaths.isNotEmpty == true) ...[
+              AppCollapsibleSection(
+                title: l10n.skillPackageFiles(
+                  widget.skill!.resourcePaths.length,
+                ),
+                subtitle: l10n.skillPackageResourceHelp,
+                child: SizedBox(
+                  height: 100,
+                  child: ListView(
+                    children: widget.skill!.resourcePaths
+                        .map(
+                          (path) => Text(
+                            path,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
 
             // 正文区
             Expanded(
@@ -160,7 +215,9 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                 label: l10n.skillCopySkillMd,
                 icon: Icons.copy_rounded,
                 onPressed: () {
-                  _syncToRaw();
+                  if (_viewMode == _SkillEditorViewMode.structured) {
+                    _syncToRaw();
+                  }
                   Clipboard.setData(ClipboardData(text: _rawMdController.text));
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -188,7 +245,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
-                onPressed: _save,
+                onPressed: _saving ? null : _save,
                 child: Text(l10n.skillSave),
               ),
             ],
@@ -398,10 +455,9 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     );
   }
 
-  void _save() {
-    if (_viewMode == _SkillEditorViewMode.raw) {
-      _syncFromRaw();
-    }
+  Future<void> _save() async {
+    if (_saving) return;
+    if (_viewMode == _SkillEditorViewMode.raw && !_syncFromRaw()) return;
     final id = _idController.text.trim();
     final name = _nameController.text.trim();
     if (id.isEmpty) {
@@ -412,14 +468,25 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     }
 
     final skill = Skill(
-      id: id,
+      id: widget.skill?.isBuiltin == true ? widget.skill!.id : id,
       name: name.isNotEmpty ? name : id,
       description: _descController.text.trim(),
       systemPrompt: _promptController.text.trim(),
       disableModelInvocation: _disableInvocation,
       isBuiltin: widget.skill?.isBuiltin ?? false,
+      packageId: widget.skill?.packageId,
+      resourcePaths: widget.skill?.resourcePaths ?? const [],
+      extraFrontmatter: _extraFrontmatter,
     );
 
-    Navigator.of(context).pop(skill);
+    setState(() => _saving = true);
+    try {
+      await widget.onSave?.call(skill);
+      if (mounted) Navigator.of(context).pop(skill);
+    } catch (error) {
+      if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }

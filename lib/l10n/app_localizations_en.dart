@@ -740,7 +740,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String presetExportSkillSuccess(String name) {
-    return 'Copied Skill [$name] as standard SKILL.md to clipboard';
+    return 'Exported skill package $name';
   }
 
   @override
@@ -769,7 +769,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter the core persona and workflow guidelines for the AI assistant...';
 
   @override
-  String get presetImportSkill => 'Import SKILL.md';
+  String get presetImportSkill => 'Import Skill';
 
   @override
   String get presetNewSkill => 'New Skill';
@@ -817,7 +817,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get presetParamCharacterAiPosition => 'Character Position';
 
   @override
-  String get skillTooltipExport => 'Export as SKILL.md';
+  String get skillTooltipExport => 'Export skill package (.zip)';
 
   @override
   String get skillTooltipEdit => 'View & Edit Skill';
@@ -829,7 +829,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get skillNoDescription => 'No description';
 
   @override
-  String get skillDialogImportTitle => 'Import Standard SKILL.md';
+  String get skillDialogImportTitle => 'Import Skill';
 
   @override
   String get skillDialogNewTitle => 'New Skill';
@@ -887,6 +887,42 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get skillRawEditorHelp =>
       'Paste or edit standard SKILL.md (including YAML Frontmatter and Markdown Body):';
+
+  @override
+  String get skillImportFile => 'Choose file (.zip / .skill / .md)';
+
+  @override
+  String get skillImportFolder => 'Choose skill folder';
+
+  @override
+  String get skillImportPaste => 'Paste SKILL.md';
+
+  @override
+  String get skillPackageImportHelp =>
+      'Import one skill containing SKILL.md, preserving scripts, references, assets and other files. ZIP wrappers are supported. Scripts are not executed. Use an archive on mobile.';
+
+  @override
+  String get skillPackageResourceHelp =>
+      'Resources are retained when editing and read on demand. Scripts are read-only, never executed.';
+
+  @override
+  String skillPackageFiles(int count) {
+    return 'Resources: $count files';
+  }
+
+  @override
+  String skillDuplicateId(String id) {
+    return 'Skill ID $id already exists. Choose a different ID before importing.';
+  }
+
+  @override
+  String skillOperationFailed(String error) {
+    return 'Skill operation failed: $error';
+  }
+
+  @override
+  String get skillImportedEnableHint =>
+      'Skill imported. Built-in presets are read-only; duplicate a preset and enable this skill.';
 
   @override
   String get skillIdEmptyError => 'Skill ID cannot be empty';

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../../../data/models/skill_package.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
@@ -197,6 +199,18 @@ class PresetsSettingsDraft {
     presets[idx] = write(current, list);
   }
 
+  void replaceSkillReferences(String oldId, String? newId) {
+    syncFromForm();
+    for (var index = 0; index < presets.length; index++) {
+      final ids = presets[index].enabledSkillIds
+          .map((id) => id == oldId ? newId : id)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      presets[index] = presets[index].copyWith(enabledSkillIds: ids);
+    }
+  }
+
   void dispose() {
     nameController.dispose();
     descController.dispose();
@@ -219,6 +233,8 @@ class PresetsSettingsTab extends StatefulWidget {
   State<PresetsSettingsTab> createState() => _PresetsSettingsTabState();
 }
 
+enum _SkillImportSource { file, folder, paste }
+
 class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
   PresetsSettingsDraft get _draft => widget.draft;
 
@@ -240,52 +256,179 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     super.dispose();
   }
 
-  Future<void> _openNewSkillDialog() async {
-    final result = await AppDialogScaffold.show<Skill>(
-      context: context,
-      builder: (ctx) => const SkillEditorDialog(),
+  bool get _isDesktop =>
+      !kIsWeb &&
+      switch (defaultTargetPlatform) {
+        TargetPlatform.windows ||
+        TargetPlatform.macOS ||
+        TargetPlatform.linux => true,
+        _ => false,
+      };
+
+  void _showSkillError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error is FormatException
+              ? error.message
+              : context.l10n.skillOperationFailed(error.toString()),
+        ),
+      ),
     );
-    if (result != null && mounted) {
-      await widget.viewModel.saveCustomSkill(result);
-      setState(() => _draft.toggleSkill(result.id, true));
+  }
+
+  void _enableImportedSkill(String id) {
+    if (_draft.currentPreset.isBuiltin) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.skillImportedEnableHint)),
+      );
+    } else {
+      setState(() => _draft.toggleSkill(id, true));
     }
   }
 
-  Future<void> _openImportSkillDialog() async {
+  Future<void> _openNewSkillDialog() async {
     final result = await AppDialogScaffold.show<Skill>(
       context: context,
-      builder: (ctx) => const SkillEditorDialog(isImportMode: true),
+      builder: (ctx) => SkillEditorDialog(
+        onSave: (skill) =>
+            widget.viewModel.saveCustomSkill(skill, requireNew: true),
+      ),
     );
-    if (result != null && mounted) {
-      await widget.viewModel.saveCustomSkill(result);
-      setState(() => _draft.toggleSkill(result.id, true));
+    if (result != null && mounted) _enableImportedSkill(result.id);
+  }
+
+  Future<void> _openImportSkillDialog() async {
+    final l10n = context.l10n;
+    final source = await AppDialogScaffold.show<_SkillImportSource>(
+      context: context,
+      builder: (ctx) => AppDialogScaffold(
+        title: l10n.skillDialogImportTitle,
+        width: 460,
+        body: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.skillPackageImportHelp),
+              const SizedBox(height: 16),
+              AppControlFlow(
+                children: [
+                  AppActionButton(
+                    icon: Icons.file_open_outlined,
+                    label: l10n.skillImportFile,
+                    onPressed: () =>
+                        Navigator.of(ctx).pop(_SkillImportSource.file),
+                  ),
+                  if (_isDesktop)
+                    AppActionButton(
+                      icon: Icons.folder_open_outlined,
+                      label: l10n.skillImportFolder,
+                      onPressed: () =>
+                          Navigator.of(ctx).pop(_SkillImportSource.folder),
+                    ),
+                  AppActionButton(
+                    icon: Icons.content_paste_outlined,
+                    label: l10n.skillImportPaste,
+                    onPressed: () =>
+                        Navigator.of(ctx).pop(_SkillImportSource.paste),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    try {
+      SkillPackage? package;
+      if (source == _SkillImportSource.file) {
+        final picked = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['zip', 'skill', 'md'],
+        );
+        if (picked == null || !mounted) return;
+        final path = picked.files.single.path;
+        if (path == null) throw const FormatException('无法读取所选文件。');
+        package = await widget.viewModel.readSkillImportFile(path);
+      } else if (source == _SkillImportSource.folder) {
+        final path = await FilePicker.platform.getDirectoryPath();
+        if (path == null || !mounted) return;
+        package = await widget.viewModel.readSkillImportDirectory(path);
+      }
+      if (!mounted) return;
+      final imported = package;
+      final result = await AppDialogScaffold.show<Skill>(
+        context: context,
+        builder: (ctx) => SkillEditorDialog(
+          skill: imported?.skill,
+          isImportMode: true,
+          onSave: (skill) async {
+            if (imported == null) {
+              await widget.viewModel.saveCustomSkill(skill, requireNew: true);
+            } else {
+              await widget.viewModel.importSkillPackage(imported, skill);
+            }
+          },
+        ),
+      );
+      if (result != null && mounted) _enableImportedSkill(result.id);
+    } catch (error) {
+      _showSkillError(error);
     }
   }
 
   Future<void> _openEditSkillDialog(Skill skill) async {
     final result = await AppDialogScaffold.show<Skill>(
       context: context,
-      builder: (ctx) => SkillEditorDialog(skill: skill),
+      builder: (ctx) => SkillEditorDialog(
+        skill: skill,
+        onSave: (edited) =>
+            widget.viewModel.saveCustomSkill(edited, originalId: skill.id),
+      ),
     );
     if (result != null && mounted) {
-      await widget.viewModel.saveCustomSkill(result);
-      setState(() {});
+      setState(() => _draft.replaceSkillReferences(skill.id, result.id));
     }
   }
 
-  void _exportSkillMd(Skill skill) {
-    Clipboard.setData(ClipboardData(text: skill.toSkillMd()));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(context.l10n.presetExportSkillSuccess(skill.name)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  Future<void> _exportSkillPackage(Skill skill) async {
+    try {
+      final bytes = await widget.viewModel.exportSkillPackage(skill);
+      if (!mounted) return;
+      final name = RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(skill.id)
+          ? skill.id
+          : 'skill';
+      final path = await FilePicker.platform.saveFile(
+        fileName: '$name.zip',
+        type: FileType.custom,
+        allowedExtensions: ['zip'],
+        bytes: bytes,
+      );
+      if (path == null) return;
+      if (_isDesktop) await widget.viewModel.writeSkillExportFile(path, bytes);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.presetExportSkillSuccess(skill.name)),
+        ),
+      );
+    } catch (error) {
+      _showSkillError(error);
+    }
   }
 
   Future<void> _deleteSkill(String skillId) async {
-    await widget.viewModel.deleteCustomSkill(skillId);
-    if (mounted) setState(() => _draft.toggleSkill(skillId, false));
+    try {
+      await widget.viewModel.deleteCustomSkill(skillId);
+      if (mounted) setState(() => _draft.replaceSkillReferences(skillId, null));
+    } catch (error) {
+      _showSkillError(error);
+    }
   }
 
   Future<void> _openNewToolDialog() async {
@@ -548,7 +691,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                         ),
                       ),
                 onEdit: _openEditSkillDialog,
-                onExport: _exportSkillMd,
+                onExport: _exportSkillPackage,
                 onDelete: !skill.isBuiltin
                     ? () => _deleteSkill(skill.id)
                     : null,

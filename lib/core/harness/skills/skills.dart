@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:yaml/yaml.dart';
+
 /// 技能模型 (按标准 Pi / Agent Skills 规范定义)
 class Skill {
   final String id;
@@ -7,6 +10,14 @@ class Skill {
   final bool disableModelInvocation;
   final bool isBuiltin;
 
+  /// 应用托管目录的随机键，不接受技能文档中的路径作为存储位置。
+  final String? packageId;
+  final List<String> resourcePaths;
+
+  /// 保留 license / compatibility / metadata / allowed-tools 等扩展字段。
+  /// allowed-tools 仅是文档元数据，不授予运行时权限。
+  final Map<String, Object?> extraFrontmatter;
+
   const Skill({
     required this.id,
     required this.name,
@@ -14,6 +25,9 @@ class Skill {
     required this.systemPrompt,
     this.disableModelInvocation = false,
     this.isBuiltin = false,
+    this.packageId,
+    this.resourcePaths = const [],
+    this.extraFrontmatter = const {},
   });
 
   Skill copyWith({
@@ -23,6 +37,9 @@ class Skill {
     String? systemPrompt,
     bool? disableModelInvocation,
     bool? isBuiltin,
+    String? packageId,
+    List<String>? resourcePaths,
+    Map<String, Object?>? extraFrontmatter,
   }) {
     return Skill(
       id: id ?? this.id,
@@ -32,6 +49,9 @@ class Skill {
       disableModelInvocation:
           disableModelInvocation ?? this.disableModelInvocation,
       isBuiltin: isBuiltin ?? this.isBuiltin,
+      packageId: packageId ?? this.packageId,
+      resourcePaths: resourcePaths ?? this.resourcePaths,
+      extraFrontmatter: extraFrontmatter ?? this.extraFrontmatter,
     );
   }
 
@@ -42,6 +62,9 @@ class Skill {
     'systemPrompt': systemPrompt,
     'disableModelInvocation': disableModelInvocation,
     'isBuiltin': isBuiltin,
+    if (packageId != null) 'packageId': packageId,
+    if (resourcePaths.isNotEmpty) 'resourcePaths': resourcePaths,
+    if (extraFrontmatter.isNotEmpty) 'extraFrontmatter': extraFrontmatter,
   };
 
   factory Skill.fromJson(Map<String, dynamic> json) => Skill(
@@ -51,121 +74,132 @@ class Skill {
     systemPrompt: json['systemPrompt'] as String? ?? '',
     disableModelInvocation: json['disableModelInvocation'] as bool? ?? false,
     isBuiltin: json['isBuiltin'] as bool? ?? false,
+    packageId: json['packageId'] as String?,
+    resourcePaths:
+        (json['resourcePaths'] as List?)?.whereType<String>().toList() ??
+        const [],
+    extraFrontmatter: switch (json['extraFrontmatter']) {
+      Map<String, dynamic> fields => Map<String, Object?>.from(fields),
+      _ => const {},
+    },
   );
 
-  /// 导出为标准 Pi / Agent Skills SKILL.md 格式
+  /// 导出标准 YAML；JSON 值语法也是合法 YAML，能无损保留多行及嵌套字段。
   String toSkillMd() {
-    final buffer = StringBuffer();
-    buffer.writeln('---');
-    buffer.writeln('name: $id');
-    buffer.writeln('description: ${_escapeYaml(description)}');
-    if (name != id) {
-      buffer.writeln('label: ${_escapeYaml(name)}');
-    }
-    if (disableModelInvocation) {
-      buffer.writeln('disable-model-invocation: true');
-    }
-    buffer.writeln('---');
-    buffer.writeln();
-    buffer.writeln(systemPrompt.trim());
-    return buffer.toString();
+    final fields = <String, Object?>{
+      ...extraFrontmatter,
+      'name': id,
+      'description': description,
+      if (name != id) 'label': name,
+      if (disableModelInvocation) 'disable-model-invocation': true,
+    };
+    return '---\n${fields.entries.map((e) => '${_yamlValue(e.key)}: ${_yamlValue(e.value)}').join('\n')}\n---\n\n${systemPrompt.trim()}\n';
   }
 
-  /// 从标准 Pi / Agent Skills SKILL.md 字符串导入
-  factory Skill.fromSkillMd(String content, {String? defaultId}) {
-    final normalized = content.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+  static String _yamlValue(Object? value) {
+    if (value is String &&
+        RegExp(
+          r'^[a-zA-Z\u4e00-\u9fff][a-zA-Z0-9\u4e00-\u9fff _/-]*$',
+        ).hasMatch(value) &&
+        value.trim() == value &&
+        loadYaml(value) == value) {
+      return value;
+    }
+    return jsonEncode(value);
+  }
 
-    if (!normalized.trimLeft().startsWith('---')) {
-      // 无 Frontmatter，直接作为 System Prompt 处理
+  /// 从标准 SKILL.md 导入。独立文本仍兼容无 Frontmatter 的旧格式。
+  factory Skill.fromSkillMd(String content, {String? defaultId}) {
+    final normalized = content
+        .replaceFirst(RegExp(r'^\uFEFF'), '')
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .trimLeft();
+    if (!normalized.startsWith('---\n')) {
       final firstLine = normalized.trim().split('\n').first;
-      final fallbackName =
-          defaultId ??
-          (firstLine.startsWith('#')
-              ? firstLine.replaceAll('#', '').trim()
-              : 'custom-skill');
       return Skill(
         id: defaultId ?? 'custom-skill',
-        name: fallbackName,
+        name:
+            defaultId ??
+            (firstLine.startsWith('#')
+                ? firstLine.replaceAll('#', '').trim()
+                : 'custom-skill'),
         description: '从文本导入的自定义技能',
         systemPrompt: normalized.trim(),
-        isBuiltin: false,
       );
     }
-
-    final startIndex = normalized.indexOf('---');
-    final endIndex = normalized.indexOf('\n---', startIndex + 3);
-
-    if (endIndex == -1) {
-      return Skill(
-        id: defaultId ?? 'custom-skill',
-        name: defaultId ?? 'Custom Skill',
-        description: '',
-        systemPrompt: normalized.trim(),
-        isBuiltin: false,
-      );
+    final end = RegExp(
+      r'^---[ 	]*$',
+      multiLine: true,
+    ).firstMatch(normalized.substring(4));
+    if (end == null) throw const FormatException('SKILL.md 的 YAML 头缺少结束分隔符。');
+    final raw = normalized.substring(4, 4 + end.start);
+    final Object? yaml;
+    try {
+      yaml = loadYaml(raw);
+    } on YamlException catch (error) {
+      throw FormatException('SKILL.md YAML 格式错误：${error.message}');
+    }
+    if (yaml is! Map) throw const FormatException('SKILL.md 的 YAML 头必须是字段映射。');
+    var nodes = 0;
+    Object? convert(Object? value, [int depth = 0]) {
+      if (++nodes > 4096 || depth > 20) {
+        throw const FormatException('SKILL.md YAML 嵌套过深或字段过多。');
+      }
+      return switch (value) {
+        null || String() || bool() || num() => value,
+        List() => value.map((v) => convert(v, depth + 1)).toList(),
+        Map() => <String, Object?>{
+          for (final entry in value.entries)
+            (entry.key is String
+                ? entry.key as String
+                : throw const FormatException('YAML 字段名必须是字符串。')): convert(
+              entry.value,
+              depth + 1,
+            ),
+        },
+        _ => throw const FormatException('不支持的 YAML 值。'),
+      };
     }
 
-    final frontmatterRaw = normalized
-        .substring(startIndex + 3, endIndex)
-        .trim();
-    final body = normalized.substring(endIndex + 4).trim();
-
-    String parsedName = defaultId ?? 'custom-skill';
-    String parsedLabel = '';
-    String parsedDesc = '';
-    bool parsedDisableInvocation = false;
-
-    for (final line in frontmatterRaw.split('\n')) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
-
-      final colonIdx = trimmed.indexOf(':');
-      if (colonIdx <= 0) continue;
-
-      final key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-      var val = trimmed.substring(colonIdx + 1).trim();
-
-      // 去除首尾引号
-      if ((val.startsWith('"') && val.endsWith('"')) ||
-          (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.substring(1, val.length - 1);
-      }
-
-      switch (key) {
-        case 'name':
-          parsedName = val;
-          break;
-        case 'label':
-        case 'display_name':
-        case 'title':
-          parsedLabel = val;
-          break;
-        case 'description':
-        case 'desc':
-          parsedDesc = val;
-          break;
-        case 'disable-model-invocation':
-        case 'disable_model_invocation':
-          parsedDisableInvocation = val.toLowerCase() == 'true';
-          break;
-      }
+    final fields = convert(yaml) as Map<String, Object?>;
+    String text(String key, [String fallback = '']) {
+      final value = fields[key];
+      if (value == null) return fallback;
+      if (value is! String) throw FormatException('SKILL.md 的 $key 必须是字符串。');
+      return value;
     }
 
+    final id = text('name', defaultId ?? 'custom-skill');
+    final label = text('label', text('display_name', text('title', id)));
+    final desc = text('description', text('desc'));
+    final disabled =
+        fields['disable-model-invocation'] ??
+        fields['disable_model_invocation'] ??
+        false;
+    if (disabled is! bool) {
+      throw const FormatException('disable-model-invocation 必须是布尔值。');
+    }
+    for (final key in [
+      'name',
+      'description',
+      'desc',
+      'label',
+      'display_name',
+      'title',
+      'disable-model-invocation',
+      'disable_model_invocation',
+    ]) {
+      fields.remove(key);
+    }
     return Skill(
-      id: parsedName,
-      name: parsedLabel.isNotEmpty ? parsedLabel : parsedName,
-      description: parsedDesc,
-      systemPrompt: body,
-      disableModelInvocation: parsedDisableInvocation,
-      isBuiltin: false,
+      id: id,
+      name: label,
+      description: desc,
+      systemPrompt: normalized.substring(4 + end.end).trim(),
+      disableModelInvocation: disabled,
+      extraFrontmatter: Map.unmodifiable(fields),
     );
-  }
-
-  static String _escapeYaml(String value) {
-    if (value.contains('\n') || value.contains(':') || value.contains('"')) {
-      return '"${value.replaceAll('"', '\\"')}"';
-    }
-    return value;
   }
 
   /// 格式化为 Agent Skills 标准 XML 块 (遵循 Pi 规范注入系统提示词)
@@ -252,6 +286,14 @@ class BuiltinSkills {
 
 画面质感自由发挥：
 - 不要机械堆词，从几个核心维度去生动展开：面料的褶皱与垂坠感、不同材质的反光表现（哑光、光泽、透光）、光源方向与边缘轮廓光、身体重心的对立平衡与手指关节微动态，按画面需要灵活构思。
+
+画面不够精细与构图透视修正（在已有元素上写空间关系，严禁乱加东西）：
+- 严禁乱加新东西凑细节：用户觉得画面不够精细、细节不足，或者觉得构图透视不对时，绝对不要往画面里加新的物体、新的饰品、碎屑飘花或者多余背景！乱加东西只会让画面变得又乱又挤。
+- 怎么干（就用画面里已有的东西，说清楚它们的位置和相互关系）：
+  - 谁在前谁在后：讲清楚现有的角色、物体和背景之间谁在前面、谁在后面、谁挡住了谁的一角、彼此隔着多远。
+  - 视角怎么看：讲清楚镜头是从什么角度拍的（是从下往上仰视、平视还是从上往下俯视），近处的偏大、远处的收窄。
+  - 怎么接触受力：讲清楚角色和现有东西是怎么碰在一起的（比如脚踩在地面上的贴合与受重、手是怎么握紧手里已有道具的、坐下时衣服在椅子上的压痕褶皱）。
+  - 影子打在哪：讲清楚光照下来时，现有东西的影子投在什么地方（比如下巴在脖子上的阴影、落在地面上的影子），用影子和贴合关系把立体感带出来。
 
 多主体与画面万物定位：
 - 角色槽位（characterPrompts）不局限于角色，场景构件、道具、漫画分镜格子、画面文字等任何需要固定位置或防串色的元素都能用。

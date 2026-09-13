@@ -319,7 +319,7 @@
       "name": { "type": "String" }
     }
   },
-  "presetExportSkillSuccess": "Copied Skill [{name}] as standard SKILL.md to clipboard",
+  "presetExportSkillSuccess": "Exported skill package {name}",
   "@presetExportSkillSuccess": {
     "placeholders": {
       "name": { "type": "String" }
@@ -332,7 +332,7 @@
   "presetDescriptionHint": "e.g. Specialized in V5 natural language prose prompts...",
   "presetSystemPrompt": "System Prompt (serves as the primary root instruction for conversations)",
   "presetSystemPromptHint": "Enter the core persona and workflow guidelines for the AI assistant...",
-  "presetImportSkill": "Import SKILL.md",
+  "presetImportSkill": "Import Skill",
   "presetNewSkill": "New Skill",
   "presetNewCustomTool": "New Custom Tool",
   "presetParamPrompt": "Prompt",
@@ -348,11 +348,11 @@
   "presetParamNoiseSchedule": "Noise Schedule",
   "presetParamQualityPreset": "Quality Tags",
   "presetParamCharacterAiPosition": "Character Position",
-  "skillTooltipExport": "Export as SKILL.md",
+  "skillTooltipExport": "Export skill package (.zip)",
   "skillTooltipEdit": "View & Edit Skill",
   "skillTooltipDelete": "Delete Skill",
   "skillNoDescription": "No description",
-  "skillDialogImportTitle": "Import Standard SKILL.md",
+  "skillDialogImportTitle": "Import Skill",
   "skillDialogNewTitle": "New Skill",
   "skillDialogEditTitle": "Edit Skill ({name})",
   "@skillDialogEditTitle": {
@@ -375,6 +375,36 @@
   "skillFieldDisableInvocation": "Disable model auto-invocation",
   "skillFieldPromptHint": "Enter complete prompt and specifications applied when this skill is loaded...",
   "skillRawEditorHelp": "Paste or edit standard SKILL.md (including YAML Frontmatter and Markdown Body):",
+  "skillImportFile": "Choose file (.zip / .skill / .md)",
+  "skillImportFolder": "Choose skill folder",
+  "skillImportPaste": "Paste SKILL.md",
+  "skillPackageImportHelp": "Import one skill containing SKILL.md, preserving scripts, references, assets and other files. ZIP wrappers are supported. Scripts are not executed. Use an archive on mobile.",
+  "skillPackageResourceHelp": "Resources are retained when editing and read on demand. Scripts are read-only, never executed.",
+  "skillPackageFiles": "Resources: {count} files",
+  "skillDuplicateId": "Skill ID {id} already exists. Choose a different ID before importing.",
+  "skillOperationFailed": "Skill operation failed: {error}",
+  "skillImportedEnableHint": "Skill imported. Built-in presets are read-only; duplicate a preset and enable this skill.",
+  "@skillPackageFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@skillDuplicateId": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "@skillOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "skillIdEmptyError": "Skill ID cannot be empty",
   "toolTooltipEdit": "Edit Tool",
   "toolTooltipInspectSchema": "View Schema",

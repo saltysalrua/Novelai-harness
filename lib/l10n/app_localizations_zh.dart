@@ -714,7 +714,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String presetExportSkillSuccess(String name) {
-    return '已复制 Skill [$name] 为标准 SKILL.md 至剪贴板';
+    return '已导出技能包 $name';
   }
 
   @override
@@ -740,7 +740,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get presetSystemPromptHint => '输入 AI 助手的核心人设与工作流指引...';
 
   @override
-  String get presetImportSkill => '导入 SKILL.md';
+  String get presetImportSkill => '导入技能';
 
   @override
   String get presetNewSkill => '新建 Skill';
@@ -788,7 +788,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get presetParamCharacterAiPosition => '角色定位模式';
 
   @override
-  String get skillTooltipExport => '导出为 SKILL.md';
+  String get skillTooltipExport => '导出技能包 (.zip)';
 
   @override
   String get skillTooltipEdit => '查看与编辑 Skill';
@@ -800,7 +800,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get skillNoDescription => '暂无描述';
 
   @override
-  String get skillDialogImportTitle => '导入标准 SKILL.md';
+  String get skillDialogImportTitle => '导入技能';
 
   @override
   String get skillDialogNewTitle => '新建 Skill';
@@ -855,6 +855,40 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get skillRawEditorHelp =>
       '粘贴或编辑标准 SKILL.md (含 YAML Frontmatter 与 Markdown Body)：';
+
+  @override
+  String get skillImportFile => '选择文件 (.zip / .skill / .md)';
+
+  @override
+  String get skillImportFolder => '选择技能文件夹';
+
+  @override
+  String get skillImportPaste => '粘贴 SKILL.md';
+
+  @override
+  String get skillPackageImportHelp =>
+      '导入含 SKILL.md 的单个技能包，保留 scripts、references、assets 等文件。ZIP 可包含外层目录；脚本不会自动执行。手机请使用压缩包。';
+
+  @override
+  String get skillPackageResourceHelp => '配套文件会随编辑保留，供 Agent 按需读取；脚本只读不执行。';
+
+  @override
+  String skillPackageFiles(int count) {
+    return '配套文件：$count 个';
+  }
+
+  @override
+  String skillDuplicateId(String id) {
+    return '技能标识 $id 已存在，请修改标识后再导入。';
+  }
+
+  @override
+  String skillOperationFailed(String error) {
+    return '技能操作失败：$error';
+  }
+
+  @override
+  String get skillImportedEnableHint => '技能已导入。内置预设只读，请复制预设后勾选此技能。';
 
   @override
   String get skillIdEmptyError => 'Skill 标识 (ID) 不能为空';
