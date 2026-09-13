@@ -183,18 +183,25 @@ void main() {
     });
 
     test('目录选择与校验通道透传并解析 SafDirectoryInfo', () async {
-      TestDefaultBinaryMessengerBinding
-          .instance
-          .defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
             const MethodChannel(MediaStoreService.channelName),
             (call) async {
               switch (call.method) {
                 case 'pickDirectory':
-                  return {'uri': 'content://tree/primary%3AData%2Ftest', 'name': 'test'};
+                  return {
+                    'uri': 'content://tree/primary%3AData%2Ftest',
+                    'name': 'test',
+                  };
                 case 'getTreeInfo':
-                  expect(call.arguments['uri'], equals('content://tree/primary%3AData'));
-                  return {'uri': 'content://tree/primary%3AData', 'name': 'Data'};
+                  expect(
+                    call.arguments['uri'],
+                    equals('content://tree/primary%3AData'),
+                  );
+                  return {
+                    'uri': 'content://tree/primary%3AData',
+                    'name': 'Data',
+                  };
                 default:
                   return null;
               }
@@ -206,16 +213,16 @@ void main() {
       expect(picked?.uri, equals('content://tree/primary%3AData%2Ftest'));
       expect(picked?.name, equals('test'));
 
-      final verified = await service.verifyExportDirectory('content://tree/primary%3AData');
+      final verified = await service.verifyExportDirectory(
+        'content://tree/primary%3AData',
+      );
       expect(verified?.name, equals('Data'));
 
       final missing = await service.verifyExportDirectory('');
       expect(missing, isNull);
 
       // 用户取消选择返回 null
-      TestDefaultBinaryMessengerBinding
-          .instance
-          .defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
             const MethodChannel(MediaStoreService.channelName),
             (call) async => null,
@@ -227,9 +234,7 @@ void main() {
       Object? capturedBytes;
       String? capturedTree;
       String? capturedRelative;
-      TestDefaultBinaryMessengerBinding
-          .instance
-          .defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
             const MethodChannel(MediaStoreService.channelName),
             (call) async {
@@ -252,9 +257,7 @@ void main() {
       expect(capturedRelative, equals('2026-09/demo.png'));
 
       // 授权失效映射为可判定错误码
-      TestDefaultBinaryMessengerBinding
-          .instance
-          .defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
             const MethodChannel(MediaStoreService.channelName),
             (call) async => throw PlatformException(
@@ -269,8 +272,11 @@ void main() {
           'a.png',
         ),
         throwsA(
-          isA<MediaStoreException>()
-              .having((e) => e.isPermissionDenied, 'isPermissionDenied', isTrue),
+          isA<MediaStoreException>().having(
+            (e) => e.isPermissionDenied,
+            'isPermissionDenied',
+            isTrue,
+          ),
         ),
       );
 
