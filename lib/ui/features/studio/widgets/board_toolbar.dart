@@ -50,62 +50,65 @@ class BoardAnnotationToolbar extends StatelessWidget {
 
     return AppFloatingDock(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          BoardToolbarItem(
-            icon: Icons.pan_tool_outlined,
-            label: l10n.boardToolPan,
-            isSelected: isPanMode,
-            onTap: onPanModeToggled,
-          ),
-          const SizedBox(width: 4),
-          BoardToolbarItem(
-            icon: Icons.crop_square_rounded,
-            label: l10n.boardToolRect,
-            isSelected: !isPanMode && toolMode == AnnotationToolMode.rect,
-            onTap: () => onToolModeChanged(AnnotationToolMode.rect),
-          ),
-          const SizedBox(width: 4),
-          BoardToolbarItem(
-            icon: Icons.push_pin_outlined,
-            label: l10n.boardToolPoint,
-            isSelected: !isPanMode && toolMode == AnnotationToolMode.point,
-            onTap: () => onToolModeChanged(AnnotationToolMode.point),
-          ),
-          const SizedBox(width: 6),
-          Container(width: 1, height: 16, color: colors.borderDefault),
-          const SizedBox(width: 6),
-          BoardToolbarItem(
-            icon: Icons.note_add_outlined,
-            label: l10n.boardToolAddNote,
-            isSelected: false,
-            onTap: onAddNote,
-          ),
-          const SizedBox(width: 4),
-          BoardToolbarItem(
-            icon: Icons.add_photo_alternate_outlined,
-            label: l10n.boardToolAddImage,
-            isSelected: false,
-            onTap: onImportImage,
-          ),
-          const SizedBox(width: 4),
-          BoardToolbarItem(
-            icon: Icons.content_paste_rounded,
-            label: l10n.boardToolPasteImage,
-            isSelected: false,
-            onTap: onPasteImage,
-          ),
-          const SizedBox(width: 6),
-          Container(width: 1, height: 16, color: colors.borderDefault),
-          const SizedBox(width: 6),
-          BoardToolbarItem(
-            icon: Icons.center_focus_strong_outlined,
-            label: l10n.boardToolResetView,
-            isSelected: false,
-            onTap: onResetView,
-          ),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            BoardToolbarItem(
+              icon: Icons.pan_tool_outlined,
+              label: l10n.boardToolPan,
+              isSelected: isPanMode,
+              onTap: onPanModeToggled,
+            ),
+            const SizedBox(width: 4),
+            BoardToolbarItem(
+              icon: Icons.crop_square_rounded,
+              label: l10n.boardToolRect,
+              isSelected: !isPanMode && toolMode == AnnotationToolMode.rect,
+              onTap: () => onToolModeChanged(AnnotationToolMode.rect),
+            ),
+            const SizedBox(width: 4),
+            BoardToolbarItem(
+              icon: Icons.push_pin_outlined,
+              label: l10n.boardToolPoint,
+              isSelected: !isPanMode && toolMode == AnnotationToolMode.point,
+              onTap: () => onToolModeChanged(AnnotationToolMode.point),
+            ),
+            const SizedBox(width: 6),
+            Container(width: 1, height: 16, color: colors.borderDefault),
+            const SizedBox(width: 6),
+            BoardToolbarItem(
+              icon: Icons.note_add_outlined,
+              label: l10n.boardToolAddNote,
+              isSelected: false,
+              onTap: onAddNote,
+            ),
+            const SizedBox(width: 4),
+            BoardToolbarItem(
+              icon: Icons.add_photo_alternate_outlined,
+              label: l10n.boardToolAddImage,
+              isSelected: false,
+              onTap: onImportImage,
+            ),
+            const SizedBox(width: 4),
+            BoardToolbarItem(
+              icon: Icons.content_paste_rounded,
+              label: l10n.boardToolPasteImage,
+              isSelected: false,
+              onTap: onPasteImage,
+            ),
+            const SizedBox(width: 6),
+            Container(width: 1, height: 16, color: colors.borderDefault),
+            const SizedBox(width: 6),
+            BoardToolbarItem(
+              icon: Icons.center_focus_strong_outlined,
+              label: l10n.boardToolResetView,
+              isSelected: false,
+              onTap: onResetView,
+            ),
+          ],
+        ),
       ),
     );
   }

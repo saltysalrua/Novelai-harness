@@ -457,6 +457,54 @@ void main() {
     _expectMatrix(_lightboxTransform(tester), panned);
   });
 
+  testWidgets('short touch pinch works in a phone lightbox route', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => GestureDetector(
+            onDoubleTap: () => showImageLightbox(context, testImage),
+            child: const ColoredBox(color: Colors.white),
+          ),
+        ),
+      ),
+    );
+    await tester.tapAt(const Offset(195, 400));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tapAt(const Offset(195, 400));
+    await tester.pumpAndSettle();
+    expect(find.byType(ImageLightboxDialog), findsOneWidget);
+
+    const focal = Offset(195, 400);
+    final first = await tester.startGesture(focal - const Offset(70, 0));
+    final second = await tester.startGesture(focal + const Offset(70, 0));
+    // 手机短距离捏合：不能把整段有效双指动作都吞作单指起拖阈值。
+    for (var frame = 0; frame < 10; frame++) {
+      await first.moveBy(const Offset(-1, 0));
+      await second.moveBy(const Offset(1, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final enlarged = _lightboxTransform(tester);
+    expect(enlarged.entry(0, 0), closeTo(160 / 140, 0.001));
+    _expectPoint(MatrixUtils.transformPoint(enlarged, focal), focal);
+    // 同一次手势能立即反向缩小，不需要重新跨越阈值。
+    await first.moveBy(const Offset(10, 0));
+    await second.moveBy(const Offset(-10, 0));
+    await tester.pump();
+    _expectMatrix(_lightboxTransform(tester), Matrix4.identity());
+    await first.up();
+    await second.up();
+    await tester.pumpAndSettle();
+    expect(find.byType(ImageLightboxDialog), findsOneWidget);
+  });
+
   testWidgets('native trackpad pan zoom preserves the moving focal point', (
     tester,
   ) async {

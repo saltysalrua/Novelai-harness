@@ -1,10 +1,12 @@
 import 'dart:typed_data';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
+import 'package:novelai_harness/ui/core/theme/ui_zoom_controller.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/board_image_card.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/board_note_card.dart';
@@ -100,7 +102,10 @@ NaiGeneratedImage _makeImage(
   );
 }
 
-Future<StudioViewModel> _pumpBoard(WidgetTester tester) async {
+Future<StudioViewModel> _pumpBoard(
+  WidgetTester tester, {
+  double uiZoom = 1,
+}) async {
   final repo = NovelAiRepository();
   final vm = StudioViewModel(repository: repo);
   final img = _makeImage('img-main');
@@ -110,6 +115,7 @@ Future<StudioViewModel> _pumpBoard(WidgetTester tester) async {
 
   await tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) => AppUiZoomScope(zoom: uiZoom, child: child!),
       locale: const Locale('zh'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -223,6 +229,154 @@ void main() {
       await tester.pump(const Duration(milliseconds: 700));
       expect(vm.board.boardData.viewScale, greaterThan(1.3));
       expect(tester.takeException(), isNull);
+    });
+
+    for (final panMode in [false, true]) {
+      testWidgets('图片上双指缩放不建批注 (漫游工具: $panMode)', (tester) async {
+        final vm = await _pumpBoard(tester);
+        final controller = tester
+            .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+            .transformationController!;
+        if (panMode) {
+          await tester.tap(find.byIcon(Icons.pan_tool_outlined));
+          await tester.pump();
+        }
+        final before = controller.value.clone();
+        var notifications = 0;
+        vm.addListener(() => notifications++);
+        final anchor = MatrixUtils.transformPoint(
+          Matrix4.inverted(before),
+          const Offset(400, 320),
+        );
+        final first = await tester.startGesture(const Offset(330, 320));
+        final second = await tester.startGesture(const Offset(470, 320));
+        for (var frame = 0; frame < 10; frame++) {
+          await first.moveBy(const Offset(-3, 0));
+          await second.moveBy(const Offset(3, 0));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(controller.value.storage[0], closeTo(200 / 140, 0.001));
+        final focal = MatrixUtils.transformPoint(controller.value, anchor);
+        expect(focal.dx, closeTo(400, 0.001));
+        expect(focal.dy, closeTo(320, 0.001));
+        expect(notifications, 0);
+        final pinched = controller.value.clone();
+        await second.up();
+        // 双指后剩余一指不得突然接回圈选/漫游而误写节点或视口。
+        await first.moveBy(const Offset(30, 20));
+        await first.up();
+        expect(controller.value, pinched);
+        await tester.pump();
+        expect(vm.board.boardData.imageNodes.first.annotations, isEmpty);
+        await tester.pumpWidget(const SizedBox.shrink());
+        vm.dispose();
+      });
+    }
+
+    testWidgets('背景单指漫游后加指仍能连续捏合缩放', (tester) async {
+      final vm = await _pumpBoard(tester);
+      final controller = tester
+          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+          .transformationController!;
+      final first = await tester.startGesture(const Offset(70, 400));
+      await first.moveBy(const Offset(40, 0));
+      await first.moveBy(const Offset(10, 0));
+      await tester.pump();
+      final before = controller.value.clone();
+      final second = await tester.startGesture(const Offset(200, 400));
+      for (var frame = 0; frame < 5; frame++) {
+        await first.moveBy(const Offset(-3, 0));
+        await second.moveBy(const Offset(3, 0));
+        await tester.pump();
+      }
+      expect(controller.value.storage[0], greaterThan(before.storage[0]));
+      await first.up();
+      await second.up();
+      await tester.pumpWidget(const SizedBox.shrink());
+      vm.dispose();
+    });
+
+    testWidgets('缓慢双指缩放保留每帧小于千分之一的比例增量', (tester) async {
+      final vm = await _pumpBoard(tester);
+      final controller = tester
+          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+          .transformationController!;
+      final first = await tester.startGesture(const Offset(100, 400));
+      final second = await tester.startGesture(const Offset(200, 400));
+      await first.moveBy(const Offset(-25, 0));
+      await second.moveBy(const Offset(25, 0));
+      await tester.pump();
+      final before = controller.value.storage[0];
+      for (var frame = 0; frame < 30; frame++) {
+        await first.moveBy(const Offset(-0.02, 0));
+        await second.moveBy(const Offset(0.02, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(
+        controller.value.storage[0] / before,
+        closeTo(151.2 / 150, 0.00001),
+      );
+      await first.cancel();
+      await second.cancel();
+      await tester.pumpWidget(const SizedBox.shrink());
+      vm.dispose();
+    });
+
+    for (final boardScale in [0.5, 2.0]) {
+      for (final panMode in [false, true]) {
+        testWidgets('鼠标漫游精确 1:1: UI 125%, 画板 $boardScale, 漫游 $panMode', (
+          tester,
+        ) async {
+          final vm = await _pumpBoard(tester, uiZoom: 1.25);
+          final controller = tester
+              .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+              .transformationController!;
+          controller.value = Matrix4.diagonal3Values(boardScale, boardScale, 1)
+            ..setTranslationRaw(-2000 * boardScale, -2000 * boardScale, 0);
+          if (panMode) {
+            await tester.tap(find.byIcon(Icons.pan_tool_outlined));
+          }
+          await tester.pump();
+          final gesture = await tester.startGesture(
+            const Offset(100, 300),
+            kind: PointerDeviceKind.mouse,
+          );
+          await gesture.moveBy(const Offset(40, 0));
+          await tester.pump();
+          final before = controller.value.clone();
+          await gesture.moveBy(const Offset(20, 10));
+          await tester.pump();
+          expect(
+            controller.value.storage[12] - before.storage[12],
+            closeTo(16, 0.001),
+          );
+          expect(
+            controller.value.storage[13] - before.storage[13],
+            closeTo(8, 0.001),
+          );
+          expect(controller.value.storage[0], boardScale);
+          await gesture.up();
+          await tester.pumpWidget(const SizedBox.shrink());
+          vm.dispose();
+        });
+      }
+    }
+
+    testWidgets('手机批注工具栏不溢出且末尾操作可滚动到达', (tester) async {
+      tester.view.physicalSize = const Size(390, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final vm = await _pumpBoard(tester);
+      expect(tester.takeException(), isNull);
+      final reset = find.byIcon(Icons.center_focus_strong_outlined);
+      await tester.ensureVisible(reset);
+      await tester.pumpAndSettle();
+      await tester.tap(reset);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      vm.dispose();
     });
 
     testWidgets('拖拽图片卡片顶栏可移动卡片', (tester) async {

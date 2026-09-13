@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show Uint8List;
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_scale_gesture_region.dart';
 
 /// 全屏大图查看器：自由平移缩放画板 (滚轮纯缩放、不随鼠标偏移) + 顶部关闭按钮
 void showImageLightbox(
@@ -232,8 +233,7 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog>
                   onPointerPanZoomStart: (_) => _stopZoom(),
                   onPointerSignal: (event) =>
                       _handlePointerSignal(event, viewportSize),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
+                  child: AppScaleGestureRegion(
                     onDoubleTap: () => _handleDoubleTap(viewportSize),
                     onScaleStart: _handleScaleStart,
                     onScaleUpdate: _handleScaleUpdate,

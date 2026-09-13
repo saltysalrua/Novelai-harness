@@ -8,6 +8,7 @@ import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_floating_dock.dart';
+import '../../../core/widgets/app_scale_gesture_region.dart';
 import '../view_models/studio_view_model.dart';
 import 'board_image_card.dart';
 import 'board_note_card.dart';
@@ -55,6 +56,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   late final BoardLiveApi _liveApi = BoardLiveApi(_liveOverlays);
   bool _isSpacePressed = false;
   bool _isBoardDragging = false;
+  final Set<int> _boardPointers = {};
 
   // 触摸/拖拽漫游与捏合缩放的手势基准 (对齐大图灯箱的手势状态机)：
   // 手指数变化只重建基准，不把质心跳变误算成平移或缩放
@@ -261,7 +263,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
       ..storage[15] = 1.0;
   }
 
-  /// 空白区域漫游手势开始：记录基准 (含单指拖拽与双指捏合两种起点)
+  /// 全画板双指手势开始：图片、便签与空白背景共用同一入口。
   void _handleBoardScaleStart(ScaleStartDetails details) {
     // Listener 的中键/右键/空格/漫游工具路径已接管平移时不重复应用
     if (_isBoardDragging || _wireDrag.value != null) return;
@@ -270,28 +272,20 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
     _gesturePointerCount = details.pointerCount;
   }
 
-  /// 空白区域漫游手势更新：单指平移 1:1 跟随视口位移；双指捏合以质心为不动点缩放，
-  /// 质心移动即双指平移。平移量全部在视口空间结算，不受画布缩放比例影响。
+  /// 双指捏合以质心为不动点缩放，质心移动即双指平移。
+  /// 不丢弃微小增量，否则缓慢捏合时每帧都低于阈值会导致完全不缩放。
   void _handleBoardScaleUpdate(ScaleUpdateDetails details) {
     if (_isBoardDragging || _wireDrag.value != null) return;
+    if (!details.scale.isFinite || details.scale <= 0) return;
     final viewportFocal = _viewportFocalOf(details.focalPoint);
-    final currentMatrix = _transformController.value;
     if (_gesturePointerCount == details.pointerCount) {
-      final incrementalScale = details.scale / _lastGestureScale;
-      if ((incrementalScale - 1.0).abs() > 0.001) {
-        // 捏合缩放：旧质心锚定缩放，新质心接管平移
-        _transformController.value = _boardScaleAround(
-          currentMatrix.storage[0] * incrementalScale,
-          _lastViewportFocal,
-          nextAnchor: viewportFocal,
-        );
-      } else {
-        // 纯平移 (单指拖拽或双指同步移动)：直接在视口空间加位移
-        final newMatrix = Matrix4.copy(currentMatrix);
-        newMatrix.storage[12] += viewportFocal.dx - _lastViewportFocal.dx;
-        newMatrix.storage[13] += viewportFocal.dy - _lastViewportFocal.dy;
-        _transformController.value = newMatrix;
-      }
+      _transformController.value = _boardScaleAround(
+        _transformController.value.storage[0] *
+            details.scale /
+            _lastGestureScale,
+        _lastViewportFocal,
+        nextAnchor: viewportFocal,
+      );
     }
     _lastViewportFocal = viewportFocal;
     _lastGestureScale = details.scale;
@@ -407,7 +401,11 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                       Listener(
                         onPointerSignal: _handlePointerSignal,
                         onPointerDown: (e) {
-                          if (e.buttons == kSecondaryMouseButton ||
+                          _boardPointers.add(e.pointer);
+                          if (_boardPointers.length > 1) {
+                            // 漫游工具也必须让双指交给 scale，而非叠加两份位移。
+                            _isBoardDragging = false;
+                          } else if (e.buttons == kSecondaryMouseButton ||
                               e.buttons == kMiddleMouseButton ||
                               _isSpacePressed ||
                               _isPanMode) {
@@ -418,13 +416,19 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                           if (_isBoardDragging && _wireDrag.value == null) {
                             final currentMatrix = _transformController.value;
                             final newMatrix = Matrix4.copy(currentMatrix);
-                            newMatrix.storage[12] += e.delta.dx;
-                            newMatrix.storage[13] += e.delta.dy;
+                            newMatrix.storage[12] += e.localDelta.dx;
+                            newMatrix.storage[13] += e.localDelta.dy;
                             _transformController.value = newMatrix;
                           }
                         },
-                        onPointerUp: (_) => _isBoardDragging = false,
-                        onPointerCancel: (_) => _isBoardDragging = false,
+                        onPointerUp: (e) {
+                          _boardPointers.remove(e.pointer);
+                          _isBoardDragging = false;
+                        },
+                        onPointerCancel: (e) {
+                          _boardPointers.remove(e.pointer);
+                          _isBoardDragging = false;
+                        },
                         child: InteractiveViewer(
                           transformationController: _transformController,
                           // 关键：不把子树压到视口大小，否则 6000x6000 画布内
@@ -435,72 +439,78 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                           maxScale: kBoardMaxScale,
                           panEnabled: false,
                           scaleEnabled: false,
-                          child: Container(
-                            width: kBoardCanvasSize,
-                            height: kBoardCanvasSize,
-                            color: colors.canvasBackground,
-                            child: CustomPaint(
-                              // 网格点阵画在卡片之下，连线画在卡片之上 (前景) 不被图片遮挡
-                              painter: BoardGridPainter(
-                                dotColor: colors.borderHover,
-                              ),
-                              foregroundPainter: BoardWirePainter(
-                                boardData: boardData,
-                                liveOverlays: _liveOverlays,
-                                wireDrag: _wireDrag,
-                                dragColor: colors.primary,
-                              ),
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  // 1.0 背景层：空白处单指/鼠标拖拽 1:1 漫游 (视口空间平移，
-                                  // 不受缩放比例影响)，双指捏合以质心为不动点缩放画布；
-                                  // 单击空白处取消高亮
-                                  Positioned.fill(
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: () => viewModel.board
-                                          .selectAnnotationId(null),
-                                      onScaleStart: _handleBoardScaleStart,
-                                      onScaleUpdate: _handleBoardScaleUpdate,
-                                      onScaleEnd: _handleBoardScaleEnd,
-                                    ),
-                                  ),
-
-                                  for (final imgNode in boardData.imageNodes)
-                                    BoardImageCard(
-                                      key: ValueKey(imgNode.id),
-                                      viewModel: viewModel,
-                                      imageNode: imgNode,
-                                      toolMode: _toolMode,
-                                      isPanMode: _isPanMode,
-                                      isWireDragging: _wireDrag.value != null,
-                                      live: _liveApi,
-                                      onStartWireFromImage: (anchor) =>
-                                          _beginWireDragFromImage(
-                                            imgNode.id,
-                                            anchor,
-                                          ),
-                                      onUpdateWire: _updateWireFromGlobal,
-                                      onEndWire: _endWireDrag,
+                          child: AppScaleGestureRegion(
+                            multitouchOnly: true,
+                            onScaleStart: _handleBoardScaleStart,
+                            onScaleUpdate: _handleBoardScaleUpdate,
+                            onScaleEnd: _handleBoardScaleEnd,
+                            child: Container(
+                              width: kBoardCanvasSize,
+                              height: kBoardCanvasSize,
+                              color: colors.canvasBackground,
+                              child: CustomPaint(
+                                // 网格点阵画在卡片之下，连线画在卡片之上 (前景) 不被图片遮挡
+                                painter: BoardGridPainter(
+                                  dotColor: colors.borderHover,
+                                ),
+                                foregroundPainter: BoardWirePainter(
+                                  boardData: boardData,
+                                  liveOverlays: _liveOverlays,
+                                  wireDrag: _wireDrag,
+                                  dragColor: colors.primary,
+                                ),
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    // 背景保留单指漫游 → 加指捏合的连续手势。
+                                    // 节点上的双指则交给上层 multitouchOnly 入口；
+                                    // 二者通过竞技场互斥，不重复写入矩阵。
+                                    Positioned.fill(
+                                      child: AppScaleGestureRegion(
+                                        onTap: () => viewModel.board
+                                            .selectAnnotationId(null),
+                                        onScaleStart: _handleBoardScaleStart,
+                                        onScaleUpdate: _handleBoardScaleUpdate,
+                                        onScaleEnd: _handleBoardScaleEnd,
+                                        child: const SizedBox.expand(),
+                                      ),
                                     ),
 
-                                  // 1.2 便利贴节点渲染 (左侧端口拖拽连线)
-                                  for (final noteNode in boardData.noteNodes)
-                                    BoardNoteCard(
-                                      key: ValueKey(noteNode.id),
-                                      viewModel: viewModel,
-                                      noteNode: noteNode,
-                                      live: _liveApi,
-                                      onStartWireFromNote: (anchor) =>
-                                          _beginWireDragFromNote(
-                                            noteNode.id,
-                                            anchor,
-                                          ),
-                                      onUpdateWire: _updateWireFromGlobal,
-                                      onEndWire: _endWireDrag,
-                                    ),
-                                ],
+                                    for (final imgNode in boardData.imageNodes)
+                                      BoardImageCard(
+                                        key: ValueKey(imgNode.id),
+                                        viewModel: viewModel,
+                                        imageNode: imgNode,
+                                        toolMode: _toolMode,
+                                        isPanMode: _isPanMode,
+                                        isWireDragging: _wireDrag.value != null,
+                                        live: _liveApi,
+                                        onStartWireFromImage: (anchor) =>
+                                            _beginWireDragFromImage(
+                                              imgNode.id,
+                                              anchor,
+                                            ),
+                                        onUpdateWire: _updateWireFromGlobal,
+                                        onEndWire: _endWireDrag,
+                                      ),
+
+                                    // 1.2 便利贴节点渲染 (左侧端口拖拽连线)
+                                    for (final noteNode in boardData.noteNodes)
+                                      BoardNoteCard(
+                                        key: ValueKey(noteNode.id),
+                                        viewModel: viewModel,
+                                        noteNode: noteNode,
+                                        live: _liveApi,
+                                        onStartWireFromNote: (anchor) =>
+                                            _beginWireDragFromNote(
+                                              noteNode.id,
+                                              anchor,
+                                            ),
+                                        onUpdateWire: _updateWireFromGlobal,
+                                        onEndWire: _endWireDrag,
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
