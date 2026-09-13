@@ -5,6 +5,7 @@ import '../../../../data/models/novelai_models.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
+import '../../../core/widgets/two_finger_scale.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
 import 'character_position_canvas_view.dart';
@@ -609,61 +610,64 @@ class CanvasImageCard extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             child: AspectRatio(
               aspectRatio: imageAspectRatioOf(item.params),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ValueListenableBuilder<Map<String, Uint8List>>(
-                    valueListenable: viewModel.imageBytesNotifier,
-                    builder: (context, bytesMap, _) {
-                      final fullBytes = item.bytes.isNotEmpty
-                          ? item.bytes
-                          : bytesMap[item.id];
-                      if (fullBytes != null && fullBytes.isNotEmpty) {
-                        return Image.memory(
-                          fullBytes,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                          cacheWidth: cacheWidth,
-                        );
-                      }
+              // 触摸屏双指捏合卡内缩放 (不劫持单指滚动与点按)
+              child: TwoFingerPinchZoom(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ValueListenableBuilder<Map<String, Uint8List>>(
+                      valueListenable: viewModel.imageBytesNotifier,
+                      builder: (context, bytesMap, _) {
+                        final fullBytes = item.bytes.isNotEmpty
+                            ? item.bytes
+                            : bytesMap[item.id];
+                        if (fullBytes != null && fullBytes.isNotEmpty) {
+                          return Image.memory(
+                            fullBytes,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
+                            cacheWidth: cacheWidth,
+                          );
+                        }
 
-                      if (isSelected) {
-                        viewModel.ensureImageLoaded(item);
-                      }
+                        if (isSelected) {
+                          viewModel.ensureImageLoaded(item);
+                        }
 
-                      final thumb = item.thumbnailBytes;
-                      if (thumb != null && thumb.isNotEmpty) {
-                        return Image.memory(
-                          thumb,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                          cacheWidth: cacheWidth,
-                        );
-                      }
+                        final thumb = item.thumbnailBytes;
+                        if (thumb != null && thumb.isNotEmpty) {
+                          return Image.memory(
+                            thumb,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
+                            cacheWidth: cacheWidth,
+                          );
+                        }
 
-                      return Container(
-                        color: context.colors.mutedBackground,
-                        child: Center(
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                context.colors.primary,
+                        return Container(
+                          color: context.colors.mutedBackground,
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  context.colors.primary,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                  if (isPositionOverlayActive)
-                    if (viewModel.isEditingWatermarkPosition)
-                      WatermarkPositionOverlay(viewModel: viewModel)
-                    else
-                      CharacterPositionOverlay(viewModel: viewModel),
-                ],
+                        );
+                      },
+                    ),
+                    if (isPositionOverlayActive)
+                      if (viewModel.isEditingWatermarkPosition)
+                        WatermarkPositionOverlay(viewModel: viewModel)
+                      else
+                        CharacterPositionOverlay(viewModel: viewModel),
+                  ],
+                ),
               ),
             ),
           ),

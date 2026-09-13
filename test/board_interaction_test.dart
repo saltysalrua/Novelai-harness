@@ -160,6 +160,78 @@ void main() {
       );
     });
 
+    testWidgets('放大后空白区域漫游与鼠标位移 1:1 (视口空间平移)', (tester) async {
+      await _pumpBoard(tester);
+
+      final interactiveViewer = tester.widget<InteractiveViewer>(
+        find.byType(InteractiveViewer),
+      );
+      final controller = interactiveViewer.transformationController!;
+
+      // 模拟鼠标滚轮缩放到 2 倍 (平移量选在使 (100,300) 仍处于空白背景)
+      controller.value = Matrix4.identity()
+        ..storage[0] = 2.0
+        ..storage[5] = 2.0
+        ..storage[10] = 1.0
+        ..storage[12] = -4600.0
+        ..storage[13] = -4600.0
+        ..storage[15] = 1.0;
+      await tester.pump();
+      final txBefore = controller.value.storage[12];
+
+      // 三步拖拽共 140px：旧实现会除以缩放比例变成 ~70px
+      final gesture = await tester.startGesture(const Offset(100, 300));
+      await gesture.moveBy(const Offset(40, 0));
+      await gesture.moveBy(const Offset(40, 0));
+      await gesture.moveBy(const Offset(60, 0));
+      await gesture.up();
+      await tester.pump();
+
+      final txDelta = controller.value.storage[12] - txBefore;
+      expect(
+        txDelta,
+        inInclusiveRange(80, 140),
+        reason: '放大后漫游必须保持屏幕空间 1:1，不得随缩放比例加快/减慢',
+      );
+    });
+
+    testWidgets('双指捏合缩放画布视口并同步落盘数据', (tester) async {
+      final vm = await _pumpBoard(tester);
+
+      final interactiveViewer = tester.widget<InteractiveViewer>(
+        find.byType(InteractiveViewer),
+      );
+      final controller = interactiveViewer.transformationController!;
+      final matrixBefore = controller.value.clone();
+
+      // (100,400) 与 (200,400) 都在主图卡片左侧的空白背景上
+      final g1 = await tester.startGesture(const Offset(100, 400));
+      final g2 = await tester.startGesture(const Offset(200, 400));
+      await g1.moveBy(const Offset(-50, 0));
+      await g2.moveBy(const Offset(100, 0));
+      await tester.pump();
+
+      final matrixAfter = controller.value;
+      expect(
+        matrixAfter.storage[0],
+        greaterThan(1.3),
+        reason: '双指捏合应放大画布视口',
+      );
+      expect(
+        matrixAfter.storage[0],
+        greaterThan(matrixBefore.storage[0]),
+      );
+
+      await g1.up();
+      await g2.up();
+      await tester.pump();
+
+      // 视口矩阵同步到 ViewModel (600ms 防抖后落盘 canvas_board.json)
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(vm.board.boardData.viewScale, greaterThan(1.3));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('拖拽图片卡片顶栏可移动卡片', (tester) async {
       final vm = await _pumpBoard(tester);
       final before = vm.board.boardData.imageNodes.first.offset;

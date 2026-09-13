@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
+import 'package:novelai_harness/ui/core/widgets/two_finger_scale.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/image_stream_view.dart';
 
@@ -297,6 +298,83 @@ void main() {
       final box = ctx!.findRenderObject() as RenderBox;
       final centerY = box.localToGlobal(Offset(0, box.size.height / 2)).dy;
       expect((centerY - 300).abs(), lessThan(8));
+    });
+  });
+
+  group('画板卡片双指捏合缩放 (触摸)', () {
+    testWidgets('双指捏合卡内缩放，单指滚动不劫持', (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final repo = NovelAiRepository();
+      final vm = StudioViewModel(repository: repo);
+      final controller = CanvasStreamController();
+      addTearDown(vm.dispose);
+      addTearDown(controller.dispose);
+      for (var i = 0; i < 4; i++) {
+        repo.addImageForTesting(_image('pinch-$i'));
+      }
+      vm.selectImage(vm.gallery.first);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: vm,
+              builder: (_, _) =>
+                  ImageStreamView(viewModel: vm, controller: controller),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final zoomable = find.byType(TwoFingerPinchZoom);
+      expect(zoomable, findsWidgets);
+      final cardCenter = tester.getCenter(zoomable.first);
+
+      Matrix4 transformOf() => tester
+          .widget<Transform>(
+            find
+                .descendant(of: zoomable.first, matching: find.byType(Transform))
+                .first,
+          )
+          .transform;
+
+      // 双指对拉捏合放大卡内内容
+      final g1 = await tester.startGesture(cardCenter + const Offset(-50, 0));
+      final g2 = await tester.startGesture(cardCenter + const Offset(50, 0));
+      await g1.moveBy(const Offset(-60, 0));
+      await g2.moveBy(const Offset(60, 0));
+      await tester.pump();
+
+      final zoomed = transformOf();
+      expect(zoomed.storage[0], greaterThan(1.2), reason: '双指捏合应放大卡片内容');
+
+      await g1.up();
+      await g2.up();
+      await tester.pumpAndSettle();
+
+      // 单指纵向拖拽仍然是列表滚动，卡片缩放状态不被干扰；分步小位移
+      // 保证拖拽识别器接受竞技场后仍有移动事件计入滚动
+      final offsetBefore = controller.scrollController.offset;
+      final single = await tester.startGesture(cardCenter);
+      for (var i = 0; i < 10; i++) {
+        await single.moveBy(const Offset(0, -10));
+      }
+      await tester.pump();
+      await single.up();
+      await tester.pumpAndSettle();
+      expect(
+        controller.scrollController.offset,
+        greaterThan(offsetBefore),
+        reason: '单指拖拽应继续滚动画板列表',
+      );
+      expect(transformOf().storage[0], greaterThan(1.0), reason: '卡片保持捏合后的缩放状态');
+      expect(tester.takeException(), isNull);
     });
   });
 }

@@ -27,7 +27,7 @@ const double kBoardMaxScale = 3.0;
 /// 自由大画布 (ComfyUI 风格动态连线 + Miro/PureRef 风格多参考图便签画板)
 ///
 /// 交互模型：
-/// - 空白区域左键拖拽直接漫游 (无需切换工具)；中键/右键/按住空格同样漫游
+/// - 空白区域拖拽直接漫游 (无需切换工具)；中键/右键/按住空格同样漫游；触摸屏双指捏合缩放/双指平移
 /// - 图片卡/便签卡自身可拖拽移动与删除，选区图钉可拉出连线
 /// - 滚轮以光标为不动点缩放；Ctrl+V 粘贴图片 (携带元数据时优先弹窗检查)；拖入文件导入参考图
 class FreeformAnnotationBoard extends StatefulWidget {
@@ -55,6 +55,12 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   late final BoardLiveApi _liveApi = BoardLiveApi(_liveOverlays);
   bool _isSpacePressed = false;
   bool _isBoardDragging = false;
+
+  // 触摸/拖拽漫游与捏合缩放的手势基准 (对齐大图灯箱的手势状态机)：
+  // 手指数变化只重建基准，不把质心跳变误算成平移或缩放
+  Offset _lastViewportFocal = Offset.zero;
+  double _lastGestureScale = 1;
+  int _gesturePointerCount = 0;
 
   // 记录鼠标在画板上的全局坐标
   Offset _lastPointerLocal = const Offset(400, 300);
@@ -226,6 +232,77 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
     return MatrixUtils.transformPoint(inverse, localPos);
   }
 
+  /// 把指针全局坐标转换为视口 (未缩放) 坐标 —— 平移量与缩放焦点都在视口空间，
+  /// 不能用 scale 手势的 localFocalPoint (那是被画布矩阵变换过的坐标)
+  Offset _viewportFocalOf(Offset globalPos) {
+    final box = context.findRenderObject() as RenderBox?;
+    return box != null ? box.globalToLocal(globalPos) : globalPos;
+  }
+
+  /// 以视口焦点为不动点缩放画布矩阵 (nextAnchor 随双指质心同步平移)
+  Matrix4 _boardScaleAround(
+    double targetScale,
+    Offset anchor, {
+    Offset? nextAnchor,
+  }) {
+    final current = _transformController.value;
+    final scale = targetScale.clamp(kBoardMinScale, kBoardMaxScale);
+    final scenePoint = MatrixUtils.transformPoint(
+      Matrix4.inverted(current),
+      anchor,
+    );
+    final destination = nextAnchor ?? anchor;
+    return Matrix4.identity()
+      ..storage[0] = scale
+      ..storage[5] = scale
+      ..storage[10] = 1.0
+      ..storage[12] = destination.dx - scenePoint.dx * scale
+      ..storage[13] = destination.dy - scenePoint.dy * scale
+      ..storage[15] = 1.0;
+  }
+
+  /// 空白区域漫游手势开始：记录基准 (含单指拖拽与双指捏合两种起点)
+  void _handleBoardScaleStart(ScaleStartDetails details) {
+    // Listener 的中键/右键/空格/漫游工具路径已接管平移时不重复应用
+    if (_isBoardDragging || _wireDrag.value != null) return;
+    _lastViewportFocal = _viewportFocalOf(details.focalPoint);
+    _lastGestureScale = 1;
+    _gesturePointerCount = details.pointerCount;
+  }
+
+  /// 空白区域漫游手势更新：单指平移 1:1 跟随视口位移；双指捏合以质心为不动点缩放，
+  /// 质心移动即双指平移。平移量全部在视口空间结算，不受画布缩放比例影响。
+  void _handleBoardScaleUpdate(ScaleUpdateDetails details) {
+    if (_isBoardDragging || _wireDrag.value != null) return;
+    final viewportFocal = _viewportFocalOf(details.focalPoint);
+    final currentMatrix = _transformController.value;
+    if (_gesturePointerCount == details.pointerCount) {
+      final incrementalScale = details.scale / _lastGestureScale;
+      if ((incrementalScale - 1.0).abs() > 0.001) {
+        // 捏合缩放：旧质心锚定缩放，新质心接管平移
+        _transformController.value = _boardScaleAround(
+          currentMatrix.storage[0] * incrementalScale,
+          _lastViewportFocal,
+          nextAnchor: viewportFocal,
+        );
+      } else {
+        // 纯平移 (单指拖拽或双指同步移动)：直接在视口空间加位移
+        final newMatrix = Matrix4.copy(currentMatrix);
+        newMatrix.storage[12] += viewportFocal.dx - _lastViewportFocal.dx;
+        newMatrix.storage[13] += viewportFocal.dy - _lastViewportFocal.dy;
+        _transformController.value = newMatrix;
+      }
+    }
+    _lastViewportFocal = viewportFocal;
+    _lastGestureScale = details.scale;
+    _gesturePointerCount = details.pointerCount;
+  }
+
+  void _handleBoardScaleEnd(ScaleEndDetails details) {
+    _gesturePointerCount = 0;
+    _lastGestureScale = 1;
+  }
+
   Offset _globalToBoard(Offset globalPos) {
     final box = context.findRenderObject() as RenderBox?;
     final local = box != null ? box.globalToLocal(globalPos) : globalPos;
@@ -376,25 +453,17 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                               child: Stack(
                                 clipBehavior: Clip.none,
                                 children: [
-                                  // 1.0 背景层：左键在空白处直接拖拽漫游，单击空白处取消高亮
+                                  // 1.0 背景层：空白处单指/鼠标拖拽 1:1 漫游 (视口空间平移，
+                                  // 不受缩放比例影响)，双指捏合以质心为不动点缩放画布；
+                                  // 单击空白处取消高亮
                                   Positioned.fill(
                                     child: GestureDetector(
                                       behavior: HitTestBehavior.opaque,
                                       onTap: () => viewModel.board
                                           .selectAnnotationId(null),
-                                      onPanUpdate: (details) {
-                                        if (_wireDrag.value != null) return;
-                                        final currentMatrix =
-                                            _transformController.value;
-                                        final newMatrix = Matrix4.copy(
-                                          currentMatrix,
-                                        );
-                                        newMatrix.storage[12] +=
-                                            details.delta.dx;
-                                        newMatrix.storage[13] +=
-                                            details.delta.dy;
-                                        _transformController.value = newMatrix;
-                                      },
+                                      onScaleStart: _handleBoardScaleStart,
+                                      onScaleUpdate: _handleBoardScaleUpdate,
+                                      onScaleEnd: _handleBoardScaleEnd,
                                     ),
                                   ),
 
