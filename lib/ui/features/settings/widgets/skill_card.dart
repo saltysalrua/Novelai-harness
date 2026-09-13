@@ -117,15 +117,27 @@ class SkillCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 3),
-            Text(
-              skill.id,
-              style: TextStyle(
-                fontSize: 11,
-                fontFamily: 'monospace',
-                color: colors.textSecondary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    skill.id,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      color: colors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                // 标准技能包的配套文件数量 (无包时不占用空间)
+                if (skill.resourcePaths.isNotEmpty)
+                  Text(
+                    l10n.skillPackageFiles(skill.resourcePaths.length),
+                    style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
             Text(

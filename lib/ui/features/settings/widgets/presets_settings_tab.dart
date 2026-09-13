@@ -6,6 +6,7 @@ import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../../data/services/config_service.dart';
+import '../../../../data/services/skill_package_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
@@ -265,6 +266,14 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
         _ => false,
       };
 
+  /// 移动端由插件写入 bytes；macOS 传 bytes 会直接抛错，桌面统一自行落盘。
+  bool get _isMobile =>
+      !kIsWeb &&
+      switch (defaultTargetPlatform) {
+        TargetPlatform.android || TargetPlatform.iOS => true,
+        _ => false,
+      };
+
   void _showSkillError(Object error) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -347,9 +356,10 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     try {
       SkillPackage? package;
       if (source == _SkillImportSource.file) {
+        // 移动端 .skill 无标准 MIME，交给本地扩展名校验；桌面用对话框过滤。
         final picked = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['zip', 'skill', 'md'],
+          type: _isMobile ? FileType.any : FileType.custom,
+          allowedExtensions: _isMobile ? null : const ['zip', 'skill', 'md'],
         );
         if (picked == null || !mounted) return;
         final path = picked.files.single.path;
@@ -400,17 +410,17 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     try {
       final bytes = await widget.viewModel.exportSkillPackage(skill);
       if (!mounted) return;
-      final name = RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(skill.id)
+      final name = SkillPackageService.skillIdPattern.hasMatch(skill.id)
           ? skill.id
           : 'skill';
       final path = await FilePicker.platform.saveFile(
         fileName: '$name.zip',
         type: FileType.custom,
         allowedExtensions: ['zip'],
-        bytes: bytes,
+        bytes: _isMobile ? bytes : null,
       );
       if (path == null) return;
-      if (_isDesktop) await widget.viewModel.writeSkillExportFile(path, bytes);
+      if (!_isMobile) await widget.viewModel.writeSkillExportFile(path, bytes);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

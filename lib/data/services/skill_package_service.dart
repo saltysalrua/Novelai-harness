@@ -16,6 +16,11 @@ class SkillPackageService {
   static const maxFileBytes = 8 * 1024 * 1024;
   static const maxFiles = 512;
   static const maxInstructionBytes = 256 * 1024;
+
+  /// 标准规范：小写字母、数字与连字符，不能以连字符开头或结尾。
+  static final skillIdPattern = RegExp(
+    r'^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$',
+  );
   final Future<Directory> Function() _rootDirectory;
 
   SkillPackageService({Future<Directory> Function()? rootDirectory})
@@ -203,9 +208,8 @@ class SkillPackageService {
   }
 
   static void validateSkill(Skill skill) {
-    if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(skill.id) ||
-        skill.id.length > 64) {
-      throw const FormatException('技能标识应为 1–64 位小写字母、数字和单个连字符。');
+    if (!skillIdPattern.hasMatch(skill.id)) {
+      throw const FormatException('技能标识应为 1–64 位小写字母、数字与连字符，不能以连字符开头或结尾。');
     }
     if (skill.description.trim().isEmpty || skill.description.length > 1024) {
       throw const FormatException('标准技能 description 必须为 1–1024 个字符。');
@@ -352,9 +356,7 @@ class SkillPackageService {
     }
     _validateFileTree(files);
     // 旧版自由命名技能也能导出；安全目录名只影响容器，不改写技能 ID。
-    final folder = RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(skill.id)
-        ? skill.id
-        : 'skill';
+    final folder = skillIdPattern.hasMatch(skill.id) ? skill.id : 'skill';
     return Isolate.run(() {
       final archive = Archive();
       for (final entry in files.entries) {
