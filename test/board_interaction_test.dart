@@ -212,15 +212,8 @@ void main() {
       await tester.pump();
 
       final matrixAfter = controller.value;
-      expect(
-        matrixAfter.storage[0],
-        greaterThan(1.3),
-        reason: '双指捏合应放大画布视口',
-      );
-      expect(
-        matrixAfter.storage[0],
-        greaterThan(matrixBefore.storage[0]),
-      );
+      expect(matrixAfter.storage[0], greaterThan(1.3), reason: '双指捏合应放大画布视口');
+      expect(matrixAfter.storage[0], greaterThan(matrixBefore.storage[0]));
 
       await g1.up();
       await g2.up();
