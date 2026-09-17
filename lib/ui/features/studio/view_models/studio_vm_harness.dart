@@ -2,6 +2,10 @@ part of 'studio_view_model.dart';
 
 /// Agent Harness 装配 / LLM 与思考强度切换 / 预设技能工具 CRUD
 mixin _StudioHarnessMixin on _StudioCore {
+  bool _canCreateChatProvider(LlmProviderConfig provider) =>
+      provider.apiKey.trim().isNotEmpty ||
+      OpenAiCompatibleProvider.acceptsEmptyApiKey(provider.fullEndpointUrl);
+
   @override
   void _setupHarnessAndTools() {
     // 动态同步 SkillRegistry (先重置为内置，再注入最新自定义技能)
@@ -296,7 +300,7 @@ mixin _StudioHarnessMixin on _StudioCore {
     _harness.providerLabel = activeLlm.name.isNotEmpty
         ? activeLlm.name
         : activeLlm.id;
-    if (activeLlm.apiKey.isNotEmpty) {
+    if (_canCreateChatProvider(activeLlm)) {
       final supportsThinking = activeModel.supportsThinking;
       final isReasoningActive =
           supportsThinking && _currentThinkingEffort != ThinkingEffort.none;
@@ -346,14 +350,19 @@ mixin _StudioHarnessMixin on _StudioCore {
         .firstOrNull;
     if (summaryProvider != null &&
         summaryModel != null &&
-        summaryProvider.apiKey.isNotEmpty) {
+        _canCreateChatProvider(summaryProvider)) {
+      final compactionEffort = summaryModel.supportsThinking
+          ? (summaryModel.supportsThinkingOff
+                ? ThinkingEffort.none
+                : summaryModel.defaultThinkingEffort)
+          : null;
       _harness.compactionProvider = OpenAiCompatibleProvider(
         baseUrl: summaryProvider.fullEndpointUrl,
         apiKey: summaryProvider.apiKey,
         model: summaryModel.id,
-        thinkingEffort: summaryModel.supportsThinking
-            ? ThinkingEffort.none.id
-            : null,
+        reasoning:
+            compactionEffort != null && compactionEffort != ThinkingEffort.none,
+        thinkingEffort: compactionEffort?.id,
         thinkingParamFormat: summaryProvider.thinkingParamFormat.id,
         cacheConfig: summaryModel.cacheConfig,
       );
@@ -363,10 +372,12 @@ mixin _StudioHarnessMixin on _StudioCore {
 
   /// 动态调整 Agent 思考强度 (在对话工作台中随点随切)
   void setThinkingEffort(ThinkingEffort effort) {
-    if (_currentThinkingEffort == effort) return;
-    _currentThinkingEffort = effort;
+    final normalized = _config.activeLlmProvider.activeModel
+        .normalizeThinkingEffort(effort);
+    if (_currentThinkingEffort == normalized) return;
+    _currentThinkingEffort = normalized;
     _setupHarnessAndTools();
-    _sessionLog.recordThinkingLevelChange(effort.id);
+    _sessionLog.recordThinkingLevelChange(normalized.id);
     notifyListeners();
   }
 

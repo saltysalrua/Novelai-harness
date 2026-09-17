@@ -26,7 +26,10 @@ mixin _StudioSessionsMixin on _StudioCore {
           displayNameForModelKey(e.key): e.value,
       };
       if (snapshot.thinkingLevel != null) {
-        final effort = ThinkingEffort.fromId(snapshot.thinkingLevel);
+        final effort = _config.activeLlmProvider.activeModel
+            .normalizeThinkingEffort(
+              ThinkingEffort.fromId(snapshot.thinkingLevel),
+            );
         if (effort != _currentThinkingEffort) {
           _currentThinkingEffort = effort;
           // 恢复的思考强度必须重建 Provider，否则只刷新 UI 不生效

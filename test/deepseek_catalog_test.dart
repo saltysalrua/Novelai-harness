@@ -269,18 +269,20 @@ void main() {
     });
   }
 
-  test('SiliconFlow DeepSeek models remain unchanged', () {
-    final provider = LlmProviderConfig.defaultProviders.singleWhere(
-      (provider) => provider.id == 'siliconflow',
-    );
+  test(
+    'SiliconFlow keeps its DeepSeek defaults while dropping retired Qwen',
+    () {
+      final provider = LlmProviderConfig.defaultProviders.singleWhere(
+        (provider) => provider.id == 'siliconflow',
+      );
 
-    expect(provider.activeModelId, 'deepseek-ai/DeepSeek-V3');
-    expect(provider.models.map((model) => model.id), [
-      'deepseek-ai/DeepSeek-V3',
-      'deepseek-ai/DeepSeek-R1',
-      'Qwen/Qwen2.5-Coder-32B-Instruct',
-    ]);
-  });
+      expect(provider.activeModelId, 'deepseek-ai/DeepSeek-V3');
+      expect(provider.models.map((model) => model.id), [
+        'deepseek-ai/DeepSeek-V3',
+        'deepseek-ai/DeepSeek-R1',
+      ]);
+    },
+  );
 
   group('ConfigService DeepSeek migration', () {
     setUp(() {

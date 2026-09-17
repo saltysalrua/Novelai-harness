@@ -79,6 +79,7 @@ class LlmModelConfig {
   final List<String> input; // ['text'] 或 ['text', 'image'] (多模态视觉)
   final List<ThinkingEffort> supportedThinkingLevels; // 支持的思考等级梯度
   final ThinkingEffort? preferredThinkingEffort; // 供应商声明的默认思考等级
+  final bool supportsThinkingOff; // 是否允许显式关闭思考
   final int contextWindow; // 上下文窗口大小 (tokens)
   final int maxTokens; // 最大输出 tokens
   final double temperature;
@@ -94,6 +95,7 @@ class LlmModelConfig {
     this.input = const ['text'],
     this.supportedThinkingLevels = const [],
     this.preferredThinkingEffort,
+    this.supportsThinkingOff = true,
     this.contextWindow = 128000,
     this.maxTokens = 8192,
     this.temperature = 1.0,
@@ -109,6 +111,19 @@ class LlmModelConfig {
 
   /// 是否支持深度思考 / 推理扩展
   bool get supportsThinking => reasoning || supportedThinkingLevels.isNotEmpty;
+
+  /// 对话 UI 可选择的思考档位；始终思考的模型不暴露 none。
+  List<ThinkingEffort> get availableThinkingLevels {
+    if (!supportsThinking) return const [];
+    final configured = supportedThinkingLevels.isNotEmpty
+        ? supportedThinkingLevels.where((level) => level != ThinkingEffort.none)
+        : ThinkingEffort.values.where((level) => level != ThinkingEffort.none);
+    return [if (supportsThinkingOff) ThinkingEffort.none, ...configured];
+  }
+
+  /// 将会话恢复或外部传入的档位收敛到模型真实支持的集合。
+  ThinkingEffort normalizeThinkingEffort(ThinkingEffort effort) =>
+      availableThinkingLevels.contains(effort) ? effort : defaultThinkingEffort;
 
   /// 快捷思考梯度 (若支持思考且无细分梯度，默认返回 high)
   ThinkingEffort get defaultThinkingEffort {
@@ -137,6 +152,7 @@ class LlmModelConfig {
     List<String>? input,
     List<ThinkingEffort>? supportedThinkingLevels,
     ThinkingEffort? preferredThinkingEffort,
+    bool? supportsThinkingOff,
     int? contextWindow,
     int? maxTokens,
     double? temperature,
@@ -152,6 +168,7 @@ class LlmModelConfig {
           supportedThinkingLevels ?? this.supportedThinkingLevels,
       preferredThinkingEffort:
           preferredThinkingEffort ?? this.preferredThinkingEffort,
+      supportsThinkingOff: supportsThinkingOff ?? this.supportsThinkingOff,
       contextWindow: contextWindow ?? this.contextWindow,
       maxTokens: maxTokens ?? this.maxTokens,
       temperature: temperature ?? this.temperature,
@@ -170,6 +187,7 @@ class LlmModelConfig {
         .toList(),
     if (preferredThinkingEffort != null)
       'preferredThinkingEffort': preferredThinkingEffort!.id,
+    if (!supportsThinkingOff) 'supportsThinkingOff': false,
     'contextWindow': contextWindow,
     'maxTokens': maxTokens,
     'temperature': temperature,
@@ -206,6 +224,7 @@ class LlmModelConfig {
       preferredThinkingEffort: json['preferredThinkingEffort'] is String
           ? ThinkingEffort.fromId(json['preferredThinkingEffort'] as String?)
           : null,
+      supportsThinkingOff: json['supportsThinkingOff'] as bool? ?? true,
       contextWindow: (json['contextWindow'] as num?)?.toInt() ?? 128000,
       maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 8192,
       temperature: (json['temperature'] as num?)?.toDouble() ?? 1.0,
@@ -364,7 +383,7 @@ class LlmProviderConfig {
       thinkingParamFormat: ThinkingParamFormat.fromId(
         json['thinkingParamFormat'] as String?,
       ),
-    )._migrateOfficialDeepSeekAliases();
+    )._migrateOfficialDeepSeekAliases()._migrateCanonicalChatBuiltins();
   }
 
   static const _retiredDeepSeekAliases = {
@@ -379,14 +398,22 @@ class LlmProviderConfig {
 
   /// 将指向本供应商模型的已存引用收敛到迁移后的正式 ID。
   String canonicalizeModelId(String modelId) {
-    if (!_isOfficialDeepSeekBaseUrl(baseUrl) ||
-        !_retiredDeepSeekAliases.contains(modelId) ||
-        !models.any(
+    if (_isOfficialDeepSeekBaseUrl(baseUrl) &&
+        _retiredDeepSeekAliases.contains(modelId) &&
+        models.any(
           (model) => model.id == defaultDeepSeekProvider.activeModelId,
         )) {
-      return modelId;
+      return defaultDeepSeekProvider.activeModelId;
     }
-    return defaultDeepSeekProvider.activeModelId;
+    if (id == 'anthropic' &&
+        baseUrl == 'https://api.anthropic.com/v1' &&
+        _legacyAnthropicModelIds.contains(modelId)) {
+      final target = modelId == 'claude-3-5-haiku-20241022'
+          ? 'claude-haiku-4-5-20251001'
+          : 'claude-sonnet-5';
+      if (models.any((model) => model.id == target)) return target;
+    }
+    return modelId;
   }
 
   /// 仅对官方主机的退役别名做就地迁移。
@@ -440,6 +467,127 @@ class LlmProviderConfig {
           ? migratedActiveId
           : migratedModels.first.id,
     );
+  }
+
+  static const _legacyAnthropicModelIds = {
+    'claude-3-7-sonnet-20250219',
+    'claude-3-5-sonnet-20241022',
+    'claude-3-5-haiku-20241022',
+  };
+
+  static const _currentAnthropicModels = [
+    LlmModelConfig(
+      id: 'claude-sonnet-5',
+      name: 'Claude Sonnet 5',
+      input: ['text', 'image'],
+      contextWindow: 1000000,
+      maxTokens: 128000,
+      temperature: 1.0,
+    ),
+    LlmModelConfig(
+      id: 'claude-haiku-4-5-20251001',
+      name: 'Claude Haiku 4.5',
+      input: ['text', 'image'],
+      contextWindow: 200000,
+      maxTokens: 64000,
+      temperature: 1.0,
+    ),
+  ];
+
+  /// 只迁移能精确识别的旧出厂预设；中转站与用户模型保持原样。
+  LlmProviderConfig _migrateCanonicalChatBuiltins() {
+    var migrated = this;
+    if (migrated.id == 'anthropic' &&
+        migrated.baseUrl == 'https://api.anthropic.com/v1' &&
+        migrated.protocol == LlmProtocol.anthropicMessages &&
+        _legacyAnthropicModelIds.every(
+          (id) => migrated.models.any((model) => model.id == id),
+        )) {
+      LlmModelConfig? modelWithId(String id) {
+        for (final model in migrated.models) {
+          if (model.id == id) return model;
+        }
+        return null;
+      }
+
+      final activeLegacy = modelWithId(migrated.activeModelId);
+      final sonnetSource =
+          activeLegacy != null && activeLegacy.id.contains('sonnet')
+          ? activeLegacy
+          : modelWithId('claude-3-7-sonnet-20250219')!;
+      final haikuSource = modelWithId('claude-3-5-haiku-20241022')!;
+      final existingSonnet = modelWithId(_currentAnthropicModels[0].id);
+      final existingHaiku = modelWithId(_currentAnthropicModels[1].id);
+      final sonnet =
+          existingSonnet ??
+          _currentAnthropicModels[0].copyWith(
+            temperature: sonnetSource.temperature,
+            cacheConfig: sonnetSource.cacheConfig,
+          );
+      final haiku =
+          existingHaiku ??
+          _currentAnthropicModels[1].copyWith(
+            temperature: haikuSource.temperature,
+            cacheConfig: haikuSource.cacheConfig,
+          );
+      final firstLegacy = migrated.models.indexWhere(
+        (model) => _legacyAnthropicModelIds.contains(model.id),
+      );
+      final replacementIds = {sonnet.id, haiku.id};
+      final nextModels = migrated.models
+          .where(
+            (model) =>
+                !_legacyAnthropicModelIds.contains(model.id) &&
+                !replacementIds.contains(model.id),
+          )
+          .toList();
+      final insertAt = firstLegacy > nextModels.length
+          ? nextModels.length
+          : firstLegacy;
+      nextModels.insertAll(insertAt, [sonnet, haiku]);
+      final nextActive = switch (migrated.activeModelId) {
+        'claude-3-5-haiku-20241022' => haiku.id,
+        final id when _legacyAnthropicModelIds.contains(id) => sonnet.id,
+        final id => id,
+      };
+      migrated = migrated.copyWith(
+        protocol: LlmProtocol.openAiChat,
+        models: nextModels,
+        activeModelId: nextModels.any((model) => model.id == nextActive)
+            ? nextActive
+            : sonnet.id,
+      );
+    }
+
+    if (migrated.id == 'google' &&
+        migrated.baseUrl ==
+            'https://generativelanguage.googleapis.com/v1beta/openai' &&
+        migrated.protocol == LlmProtocol.openAiChat) {
+      LlmModelConfig? flash;
+      LlmModelConfig? pro;
+      for (final model in migrated.models) {
+        if (model.id == 'gemini-2.5-flash') flash = model;
+        if (model.id == 'gemini-2.5-pro') pro = model;
+      }
+      if (flash?.contextWindow == 1000000 && pro?.contextWindow == 2000000) {
+        migrated = migrated.copyWith(
+          models: migrated.models.map((model) {
+            return switch (model.id) {
+              'gemini-2.5-flash' => model.copyWith(
+                contextWindow: 1048576,
+                supportsThinkingOff: true,
+              ),
+              'gemini-2.5-pro' => model.copyWith(
+                contextWindow: 1048576,
+                supportsThinkingOff: false,
+              ),
+              _ => model,
+            };
+          }).toList(),
+        );
+      }
+    }
+    return migrated;
   }
 
   // 官方文档核验于 2026-09-17：
@@ -518,34 +666,6 @@ class LlmProviderConfig {
           maxTokens: 16384,
           temperature: 1.0,
         ),
-        LlmModelConfig(
-          id: 'o3-mini',
-          name: 'o3-mini',
-          reasoning: true,
-          input: ['text'],
-          supportedThinkingLevels: [
-            ThinkingEffort.low,
-            ThinkingEffort.medium,
-            ThinkingEffort.high,
-          ],
-          contextWindow: 200000,
-          maxTokens: 100000,
-          temperature: 1.0,
-        ),
-        LlmModelConfig(
-          id: 'o1',
-          name: 'o1',
-          reasoning: true,
-          input: ['text', 'image'],
-          supportedThinkingLevels: [
-            ThinkingEffort.low,
-            ThinkingEffort.medium,
-            ThinkingEffort.high,
-          ],
-          contextWindow: 200000,
-          maxTokens: 100000,
-          temperature: 1.0,
-        ),
       ],
     ),
 
@@ -554,43 +674,10 @@ class LlmProviderConfig {
       id: 'anthropic',
       name: 'Anthropic',
       baseUrl: 'https://api.anthropic.com/v1',
-      protocol: LlmProtocol.anthropicMessages,
+      protocol: LlmProtocol.openAiChat,
       apiKey: '',
-      activeModelId: 'claude-3-7-sonnet-20250219',
-      models: [
-        LlmModelConfig(
-          id: 'claude-3-7-sonnet-20250219',
-          name: 'Claude 3.7 Sonnet',
-          reasoning: true,
-          input: ['text', 'image'],
-          supportedThinkingLevels: [
-            ThinkingEffort.low,
-            ThinkingEffort.medium,
-            ThinkingEffort.high,
-          ],
-          contextWindow: 200000,
-          maxTokens: 64000,
-          temperature: 1.0,
-        ),
-        LlmModelConfig(
-          id: 'claude-3-5-sonnet-20241022',
-          name: 'Claude 3.5 Sonnet',
-          reasoning: false,
-          input: ['text', 'image'],
-          contextWindow: 200000,
-          maxTokens: 8192,
-          temperature: 1.0,
-        ),
-        LlmModelConfig(
-          id: 'claude-3-5-haiku-20241022',
-          name: 'Claude 3.5 Haiku',
-          reasoning: false,
-          input: ['text', 'image'],
-          contextWindow: 200000,
-          maxTokens: 8192,
-          temperature: 1.0,
-        ),
-      ],
+      activeModelId: 'claude-sonnet-5',
+      models: _currentAnthropicModels,
     ),
 
     // 4. Google (Gemini)
@@ -612,7 +699,7 @@ class LlmProviderConfig {
             ThinkingEffort.medium,
             ThinkingEffort.high,
           ],
-          contextWindow: 1000000,
+          contextWindow: 1048576,
           maxTokens: 65536,
           temperature: 1.0,
         ),
@@ -626,7 +713,8 @@ class LlmProviderConfig {
             ThinkingEffort.medium,
             ThinkingEffort.high,
           ],
-          contextWindow: 2000000,
+          supportsThinkingOff: false,
+          contextWindow: 1048576,
           maxTokens: 65536,
           temperature: 1.0,
         ),
@@ -660,15 +748,6 @@ class LlmProviderConfig {
           contextWindow: 64000,
           maxTokens: 8192,
           temperature: 0.6,
-        ),
-        LlmModelConfig(
-          id: 'Qwen/Qwen2.5-Coder-32B-Instruct',
-          name: 'Qwen 2.5 Coder 32B',
-          reasoning: false,
-          input: ['text'],
-          contextWindow: 128000,
-          maxTokens: 8192,
-          temperature: 1.0,
         ),
       ],
     ),
