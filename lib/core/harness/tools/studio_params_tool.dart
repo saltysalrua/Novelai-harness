@@ -11,8 +11,48 @@ typedef OnStudioParamsUpdate = void Function(NaiGenerationParams newParams);
 /// 回调类型：获取当前生图参数
 typedef CurrentParamsGetter = NaiGenerationParams Function();
 
+/// 当前生图后端实际消费的正负提示词。
+typedef StudioEffectivePrompts = ({
+  String backend,
+  String prompt,
+  String negativePrompt,
+});
+
+/// 按当次参数快照解析当前后端的实际发送串。
+typedef StudioEffectivePromptsResolver =
+    StudioEffectivePrompts Function(NaiGenerationParams params);
+
 /// 回调类型：检查参数是否允许修改
 typedef ParamPermissionChecker = bool Function(String paramKey);
+
+/// `update_studio_parameters` 对外公开的精确模型 ID。
+///
+/// 数据模型还包含其他模型，但本工具只接受 schema 公开的值，
+/// 避免 [NaiModel.fromId] 的宽松回退将未知值静默替换为另一模型。
+const _studioModelIds = <String>[
+  'nai-diffusion-5-full',
+  'nai-diffusion-5-curated',
+  'nai-diffusion-4-5-full',
+  'nai-diffusion-4-5-curated',
+  'nai-diffusion-4-full',
+  'nai-diffusion-3',
+];
+
+/// 按当前生图后端返回与请求路径一致的实际提示词。
+StudioEffectivePrompts resolveStudioEffectivePrompts(
+  NaiGenerationParams params, {
+  required bool isComfyUi,
+}) => isComfyUi
+    ? (
+        backend: 'ComfyUI',
+        prompt: params.finalPrompt,
+        negativePrompt: params.negativePrompt.trim(),
+      )
+    : (
+        backend: 'NovelAI',
+        prompt: params.effectivePrompt,
+        negativePrompt: params.effectiveNegativePrompt,
+      );
 
 /// 构建点数预估状态文本 (Opus 免费/精确预估，供报表与单键查询共用)
 String buildCostEstimateStatus(NaiGenerationParams params) {
@@ -35,71 +75,91 @@ String buildCostEstimateStatus(NaiGenerationParams params) {
 String buildStudioParamsReport(
   NaiGenerationParams params, {
   String title = '工作台全部生图参数：',
+  StudioEffectivePrompts? effectivePrompts,
 }) {
+  final effective =
+      effectivePrompts ??
+      resolveStudioEffectivePrompts(params, isComfyUi: false);
   final costStatus = buildCostEstimateStatus(params);
   final lines = <String>[
-    '• 正向提示词: ${params.prompt.isEmpty ? '(空)' : params.prompt}',
-    '• 负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
+    '• 原始正向提示词: ${params.prompt.isEmpty ? '(空)' : params.prompt}',
+    '• 最终正向提示词: ${effective.prompt.isEmpty ? '(空)' : effective.prompt}',
+    '• 原始负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
+    '• 最终负向提示词: ${effective.negativePrompt.isEmpty ? '(空)' : effective.negativePrompt}',
+    '• 实际生图后端: ${effective.backend}',
     '• 绘图模型: ${params.model.label} (${params.model.id})',
     '• 画面尺寸: ${params.width}x${params.height}',
     '• 采样步数: ${params.steps} 步',
     '• CFG 强度: ${params.scale} (Rescale: ${params.cfgRescale})',
     '• 采样算法: ${params.sampler.label} (${params.sampler.id})',
     '• 噪声调度: ${params.noiseSchedule.label} (${params.noiseSchedule.id})',
-    '• 质量标签: ${params.qualityPreset}',
+    '• 质量标签: ${params.qualityToggle ? params.qualityPreset : 'Off'}',
+    '• 质量开关: ${params.qualityToggle ? '开启' : '关闭'} '
+        '(quality_toggle: ${params.qualityToggle})',
+    '• UC 预设: ${params.ucPresetKey}',
+    '• 角色位置模式: '
+        '${params.characterAiPosition ? 'AI 自动布局' : '自定义定位'} '
+        '(character_ai_position: ${params.characterAiPosition})',
     '• 随机种子: ${params.seed == -1 ? '随机 (-1)' : params.seed}',
     '• 点数预估: $costStatus',
   ];
   var report = '$title\n${lines.join('\n')}';
-  if (params.characterPrompts.isNotEmpty) {
-    report +=
-        '\n\n角色提示词详情：\n'
-        '${buildCharacterPromptsReport(params.characterPrompts, aiPosition: params.characterAiPosition)}';
-  }
+  report +=
+      '\n\n角色提示词详情：\n'
+      '${buildCharacterPromptsReport(params.characterPrompts, aiPosition: params.characterAiPosition)}';
   return report;
 }
 
 /// 工作台当前生图参数读取工具 (按需查询指定参数或查看全部)
 class NovelAiGetStudioParamsTool extends AgentTool {
   final CurrentParamsGetter getCurrentParams;
+  final StudioEffectivePromptsResolver? resolveEffectivePrompts;
 
-  NovelAiGetStudioParamsTool({required this.getCurrentParams})
-    : super(
-        name: 'get_studio_parameters',
-        label: '读取参数',
-        description:
-            '按需读取工作台当前生效的生图参数。可传入 keys 参数指定要查看的一个或多个参数字段；未指定 keys 或包含 "all" 时返回全部参数。',
-        parameters: const {
-          'type': 'object',
-          'properties': {
-            'keys': {
-              'type': 'array',
-              'items': {
-                'type': 'string',
-                'enum': [
-                  'prompt',
-                  'negative_prompt',
-                  'model',
-                  'resolution',
-                  'width',
-                  'height',
-                  'steps',
-                  'scale',
-                  'cfg_rescale',
-                  'sampler',
-                  'noise_schedule',
-                  'quality_preset',
-                  'seed',
-                  'opus_free_status',
-                  'all',
-                ],
-              },
-              'description':
-                  '要查询的参数键名列表（支持多选，如 ["prompt", "steps"]；留空或包含 "all" 则返回全部）',
-            },
-          },
-        },
-      );
+  NovelAiGetStudioParamsTool({
+    required this.getCurrentParams,
+    this.resolveEffectivePrompts,
+  }) : super(
+         name: 'get_studio_parameters',
+         label: '读取参数',
+         description:
+             '按需读取工作台当前生效的生图参数。可传入 keys 参数指定要查看的一个或多个参数字段；未指定 keys 或包含 "all" 时返回全部参数。',
+         parameters: const {
+           'type': 'object',
+           'properties': {
+             'keys': {
+               'type': 'array',
+               'items': {
+                 'type': 'string',
+                 'enum': [
+                   'prompt',
+                   'negative_prompt',
+                   'model',
+                   'resolution',
+                   'width',
+                   'height',
+                   'steps',
+                   'scale',
+                   'cfg_rescale',
+                   'sampler',
+                   'noise_schedule',
+                   'quality_preset',
+                   'quality_toggle',
+                   'uc_preset',
+                   'effective_prompt',
+                   'effective_negative_prompt',
+                   'generation_backend',
+                   'character_ai_position',
+                   'seed',
+                   'opus_free_status',
+                   'all',
+                 ],
+               },
+               'description':
+                   '要查询的参数键名列表（支持多选，如 ["prompt", "steps"]；留空或包含 "all" 则返回全部）',
+             },
+           },
+         },
+       );
 
   @override
   Future<ToolResult> execute(
@@ -107,6 +167,9 @@ class NovelAiGetStudioParamsTool extends AgentTool {
     Map<String, dynamic> args,
   ) async {
     final params = getCurrentParams();
+    final effective =
+        resolveEffectivePrompts?.call(params) ??
+        resolveStudioEffectivePrompts(params, isComfyUi: false);
     final rawKeys = args['keys'];
     List<String> requestedKeys = [];
     if (rawKeys is List) {
@@ -120,19 +183,32 @@ class NovelAiGetStudioParamsTool extends AgentTool {
     if (queryAll) {
       return ToolResult(
         toolCallId: toolCallId,
-        content: buildStudioParamsReport(params),
+        content: buildStudioParamsReport(params, effectivePrompts: effective),
       );
     }
 
     final lines = <String>[];
 
     if (requestedKeys.contains('prompt')) {
-      lines.add('• 正向提示词: ${params.prompt.isEmpty ? '(空)' : params.prompt}');
+      lines.add('• 原始正向提示词: ${params.prompt.isEmpty ? '(空)' : params.prompt}');
     }
     if (requestedKeys.contains('negative_prompt')) {
       lines.add(
-        '• 负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
+        '• 原始负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
       );
+    }
+    if (requestedKeys.contains('effective_prompt')) {
+      lines.add(
+        '• 最终正向提示词: ${effective.prompt.isEmpty ? '(空)' : effective.prompt}',
+      );
+    }
+    if (requestedKeys.contains('effective_negative_prompt')) {
+      lines.add(
+        '• 最终负向提示词: ${effective.negativePrompt.isEmpty ? '(空)' : effective.negativePrompt}',
+      );
+    }
+    if (requestedKeys.contains('generation_backend')) {
+      lines.add('• 实际生图后端: ${effective.backend}');
     }
     if (requestedKeys.contains('model')) {
       lines.add('• 绘图模型: ${params.model.label} (${params.model.id})');
@@ -165,7 +241,25 @@ class NovelAiGetStudioParamsTool extends AgentTool {
       );
     }
     if (requestedKeys.contains('quality_preset')) {
-      lines.add('• 质量标签: ${params.qualityPreset}');
+      lines.add(
+        '• 质量标签: ${params.qualityToggle ? params.qualityPreset : 'Off'}',
+      );
+    }
+    if (requestedKeys.contains('quality_toggle')) {
+      lines.add(
+        '• 质量开关: ${params.qualityToggle ? '开启' : '关闭'} '
+        '(quality_toggle: ${params.qualityToggle})',
+      );
+    }
+    if (requestedKeys.contains('uc_preset')) {
+      lines.add('• UC 预设: ${params.ucPresetKey}');
+    }
+    if (requestedKeys.contains('character_ai_position')) {
+      lines.add(
+        '• 角色位置模式: '
+        '${params.characterAiPosition ? 'AI 自动布局' : '自定义定位'} '
+        '(character_ai_position: ${params.characterAiPosition})',
+      );
     }
     if (requestedKeys.contains('seed')) {
       lines.add('• 随机种子: ${params.seed == -1 ? '随机 (-1)' : params.seed}');
@@ -178,7 +272,7 @@ class NovelAiGetStudioParamsTool extends AgentTool {
       return ToolResult(
         toolCallId: toolCallId,
         content:
-            '未匹配到指定的参数名称: ${requestedKeys.join(', ')}。支持的键名: prompt, negative_prompt, model, resolution, steps, scale, sampler, seed, opus_free_status 等。',
+            '未匹配到指定的参数名称: ${requestedKeys.join(', ')}。支持的键名: prompt, negative_prompt, effective_prompt, effective_negative_prompt, generation_backend, uc_preset, quality_preset, quality_toggle, character_ai_position, model, resolution, steps, scale, sampler, seed, opus_free_status 等。',
         isError: true,
       );
     }
@@ -215,14 +309,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
              },
              'model': {
                'type': 'string',
-               'enum': [
-                 'nai-diffusion-5-full',
-                 'nai-diffusion-5-curated',
-                 'nai-diffusion-4-5-full',
-                 'nai-diffusion-4-5-curated',
-                 'nai-diffusion-4-full',
-                 'nai-diffusion-3',
-               ],
+               'enum': _studioModelIds,
                'description': '生图模型 ID',
              },
              'resolution_preset': {
@@ -275,8 +362,8 @@ class NovelAiUpdateParamsTool extends AgentTool {
              },
              'quality_preset': {
                'type': 'string',
-               'enum': ['Standard', 'Heavy', 'Light', 'Off'],
-               'description': '官方质量标签词缀预设',
+               'enum': ['Standard', 'Light', 'None', 'Off'],
+               'description': '质量标签预设：选择档位时启用，None 或 Off 关闭追加',
              },
              'character_ai_position': {
                'type': 'boolean',
@@ -307,12 +394,28 @@ class NovelAiUpdateParamsTool extends AgentTool {
     NaiSampler sampler = current.sampler;
     NoiseSchedule noiseSchedule = current.noiseSchedule;
     String qualityPreset = current.qualityPreset;
+    bool qualityToggle = current.qualityToggle;
     bool characterAiPosition = current.characterAiPosition;
 
     bool isAllowed(String key) {
       final checker = permissionChecker;
       if (checker == null) return true;
       return checker(key);
+    }
+
+    // 执行器也要强制 schema 白名单，不依赖模型侧的参数校验。
+    // 在应用任何其他字段前失败，避免无效模型与合法字段混合时部分写入。
+    if (args.containsKey('model') && isAllowed(PresetParamKeys.model)) {
+      final requestedModel = args['model'];
+      if (requestedModel is! String ||
+          !_studioModelIds.contains(requestedModel)) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content:
+              '错误：未知模型 ID：${requestedModel ?? '(null)'}。支持的 ID：${_studioModelIds.join(', ')}。',
+          isError: true,
+        );
+      }
     }
 
     // 1. 正向提示词
@@ -340,7 +443,9 @@ class NovelAiUpdateParamsTool extends AgentTool {
       if (isAllowed(PresetParamKeys.model)) {
         final modelStr = args['model'] as String?;
         if (modelStr != null) {
-          model = NaiModel.fromId(modelStr);
+          model = NaiModel.values.firstWhere(
+            (candidate) => candidate.id == modelStr,
+          );
           updatedEntries.add('模型: ${model.label}');
         }
       } else {
@@ -395,7 +500,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
           updatedEntries.add('步数: $steps');
         }
       } else {
-        blockedEntries.add('步数');
+        blockedEntries.add('采样步数');
       }
     }
 
@@ -456,8 +561,13 @@ class NovelAiUpdateParamsTool extends AgentTool {
       if (isAllowed(PresetParamKeys.qualityPreset)) {
         final qpStr = args['quality_preset'] as String?;
         if (qpStr != null) {
-          qualityPreset = qpStr;
-          updatedEntries.add('质量预设: $qualityPreset');
+          // 关闭同时影响追加词串与请求元数据，不把 Off 当作未知档位。
+          qualityToggle = qpStr != 'Off' && qpStr != 'None';
+          if (qualityToggle) {
+            // 旧工具曾公开 Heavy；质量词中该值原本按 Standard 处理。
+            qualityPreset = qpStr == 'Heavy' ? 'Standard' : qpStr;
+          }
+          updatedEntries.add('质量预设: ${qualityToggle ? qualityPreset : 'Off'}');
         }
       } else {
         blockedEntries.add('质量预设');
@@ -501,6 +611,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
       sampler: sampler,
       noiseSchedule: noiseSchedule,
       qualityPreset: qualityPreset,
+      qualityToggle: qualityToggle,
       characterAiPosition: characterAiPosition,
     );
 
@@ -510,6 +621,12 @@ class NovelAiUpdateParamsTool extends AgentTool {
     buffer.writeln('已成功同步修改工作台 UI 生图参数：');
     for (final item in updatedEntries) {
       buffer.writeln('• $item');
+    }
+    if (blockedEntries.isNotEmpty) {
+      buffer.writeln('未修改（权限受限）：');
+      for (final item in blockedEntries) {
+        buffer.writeln('• $item');
+      }
     }
 
     return ToolResult(

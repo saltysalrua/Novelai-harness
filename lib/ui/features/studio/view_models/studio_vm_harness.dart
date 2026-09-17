@@ -159,7 +159,11 @@ mixin _StudioHarnessMixin on _StudioCore {
     );
     _toolRegistry.register(AskUserTool(onAsk: _presentQuestionsToUser));
     _toolRegistry.register(
-      NovelAiGetStudioParamsTool(getCurrentParams: () => _params),
+      NovelAiGetStudioParamsTool(
+        getCurrentParams: () => _params,
+        resolveEffectivePrompts: (params) =>
+            resolveStudioEffectivePrompts(params, isComfyUi: isComfyUiMode),
+      ),
     );
     _toolRegistry.register(
       NovelAiUpdateParamsTool(
