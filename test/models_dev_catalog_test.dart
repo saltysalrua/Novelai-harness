@@ -73,6 +73,25 @@ final Map<String, dynamic> sampleCatalog = {
       },
     },
   },
+  'deepseek': {
+    'models': {
+      'deepseek-flash': {
+        'name': 'DeepSeek V4.1 Flash',
+        'reasoning': true,
+        'reasoning_options': [
+          {
+            'type': 'effort',
+            'values': ['low', 'high', 'max'],
+          },
+        ],
+        'limit': {'context': 1000000, 'output': 393216},
+        'modalities': {
+          'input': ['text', 'image'],
+          'output': ['text'],
+        },
+      },
+    },
+  },
 };
 
 ModelsDevCatalog buildCatalog() => ModelsDevCatalog(
@@ -292,6 +311,56 @@ void main() {
       final custom = result.models.firstWhere((m) => m.id == 'my-custom-model');
       expect(custom.name, '本地自定义');
       expect(custom.temperature, 0.5);
+    });
+
+    test('刷新模型保留仍受支持的默认思考档位并清理失效档位', () async {
+      final fetcher = LlmModelFetcher(
+        client: MockClient(
+          (request) async => http.Response(
+            jsonEncode({
+              'data': [
+                {'id': 'deepseek-flash'},
+              ],
+            }),
+            200,
+          ),
+        ),
+        modelsDevCatalog: buildCatalog(),
+      );
+      final catalogModel =
+          LlmProviderConfig.defaultDeepSeekProvider.activeModel;
+
+      final preserved = await fetcher.fetchRemoteModels(
+        baseUrl: 'https://api.deepseek.com',
+        protocol: LlmProtocol.openAiChat,
+        apiKey: 'synthetic-key',
+        existingModels: [catalogModel],
+      );
+      expect(
+        preserved.models.single.preferredThinkingEffort,
+        ThinkingEffort.high,
+      );
+      expect(
+        preserved.models.single.defaultThinkingEffort,
+        ThinkingEffort.high,
+      );
+
+      final cleared = await fetcher.fetchRemoteModels(
+        baseUrl: 'https://api.deepseek.com',
+        protocol: LlmProtocol.openAiChat,
+        apiKey: 'synthetic-key',
+        existingModels: [
+          LlmModelConfig(
+            id: catalogModel.id,
+            name: catalogModel.name,
+            reasoning: true,
+            supportedThinkingLevels: catalogModel.supportedThinkingLevels,
+            preferredThinkingEffort: ThinkingEffort.medium,
+          ),
+        ],
+      );
+      expect(cleared.models.single.preferredThinkingEffort, isNull);
+      expect(cleared.models.single.defaultThinkingEffort, ThinkingEffort.max);
     });
 
     test('models.dev 不可用时回退启发式判断', () async {
