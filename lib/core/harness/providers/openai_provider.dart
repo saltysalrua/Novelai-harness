@@ -52,8 +52,9 @@ class OpenAiCompatibleProvider implements LlmProvider {
       return configured;
     }
     final url = baseUrl.toLowerCase();
+    final host = Uri.tryParse(baseUrl.trim())?.host.toLowerCase();
     if (url.contains('openrouter.ai')) return 'openrouter';
-    if (url.contains('deepseek.com')) return 'deepseek';
+    if (host == 'api.deepseek.com') return 'deepseek';
     if (url.contains('dashscope') || url.contains('aliyuncs')) {
       return 'qwen';
     }
@@ -64,6 +65,21 @@ class OpenAiCompatibleProvider implements LlmProvider {
     }
     if (url.contains('together.ai')) return 'together';
     return 'openai';
+  }
+
+  /// DeepSeek 的工具请求要求完整回传历史 assistant 思考；其他兼容端点
+  /// 保持标准 OpenAI 消息形状。空思考不补字段，避免臆造模型未返回的内容。
+  Map<String, dynamic> _serializeMessage(
+    AgentMessage message, {
+    required bool replayDeepSeekReasoning,
+  }) {
+    final json = message.toOpenAiJson();
+    if (replayDeepSeekReasoning &&
+        message.role == AgentRole.assistant &&
+        message.thoughts.isNotEmpty) {
+      json['reasoning_content'] = message.thoughts;
+    }
+    return json;
   }
 
   /// 按格式写入思考开关参数 (对齐 pi openai-completions 的 thinkingFormat 分支):
@@ -140,9 +156,18 @@ class OpenAiCompatibleProvider implements LlmProvider {
       }
     }
 
+    final replayDeepSeekReasoning =
+        tools.isNotEmpty && resolvedThinkingFormat == 'deepseek';
     final requestBody = <String, dynamic>{
       'model': model.trim(),
-      'messages': messages.map((m) => m.toOpenAiJson()).toList(),
+      'messages': messages
+          .map(
+            (message) => _serializeMessage(
+              message,
+              replayDeepSeekReasoning: replayDeepSeekReasoning,
+            ),
+          )
+          .toList(),
       'stream': true,
       'temperature': temperature,
     };
@@ -152,7 +177,10 @@ class OpenAiCompatibleProvider implements LlmProvider {
 
     if (tools.isNotEmpty) {
       requestBody['tools'] = tools.map((t) => t.toOpenAiFunction()).toList();
-      requestBody['tool_choice'] = 'auto';
+      // DeepSeek 带工具时默认 auto；省略可兼容不同版本的思考模式。
+      if (resolvedThinkingFormat != 'deepseek') {
+        requestBody['tool_choice'] = 'auto';
+      }
     }
 
     final cachePolicy = PromptCachePolicy(
