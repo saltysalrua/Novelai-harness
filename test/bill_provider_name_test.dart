@@ -22,7 +22,9 @@ void main() {
     await viewModel.init();
   });
 
-  tearDown(() {
+  tearDown(() async {
+    // Context checkpoints are queued; finish them before deleting their files.
+    await viewModel.flushPendingSaves();
     viewModel.dispose();
     try {
       sessionBase.deleteSync(recursive: true);
