@@ -78,6 +78,7 @@ class LlmModelConfig {
   final bool reasoning;
   final List<String> input; // ['text'] 或 ['text', 'image'] (多模态视觉)
   final List<ThinkingEffort> supportedThinkingLevels; // 支持的思考等级梯度
+  final ThinkingEffort? preferredThinkingEffort; // 供应商声明的默认思考等级
   final int contextWindow; // 上下文窗口大小 (tokens)
   final int maxTokens; // 最大输出 tokens
   final double temperature;
@@ -92,6 +93,7 @@ class LlmModelConfig {
     this.reasoning = false,
     this.input = const ['text'],
     this.supportedThinkingLevels = const [],
+    this.preferredThinkingEffort,
     this.contextWindow = 128000,
     this.maxTokens = 8192,
     this.temperature = 1.0,
@@ -111,11 +113,21 @@ class LlmModelConfig {
   /// 快捷思考梯度 (若支持思考且无细分梯度，默认返回 high)
   ThinkingEffort get defaultThinkingEffort {
     if (supportedThinkingLevels.isNotEmpty) {
+      final preferred = preferredThinkingEffort;
+      if (preferred != null && supportedThinkingLevels.contains(preferred)) {
+        return preferred;
+      }
       return supportedThinkingLevels.contains(ThinkingEffort.medium)
           ? ThinkingEffort.medium
           : supportedThinkingLevels.last;
     }
     return reasoning ? ThinkingEffort.high : ThinkingEffort.none;
+  }
+
+  /// 重建模型元数据时，仅保留新档位集合仍支持的默认档位。
+  ThinkingEffort? preferredThinkingEffortFor(Iterable<ThinkingEffort> levels) {
+    final preferred = preferredThinkingEffort;
+    return preferred != null && levels.contains(preferred) ? preferred : null;
   }
 
   LlmModelConfig copyWith({
@@ -124,6 +136,7 @@ class LlmModelConfig {
     bool? reasoning,
     List<String>? input,
     List<ThinkingEffort>? supportedThinkingLevels,
+    ThinkingEffort? preferredThinkingEffort,
     int? contextWindow,
     int? maxTokens,
     double? temperature,
@@ -137,6 +150,8 @@ class LlmModelConfig {
       input: input ?? this.input,
       supportedThinkingLevels:
           supportedThinkingLevels ?? this.supportedThinkingLevels,
+      preferredThinkingEffort:
+          preferredThinkingEffort ?? this.preferredThinkingEffort,
       contextWindow: contextWindow ?? this.contextWindow,
       maxTokens: maxTokens ?? this.maxTokens,
       temperature: temperature ?? this.temperature,
@@ -153,6 +168,8 @@ class LlmModelConfig {
     'supportedThinkingLevels': supportedThinkingLevels
         .map((e) => e.id)
         .toList(),
+    if (preferredThinkingEffort != null)
+      'preferredThinkingEffort': preferredThinkingEffort!.id,
     'contextWindow': contextWindow,
     'maxTokens': maxTokens,
     'temperature': temperature,
@@ -180,12 +197,15 @@ class LlmModelConfig {
     final isReasoning = json['reasoning'] as bool? ?? levels.isNotEmpty;
 
     return LlmModelConfig(
-      id: json['id'] as String? ?? 'deepseek-chat',
+      id: json['id'] as String? ?? 'default',
       name:
           json['name'] as String? ?? (json['id'] as String? ?? 'Custom Model'),
       reasoning: isReasoning,
       input: inputs,
       supportedThinkingLevels: levels,
+      preferredThinkingEffort: json['preferredThinkingEffort'] is String
+          ? ThinkingEffort.fromId(json['preferredThinkingEffort'] as String?)
+          : null,
       contextWindow: (json['contextWindow'] as num?)?.toInt() ?? 128000,
       maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 8192,
       temperature: (json['temperature'] as num?)?.toDouble() ?? 1.0,
@@ -211,7 +231,7 @@ class LlmProviderConfig {
   const LlmProviderConfig({
     required this.id,
     required this.name,
-    this.baseUrl = 'https://api.deepseek.com/v1',
+    this.baseUrl = 'https://api.deepseek.com',
     this.protocol = LlmProtocol.openAiChat,
     this.apiKey = '',
     this.models = const [],
@@ -278,6 +298,15 @@ class LlmProviderConfig {
   };
 
   factory LlmProviderConfig.fromJson(Map<String, dynamic> json) {
+    final baseUrl =
+        json['baseUrl'] as String? ?? defaultDeepSeekProvider.baseUrl;
+    final isOfficialDeepSeek = _isOfficialDeepSeekBaseUrl(baseUrl);
+    final legacyModelValue = json['model'] as String?;
+    final legacyModel = legacyModelValue == null || legacyModelValue.isEmpty
+        ? null
+        : legacyModelValue;
+    final legacyTemperature = (json['temperature'] as num?)?.toDouble() ?? 1.0;
+
     List<LlmModelConfig> parsedModels = [];
     if (json['models'] is List) {
       parsedModels = (json['models'] as List<dynamic>)
@@ -285,25 +314,49 @@ class LlmProviderConfig {
           .toList();
     }
 
-    // 兼容旧配置无 models 的情况
+    // 兼容旧版单模型字段：官方退役别名升级到当前目录，
+    // 中转站与用户自定义模型仍按原值构造。
     if (parsedModels.isEmpty) {
-      final oldModel = json['model'] as String? ?? 'deepseek-chat';
-      final oldTemp = (json['temperature'] as num?)?.toDouble() ?? 1.0;
-      parsedModels = [
-        LlmModelConfig(id: oldModel, name: oldModel, temperature: oldTemp),
-      ];
+      if (isOfficialDeepSeek &&
+          (legacyModel == null ||
+              _retiredDeepSeekAliases.contains(legacyModel))) {
+        parsedModels = defaultDeepSeekProvider.models
+            .map(
+              (model) => model.id == defaultDeepSeekProvider.activeModelId
+                  ? model.copyWith(temperature: legacyTemperature)
+                  : model,
+            )
+            .toList();
+      } else {
+        final modelId = legacyModel ?? 'deepseek-chat';
+        LlmModelConfig? defaultModel;
+        if (isOfficialDeepSeek) {
+          for (final candidate in defaultDeepSeekProvider.models) {
+            if (candidate.id == modelId) {
+              defaultModel = candidate;
+              break;
+            }
+          }
+        }
+        parsedModels = [
+          (defaultModel ?? LlmModelConfig(id: modelId, name: modelId)).copyWith(
+            temperature: legacyTemperature,
+          ),
+        ];
+      }
     }
 
-    final activeId =
-        json['activeModelId'] as String? ??
-        (json['model'] as String? ?? parsedModels.first.id);
+    final savedActiveId = json['activeModelId'] as String?;
+    final activeId = savedActiveId == null || savedActiveId.isEmpty
+        ? (legacyModel ?? parsedModels.first.id)
+        : savedActiveId;
 
     return LlmProviderConfig(
       id:
           json['id'] as String? ??
           'provider_${DateTime.now().millisecondsSinceEpoch}',
       name: json['name'] as String? ?? 'Custom Provider',
-      baseUrl: json['baseUrl'] as String? ?? 'https://api.deepseek.com/v1',
+      baseUrl: baseUrl,
       protocol: LlmProtocol.fromId(json['protocol'] as String? ?? 'openai'),
       apiKey: json['apiKey'] as String? ?? '',
       models: parsedModels,
@@ -311,41 +364,132 @@ class LlmProviderConfig {
       thinkingParamFormat: ThinkingParamFormat.fromId(
         json['thinkingParamFormat'] as String?,
       ),
+    )._migrateOfficialDeepSeekAliases();
+  }
+
+  static const _retiredDeepSeekAliases = {
+    'deepseek-chat',
+    'deepseek-reasoner',
+    'deepseek-v4-flash',
+    'deepseek-v4-flash-vision-exp',
+  };
+
+  static bool _isOfficialDeepSeekBaseUrl(String baseUrl) =>
+      Uri.tryParse(baseUrl)?.host == 'api.deepseek.com';
+
+  /// 将指向本供应商模型的已存引用收敛到迁移后的正式 ID。
+  String canonicalizeModelId(String modelId) {
+    if (!_isOfficialDeepSeekBaseUrl(baseUrl) ||
+        !_retiredDeepSeekAliases.contains(modelId) ||
+        !models.any(
+          (model) => model.id == defaultDeepSeekProvider.activeModelId,
+        )) {
+      return modelId;
+    }
+    return defaultDeepSeekProvider.activeModelId;
+  }
+
+  /// 仅对官方主机的退役别名做就地迁移。
+  ///
+  /// 已有的正式模型、自定义模型与有效选中项保持不变；仅在没有
+  /// deepseek-flash 时，用当前官方元数据替换别名并继承用户温度。
+  LlmProviderConfig _migrateOfficialDeepSeekAliases() {
+    if (!_isOfficialDeepSeekBaseUrl(baseUrl)) return this;
+
+    final firstAliasIndex = models.indexWhere(
+      (model) => _retiredDeepSeekAliases.contains(model.id),
+    );
+    if (firstAliasIndex < 0) {
+      final hasActiveModel = models.any((model) => model.id == activeModelId);
+      return hasActiveModel || models.isEmpty
+          ? this
+          : copyWith(activeModelId: models.first.id);
+    }
+
+    final hasCanonicalFlash = models.any(
+      (model) => model.id == defaultDeepSeekProvider.activeModelId,
+    );
+    final migratedModels = models
+        .where((model) => !_retiredDeepSeekAliases.contains(model.id))
+        .toList();
+
+    if (!hasCanonicalFlash) {
+      final selectedAlias = models.where(
+        (model) =>
+            model.id == activeModelId &&
+            _retiredDeepSeekAliases.contains(model.id),
+      );
+      final source = selectedAlias.isNotEmpty
+          ? selectedAlias.first
+          : models[firstAliasIndex];
+      final flash = defaultDeepSeekProvider.activeModel.copyWith(
+        temperature: source.temperature,
+      );
+      migratedModels.insert(firstAliasIndex, flash);
+    }
+
+    final migratedActiveId = _retiredDeepSeekAliases.contains(activeModelId)
+        ? defaultDeepSeekProvider.activeModelId
+        : activeModelId;
+    final hasActiveModel = migratedModels.any(
+      (model) => model.id == migratedActiveId,
+    );
+    return copyWith(
+      models: migratedModels,
+      activeModelId: hasActiveModel
+          ? migratedActiveId
+          : migratedModels.first.id,
     );
   }
 
-  /// 对标 pi-ai 的权威内置出厂预设供应商与模型目录
+  // 官方文档核验于 2026-09-17：
+  // https://api-docs.deepseek.com/quick_start/pricing
+  // https://api-docs.deepseek.com/guides/thinking_mode/
+  // https://api-docs.deepseek.com/guides/vision/
+  static const defaultDeepSeekProvider = LlmProviderConfig(
+    id: 'deepseek',
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com',
+    protocol: LlmProtocol.openAiChat,
+    activeModelId: 'deepseek-flash',
+    models: [
+      LlmModelConfig(
+        id: 'deepseek-flash',
+        name: 'DeepSeek V4.1 Flash',
+        reasoning: true,
+        input: ['text', 'image'],
+        supportedThinkingLevels: [
+          ThinkingEffort.low,
+          ThinkingEffort.high,
+          ThinkingEffort.max,
+        ],
+        preferredThinkingEffort: ThinkingEffort.high,
+        contextWindow: 1000000,
+        maxTokens: 393216,
+        temperature: 1.0,
+      ),
+      LlmModelConfig(
+        id: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
+        reasoning: true,
+        input: ['text'],
+        supportedThinkingLevels: [
+          ThinkingEffort.low,
+          ThinkingEffort.high,
+          ThinkingEffort.max,
+        ],
+        preferredThinkingEffort: ThinkingEffort.high,
+        contextWindow: 1000000,
+        maxTokens: 393216,
+        temperature: 1.0,
+      ),
+    ],
+  );
+
+  /// 内置出厂预设供应商与模型目录。
   static List<LlmProviderConfig> get defaultProviders => [
     // 1. DeepSeek 官方
-    const LlmProviderConfig(
-      id: 'deepseek',
-      name: 'DeepSeek',
-      baseUrl: 'https://api.deepseek.com/v1',
-      protocol: LlmProtocol.openAiChat,
-      apiKey: '',
-      activeModelId: 'deepseek-chat',
-      models: [
-        LlmModelConfig(
-          id: 'deepseek-chat',
-          name: 'DeepSeek V3',
-          reasoning: false,
-          input: ['text'],
-          contextWindow: 64000,
-          maxTokens: 8192,
-          temperature: 1.0,
-        ),
-        LlmModelConfig(
-          id: 'deepseek-reasoner',
-          name: 'DeepSeek R1',
-          reasoning: true,
-          input: ['text'],
-          supportedThinkingLevels: [ThinkingEffort.high],
-          contextWindow: 64000,
-          maxTokens: 8192,
-          temperature: 0.6,
-        ),
-      ],
-    ),
+    defaultDeepSeekProvider,
 
     // 2. OpenAI 官方
     const LlmProviderConfig(

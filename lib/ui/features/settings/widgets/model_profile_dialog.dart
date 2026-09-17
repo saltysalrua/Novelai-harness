@@ -144,6 +144,9 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
           reasoning: _reasoning,
           input: _multimodal ? const ['text', 'image'] : const ['text'],
           supportedThinkingLevels: levels,
+          preferredThinkingEffort: widget.model.preferredThinkingEffortFor(
+            levels,
+          ),
           contextWindow: contextWindow <= 0 ? 128000 : contextWindow,
           maxTokens: maxTokens <= 0 ? 8192 : maxTokens,
           temperature: _temperature,

@@ -610,6 +610,19 @@ class ConfigService {
   static const String _keyCustomSkills = 'agent_custom_skills_json';
   static const String _keyCustomTools = 'agent_custom_tools_json';
 
+  String _canonicalizeSelectedModelId(
+    List<LlmProviderConfig> providers,
+    String providerId,
+    String modelId,
+  ) {
+    for (final provider in providers) {
+      if (provider.id == providerId) {
+        return provider.canonicalizeModelId(modelId);
+      }
+    }
+    return modelId;
+  }
+
   /// 加载配置 (优先 SharedPreferences，首次启动尝试自动读取 ~/.pi/agent/novelai.json 与环境变量)
   Future<AppConfig> loadConfig() async {
     final prefs = await SharedPreferences.getInstance();
@@ -737,38 +750,27 @@ class ConfigService {
     // 若无多供应商配置，读取旧单配置并构建初始供应商列表
     if (providers.isEmpty) {
       final legacyBase =
-          prefs.getString(_keyLlmBaseUrl) ?? 'https://api.deepseek.com/v1';
+          prefs.getString(_keyLlmBaseUrl) ??
+          LlmProviderConfig.defaultDeepSeekProvider.baseUrl;
       final legacyKey =
           prefs.getString(_keyLlmApiKey) ??
           Platform.environment['DEEPSEEK_API_KEY'] ??
           Platform.environment['OPENAI_API_KEY'] ??
           '';
-      final legacyModel = prefs.getString(_keyLlmModel) ?? 'deepseek-chat';
+      final legacyModel = prefs.getString(_keyLlmModel);
       final legacyTemp = prefs.getDouble(_keyLlmTemperature) ?? 1.0;
+      final legacyProviderJson = <String, dynamic>{
+        'id': 'deepseek',
+        'name': 'DeepSeek',
+        'baseUrl': legacyBase,
+        'protocol': LlmProtocol.openAiChat.id,
+        'apiKey': legacyKey,
+        'temperature': legacyTemp,
+        'model': ?legacyModel,
+      };
 
       providers = [
-        LlmProviderConfig(
-          id: 'deepseek',
-          name: 'DeepSeek',
-          baseUrl: legacyBase,
-          protocol: LlmProtocol.openAiChat,
-          apiKey: legacyKey,
-          activeModelId: legacyModel,
-          models: [
-            LlmModelConfig(
-              id: legacyModel,
-              name: legacyModel,
-              temperature: legacyTemp,
-            ),
-            const LlmModelConfig(
-              id: 'deepseek-reasoner',
-              name: 'DeepSeek R1',
-              reasoning: true,
-              supportedThinkingLevels: [ThinkingEffort.high],
-              temperature: 0.6,
-            ),
-          ],
-        ),
+        LlmProviderConfig.fromJson(legacyProviderJson),
         ...LlmProviderConfig.defaultProviders.where((p) => p.id != 'deepseek'),
       ];
     }
@@ -778,7 +780,18 @@ class ConfigService {
 
     // AI 整图编辑独立供应商与模型 (空 = 未配置)
     final imageEditProviderId = prefs.getString(_keyImageEditProviderId) ?? '';
-    final imageEditModelId = prefs.getString(_keyImageEditModelId) ?? '';
+    final imageEditModelId = _canonicalizeSelectedModelId(
+      providers,
+      imageEditProviderId,
+      prefs.getString(_keyImageEditModelId) ?? '',
+    );
+    final compactionProviderId =
+        prefs.getString(_keyCompactionProviderId) ?? '';
+    final compactionModelId = _canonicalizeSelectedModelId(
+      providers,
+      compactionProviderId,
+      prefs.getString(_keyCompactionModelId) ?? '',
+    );
 
     // Agent 单次对话最大工具轮数 (钳制在 1..100 防止脏数据)
     final storedMaxTurns = prefs.getInt(_keyAgentMaxTurns) ?? 30;
@@ -913,8 +926,8 @@ class ConfigService {
       agentCompactionEnabled: prefs.getBool(_keyAgentCompactionEnabled) ?? true,
       agentBackgroundCompaction:
           prefs.getBool(_keyAgentBackgroundCompaction) ?? true,
-      compactionProviderId: prefs.getString(_keyCompactionProviderId) ?? '',
-      compactionModelId: prefs.getString(_keyCompactionModelId) ?? '',
+      compactionProviderId: compactionProviderId,
+      compactionModelId: compactionModelId,
 
       presets: presets,
       activePresetId: activePresetId,

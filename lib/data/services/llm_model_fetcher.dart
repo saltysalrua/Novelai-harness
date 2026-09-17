@@ -385,6 +385,7 @@ class LlmModelFetcher {
       reasoning: isReasoning,
       input: multimodalFlag ? const ['text', 'image'] : const ['text'],
       supportedThinkingLevels: levels,
+      preferredThinkingEffort: existing?.preferredThinkingEffortFor(levels),
       contextWindow: contextWindow,
       maxTokens: maxTokens,
       temperature: temperature,
