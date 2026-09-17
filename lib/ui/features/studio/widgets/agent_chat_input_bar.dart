@@ -115,7 +115,33 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     }
   }
 
+  bool get _isComposing {
+    final range = _inputController.value.composing;
+    return range.isValid && !range.isCollapsed;
+  }
+
+  KeyEventResult _handleMessageKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.enter ||
+        _isComposing) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    if (keyboard.isShiftPressed) {
+      _insertTextAtSelection('\n');
+      return KeyEventResult.handled;
+    }
+    _handleSend();
+    return KeyEventResult.handled;
+  }
+
   void _handleSend() {
+    if (_isComposing) return;
     // 流式生成中不重复发送，避免双监听把同一缓冲写出重复文本
     if (widget.viewModel.isChatStreaming) return;
     final text = _inputController.text.trim();
@@ -167,35 +193,34 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   KeyEventResult _handleInputNodeKeyEvent(FocusNode node, KeyEvent event) {
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.keyV &&
-        HardwareKeyboard.instance.isControlPressed) {
+        (Theme.of(context).platform == TargetPlatform.macOS
+            ? HardwareKeyboard.instance.isMetaPressed
+            : HardwareKeyboard.instance.isControlPressed)) {
       _handlePaste();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }
 
+  void _insertTextAtSelection(String text) {
+    final value = _inputController.value;
+    final selection = value.selection;
+    final start = selection.isValid ? selection.start : value.text.length;
+    final end = selection.isValid ? selection.end : value.text.length;
+    _inputController.value = TextEditingValue(
+      text: value.text.replaceRange(start, end, text),
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+  }
+
   /// 粘贴：剪贴板有文本时按默认行为插入光标处；
   /// 无文本时读取剪贴板图片并加入待发送附件 (截图/网页图片直接 Ctrl+V)
   Future<void> _handlePaste() async {
     final textData = await Clipboard.getData('text/plain');
+    if (!mounted) return;
     final text = textData?.text;
     if (text != null && text.isNotEmpty) {
-      final value = _inputController.value;
-      final sel = value.selection;
-      String newText;
-      int cursor;
-      if (sel.isValid && !sel.isCollapsed) {
-        newText = value.text.replaceRange(sel.start, sel.end, text);
-        cursor = sel.start + text.length;
-      } else {
-        final offset = sel.isValid ? sel.baseOffset : value.text.length;
-        newText = value.text.replaceRange(offset, offset, text);
-        cursor = offset + text.length;
-      }
-      _inputController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: cursor),
-      );
+      _insertTextAtSelection(text);
       return;
     }
 
@@ -345,7 +370,14 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
 
   /// 补全面板打开时拦截方向键/Tab/Enter/Esc
   KeyEventResult _handleSlashKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent || _isComposing) return KeyEventResult.ignored;
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isShiftPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
     if (_suggestions.isEmpty) return KeyEventResult.ignored;
 
     final key = event.logicalKey;
@@ -632,10 +664,8 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     final colors = context.colors;
     return CompositedTransformTarget(
       link: _layerLink,
-      child: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.enter): _handleSend,
-        },
+      child: Focus(
+        onKeyEvent: _handleMessageKeyEvent,
         // 焦点冒泡先处理补全，避免 Enter 被外层发送快捷键抢走。
         child: Focus(
           onKeyEvent: _handleSlashKey,

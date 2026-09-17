@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../data/services/config_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_nav_tile.dart';
@@ -22,12 +23,23 @@ class SettingsDialog extends StatefulWidget {
 
   const SettingsDialog({super.key, required this.viewModel});
 
-  static Future<void> show(BuildContext context, StudioViewModel viewModel) {
-    return showDialog(
+  static Future<void> show(
+    BuildContext context,
+    StudioViewModel viewModel,
+  ) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final route = DialogRoute<AppConfig>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.5),
+      themes: InheritedTheme.capture(from: context, to: navigator.context),
+      traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
       builder: (ctx) => SettingsDialog(viewModel: viewModel),
     );
+    final config = await navigator.push<AppConfig>(route);
+    // pop completes before the outgoing dialog is removed. Applying locale or
+    // zoom changes during that transition can crash the macOS semantics bridge.
+    await route.completed;
+    if (config != null) await viewModel.updateConfig(config);
   }
 
   @override
@@ -161,8 +173,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       compactionModelId: _defaultsDraft.compactionModelId,
     );
 
-    widget.viewModel.updateConfig(newConfig);
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(newConfig);
   }
 
   @override

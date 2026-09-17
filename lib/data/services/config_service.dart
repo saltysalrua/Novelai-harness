@@ -477,6 +477,13 @@ class AppConfig {
 
 /// 配置持久化与自适应加载服务
 class ConfigService {
+  /// Offline verification builds can disable discovery without changing stored
+  /// app preferences or borrowing credentials from the environment / Pi config.
+  static const _autoImportCredentials = bool.fromEnvironment(
+    'HARNESS_AUTO_IMPORT_CREDENTIALS',
+    defaultValue: true,
+  );
+
   ConfigService({ImageStorageDirectoryService? imageStorageDirectoryService})
     : _imageStorageDirectories =
           imageStorageDirectoryService ?? ImageStorageDirectoryService();
@@ -671,7 +678,7 @@ class ConfigService {
     }
 
     // 首次启动且无配置时，尝试自动读取本地 ~/.pi/agent/novelai.json
-    if (naiKey.isEmpty) {
+    if (naiKey.isEmpty && _autoImportCredentials) {
       final piConfig = _tryLoadLocalPiNovelAiJson();
       if (piConfig != null) {
         if (piConfig['apiKey'] is String) {
@@ -708,7 +715,7 @@ class ConfigService {
     }
 
     // 环境变量后备
-    if (naiKey.isEmpty) {
+    if (naiKey.isEmpty && _autoImportCredentials) {
       naiKey =
           Platform.environment['NOVELAI_API_KEY'] ??
           Platform.environment['NAI_API_KEY'] ??
@@ -740,8 +747,10 @@ class ConfigService {
           prefs.getString(_keyLlmBaseUrl) ?? 'https://api.deepseek.com/v1';
       final legacyKey =
           prefs.getString(_keyLlmApiKey) ??
-          Platform.environment['DEEPSEEK_API_KEY'] ??
-          Platform.environment['OPENAI_API_KEY'] ??
+          (_autoImportCredentials
+              ? Platform.environment['DEEPSEEK_API_KEY'] ??
+                    Platform.environment['OPENAI_API_KEY']
+              : null) ??
           '';
       final legacyModel = prefs.getString(_keyLlmModel) ?? 'deepseek-chat';
       final legacyTemp = prefs.getDouble(_keyLlmTemperature) ?? 1.0;

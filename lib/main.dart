@@ -12,6 +12,7 @@ import 'ui/core/theme/app_accent_controller.dart';
 import 'ui/core/theme/app_theme.dart';
 import 'ui/core/theme/theme_mode_controller.dart';
 import 'ui/core/theme/ui_zoom_controller.dart';
+import 'ui/core/widgets/custom_title_bar.dart';
 import 'ui/features/studio/views/studio_view.dart';
 
 /// 全局 Navigator Key，供 ViewModel 等无 context 环境弹出对话框 (如 AI 提问)
@@ -48,6 +49,7 @@ void main() async {
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
       titleBarStyle: TitleBarStyle.hidden,
+      windowButtonVisibility: defaultTargetPlatform == TargetPlatform.macOS,
       title: 'NovelAI Harness',
     );
 
@@ -218,8 +220,10 @@ class NovelAiHarnessApp extends StatelessWidget {
                   ],
                   supportedLocales: AppLocalizations.supportedLocales,
                   debugShowCheckedModeBanner: false,
-                  // Windows 引擎的 accessibility bridge 在处理节点移除与重排时会原生崩溃
-                  // (flutter/flutter#175041, #182444)。在 Windows 上禁用 semantics 绕开崩溃。
+                  // Windows (#175041, #182444) and this macOS Flutter engine
+                  // can crash while reparenting accessibility nodes. The
+                  // temporary exclusion also makes app content inaccessible
+                  // to screen readers; native window controls remain available.
                   // UI 缩放：浏览器式整体缩放 (Ctrl+=/-/0)，布局坐标系缩小后 Transform 放大，
                   // 只重建包裹层，不触发业务树重建。
                   builder: (context, child) {
@@ -233,7 +237,19 @@ class NovelAiHarnessApp extends StatelessWidget {
                           AppUiZoomScope(zoom: zoom, child: navigatorChild),
                     );
                     if (!kIsWeb &&
-                        defaultTargetPlatform == TargetPlatform.windows) {
+                        defaultTargetPlatform == TargetPlatform.macOS) {
+                      // Native traffic lights use macOS logical points, so
+                      // keep window chrome outside application UI scaling.
+                      content = Column(
+                        children: [
+                          const CustomTitleBar(),
+                          Expanded(child: content),
+                        ],
+                      );
+                    }
+                    if (!kIsWeb &&
+                        (defaultTargetPlatform == TargetPlatform.windows ||
+                            defaultTargetPlatform == TargetPlatform.macOS)) {
                       return ExcludeSemantics(child: content);
                     }
                     return content;
