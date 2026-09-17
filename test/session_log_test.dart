@@ -204,7 +204,7 @@ void main() {
     service.recordMessage(userMsg('画一张猫娘'));
     service.recordMessage(
       assistantMsg(
-        thoughts: '先想提示词',
+        thoughts: ' 先想提示词\n\t保留尾随空白  ',
         toolCalls: [
           const ToolCall(
             id: 'call_9',
@@ -234,7 +234,7 @@ void main() {
 
     final restoredAsst = snapshot.messages[1];
     expect(restoredAsst.role, equals(AgentRole.assistant));
-    expect(restoredAsst.thoughts, equals('先想提示词'));
+    expect(restoredAsst.thoughts, equals(' 先想提示词\n\t保留尾随空白  '));
     expect(restoredAsst.toolCalls!.length, equals(1));
     expect(restoredAsst.toolCalls!.first.name, equals('generate_image'));
     expect(restoredAsst.toolCalls!.first.arguments['width'], equals(832));

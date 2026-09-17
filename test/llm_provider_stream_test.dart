@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:novelai_harness/core/harness/agent_harness.dart';
+import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
 import 'package:novelai_harness/core/harness/providers/openai_provider.dart';
+import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 
@@ -41,6 +44,28 @@ List<String> _thoughts(List<HarnessEvent> events) =>
 
 List<String> _contents(List<HarnessEvent> events) =>
     events.whereType<ContentDeltaEvent>().map((e) => e.delta).toList();
+
+class _ProtocolEchoTool extends AgentTool {
+  const _ProtocolEchoTool()
+    : super(
+        name: 'echo_protocol',
+        label: 'Echo protocol',
+        description: 'Echo a value for protocol tests.',
+        parameters: const {
+          'type': 'object',
+          'properties': {
+            'text': {'type': 'string'},
+          },
+          'required': ['text'],
+        },
+      );
+
+  @override
+  Future<ToolResult> execute(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async => ToolResult(toolCallId: toolCallId, content: '${args['text']}');
+}
 
 void main() {
   group('思考流字段解析', () {
@@ -174,6 +199,197 @@ void main() {
       // 没等到完整标签出现，残缺片段按正文原文输出
       expect(_contents(events), equals(['文字', kOpenThinkTag.substring(0, 4)]));
       expect(_thoughts(events), isEmpty);
+    });
+  });
+
+  group('DeepSeek 工具请求思考历史回传', () {
+    final tool = const _ProtocolEchoTool();
+
+    Future<Map<String, dynamic>> captureBody({
+      required String baseUrl,
+      required List<AgentMessage> messages,
+      required List<AgentTool> tools,
+      String? format,
+      bool reasoning = true,
+      String? effort = 'high',
+    }) async {
+      Map<String, dynamic>? captured;
+      final provider = OpenAiCompatibleProvider(
+        baseUrl: baseUrl,
+        apiKey: 'test-key',
+        model: 'test-model',
+        reasoning: reasoning,
+        thinkingEffort: effort,
+        thinkingParamFormat: format,
+        client: MockClient.streaming((request, body) async {
+          captured =
+              jsonDecode(utf8.decode(await body.toBytes()))
+                  as Map<String, dynamic>;
+          return _sse([
+            _delta({'content': 'ok'}),
+          ]);
+        }),
+      );
+
+      await provider.streamChat(messages: messages, tools: tools).toList();
+      return captured!;
+    }
+
+    test('流式工具续接和下一用户轮完整回传每个 assistant 的原始思考', () async {
+      final bodies = <Map<String, dynamic>>[];
+      final provider = OpenAiCompatibleProvider(
+        baseUrl: 'https://api.deepseek.com/v1',
+        apiKey: 'test-key',
+        model: 'deepseek-flash',
+        reasoning: true,
+        thinkingEffort: 'high',
+        client: MockClient.streaming((request, body) async {
+          bodies.add(
+            jsonDecode(utf8.decode(await body.toBytes()))
+                as Map<String, dynamic>,
+          );
+          return switch (bodies.length) {
+            1 => _sse([
+              _delta({
+                'reasoning_content': '  first tool thought\n',
+                'tool_calls': [
+                  {
+                    'index': 0,
+                    'id': 'call_1',
+                    'type': 'function',
+                    'function': {
+                      'name': 'echo_protocol',
+                      'arguments': '{"text":"one"}',
+                    },
+                  },
+                ],
+              }),
+            ]),
+            2 => _sse([
+              _delta({'reasoning_content': '\tfinal thought  '}),
+              _delta({'content': 'first answer'}),
+            ]),
+            _ => _sse([
+              _delta({'reasoning_content': 'next thought'}),
+              _delta({'content': 'next answer'}),
+            ]),
+          };
+        }),
+      );
+      final registry = ToolRegistry()..register(tool);
+      final harness = AgentHarness(
+        tools: registry,
+        provider: provider,
+        initialPreset: const AgentPreset(
+          id: 'protocol-test',
+          name: 'Protocol test',
+          description: '',
+          systemPrompt: '',
+          enabledToolNames: ['echo_protocol'],
+        ),
+      );
+
+      await harness.send('first question').toList();
+      await harness.send('later question').toList();
+
+      expect(bodies, hasLength(3));
+      for (final body in bodies) {
+        expect(body['tools'], hasLength(1));
+        expect(body.containsKey('tool_choice'), isFalse);
+      }
+      final continuationMessages = bodies[1]['messages'] as List<dynamic>;
+      final firstAssistant = continuationMessages
+          .whereType<Map<String, dynamic>>()
+          .singleWhere((message) => message['role'] == 'assistant');
+      expect(firstAssistant['content'], isA<String>());
+      final toolResult = continuationMessages
+          .whereType<Map<String, dynamic>>()
+          .singleWhere((message) => message['role'] == 'tool');
+      expect(toolResult['content'], 'one');
+      expect(
+        firstAssistant['reasoning_content'],
+        equals('  first tool thought\n'),
+      );
+
+      final laterMessages = bodies[2]['messages'] as List<dynamic>;
+      final assistants = laterMessages
+          .whereType<Map<String, dynamic>>()
+          .where((message) => message['role'] == 'assistant')
+          .toList();
+      expect(
+        assistants.map((message) => message['reasoning_content']).toList(),
+        equals(['  first tool thought\n', '\tfinal thought  ']),
+      );
+    });
+
+    test('DeepSeek 无工具请求不发送 reasoning_content', () async {
+      final body = await captureBody(
+        baseUrl: 'https://api.deepseek.com/v1',
+        messages: [
+          AgentMessage(
+            id: 'a1',
+            role: AgentRole.assistant,
+            content: 'answer',
+            thoughts: 'stored thought',
+          ),
+        ],
+        tools: const [],
+      );
+
+      final assistant = (body['messages'] as List<dynamic>).single as Map;
+      expect(assistant.containsKey('reasoning_content'), isFalse);
+    });
+
+    test('显式 DeepSeek 格式的中转站回传现有思考且不臆造缺失思考', () async {
+      final body = await captureBody(
+        baseUrl: 'https://relay.example/v1',
+        format: 'deepseek',
+        messages: [
+          AgentMessage(
+            id: 'a1',
+            role: AgentRole.assistant,
+            content: 'with thought',
+            thoughts: ' \n exact whitespace\t ',
+          ),
+          AgentMessage(
+            id: 'a2',
+            role: AgentRole.assistant,
+            content: 'without thought',
+          ),
+        ],
+        tools: [tool],
+      );
+
+      final assistants = (body['messages'] as List<dynamic>)
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      expect(
+        assistants.first['reasoning_content'],
+        equals(' \n exact whitespace\t '),
+      );
+      expect(assistants.last.containsKey('reasoning_content'), isFalse);
+      expect(body.containsKey('tool_choice'), isFalse);
+    });
+
+    test('伪装 DeepSeek 后缀的第三方主机保持 OpenAI 请求形状', () async {
+      final body = await captureBody(
+        baseUrl: 'https://api.deepseek.com.evil.example/v1',
+        messages: [
+          AgentMessage(
+            id: 'a1',
+            role: AgentRole.assistant,
+            content: 'answer',
+            thoughts: 'private thought',
+          ),
+        ],
+        tools: [tool],
+      );
+
+      final assistant = (body['messages'] as List<dynamic>).single as Map;
+      expect(assistant.containsKey('reasoning_content'), isFalse);
+      expect(body.containsKey('thinking'), isFalse);
+      expect(body['reasoning_effort'], equals('high'));
+      expect(body['tool_choice'], 'auto');
     });
   });
 
