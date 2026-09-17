@@ -20,12 +20,13 @@ String buildCharacterPromptsReport(
   List<NaiCharacterPrompt> characters, {
   bool aiPosition = true,
 }) {
-  if (characters.isEmpty) {
-    return '当前没有角色提示词 (单角色场景无需配置，主提示词即可)。';
-  }
   final positionMode = aiPosition
       ? 'AI 自动布局 (官方 AI\'s Choice，不发送位置参数)'
       : '自定义定位 (发送 use_coords 与各角色 center)';
+  if (characters.isEmpty) {
+    return '当前没有角色提示词 (单角色场景无需配置，主提示词即可)。'
+        '位置模式: $positionMode。';
+  }
   final lines = characters.asMap().entries.map((entry) {
     final index = entry.key;
     final c = entry.value;
@@ -35,6 +36,7 @@ String buildCharacterPromptsReport(
     return [
       '[$index] ${c.name} (id: ${c.id})',
       '    状态: ${c.enabled ? '启用' : '停用'} | 定位: $position',
+      '    坐标原值: position_x: ${c.positionX} | position_y: ${c.positionY}',
       '    正向: ${c.prompt.isEmpty ? '(空)' : c.prompt}',
       '    负面: ${c.negativePrompt.isEmpty ? '(空)' : c.negativePrompt}',
     ].join('\n');

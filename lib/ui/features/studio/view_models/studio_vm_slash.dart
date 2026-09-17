@@ -16,7 +16,14 @@ mixin _StudioSlashMixin on _StudioCore {
 
       case '/params':
         _harness.addInfoMessage(
-          buildStudioParamsReport(_params, title: vmL10n.vmSlashParamsTitle),
+          buildStudioParamsReport(
+            _params,
+            title: vmL10n.vmSlashParamsTitle,
+            effectivePrompts: resolveStudioEffectivePrompts(
+              _params,
+              isComfyUi: isComfyUiMode,
+            ),
+          ),
         );
         notifyListeners();
         break;
