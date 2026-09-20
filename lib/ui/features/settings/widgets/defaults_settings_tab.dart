@@ -137,18 +137,18 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           ),
 
           const SizedBox(height: AppSpacing.lg),
-          const AppSectionHeader(title: '上下文管理'),
+          AppSectionHeader(title: l10n.settingsSectionContextManagement),
           AppSettingTile(
-            title: '自动压缩',
-            subtitle: '保留近期消息，将更早内容转换为摘要；原始历史不删除。',
+            title: l10n.settingsAutoCompaction,
+            subtitle: l10n.settingsAutoCompactionHint,
             control: Switch(
               value: _draft.compactionEnabled,
               onChanged: (v) => setState(() => _draft.compactionEnabled = v),
             ),
           ),
           AppSettingTile(
-            title: '后台异步压缩',
-            subtitle: '安全窗口使用到 70% 时提前压缩；到达上限才等待。',
+            title: l10n.settingsBackgroundCompaction,
+            subtitle: l10n.settingsBackgroundCompactionHint,
             control: Switch(
               value: _draft.backgroundCompaction,
               onChanged: _draft.compactionEnabled
@@ -157,14 +157,14 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
             ),
           ),
           AppSettingTile(
-            title: '压缩供应商',
-            subtitle: '未选择独立模型或配置不可用时使用主模型。压缩请求单独计入账单。',
+            title: l10n.settingsCompactionProvider,
+            subtitle: l10n.settingsCompactionProviderHint,
             control: AppDropdown.simple(
               value: summaryProvider?.id ?? '',
               items: ['', ...providers.map((p) => p.id)],
               width: 170,
               labelOf: (id) => id.isEmpty
-                  ? '跟随主模型'
+                  ? l10n.settingsFollowMainModel
                   : providers.firstWhere((p) => p.id == id).name,
               onChanged: (id) => setState(() {
                 _draft.compactionProviderId = id;
@@ -174,7 +174,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           ),
           if (summaryProvider != null)
             AppSettingTile(
-              title: '压缩模型',
+              title: l10n.settingsCompactionModel,
               control: AppDropdown.simple(
                 value: models.any((m) => m.id == _draft.compactionModelId)
                     ? _draft.compactionModelId
@@ -182,7 +182,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
                 items: ['', ...models.map((m) => m.id)],
                 width: 170,
                 labelOf: (id) => id.isEmpty
-                    ? '跟随主模型'
+                    ? l10n.settingsFollowMainModel
                     : models.firstWhere((m) => m.id == id).name,
                 onChanged: (id) =>
                     setState(() => _draft.compactionModelId = id),

@@ -163,11 +163,11 @@ class AnnotationHistoryStrip extends StatelessWidget {
                                   ),
                                 // 外部参考图 REF 标记
                                 if (item.isImportedReference)
-                                  const Positioned(
+                                  Positioned(
                                     bottom: 4,
                                     left: 4,
                                     child: AppBadge(
-                                      label: 'REF',
+                                      label: l10n.referenceImageBadge,
                                       variant: AppBadgeVariant.dark,
                                       fontSize: 9,
                                     ),

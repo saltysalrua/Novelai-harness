@@ -8,6 +8,7 @@ import '../../../core/widgets/app_collapsible_section.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/l10n/skill_error_l10n.dart';
 
 /// Skill 查看 / 编辑 / 导入对话框 (支持 Pi 标准 SKILL.md 导入导出)
 class SkillEditorDialog extends StatefulWidget {
@@ -94,13 +95,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
 
   void _showError(Object error) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          error is FormatException
-              ? error.message
-              : context.l10n.skillOperationFailed(error.toString()),
-        ),
-      ),
+      SnackBar(content: Text(skillErrorText(context.l10n, error))),
     );
   }
 

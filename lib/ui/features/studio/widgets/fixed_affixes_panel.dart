@@ -40,7 +40,7 @@ class FixedAffixesCardContent extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _AffixFieldHeader(badge: 'PREFIX', title: l10n.affixPrefixTitle),
+            _AffixFieldHeader(badge: l10n.promptsPrefixBadge, title: l10n.affixPrefixTitle),
             Divider(height: 1, thickness: 1, color: colors.borderSubtle),
             ResizableTextField(
               controller: prefixController,
@@ -66,7 +66,7 @@ class FixedAffixesCardContent extends StatelessWidget {
                 color: colors.textMuted,
               ),
             ),
-            _AffixFieldHeader(badge: 'SUFFIX', title: l10n.affixSuffixTitle),
+            _AffixFieldHeader(badge: l10n.promptsSuffixBadge, title: l10n.affixSuffixTitle),
             Divider(height: 1, thickness: 1, color: colors.borderSubtle),
             ResizableTextField(
               controller: suffixController,

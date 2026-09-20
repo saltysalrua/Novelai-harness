@@ -503,7 +503,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsLanguageSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'切换界面显示语言；现阶段设置页优先接入，其余界面将分模块逐步迁移'**
+  /// **'切换软件界面语言；技能正文、提示词和用户内容保持原样。'**
   String get settingsLanguageSubtitle;
 
   /// No description provided for @localeSystem.
@@ -533,13 +533,13 @@ abstract class AppLocalizations {
   /// No description provided for @settingsUiZoomSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'整体缩放工作台界面；快捷键 Ctrl + = / Ctrl + - 步进，Ctrl + 0 重置'**
-  String get settingsUiZoomSubtitle;
+  /// **'整体缩放工作台界面；快捷键 {modifier} + = / {modifier} + - 步进，{modifier} + 0 重置'**
+  String settingsUiZoomSubtitle(String modifier);
 
   /// No description provided for @settingsSectionNovelaiService.
   ///
   /// In zh, this message translates to:
-  /// **'NovelAI Service'**
+  /// **'NovelAI 服务'**
   String get settingsSectionNovelaiService;
 
   /// No description provided for @settingsApiKeyTitle.
@@ -791,7 +791,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSectionTagAutocomplete.
   ///
   /// In zh, this message translates to:
-  /// **'Danbooru Tag Autocomplete'**
+  /// **'Danbooru 标签补全'**
   String get settingsSectionTagAutocomplete;
 
   /// No description provided for @settingsTagAutocompleteTitle.
@@ -1061,19 +1061,19 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSectionProviderSelection.
   ///
   /// In zh, this message translates to:
-  /// **'Provider Selection'**
+  /// **'服务商选择'**
   String get settingsSectionProviderSelection;
 
   /// No description provided for @settingsSectionProviderProfile.
   ///
   /// In zh, this message translates to:
-  /// **'Provider Profile & Endpoint'**
+  /// **'服务商信息与接口'**
   String get settingsSectionProviderProfile;
 
   /// No description provided for @settingsSectionModels.
   ///
   /// In zh, this message translates to:
-  /// **'Models'**
+  /// **'模型列表'**
   String get settingsSectionModels;
 
   /// No description provided for @settingsSectionImageEdit.
@@ -1295,31 +1295,31 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSectionPresetSelection.
   ///
   /// In zh, this message translates to:
-  /// **'Preset Selection'**
+  /// **'预设选择'**
   String get settingsSectionPresetSelection;
 
   /// No description provided for @settingsSectionPresetProfile.
   ///
   /// In zh, this message translates to:
-  /// **'Preset Profile & System Prompt'**
+  /// **'预设信息与系统提示词'**
   String get settingsSectionPresetProfile;
 
   /// No description provided for @settingsSectionAvailableSkills.
   ///
   /// In zh, this message translates to:
-  /// **'Available Skills'**
+  /// **'可用技能'**
   String get settingsSectionAvailableSkills;
 
   /// No description provided for @settingsSectionEnabledTools.
   ///
   /// In zh, this message translates to:
-  /// **'Enabled Tools'**
+  /// **'启用的工具'**
   String get settingsSectionEnabledTools;
 
   /// No description provided for @settingsSectionModifiableParams.
   ///
   /// In zh, this message translates to:
-  /// **'Modifiable Parameters'**
+  /// **'可修改的参数'**
   String get settingsSectionModifiableParams;
 
   /// No description provided for @presetCurrentPreset.
@@ -1889,7 +1889,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSectionModelAndSampler.
   ///
   /// In zh, this message translates to:
-  /// **'Model & Sampler'**
+  /// **'模型与采样器'**
   String get settingsSectionModelAndSampler;
 
   /// No description provided for @settingsDefaultModelTitle.
@@ -1931,7 +1931,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSectionDefaultStepsAndScale.
   ///
   /// In zh, this message translates to:
-  /// **'Default Steps & Scale'**
+  /// **'默认步数与引导强度'**
   String get settingsSectionDefaultStepsAndScale;
 
   /// No description provided for @settingsDefaultStepsTitle.
@@ -1961,7 +1961,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSectionAgentLoop.
   ///
   /// In zh, this message translates to:
-  /// **'Agent Loop'**
+  /// **'助手循环'**
   String get settingsSectionAgentLoop;
 
   /// No description provided for @settingsAgentMaxTurnsTitle.
@@ -1979,7 +1979,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSectionUsageBill.
   ///
   /// In zh, this message translates to:
-  /// **'Usage Bill'**
+  /// **'用量账单'**
   String get settingsSectionUsageBill;
 
   /// No description provided for @billPeriodToday.
@@ -2087,25 +2087,25 @@ abstract class AppLocalizations {
   /// No description provided for @paramsSteps.
   ///
   /// In zh, this message translates to:
-  /// **'Steps'**
+  /// **'步数'**
   String get paramsSteps;
 
   /// No description provided for @paramsPromptGuidance.
   ///
   /// In zh, this message translates to:
-  /// **'Prompt Guidance'**
+  /// **'提示词引导强度'**
   String get paramsPromptGuidance;
 
   /// No description provided for @paramsSectionSeed.
   ///
   /// In zh, this message translates to:
-  /// **'Seed'**
+  /// **'种子'**
   String get paramsSectionSeed;
 
   /// No description provided for @paramsSeedHint.
   ///
   /// In zh, this message translates to:
-  /// **'Enter a seed'**
+  /// **'输入种子'**
   String get paramsSeedHint;
 
   /// No description provided for @paramsSeedTooltip.
@@ -2147,7 +2147,7 @@ abstract class AppLocalizations {
   /// No description provided for @paramsSectionSampler.
   ///
   /// In zh, this message translates to:
-  /// **'Sampler'**
+  /// **'采样器'**
   String get paramsSectionSampler;
 
   /// No description provided for @paramsSeedModeGroup.
@@ -2213,19 +2213,19 @@ abstract class AppLocalizations {
   /// No description provided for @paramsSectionAdvanced.
   ///
   /// In zh, this message translates to:
-  /// **'Advanced Settings'**
+  /// **'高级设置'**
   String get paramsSectionAdvanced;
 
   /// No description provided for @paramsPromptGuidanceRescale.
   ///
   /// In zh, this message translates to:
-  /// **'Prompt Guidance Rescale'**
+  /// **'提示词引导重缩放'**
   String get paramsPromptGuidanceRescale;
 
   /// No description provided for @paramsSectionNoiseSchedule.
   ///
   /// In zh, this message translates to:
-  /// **'Noise Schedule'**
+  /// **'噪声调度'**
   String get paramsSectionNoiseSchedule;
 
   /// No description provided for @paramsStripMetadata.
@@ -2273,19 +2273,19 @@ abstract class AppLocalizations {
   /// No description provided for @resolutionOrientationLandscape.
   ///
   /// In zh, this message translates to:
-  /// **'Landscape'**
+  /// **'横向'**
   String get resolutionOrientationLandscape;
 
   /// No description provided for @resolutionOrientationPortrait.
   ///
   /// In zh, this message translates to:
-  /// **'Portrait'**
+  /// **'纵向'**
   String get resolutionOrientationPortrait;
 
   /// No description provided for @resolutionOrientationSquare.
   ///
   /// In zh, this message translates to:
-  /// **'Square'**
+  /// **'正方形'**
   String get resolutionOrientationSquare;
 
   /// No description provided for @resolutionOrientationSquareDisabled.
@@ -2297,7 +2297,7 @@ abstract class AppLocalizations {
   /// No description provided for @resolutionSwapTooltip.
   ///
   /// In zh, this message translates to:
-  /// **'Swap'**
+  /// **'交换宽高'**
   String get resolutionSwapTooltip;
 
   /// No description provided for @watermarkPickImageFailed.
@@ -2789,7 +2789,7 @@ abstract class AppLocalizations {
   /// No description provided for @annotHistoryTitle.
   ///
   /// In zh, this message translates to:
-  /// **'History '**
+  /// **'历史记录 '**
   String get annotHistoryTitle;
 
   /// No description provided for @annotHistoryEmpty.
@@ -3851,8 +3851,8 @@ abstract class AppLocalizations {
   /// No description provided for @boardToolPasteImage.
   ///
   /// In zh, this message translates to:
-  /// **'粘贴图 (Ctrl+V)'**
-  String get boardToolPasteImage;
+  /// **'粘贴图 ({shortcut})'**
+  String boardToolPasteImage(String shortcut);
 
   /// No description provided for @boardToolResetView.
   ///
@@ -4493,37 +4493,37 @@ abstract class AppLocalizations {
   /// No description provided for @chatThinkingEffortNone.
   ///
   /// In zh, this message translates to:
-  /// **'None'**
+  /// **'无'**
   String get chatThinkingEffortNone;
 
   /// No description provided for @chatThinkingEffortLow.
   ///
   /// In zh, this message translates to:
-  /// **'Low'**
+  /// **'低'**
   String get chatThinkingEffortLow;
 
   /// No description provided for @chatThinkingEffortMedium.
   ///
   /// In zh, this message translates to:
-  /// **'Medium'**
+  /// **'中'**
   String get chatThinkingEffortMedium;
 
   /// No description provided for @chatThinkingEffortHigh.
   ///
   /// In zh, this message translates to:
-  /// **'High'**
+  /// **'高'**
   String get chatThinkingEffortHigh;
 
   /// No description provided for @chatThinkingEffortXHigh.
   ///
   /// In zh, this message translates to:
-  /// **'XHigh'**
+  /// **'超高'**
   String get chatThinkingEffortXHigh;
 
   /// No description provided for @chatThinkingEffortMax.
   ///
   /// In zh, this message translates to:
-  /// **'Max'**
+  /// **'最高'**
   String get chatThinkingEffortMax;
 
   /// No description provided for @chatSessionUsageEmpty.
@@ -5125,6 +5125,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'对话异常: {error}'**
   String vmChatError(String error);
+
+  /// No description provided for @vmChatProviderNotConfigured.
+  ///
+  /// In zh, this message translates to:
+  /// **'未配置 LLM 提供商，请在设置中添加提供商和 API Key。'**
+  String get vmChatProviderNotConfigured;
+
+  /// No description provided for @vmChatApiKeyMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前 LLM 提供商未填写 API Key，请在设置中添加。'**
+  String get vmChatApiKeyMissing;
+
+  /// No description provided for @vmChatContextWindowInsufficient.
+  ///
+  /// In zh, this message translates to:
+  /// **'压缩后上下文仍超过模型的安全窗口。请释放旧回复、手动压缩，或切换到更大上下文窗口的模型。'**
+  String get vmChatContextWindowInsufficient;
+
+  /// No description provided for @vmChatModelRequestFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'模型请求失败。请检查提供商和模型设置后重试。'**
+  String get vmChatModelRequestFailed;
 
   /// No description provided for @vmChatForceAborted.
   ///
@@ -6097,6 +6121,600 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'重试'**
   String get bootRetry;
+
+  /// No description provided for @settingsSectionContextManagement.
+  ///
+  /// In zh, this message translates to:
+  /// **'上下文管理'**
+  String get settingsSectionContextManagement;
+
+  /// No description provided for @settingsAutoCompaction.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动压缩'**
+  String get settingsAutoCompaction;
+
+  /// No description provided for @settingsAutoCompactionHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'保留近期消息，将更早内容转换为摘要；原始历史不删除。'**
+  String get settingsAutoCompactionHint;
+
+  /// No description provided for @settingsBackgroundCompaction.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台异步压缩'**
+  String get settingsBackgroundCompaction;
+
+  /// No description provided for @settingsBackgroundCompactionHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'安全窗口使用到 70% 时提前压缩；到达上限才等待。'**
+  String get settingsBackgroundCompactionHint;
+
+  /// No description provided for @settingsCompactionProvider.
+  ///
+  /// In zh, this message translates to:
+  /// **'压缩供应商'**
+  String get settingsCompactionProvider;
+
+  /// No description provided for @settingsCompactionProviderHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'未选择独立模型或配置不可用时使用主模型。压缩请求单独计入账单。'**
+  String get settingsCompactionProviderHint;
+
+  /// No description provided for @settingsCompactionModel.
+  ///
+  /// In zh, this message translates to:
+  /// **'压缩模型'**
+  String get settingsCompactionModel;
+
+  /// No description provided for @settingsFollowMainModel.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随主模型'**
+  String get settingsFollowMainModel;
+
+  /// No description provided for @commonSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索…'**
+  String get commonSearchHint;
+
+  /// No description provided for @commonClearInput.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空输入'**
+  String get commonClearInput;
+
+  /// No description provided for @commonCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制'**
+  String get commonCopied;
+
+  /// No description provided for @commonClickToCopy.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击复制'**
+  String get commonClickToCopy;
+
+  /// No description provided for @commonRequiredInput.
+  ///
+  /// In zh, this message translates to:
+  /// **'内容不能为空'**
+  String get commonRequiredInput;
+
+  /// No description provided for @commonInputHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入内容…'**
+  String get commonInputHint;
+
+  /// No description provided for @commonDropImage.
+  ///
+  /// In zh, this message translates to:
+  /// **'松开鼠标导入图片'**
+  String get commonDropImage;
+
+  /// No description provided for @commonUnrecognizedOption.
+  ///
+  /// In zh, this message translates to:
+  /// **'未识别'**
+  String get commonUnrecognizedOption;
+
+  /// No description provided for @commonResizeWidth.
+  ///
+  /// In zh, this message translates to:
+  /// **'左右拖动调整宽度（双击重置）'**
+  String get commonResizeWidth;
+
+  /// No description provided for @inpaintSelectionLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'修复选区'**
+  String get inpaintSelectionLabel;
+
+  /// No description provided for @promptsTransparentBackground.
+  ///
+  /// In zh, this message translates to:
+  /// **'透明背景'**
+  String get promptsTransparentBackground;
+
+  /// No description provided for @promptsQualityTags.
+  ///
+  /// In zh, this message translates to:
+  /// **'质量词'**
+  String get promptsQualityTags;
+
+  /// No description provided for @skillFileUnreadable.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法读取所选文件。'**
+  String get skillFileUnreadable;
+
+  /// No description provided for @promptsPositiveTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'正向提示词'**
+  String get promptsPositiveTitle;
+
+  /// No description provided for @promptsNegativeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'负向提示词'**
+  String get promptsNegativeTitle;
+
+  /// No description provided for @promptsPrefixBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'前缀'**
+  String get promptsPrefixBadge;
+
+  /// No description provided for @promptsSuffixBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'后缀'**
+  String get promptsSuffixBadge;
+
+  /// No description provided for @presetLevelStandard.
+  ///
+  /// In zh, this message translates to:
+  /// **'标准'**
+  String get presetLevelStandard;
+
+  /// No description provided for @presetLevelLight.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻量'**
+  String get presetLevelLight;
+
+  /// No description provided for @presetLevelHeavy.
+  ///
+  /// In zh, this message translates to:
+  /// **'强力'**
+  String get presetLevelHeavy;
+
+  /// No description provided for @presetLevelHuman.
+  ///
+  /// In zh, this message translates to:
+  /// **'人物'**
+  String get presetLevelHuman;
+
+  /// No description provided for @presetLevelNone.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get presetLevelNone;
+
+  /// No description provided for @tagGroupQuality.
+  ///
+  /// In zh, this message translates to:
+  /// **'画质'**
+  String get tagGroupQuality;
+
+  /// No description provided for @tagGroupAesthetic.
+  ///
+  /// In zh, this message translates to:
+  /// **'美学'**
+  String get tagGroupAesthetic;
+
+  /// No description provided for @tagGroupComplexity.
+  ///
+  /// In zh, this message translates to:
+  /// **'复杂度'**
+  String get tagGroupComplexity;
+
+  /// No description provided for @tagGroupYear.
+  ///
+  /// In zh, this message translates to:
+  /// **'年代'**
+  String get tagGroupYear;
+
+  /// No description provided for @tagGroupDataset.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据集'**
+  String get tagGroupDataset;
+
+  /// No description provided for @tagGroupAlpha.
+  ///
+  /// In zh, this message translates to:
+  /// **'透明通道'**
+  String get tagGroupAlpha;
+
+  /// No description provided for @tagGroupRenamed.
+  ///
+  /// In zh, this message translates to:
+  /// **'改名标签'**
+  String get tagGroupRenamed;
+
+  /// No description provided for @tagGroupOther.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get tagGroupOther;
+
+  /// No description provided for @tagGroupQualityAesthetics.
+  ///
+  /// In zh, this message translates to:
+  /// **'画质与美学'**
+  String get tagGroupQualityAesthetics;
+
+  /// No description provided for @tagGroupCameraComposition.
+  ///
+  /// In zh, this message translates to:
+  /// **'镜头与构图'**
+  String get tagGroupCameraComposition;
+
+  /// No description provided for @tagGroupLighting.
+  ///
+  /// In zh, this message translates to:
+  /// **'光影与氛围'**
+  String get tagGroupLighting;
+
+  /// No description provided for @tagGroupExpression.
+  ///
+  /// In zh, this message translates to:
+  /// **'表情与神情'**
+  String get tagGroupExpression;
+
+  /// No description provided for @tagGroupHair.
+  ///
+  /// In zh, this message translates to:
+  /// **'发型与发色'**
+  String get tagGroupHair;
+
+  /// No description provided for @tagGroupClothing.
+  ///
+  /// In zh, this message translates to:
+  /// **'服饰与装扮'**
+  String get tagGroupClothing;
+
+  /// No description provided for @tagGroupPose.
+  ///
+  /// In zh, this message translates to:
+  /// **'动作与姿势'**
+  String get tagGroupPose;
+
+  /// No description provided for @tagGroupBackground.
+  ///
+  /// In zh, this message translates to:
+  /// **'背景与场景'**
+  String get tagGroupBackground;
+
+  /// No description provided for @presetImportButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入预设'**
+  String get presetImportButton;
+
+  /// No description provided for @presetExportButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出预设'**
+  String get presetExportButton;
+
+  /// No description provided for @presetImportInvalidJson.
+  ///
+  /// In zh, this message translates to:
+  /// **'请选择包含一个预设对象或预设数组的有效 JSON 文件。'**
+  String get presetImportInvalidJson;
+
+  /// No description provided for @presetImportInvalidField.
+  ///
+  /// In zh, this message translates to:
+  /// **'预设字段 {field} 缺失或格式错误。权限列表必须显式填写，允许为空数组。'**
+  String presetImportInvalidField(String field);
+
+  /// No description provided for @presetImportUnknownTool.
+  ///
+  /// In zh, this message translates to:
+  /// **'未识别工具 {field}，请先导入对应工具或检查文件。'**
+  String presetImportUnknownTool(String field);
+
+  /// No description provided for @presetImportUnknownParameter.
+  ///
+  /// In zh, this message translates to:
+  /// **'未识别参数权限 {field}，请检查文件。'**
+  String presetImportUnknownParameter(String field);
+
+  /// No description provided for @presetTransferFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'预设导入或导出失败：{error}'**
+  String presetTransferFailed(String error);
+
+  /// No description provided for @presetImportedDraft.
+  ///
+  /// In zh, this message translates to:
+  /// **'已追加 {count} 个预设。点击“保存”保留，点击“取消”放弃；当前使用的预设未切换。'**
+  String presetImportedDraft(int count);
+
+  /// No description provided for @skillErrorPackageTooLarge.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包不能超过 32 MiB。'**
+  String get skillErrorPackageTooLarge;
+
+  /// No description provided for @skillErrorInstructionsTooLarge.
+  ///
+  /// In zh, this message translates to:
+  /// **'SKILL.md 不能超过 256 KiB。'**
+  String get skillErrorInstructionsTooLarge;
+
+  /// No description provided for @skillErrorFileType.
+  ///
+  /// In zh, this message translates to:
+  /// **'请选择 .zip、.skill 或 .md 文件。'**
+  String get skillErrorFileType;
+
+  /// No description provided for @skillErrorTooManyEntries.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包条目过多。'**
+  String get skillErrorTooManyEntries;
+
+  /// No description provided for @skillErrorSpecialFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包不允许链接或特殊文件。'**
+  String get skillErrorSpecialFile;
+
+  /// No description provided for @skillErrorDuplicatePath.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包存在重复路径：{detail}'**
+  String skillErrorDuplicatePath(String detail);
+
+  /// No description provided for @skillErrorSizeLimit.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包超出限制：单文件 8 MiB、总量 32 MiB、512 个文件。'**
+  String get skillErrorSizeLimit;
+
+  /// No description provided for @skillErrorEncrypted.
+  ///
+  /// In zh, this message translates to:
+  /// **'不支持加密或损坏的技能包。'**
+  String get skillErrorEncrypted;
+
+  /// No description provided for @skillErrorMissingData.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包文件数据缺失。'**
+  String get skillErrorMissingData;
+
+  /// No description provided for @skillErrorCompression.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包仅支持 ZIP Store / Deflate 压缩。'**
+  String get skillErrorCompression;
+
+  /// No description provided for @skillErrorChecksum.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包长度或 CRC 校验失败。'**
+  String get skillErrorChecksum;
+
+  /// No description provided for @skillErrorInvalidZip.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法读取 ZIP 技能包，请检查文件是否完整。'**
+  String get skillErrorInvalidZip;
+
+  /// No description provided for @skillErrorDirectory.
+  ///
+  /// In zh, this message translates to:
+  /// **'请选择普通技能文件夹，不能选择链接。'**
+  String get skillErrorDirectory;
+
+  /// No description provided for @skillErrorLinkFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包不允许链接文件。'**
+  String get skillErrorLinkFile;
+
+  /// No description provided for @skillErrorPathEscape.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包路径越界。'**
+  String get skillErrorPathEscape;
+
+  /// No description provided for @skillErrorPackageLimit.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包不能超过 32 MiB 或 512 个文件。'**
+  String get skillErrorPackageLimit;
+
+  /// No description provided for @skillErrorSpecialEntry.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包不允许特殊文件。'**
+  String get skillErrorSpecialEntry;
+
+  /// No description provided for @skillErrorOneEntry.
+  ///
+  /// In zh, this message translates to:
+  /// **'请选择包含一个 SKILL.md 的技能目录或压缩包；多个技能请分别导入。'**
+  String get skillErrorOneEntry;
+
+  /// No description provided for @skillErrorInvalidId.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能标识应为 1–64 位小写字母、数字与连字符，不能以连字符开头或结尾。'**
+  String get skillErrorInvalidId;
+
+  /// No description provided for @skillErrorDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'标准技能 description 必须为 1–1024 个字符。'**
+  String get skillErrorDescription;
+
+  /// No description provided for @skillErrorDuplicateFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'重复的技能文件：{detail}'**
+  String skillErrorDuplicateFile(String detail);
+
+  /// No description provided for @skillErrorFileLimit.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包超出文件大小或数量限制。'**
+  String get skillErrorFileLimit;
+
+  /// No description provided for @skillErrorTreeConflict.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包文件和目录路径冲突。'**
+  String get skillErrorTreeConflict;
+
+  /// No description provided for @skillErrorRelativePath.
+  ///
+  /// In zh, this message translates to:
+  /// **'无效的技能包相对路径。'**
+  String get skillErrorRelativePath;
+
+  /// No description provided for @skillErrorPathDepth.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包目录层级过深。'**
+  String get skillErrorPathDepth;
+
+  /// No description provided for @skillErrorUnsafePath.
+  ///
+  /// In zh, this message translates to:
+  /// **'不安全的技能包路径：{detail}'**
+  String skillErrorUnsafePath(String detail);
+
+  /// No description provided for @skillErrorStorageId.
+  ///
+  /// In zh, this message translates to:
+  /// **'无效的技能存储标识。'**
+  String get skillErrorStorageId;
+
+  /// No description provided for @skillErrorMissingPackage.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能包文件缺失，请重新导入。'**
+  String get skillErrorMissingPackage;
+
+  /// No description provided for @skillErrorMissingResource.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到该技能包内的资源。'**
+  String get skillErrorMissingResource;
+
+  /// No description provided for @skillErrorReadLink.
+  ///
+  /// In zh, this message translates to:
+  /// **'不能读取技能包内的链接。'**
+  String get skillErrorReadLink;
+
+  /// No description provided for @skillErrorResourceEscape.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能资源路径越界。'**
+  String get skillErrorResourceEscape;
+
+  /// No description provided for @skillErrorReadSize.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件超过技能包大小限制。'**
+  String get skillErrorReadSize;
+
+  /// No description provided for @skillErrorUnpackedSize.
+  ///
+  /// In zh, this message translates to:
+  /// **'解压文件超过大小限制。'**
+  String get skillErrorUnpackedSize;
+
+  /// No description provided for @skillErrorYamlDelimiter.
+  ///
+  /// In zh, this message translates to:
+  /// **'SKILL.md 的 YAML 头缺少结束分隔符。'**
+  String get skillErrorYamlDelimiter;
+
+  /// No description provided for @skillErrorYamlInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'SKILL.md YAML 格式错误：{detail}'**
+  String skillErrorYamlInvalid(String detail);
+
+  /// No description provided for @skillErrorYamlMapping.
+  ///
+  /// In zh, this message translates to:
+  /// **'SKILL.md 的 YAML 头必须是字段映射。'**
+  String get skillErrorYamlMapping;
+
+  /// No description provided for @skillErrorYamlDepth.
+  ///
+  /// In zh, this message translates to:
+  /// **'SKILL.md YAML 嵌套过深或字段过多。'**
+  String get skillErrorYamlDepth;
+
+  /// No description provided for @skillErrorYamlKeys.
+  ///
+  /// In zh, this message translates to:
+  /// **'YAML 字段名必须是字符串。'**
+  String get skillErrorYamlKeys;
+
+  /// No description provided for @skillErrorYamlValue.
+  ///
+  /// In zh, this message translates to:
+  /// **'不支持的 YAML 值。'**
+  String get skillErrorYamlValue;
+
+  /// No description provided for @skillErrorYamlString.
+  ///
+  /// In zh, this message translates to:
+  /// **'SKILL.md 的 {detail} 必须是字符串。'**
+  String skillErrorYamlString(String detail);
+
+  /// No description provided for @skillErrorYamlBoolean.
+  ///
+  /// In zh, this message translates to:
+  /// **'disable-model-invocation 必须是布尔值。'**
+  String get skillErrorYamlBoolean;
+
+  /// No description provided for @promptsUcPreset.
+  ///
+  /// In zh, this message translates to:
+  /// **'UC 预设'**
+  String get promptsUcPreset;
+
+  /// No description provided for @referenceImageBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'参考图'**
+  String get referenceImageBadge;
+
+  /// No description provided for @toolFallbackName.
+  ///
+  /// In zh, this message translates to:
+  /// **'工具'**
+  String get toolFallbackName;
 }
 
 class _AppLocalizationsDelegate

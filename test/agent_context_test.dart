@@ -181,7 +181,8 @@ void main() {
     h.restoreMessages(_history());
     final events = await h.send('新任务').toList();
     expect(mainCalls, 0);
-    expect(events.whereType<ErrorEvent>(), isNotEmpty);
+    final error = events.whereType<ErrorEvent>().single;
+    expect(error.code, HarnessErrorCode.contextWindowInsufficient);
     expect(h.compactionSummary, isNull);
     expect(h.contextUsage.error, contains('压缩失败'));
     expect(h.messages, hasLength(5));

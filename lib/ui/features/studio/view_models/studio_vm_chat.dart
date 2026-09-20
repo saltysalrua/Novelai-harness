@@ -1,5 +1,17 @@
 part of 'studio_view_model.dart';
 
+/// 只翻译应用内置错误；供应商返回的详情与协议原文保持不变。
+String localizeHarnessError(AppLocalizations l10n, ErrorEvent event) =>
+    switch (event.code) {
+      HarnessErrorCode.providerNotConfigured =>
+        l10n.vmChatProviderNotConfigured,
+      HarnessErrorCode.apiKeyMissing => l10n.vmChatApiKeyMissing,
+      HarnessErrorCode.contextWindowInsufficient =>
+        l10n.vmChatContextWindowInsufficient,
+      HarnessErrorCode.modelRequestFailed => l10n.vmChatModelRequestFailed,
+      null => event.error,
+    };
+
 /// 对话流 / ask_user 提问 / 付费确认 / Token 用量记录
 mixin _StudioChatMixin on _StudioCore {
   Completer<void>? _chatCompletion;
@@ -114,7 +126,7 @@ mixin _StudioChatMixin on _StudioCore {
           } else if (event is ToolResultEvent) {
             _notifyNow();
           } else if (event is ErrorEvent) {
-            _errorMessage = event.error;
+            _errorMessage = localizeHarnessError(vmL10n, event);
             _notifyNow();
           }
         },

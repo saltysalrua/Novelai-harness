@@ -1,3 +1,4 @@
+import '../../core/harness/skills/skill_format_exception.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:io' as io show ZLibDecoder;
@@ -39,11 +40,17 @@ class SkillPackageService {
   /// .skill 是 ZIP 容器的常用扩展名；Markdown 继续兼容单文件导入。
   static SkillPackage decodeImport(Uint8List bytes, String filename) {
     if (bytes.length > maxPackageBytes) {
-      throw const FormatException('技能包不能超过 32 MiB。');
+      throw const SkillFormatException(
+        SkillFormatError.packageTooLarge,
+        '技能包不能超过 32 MiB。',
+      );
     }
     if (p.extension(filename).toLowerCase() == '.md') {
       if (bytes.length > maxInstructionBytes) {
-        throw const FormatException('SKILL.md 不能超过 256 KiB。');
+        throw const SkillFormatException(
+          SkillFormatError.instructionsTooLarge,
+          'SKILL.md 不能超过 256 KiB。',
+        );
       }
       final skill = Skill.fromSkillMd(
         utf8.decode(bytes),
@@ -54,13 +61,19 @@ class SkillPackageService {
       return SkillPackage(skill: skill, files: {'SKILL.md': bytes});
     }
     if (!['.zip', '.skill'].contains(p.extension(filename).toLowerCase())) {
-      throw const FormatException('请选择 .zip、.skill 或 .md 文件。');
+      throw const SkillFormatException(
+        SkillFormatError.fileType,
+        '请选择 .zip、.skill 或 .md 文件。',
+      );
     }
     try {
       // 直接检查中央目录，避免 ZipDecoder 自动解压符号链接与合并同名项。
       final directory = ZipDirectory.read(InputStream(bytes));
       if (directory.fileHeaders.length > maxFiles * 2) {
-        throw const FormatException('技能包条目过多。');
+        throw const SkillFormatException(
+          SkillFormatError.tooManyEntries,
+          '技能包条目过多。',
+        );
       }
       final paths = <String>{};
       final files = <String, Uint8List>{};
@@ -74,10 +87,17 @@ class SkillPackageService {
         final mode = (header.externalFileAttributes ?? 0) >> 16;
         final type = mode & 0xf000;
         if (type != 0 && type != 0x8000 && type != 0x4000) {
-          throw const FormatException('技能包不允许链接或特殊文件。');
+          throw const SkillFormatException(
+            SkillFormatError.specialFile,
+            '技能包不允许链接或特殊文件。',
+          );
         }
         if (!paths.add(path.toLowerCase())) {
-          throw FormatException('技能包存在重复路径：$path');
+          throw SkillFormatException(
+            SkillFormatError.duplicatePath,
+            '技能包存在重复路径：$path',
+            detail: path,
+          );
         }
         if (isDirectory || type == 0x4000) continue;
         if (_ignoredPath(path)) continue;
@@ -86,14 +106,25 @@ class SkillPackageService {
             size > maxFileBytes ||
             (total += size) > maxPackageBytes ||
             files.length >= maxFiles) {
-          throw const FormatException('技能包超出限制：单文件 8 MiB、总量 32 MiB、512 个文件。');
+          throw const SkillFormatException(
+            SkillFormatError.sizeLimit,
+            '技能包超出限制：单文件 8 MiB、总量 32 MiB、512 个文件。',
+          );
         }
         final file = header.file;
         if (file == null || (file.flags & 1) != 0) {
-          throw const FormatException('不支持加密或损坏的技能包。');
+          throw const SkillFormatException(
+            SkillFormatError.encrypted,
+            '不支持加密或损坏的技能包。',
+          );
         }
         final compressed = file.rawContent?.toUint8List();
-        if (compressed == null) throw const FormatException('技能包文件数据缺失。');
+        if (compressed == null) {
+          throw const SkillFormatException(
+            SkillFormatError.missingData,
+            '技能包文件数据缺失。',
+          );
+        }
         final Uint8List content;
         switch (file.compressionMethod) {
           case ZipFile.zipCompressionStore:
@@ -115,10 +146,16 @@ class SkillPackageService {
             sink.close();
             content = output.bytes.takeBytes();
           default:
-            throw const FormatException('技能包仅支持 ZIP Store / Deflate 压缩。');
+            throw const SkillFormatException(
+              SkillFormatError.compression,
+              '技能包仅支持 ZIP Store / Deflate 压缩。',
+            );
         }
         if (content.length != size || getCrc32(content) != header.crc32) {
-          throw const FormatException('技能包长度或 CRC 校验失败。');
+          throw const SkillFormatException(
+            SkillFormatError.checksum,
+            '技能包长度或 CRC 校验失败。',
+          );
         }
         files[path] = content;
       }
@@ -126,14 +163,20 @@ class SkillPackageService {
     } on FormatException {
       rethrow;
     } catch (_) {
-      throw const FormatException('无法读取 ZIP 技能包，请检查文件是否完整。');
+      throw const SkillFormatException(
+        SkillFormatError.invalidZip,
+        '无法读取 ZIP 技能包，请检查文件是否完整。',
+      );
     }
   }
 
   Future<SkillPackage> readImportDirectory(String path) async {
     if (await FileSystemEntity.type(path, followLinks: false) !=
         FileSystemEntityType.directory) {
-      throw const FormatException('请选择普通技能文件夹，不能选择链接。');
+      throw const SkillFormatException(
+        SkillFormatError.directory,
+        '请选择普通技能文件夹，不能选择链接。',
+      );
     }
     final root = Directory(await Directory(path).resolveSymbolicLinks());
     final files = <String, Uint8List>{};
@@ -144,7 +187,12 @@ class SkillPackageService {
     while (directories.isNotEmpty) {
       final directory = directories.removeLast();
       await for (final entity in directory.list(followLinks: false)) {
-        if (++count > maxFiles * 2) throw const FormatException('技能包条目过多。');
+        if (++count > maxFiles * 2) {
+          throw const SkillFormatException(
+            SkillFormatError.tooManyEntries,
+            '技能包条目过多。',
+          );
+        }
         final relative = p
             .relative(entity.path, from: root.path)
             .split(p.separator)
@@ -152,12 +200,24 @@ class SkillPackageService {
         final key = validatePath(relative);
         if (_ignoredPath(key)) continue;
         if (!seen.add(key.toLowerCase())) {
-          throw FormatException('技能包存在重复路径：$key');
+          throw SkillFormatException(
+            SkillFormatError.duplicatePath,
+            '技能包存在重复路径：$key',
+            detail: key,
+          );
         }
-        if (entity is Link) throw const FormatException('技能包不允许链接文件。');
+        if (entity is Link) {
+          throw const SkillFormatException(
+            SkillFormatError.linkFile,
+            '技能包不允许链接文件。',
+          );
+        }
         final resolved = await entity.resolveSymbolicLinks();
         if (!p.isWithin(root.path, resolved)) {
-          throw const FormatException('技能包路径越界。');
+          throw const SkillFormatException(
+            SkillFormatError.pathEscape,
+            '技能包路径越界。',
+          );
         }
         if (entity is Directory) {
           directories.add(entity);
@@ -165,11 +225,17 @@ class SkillPackageService {
           final bytes = await _readBounded(entity, maxFileBytes);
           total += bytes.length;
           if (total > maxPackageBytes || files.length >= maxFiles) {
-            throw const FormatException('技能包不能超过 32 MiB 或 512 个文件。');
+            throw const SkillFormatException(
+              SkillFormatError.packageLimit,
+              '技能包不能超过 32 MiB 或 512 个文件。',
+            );
           }
           files[key] = bytes;
         } else {
-          throw const FormatException('技能包不允许特殊文件。');
+          throw const SkillFormatException(
+            SkillFormatError.specialEntry,
+            '技能包不允许特殊文件。',
+          );
         }
       }
     }
@@ -185,12 +251,18 @@ class SkillPackageService {
         .where((key) => p.posix.basename(key) == 'SKILL.md')
         .toList();
     if (entries.length != 1) {
-      throw const FormatException('请选择包含一个 SKILL.md 的技能目录或压缩包；多个技能请分别导入。');
+      throw const SkillFormatException(
+        SkillFormatError.oneEntry,
+        '请选择包含一个 SKILL.md 的技能目录或压缩包；多个技能请分别导入。',
+      );
     }
     final entry = entries.single;
     final bytes = files[entry]!;
     if (bytes.length > maxInstructionBytes) {
-      throw const FormatException('SKILL.md 不能超过 256 KiB。');
+      throw const SkillFormatException(
+        SkillFormatError.instructionsTooLarge,
+        'SKILL.md 不能超过 256 KiB。',
+      );
     }
     final skill = Skill.fromSkillMd(utf8.decode(bytes), defaultId: '');
     validateSkill(skill);
@@ -209,10 +281,16 @@ class SkillPackageService {
 
   static void validateSkill(Skill skill) {
     if (!skillIdPattern.hasMatch(skill.id)) {
-      throw const FormatException('技能标识应为 1–64 位小写字母、数字与连字符，不能以连字符开头或结尾。');
+      throw const SkillFormatException(
+        SkillFormatError.invalidId,
+        '技能标识应为 1–64 位小写字母、数字与连字符，不能以连字符开头或结尾。',
+      );
     }
     if (skill.description.trim().isEmpty || skill.description.length > 1024) {
-      throw const FormatException('标准技能 description 必须为 1–1024 个字符。');
+      throw const SkillFormatException(
+        SkillFormatError.description,
+        '标准技能 description 必须为 1–1024 个字符。',
+      );
     }
   }
 
@@ -224,18 +302,30 @@ class SkillPackageService {
     final names = <String>{};
     for (final entry in files.entries) {
       final path = validatePath(entry.key).toLowerCase();
-      if (!names.add(path)) throw FormatException('重复的技能文件：${entry.key}');
+      if (!names.add(path)) {
+        throw SkillFormatException(
+          SkillFormatError.duplicateFile,
+          '重复的技能文件：${entry.key}',
+          detail: entry.key,
+        );
+      }
       if (entry.value.length > maxFileBytes ||
           (total += entry.value.length) > maxPackageBytes ||
           files.length > maxFiles) {
-        throw const FormatException('技能包超出文件大小或数量限制。');
+        throw const SkillFormatException(
+          SkillFormatError.fileLimit,
+          '技能包超出文件大小或数量限制。',
+        );
       }
     }
     for (final path in names) {
       var parent = p.posix.dirname(path);
       while (parent != '.') {
         if (names.contains(parent)) {
-          throw const FormatException('技能包文件和目录路径冲突。');
+          throw const SkillFormatException(
+            SkillFormatError.treeConflict,
+            '技能包文件和目录路径冲突。',
+          );
         }
         parent = p.posix.dirname(parent);
       }
@@ -248,10 +338,18 @@ class SkillPackageService {
         path.contains('\\') ||
         path.startsWith('/') ||
         utf8.encode(path).length > 240) {
-      throw const FormatException('无效的技能包相对路径。');
+      throw const SkillFormatException(
+        SkillFormatError.relativePath,
+        '无效的技能包相对路径。',
+      );
     }
     final parts = path.split('/');
-    if (parts.length > 12) throw const FormatException('技能包目录层级过深。');
+    if (parts.length > 12) {
+      throw const SkillFormatException(
+        SkillFormatError.pathDepth,
+        '技能包目录层级过深。',
+      );
+    }
     for (final part in parts) {
       if (part.isEmpty ||
           part == '.' ||
@@ -263,7 +361,11 @@ class SkillPackageService {
             r'^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)',
             caseSensitive: false,
           ).hasMatch(part)) {
-        throw FormatException('不安全的技能包路径：$path');
+        throw SkillFormatException(
+          SkillFormatError.unsafePath,
+          '不安全的技能包路径：$path',
+          detail: path,
+        );
       }
     }
     return path;
@@ -280,7 +382,10 @@ class SkillPackageService {
     );
     _validateFileTree(normalized);
     if (normalized['SKILL.md']!.length > maxInstructionBytes) {
-      throw const FormatException('SKILL.md 不能超过 256 KiB。');
+      throw const SkillFormatException(
+        SkillFormatError.instructionsTooLarge,
+        'SKILL.md 不能超过 256 KiB。',
+      );
     }
     final root = await _rootDirectory();
     await root.create(recursive: true);
@@ -305,19 +410,25 @@ class SkillPackageService {
 
   Future<Directory> _packageDirectory(String id) async {
     if (!RegExp(r'^pkg_[a-zA-Z0-9]+$').hasMatch(id)) {
-      throw const FormatException('无效的技能存储标识。');
+      throw const SkillFormatException(
+        SkillFormatError.storageId,
+        '无效的技能存储标识。',
+      );
     }
     final root = await _rootDirectory();
     final directory = Directory(p.join(root.path, id));
     if (await FileSystemEntity.type(directory.path, followLinks: false) !=
         FileSystemEntityType.directory) {
-      throw const FormatException('技能包文件缺失，请重新导入。');
+      throw const SkillFormatException(
+        SkillFormatError.missingPackage,
+        '技能包文件缺失，请重新导入。',
+      );
     }
     if (!p.isWithin(
       await root.resolveSymbolicLinks(),
       await directory.resolveSymbolicLinks(),
     )) {
-      throw const FormatException('技能包路径越界。');
+      throw const SkillFormatException(SkillFormatError.pathEscape, '技能包路径越界。');
     }
     return directory;
   }
@@ -326,7 +437,10 @@ class SkillPackageService {
     validatePath(path);
     if (path == 'SKILL.md') return utf8.encode(skill.toSkillMd());
     if (skill.packageId == null || !skill.resourcePaths.contains(path)) {
-      throw const FormatException('未找到该技能包内的资源。');
+      throw const SkillFormatException(
+        SkillFormatError.missingResource,
+        '未找到该技能包内的资源。',
+      );
     }
     final directory = await _packageDirectory(skill.packageId!);
     var target = directory.path;
@@ -334,7 +448,10 @@ class SkillPackageService {
       target = p.join(target, part);
       if (await FileSystemEntity.type(target, followLinks: false) ==
           FileSystemEntityType.link) {
-        throw const FormatException('不能读取技能包内的链接。');
+        throw const SkillFormatException(
+          SkillFormatError.readLink,
+          '不能读取技能包内的链接。',
+        );
       }
     }
     final file = File(target);
@@ -342,7 +459,10 @@ class SkillPackageService {
       await directory.resolveSymbolicLinks(),
       await file.resolveSymbolicLinks(),
     )) {
-      throw const FormatException('技能资源路径越界。');
+      throw const SkillFormatException(
+        SkillFormatError.resourceEscape,
+        '技能资源路径越界。',
+      );
     }
     return _readBounded(file, maxFileBytes);
   }
@@ -381,7 +501,10 @@ class SkillPackageService {
 
   static Future<Uint8List> _readBounded(File file, int limit) async {
     if (await file.length() > limit) {
-      throw const FormatException('文件超过技能包大小限制。');
+      throw const SkillFormatException(
+        SkillFormatError.readSize,
+        '文件超过技能包大小限制。',
+      );
     }
     final sink = _LimitedByteSink(limit);
     await for (final chunk in file.openRead()) {
@@ -399,7 +522,10 @@ class _LimitedByteSink implements Sink<List<int>> {
   @override
   void add(List<int> data) {
     if (bytes.length + data.length > limit) {
-      throw const FormatException('解压文件超过大小限制。');
+      throw const SkillFormatException(
+        SkillFormatError.unpackedSize,
+        '解压文件超过大小限制。',
+      );
     }
     bytes.add(data);
   }

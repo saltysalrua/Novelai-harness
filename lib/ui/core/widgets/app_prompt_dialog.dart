@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -24,10 +25,10 @@ class AppPromptDialog extends StatefulWidget {
   final IconData? icon;
 
   /// 确认按钮文案，默认 '确定'
-  final String confirmLabel;
+  final String? confirmLabel;
 
   /// 取消按钮文案，默认 '取消'
-  final String cancelLabel;
+  final String? cancelLabel;
 
   /// 是否允许提交空白内容，默认 false (自动校验非空)
   final bool allowEmpty;
@@ -47,8 +48,8 @@ class AppPromptDialog extends StatefulWidget {
     this.initialValue,
     this.hintText,
     this.icon,
-    this.confirmLabel = '确定',
-    this.cancelLabel = '取消',
+    this.confirmLabel,
+    this.cancelLabel,
     this.allowEmpty = false,
     this.validator,
     this.onConfirm,
@@ -80,7 +81,7 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
 
     if (!widget.allowEmpty && text.isEmpty) {
       setState(() {
-        _errorText = '内容不能为空';
+        _errorText = context.maybeL10n?.commonRequiredInput ?? '内容不能为空';
       });
       return;
     }
@@ -123,12 +124,14 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
             Icon(widget.icon, size: 18, color: colors.primary),
             const SizedBox(width: 8),
           ],
-          Text(
-            widget.title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
+          Flexible(
+            child: Text(
+              widget.title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -144,7 +147,10 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
               autofocus: true,
               style: TextStyle(fontSize: 13, color: colors.textPrimary),
               decoration: InputDecoration(
-                hintText: widget.hintText ?? '请输入内容...',
+                hintText:
+                    widget.hintText ??
+                    context.maybeL10n?.commonInputHint ??
+                    '请输入内容…',
                 hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -187,7 +193,7 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
           ),
-          child: Text(widget.cancelLabel),
+          child: Text(widget.cancelLabel ?? context.maybeL10n?.cancel ?? '取消'),
         ),
         FilledButton(
           onPressed: _handleSubmit,
@@ -199,7 +205,9 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
           ),
-          child: Text(widget.confirmLabel),
+          child: Text(
+            widget.confirmLabel ?? context.maybeL10n?.confirm ?? '确定',
+          ),
         ),
       ],
     );
@@ -215,8 +223,8 @@ Future<String?> showAppPromptDialog(
   String? initialValue,
   String? hintText,
   IconData? icon,
-  String confirmLabel = '确定',
-  String cancelLabel = '取消',
+  String? confirmLabel,
+  String? cancelLabel,
   bool allowEmpty = false,
   String? Function(String?)? validator,
   bool barrierDismissible = true,

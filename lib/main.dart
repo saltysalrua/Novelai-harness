@@ -220,10 +220,9 @@ class NovelAiHarnessApp extends StatelessWidget {
                   ],
                   supportedLocales: AppLocalizations.supportedLocales,
                   debugShowCheckedModeBanner: false,
-                  // Windows (#175041, #182444) and this macOS Flutter engine
-                  // can crash while reparenting accessibility nodes. The
-                  // temporary exclusion also makes app content inaccessible
-                  // to screen readers; native window controls remain available.
+                  // Keep the existing Windows accessibility workaround
+                  // (#175041, #182444). macOS exposes the application tree;
+                  // native bridge limitations and validation are in MACOS.md.
                   // UI 缩放：浏览器式整体缩放 (Ctrl+=/-/0)，布局坐标系缩小后 Transform 放大，
                   // 只重建包裹层，不触发业务树重建。
                   builder: (context, child) {
@@ -248,8 +247,7 @@ class NovelAiHarnessApp extends StatelessWidget {
                       );
                     }
                     if (!kIsWeb &&
-                        (defaultTargetPlatform == TargetPlatform.windows ||
-                            defaultTargetPlatform == TargetPlatform.macOS)) {
+                        defaultTargetPlatform == TargetPlatform.windows) {
                       return ExcludeSemantics(child: content);
                     }
                     return content;

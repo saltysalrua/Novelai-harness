@@ -303,7 +303,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                                     spacing: 4,
                                     children: cp.toolMessages.map((t) {
                                       return AppBadge(
-                                        label: t.toolName ?? 'tool',
+                                        label: t.toolName ?? context.l10n.toolFallbackName,
                                         variant: AppBadgeVariant.neutral,
                                         shape: AppBadgeShape.rounded,
                                         fontSize: 10,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -24,10 +25,10 @@ class AppConfirmDialog extends StatelessWidget {
   final Widget? contentWidget;
 
   /// 确认按钮文案，默认 '确定'
-  final String confirmLabel;
+  final String? confirmLabel;
 
   /// 取消按钮文案，默认 '取消'
-  final String cancelLabel;
+  final String? cancelLabel;
 
   /// 是否为破坏性不可逆操作 (如清空、删除等)。
   /// 为 true 时确认按钮呈现警示色并在视觉上强调不可撤销性。
@@ -44,8 +45,8 @@ class AppConfirmDialog extends StatelessWidget {
     required this.title,
     this.message,
     this.contentWidget,
-    this.confirmLabel = '确定',
-    this.cancelLabel = '取消',
+    this.confirmLabel,
+    this.cancelLabel,
     this.isDestructive = false,
     this.onConfirm,
     this.onCancel,
@@ -95,7 +96,7 @@ class AppConfirmDialog extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
           ),
-          child: Text(cancelLabel),
+          child: Text(cancelLabel ?? context.maybeL10n?.cancel ?? '取消'),
         ),
         FilledButton(
           onPressed: onConfirm ?? () => Navigator.of(context).pop(true),
@@ -107,7 +108,7 @@ class AppConfirmDialog extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
           ),
-          child: Text(confirmLabel),
+          child: Text(confirmLabel ?? context.maybeL10n?.confirm ?? '确定'),
         ),
       ],
     );
@@ -122,8 +123,8 @@ Future<bool?> showAppConfirmDialog(
   required String title,
   String? message,
   Widget? contentWidget,
-  String confirmLabel = '确定',
-  String cancelLabel = '取消',
+  String? confirmLabel,
+  String? cancelLabel,
   bool isDestructive = false,
   bool barrierDismissible = true,
 }) {

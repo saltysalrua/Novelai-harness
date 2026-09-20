@@ -399,7 +399,11 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile(
                 title: l10n.settingsUiZoom,
-                subtitle: l10n.settingsUiZoomSubtitle,
+                subtitle: l10n.settingsUiZoomSubtitle(
+                  Theme.of(context).platform == TargetPlatform.macOS
+                      ? '⌘'
+                      : 'Ctrl',
+                ),
                 control: AppDropdown<double>.simple(
                   value: _draft.uiZoom,
                   items: const [0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75],

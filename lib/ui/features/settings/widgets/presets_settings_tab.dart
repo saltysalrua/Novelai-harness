@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
@@ -6,8 +8,10 @@ import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../../data/services/config_service.dart';
+import '../../../../data/services/preset_transfer_service.dart';
 import '../../../../data/services/skill_package_service.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/l10n/skill_error_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
@@ -46,6 +50,7 @@ class PresetsSettingsDraft {
   late final List<AgentPreset> presets;
   late String selectedPresetId;
   late String activePresetId;
+  bool _loadingForm = false;
 
   late final TextEditingController nameController;
   late final TextEditingController descController;
@@ -58,24 +63,40 @@ class PresetsSettingsDraft {
 
   /// 将表单内容写回当前编辑的预设条目
   void syncFromForm([String? fallbackName]) {
+    if (_loadingForm || currentPreset.isBuiltin) return;
     final idx = presets.indexWhere((p) => p.id == selectedPresetId);
     if (idx >= 0) {
       presets[idx] = presets[idx].copyWith(
         name: nameController.text.trim().isEmpty
             ? (fallbackName ?? '自定义预设')
-            : nameController.text.trim(),
-        description: descController.text.trim(),
-        systemPrompt: promptController.text.trim(),
+            : nameController.text,
+        description: descController.text,
+        systemPrompt: promptController.text,
       );
     }
   }
 
   /// 载入指定预设到表单
   void loadPresetToForm(AgentPreset preset) {
-    selectedPresetId = preset.id;
-    nameController.text = preset.name;
-    descController.text = preset.description;
-    promptController.text = preset.systemPrompt;
+    _loadingForm = true;
+    try {
+      selectedPresetId = preset.id;
+      nameController.text = preset.name;
+      descController.text = preset.description;
+      promptController.text = preset.systemPrompt;
+    } finally {
+      _loadingForm = false;
+    }
+  }
+
+  void appendImportedPresets(
+    List<AgentPreset> imported, [
+    String? fallbackName,
+  ]) {
+    if (imported.isEmpty) return;
+    syncFromForm(fallbackName);
+    presets.addAll(imported);
+    loadPresetToForm(imported.first);
   }
 
   /// 切换当前编辑的预设，切换前自动同步表单
@@ -277,13 +298,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
   void _showSkillError(Object error) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          error is FormatException
-              ? error.message
-              : context.l10n.skillOperationFailed(error.toString()),
-        ),
-      ),
+      SnackBar(content: Text(skillErrorText(context.l10n, error))),
     );
   }
 
@@ -295,6 +310,93 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
       );
     } else {
       setState(() => _draft.toggleSkill(id, true));
+    }
+  }
+
+  void _showPresetError(Object error) {
+    if (!mounted) return;
+    final l10n = context.l10n;
+    final message = switch (error) {
+      PresetImportException(code: PresetImportError.invalidJson) =>
+        l10n.presetImportInvalidJson,
+      PresetImportException(
+        code: PresetImportError.invalidField,
+        :final detail,
+      ) =>
+        l10n.presetImportInvalidField(detail),
+      PresetImportException(
+        code: PresetImportError.unknownTool,
+        :final detail,
+      ) =>
+        l10n.presetImportUnknownTool(detail),
+      PresetImportException(
+        code: PresetImportError.unknownParameter,
+        :final detail,
+      ) =>
+        l10n.presetImportUnknownParameter(detail),
+      _ => l10n.presetTransferFailed(error.toString()),
+    };
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _importPresets() async {
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        withData: true,
+      );
+      if (picked == null || !mounted) return;
+      final file = picked.files.single;
+      final source = file.bytes != null
+          ? utf8.decode(file.bytes!)
+          : file.path != null
+          ? await File(file.path!).readAsString()
+          : null;
+      if (!mounted) return;
+      if (source == null) {
+        throw const PresetImportException(PresetImportError.invalidJson);
+      }
+      final imported = PresetTransferService.decode(
+        source,
+        existing: _draft.presets,
+        availableToolNames: widget.viewModel.availableTools.map((t) => t.name),
+      );
+      setState(
+        () => _draft.appendImportedPresets(
+          imported,
+          context.l10n.presetDefaultCustomName,
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.presetImportedDraft(imported.length)),
+        ),
+      );
+    } catch (error) {
+      _showPresetError(error);
+    }
+  }
+
+  Future<void> _exportPreset() async {
+    try {
+      _draft.syncFromForm(context.l10n.presetDefaultCustomName);
+      final bytes = Uint8List.fromList(
+        utf8.encode(PresetTransferService.encode(_draft.currentPreset)),
+      );
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: context.l10n.presetExportButton,
+        fileName: 'agent-preset.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        bytes: _isMobile ? bytes : null,
+      );
+      if (path == null) return;
+      if (!_isMobile) await File(path).writeAsBytes(bytes);
+    } catch (error) {
+      _showPresetError(error);
     }
   }
 
@@ -363,7 +465,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
         );
         if (picked == null || !mounted) return;
         final path = picked.files.single.path;
-        if (path == null) throw const FormatException('无法读取所选文件。');
+        if (path == null) throw FormatException(l10n.skillFileUnreadable);
         package = await widget.viewModel.readSkillImportFile(path);
       } else if (source == _SkillImportSource.folder) {
         final path = await FilePicker.platform.getDirectoryPath();
@@ -496,7 +598,8 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           AppSettingTile(
             title: l10n.presetCurrentPreset,
             subtitle: l10n.presetCurrentPresetSubtitle,
-            control: AppControlFlow(
+            control: const SizedBox.shrink(),
+            bottomChild: AppControlFlow(
               children: [
                 AppDropdown<String>(
                   value: _draft.selectedPresetId,
@@ -560,6 +663,17 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                       fallbackName: l10n.presetDefaultCustomName,
                     ),
                   ),
+                ),
+
+                AppActionButton(
+                  icon: Icons.file_open_outlined,
+                  label: l10n.presetImportButton,
+                  onPressed: _importPresets,
+                ),
+                AppActionButton(
+                  icon: Icons.download_outlined,
+                  label: l10n.presetExportButton,
+                  onPressed: _exportPreset,
                 ),
 
                 // 删除按钮 (多于1个且非内置时可删)

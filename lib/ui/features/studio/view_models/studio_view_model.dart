@@ -115,7 +115,7 @@ mixin _StudioCore on ChangeNotifier {
 
   /// VM 侧本地化取词入口 (阶段 4C 数据层文案解耦)：
   /// ViewModel 状态/错误/确认消息不再硬编码中文，统一经 vmL10n 生成；
-  /// 默认 zh (与既有测试断言一致)，updateConfig 时随 localePreference 刷新。
+  /// 初始化与保存配置时同步 localePreference。
   /// 后端原始错误、Agent prompt、用户输入仍原样透传不翻译。
   Locale _vmLocale = const Locale('zh');
   AppLocalizations get vmL10n => lookupAppLocalizations(_vmLocale);
@@ -725,6 +725,7 @@ class StudioViewModel extends ChangeNotifier
   /// 初始化 Studio
   Future<void> init() async {
     _config = await _configService.loadConfig();
+    _syncVmLocale();
     _syncGalleryExportHook();
     final lastPrompt = await _configService.loadLastPrompt();
     final applyFixed = await _configService.loadApplyFixedPrompts();
@@ -861,6 +862,14 @@ class StudioViewModel extends ChangeNotifier
 
   // ------------------------- 配置 -------------------------
 
+  void _syncVmLocale() {
+    _vmLocale = switch (_config.localePreference) {
+      AppLocalePreference.zh => const Locale('zh'),
+      AppLocalePreference.en => const Locale('en'),
+      AppLocalePreference.system => _resolveSystemLocale(),
+    };
+  }
+
   /// 解析 system 档位下的平台首选语言 (仅支持 zh/en，未知回退 zh)
   Locale _resolveSystemLocale() {
     final platform = PlatformDispatcher.instance.locale;
@@ -900,11 +909,7 @@ class StudioViewModel extends ChangeNotifier
     // 语言同理：根级 ValueListenableBuilder 局部接管，不全局重绘
     AppLocaleController.instance.syncFromConfig(newConfig);
     // VM 侧消息文案同步跟随语言设置 (system 跟随平台首选语言)
-    _vmLocale = switch (newConfig.localePreference) {
-      AppLocalePreference.zh => const Locale('zh'),
-      AppLocalePreference.en => const Locale('en'),
-      AppLocalePreference.system => _resolveSystemLocale(),
-    };
+    _syncVmLocale();
     // UI 缩放同理：根级 ValueListenableBuilder 局部接管，不全局重绘
     AppUiZoomController.instance.syncFromConfig(newConfig);
     // ComfyUI 模式：开关或地址变化时刷新 Bridge 连接状态

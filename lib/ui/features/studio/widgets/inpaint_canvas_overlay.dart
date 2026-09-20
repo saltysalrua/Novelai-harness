@@ -400,6 +400,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                           dimOutsideRect: isFocus ? cropNormRect : null,
                           selectionRect: displaySelNorm,
                           selectionColor: context.colors.primary,
+                          selectionLabel: context.l10n.inpaintSelectionLabel,
                         ),
                       ),
                     ),
@@ -937,6 +938,7 @@ class _InpaintMaskPainter extends CustomPainter {
 
   /// 选区描框主题色 (由当前主题注入)
   final Color selectionColor;
+  final String selectionLabel;
 
   _InpaintMaskPainter({
     required this.committedPicture,
@@ -946,6 +948,7 @@ class _InpaintMaskPainter extends CustomPainter {
     required this.dimOutsideRect,
     required this.selectionRect,
     required this.selectionColor,
+    required this.selectionLabel,
   });
 
   @override
@@ -1048,9 +1051,9 @@ class _InpaintMaskPainter extends CustomPainter {
         Paint()..color = selectionColor.withValues(alpha: 0.10),
       );
       final tp = TextPainter(
-        text: const TextSpan(
-          text: '修复选区',
-          style: TextStyle(
+        text: TextSpan(
+          text: selectionLabel,
+          style: const TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w600,
             color: Colors.white,

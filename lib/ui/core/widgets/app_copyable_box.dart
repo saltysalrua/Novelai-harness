@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../context_l10n.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
@@ -41,7 +42,7 @@ class AppCopyableBox extends StatefulWidget {
   final VoidCallback? onCopy;
 
   /// 复制按钮提示文本，默认 '复制'
-  final String copyLabel;
+  final String? copyLabel;
 
   /// 是否显示顶部标头行的复制按钮，默认 true
   final bool showCopyButton;
@@ -74,7 +75,7 @@ class AppCopyableBox extends StatefulWidget {
     this.maxHeight,
     this.maxLines,
     this.onCopy,
-    this.copyLabel = '复制',
+    this.copyLabel,
     this.showCopyButton = true,
     this.selectable = true,
     this.fontSize = 12,
@@ -235,7 +236,11 @@ class _AppCopyableBoxState extends State<AppCopyableBox> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        _isCopied ? '已复制' : widget.copyLabel,
+                        _isCopied
+                            ? (context.maybeL10n?.commonCopied ?? '已复制')
+                            : (widget.copyLabel ??
+                                  context.maybeL10n?.copy ??
+                                  '复制'),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,

@@ -243,16 +243,18 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
                             : colors.textSecondary,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        group.title,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          color: isSelected
-                              ? colors.primary
-                              : colors.textPrimary,
+                      Expanded(
+                        child: Text(
+                          group.localizedTitle(context.l10n),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? colors.primary
+                                : colors.textPrimary,
+                          ),
                         ),
                       ),
                     ],
@@ -269,7 +271,9 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
             padding: const EdgeInsets.all(16),
             children: [
               Text(
-                kTagInspirationGroups[_activeCategoryIndex].title,
+                kTagInspirationGroups[_activeCategoryIndex].localizedTitle(
+                  context.l10n,
+                ),
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,

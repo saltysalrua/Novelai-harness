@@ -189,7 +189,10 @@ class AgentHarness {
       recorder?.recordMessage(userMsg);
 
       if (provider == null) {
-        yield ErrorEvent('未配置 LLM 提供商，请在设置中配置 API Key。');
+        yield const ErrorEvent(
+          '未配置 LLM 提供商，请在设置中配置 API Key。',
+          code: HarnessErrorCode.providerNotConfigured,
+        );
         return;
       }
 
@@ -222,6 +225,7 @@ class AgentHarness {
             if (_estimateContextTokens(systemPrompt) > _hardContextLimit) {
               yield const ErrorEvent(
                 '上下文超过安全窗口，压缩未能释放足够空间。请释放旧回复、手动压缩或切换更大窗口模型。',
+                code: HarnessErrorCode.contextWindowInsufficient,
               );
               return;
             }
@@ -239,6 +243,7 @@ class AgentHarness {
         // ---- 单轮流式请求 + 自动重试 ----
         AgentMessage? assistantMsg;
         String? giveUpReason;
+        HarnessErrorCode? giveUpCode;
         int attempt = 0;
 
         while (assistantMsg == null && giveUpReason == null) {
@@ -256,6 +261,7 @@ class AgentHarness {
           TokenUsage? usage;
           String? errorMessage;
           bool errorTransient = false;
+          HarnessErrorCode? errorCode;
           final List<ToolCall> toolCalls = [];
 
           final stream = provider!.streamChat(
@@ -288,6 +294,7 @@ class AgentHarness {
               // 错误不直接透传：可重试时用 RetryEvent 呈现，彻底失败才统一报错
               errorMessage = event.error;
               errorTransient = event.transient;
+              errorCode = event.code;
             }
           }
 
@@ -340,6 +347,7 @@ class AgentHarness {
             giveUpReason = errorTransient
                 ? '连续 $maxRetryAttempts 次请求失败: $errorMessage'
                 : errorMessage;
+            giveUpCode = errorCode;
             break;
           }
 
@@ -359,6 +367,7 @@ class AgentHarness {
               continue;
             }
             giveUpReason = '模型连续 $maxRetryAttempts 次返回空响应，请检查模型配置或稍后重试。';
+            giveUpCode = HarnessErrorCode.modelRequestFailed;
             break;
           }
 
@@ -378,7 +387,14 @@ class AgentHarness {
 
         // 重试预算耗尽: 报错终止本次对话 (半截内容不落盘)
         if (assistantMsg == null) {
-          yield ErrorEvent(giveUpReason ?? '模型请求失败');
+          yield ErrorEvent(
+            giveUpReason ?? '模型请求失败',
+            code:
+                giveUpCode ??
+                (giveUpReason == null
+                    ? HarnessErrorCode.modelRequestFailed
+                    : null),
+          );
           return;
         }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -62,7 +63,7 @@ class AppDropdown<T> extends StatelessWidget {
   final double? menuWidth;
 
   /// [value] 不在 [items] 中时，占位项展示的文案
-  final String danglingLabel;
+  final String? danglingLabel;
 
   const AppDropdown({
     super.key,
@@ -76,7 +77,7 @@ class AppDropdown<T> extends StatelessWidget {
     this.minHeight = 0,
     this.multilineMenu = false,
     this.menuWidth,
-    this.danglingLabel = '未识别',
+    this.danglingLabel,
   });
 
   /// 便捷工厂：从普通对象列表与标签映射构造
@@ -126,7 +127,10 @@ class AppDropdown<T> extends StatelessWidget {
         : [
             AppDropdownItem<T>(
               value: value,
-              label: danglingLabel,
+              label:
+                  danglingLabel ??
+                  context.maybeL10n?.commonUnrecognizedOption ??
+                  '未识别',
               icon: Icons.help_outline_rounded,
             ),
             ...items,

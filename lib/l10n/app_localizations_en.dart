@@ -55,7 +55,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String sessionDeleteBatchConfirm(int count) {
-    return 'Delete $count selected sessions? This cannot be undone.';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count selected sessions',
+      one: '1 selected session',
+    );
+    return 'Delete $_temp0? This cannot be undone.';
   }
 
   @override
@@ -226,7 +232,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsLanguageSubtitle =>
-      'Switch the display language; the settings page comes first, other screens migrate module by module';
+      'Change the interface language. Skills, prompts and your content keep their original text.';
 
   @override
   String get localeSystem => 'Follow System';
@@ -241,8 +247,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsUiZoom => 'UI Zoom';
 
   @override
-  String get settingsUiZoomSubtitle =>
-      'Scale the whole workspace; Ctrl+= / Ctrl+- to step, Ctrl+0 to reset';
+  String settingsUiZoomSubtitle(String modifier) {
+    return 'Scale the whole workspace; $modifier+= / $modifier+- to step, $modifier+0 to reset';
+  }
 
   @override
   String get settingsSectionNovelaiService => 'NovelAI Service';
@@ -390,7 +397,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String settingsImageCount(int count) {
-    return '$count images';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count images',
+      one: '1 image',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -432,12 +445,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String dictOnlineInfo(int count, String date) {
-    return 'Online dictionary, $count entries · updated $date';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count entries',
+      one: '1 entry',
+    );
+    return 'Online dictionary, $_temp0 · updated $date';
   }
 
   @override
   String dictBuiltinInfo(int count) {
-    return 'Built-in dictionary, $count entries';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count entries',
+      one: '1 entry',
+    );
+    return 'Built-in dictionary, $_temp0';
   }
 
   @override
@@ -534,12 +559,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String settingsFetchModelsSuccess(int count) {
-    return 'Successfully fetched $count models';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count models',
+      one: '1 model',
+    );
+    return 'Successfully fetched $_temp0';
   }
 
   @override
   String settingsFetchModelsSuccessWithEnriched(int count, int enrichedCount) {
-    return 'Successfully fetched $count models, $enrichedCount matched with models.dev metadata';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count models',
+      one: '1 model',
+    );
+    return 'Successfully fetched $_temp0, $enrichedCount matched with models.dev metadata';
   }
 
   @override
@@ -907,7 +944,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String skillPackageFiles(int count) {
-    return 'Resources: $count files';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count files',
+      one: '1 file',
+    );
+    return 'Resources: $_temp0';
   }
 
   @override
@@ -1822,12 +1865,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String canvasClearHistoryAutoSaveMessage(int count) {
-    return 'Are you sure you want to clear $count images from canvas history? Only UI records will be cleared, locally saved files are kept. This action cannot be undone.';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count images',
+      one: '1 image',
+    );
+    return 'Are you sure you want to clear $_temp0 from canvas history? Only UI records will be cleared, locally saved files are kept. This action cannot be undone.';
   }
 
   @override
   String canvasClearHistoryManualSaveMessage(int count) {
-    return 'Are you sure you want to clear $count images from history? Unsaved cached images will be deleted, manually saved files are kept. This action cannot be undone.';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count images',
+      one: '1 image',
+    );
+    return 'Are you sure you want to clear $_temp0 from history? Unsaved cached images will be deleted, manually saved files are kept. This action cannot be undone.';
   }
 
   @override
@@ -2117,7 +2172,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boardToolAddImage => '+ Reference';
 
   @override
-  String get boardToolPasteImage => 'Paste Image (Ctrl+V)';
+  String boardToolPasteImage(String shortcut) {
+    return 'Paste image ($shortcut)';
+  }
 
   @override
   String get boardToolResetView => 'Reset View';
@@ -2208,7 +2265,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String libraryEntriesCount(int count) {
-    return '$count items';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -2231,7 +2294,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String libraryImportSuccess(int count) {
-    return 'Successfully imported $count prompt combo entries';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count prompt combo entries',
+      one: '1 prompt combo entry',
+    );
+    return 'Successfully imported $_temp0';
   }
 
   @override
@@ -2887,6 +2956,22 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get vmChatProviderNotConfigured =>
+      'No LLM provider is configured. Add a provider and API key in Settings.';
+
+  @override
+  String get vmChatApiKeyMissing =>
+      'The current LLM provider has no API key. Add it in Settings.';
+
+  @override
+  String get vmChatContextWindowInsufficient =>
+      'The context is still over the model\'s safe window after compaction. Release old replies, compact manually, or switch to a model with a larger context window.';
+
+  @override
+  String get vmChatModelRequestFailed =>
+      'The model request failed. Check the provider and model settings, then try again.';
+
+  @override
   String get vmChatForceAborted => 'Current generation force-terminated';
 
   @override
@@ -3187,7 +3272,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String slashSessionMsgCount(int count) {
-    return '$count messages';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages',
+      one: '1 message',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -3195,7 +3286,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String slashSessionsMore(int count) {
-    return '…… $count more sessions in the session manager view.';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count more sessions',
+      one: '1 more session',
+    );
+    return '…… $_temp0 in the session manager view.';
   }
 
   @override
@@ -3469,4 +3566,363 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bootRetry => 'Retry';
+
+  @override
+  String get settingsSectionContextManagement => 'Context management';
+
+  @override
+  String get settingsAutoCompaction => 'Automatic compaction';
+
+  @override
+  String get settingsAutoCompactionHint =>
+      'Keep recent messages and summarize older content without deleting the original history.';
+
+  @override
+  String get settingsBackgroundCompaction => 'Background compaction';
+
+  @override
+  String get settingsBackgroundCompactionHint =>
+      'Start compaction at 70% of the safe context window; wait only when the limit is reached.';
+
+  @override
+  String get settingsCompactionProvider => 'Compaction provider';
+
+  @override
+  String get settingsCompactionProviderHint =>
+      'Use the main model if no separate model is selected or available. Compaction requests are billed separately.';
+
+  @override
+  String get settingsCompactionModel => 'Compaction model';
+
+  @override
+  String get settingsFollowMainModel => 'Use main model';
+
+  @override
+  String get commonSearchHint => 'Search…';
+
+  @override
+  String get commonClearInput => 'Clear input';
+
+  @override
+  String get commonCopied => 'Copied';
+
+  @override
+  String get commonClickToCopy => 'Click to copy';
+
+  @override
+  String get commonRequiredInput => 'Enter a value';
+
+  @override
+  String get commonInputHint => 'Enter a value…';
+
+  @override
+  String get commonDropImage => 'Drop image to import';
+
+  @override
+  String get commonUnrecognizedOption => 'Unrecognized';
+
+  @override
+  String get commonResizeWidth =>
+      'Drag to resize width (double-click to reset)';
+
+  @override
+  String get inpaintSelectionLabel => 'Inpaint selection';
+
+  @override
+  String get promptsTransparentBackground => 'Transparent background';
+
+  @override
+  String get promptsQualityTags => 'Quality tags';
+
+  @override
+  String get skillFileUnreadable => 'Cannot read the selected file.';
+
+  @override
+  String get promptsPositiveTitle => 'Prompt';
+
+  @override
+  String get promptsNegativeTitle => 'Undesired content';
+
+  @override
+  String get promptsPrefixBadge => 'PREFIX';
+
+  @override
+  String get promptsSuffixBadge => 'SUFFIX';
+
+  @override
+  String get presetLevelStandard => 'Standard';
+
+  @override
+  String get presetLevelLight => 'Light';
+
+  @override
+  String get presetLevelHeavy => 'Heavy';
+
+  @override
+  String get presetLevelHuman => 'Human';
+
+  @override
+  String get presetLevelNone => 'None';
+
+  @override
+  String get tagGroupQuality => 'Quality';
+
+  @override
+  String get tagGroupAesthetic => 'Aesthetics';
+
+  @override
+  String get tagGroupComplexity => 'Complexity';
+
+  @override
+  String get tagGroupYear => 'Year';
+
+  @override
+  String get tagGroupDataset => 'Dataset';
+
+  @override
+  String get tagGroupAlpha => 'Transparency';
+
+  @override
+  String get tagGroupRenamed => 'Renamed tags';
+
+  @override
+  String get tagGroupOther => 'Other';
+
+  @override
+  String get tagGroupQualityAesthetics => 'Quality and aesthetics';
+
+  @override
+  String get tagGroupCameraComposition => 'Camera and composition';
+
+  @override
+  String get tagGroupLighting => 'Lighting and atmosphere';
+
+  @override
+  String get tagGroupExpression => 'Expressions';
+
+  @override
+  String get tagGroupHair => 'Hair';
+
+  @override
+  String get tagGroupClothing => 'Clothing';
+
+  @override
+  String get tagGroupPose => 'Actions and poses';
+
+  @override
+  String get tagGroupBackground => 'Backgrounds';
+
+  @override
+  String get presetImportButton => 'Import presets';
+
+  @override
+  String get presetExportButton => 'Export preset';
+
+  @override
+  String get presetImportInvalidJson =>
+      'Choose a valid JSON file containing a preset object or an array of presets.';
+
+  @override
+  String presetImportInvalidField(String field) {
+    return 'Preset field $field is missing or invalid. Permission lists must be explicit; empty arrays are allowed.';
+  }
+
+  @override
+  String presetImportUnknownTool(String field) {
+    return 'Unknown tool $field. Import that tool first or check the file.';
+  }
+
+  @override
+  String presetImportUnknownParameter(String field) {
+    return 'Unknown parameter permission $field. Check the file.';
+  }
+
+  @override
+  String presetTransferFailed(String error) {
+    return 'Could not import or export preset: $error';
+  }
+
+  @override
+  String presetImportedDraft(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Added $count presets',
+      one: 'Added 1 preset',
+    );
+    return '$_temp0. Save to keep them or Cancel to discard. The active preset has not changed.';
+  }
+
+  @override
+  String get skillErrorPackageTooLarge =>
+      'Skill packages must not exceed 32 MiB.';
+
+  @override
+  String get skillErrorInstructionsTooLarge =>
+      'SKILL.md must not exceed 256 KiB.';
+
+  @override
+  String get skillErrorFileType => 'Choose a .zip, .skill or .md file.';
+
+  @override
+  String get skillErrorTooManyEntries =>
+      'The skill package contains too many entries.';
+
+  @override
+  String get skillErrorSpecialFile =>
+      'Links and special files are not allowed in skill packages.';
+
+  @override
+  String skillErrorDuplicatePath(String detail) {
+    return 'Duplicate path in skill package: $detail';
+  }
+
+  @override
+  String get skillErrorSizeLimit =>
+      'Skill package limits: 8 MiB per file, 32 MiB total, 512 files.';
+
+  @override
+  String get skillErrorEncrypted =>
+      'Encrypted or damaged skill packages are not supported.';
+
+  @override
+  String get skillErrorMissingData =>
+      'File data is missing from the skill package.';
+
+  @override
+  String get skillErrorCompression =>
+      'Skill packages support only ZIP Store or Deflate compression.';
+
+  @override
+  String get skillErrorChecksum =>
+      'Skill package length or CRC verification failed.';
+
+  @override
+  String get skillErrorInvalidZip =>
+      'Cannot read the ZIP skill package. Check that the file is complete.';
+
+  @override
+  String get skillErrorDirectory =>
+      'Choose a regular skill folder, not a link.';
+
+  @override
+  String get skillErrorLinkFile =>
+      'Linked files are not allowed in skill packages.';
+
+  @override
+  String get skillErrorPathEscape => 'The path is outside the skill package.';
+
+  @override
+  String get skillErrorPackageLimit =>
+      'Skill packages must not exceed 32 MiB or 512 files.';
+
+  @override
+  String get skillErrorSpecialEntry =>
+      'Special files are not allowed in skill packages.';
+
+  @override
+  String get skillErrorOneEntry =>
+      'Choose a folder or archive containing exactly one SKILL.md. Import multiple skills separately.';
+
+  @override
+  String get skillErrorInvalidId =>
+      'Skill IDs must contain 1–64 lowercase letters, digits or hyphens, without a leading or trailing hyphen.';
+
+  @override
+  String get skillErrorDescription =>
+      'A skill description must contain 1–1024 characters.';
+
+  @override
+  String skillErrorDuplicateFile(String detail) {
+    return 'Duplicate skill file: $detail';
+  }
+
+  @override
+  String get skillErrorFileLimit =>
+      'The skill package exceeds the file size or count limit.';
+
+  @override
+  String get skillErrorTreeConflict =>
+      'File and folder paths conflict in the skill package.';
+
+  @override
+  String get skillErrorRelativePath =>
+      'Invalid relative path in the skill package.';
+
+  @override
+  String get skillErrorPathDepth =>
+      'The skill package has too many nested folders.';
+
+  @override
+  String skillErrorUnsafePath(String detail) {
+    return 'Unsafe skill package path: $detail';
+  }
+
+  @override
+  String get skillErrorStorageId => 'Invalid skill storage identifier.';
+
+  @override
+  String get skillErrorMissingPackage =>
+      'Skill package files are missing. Import the package again.';
+
+  @override
+  String get skillErrorMissingResource =>
+      'The resource was not found in this skill package.';
+
+  @override
+  String get skillErrorReadLink =>
+      'Links inside skill packages cannot be read.';
+
+  @override
+  String get skillErrorResourceEscape =>
+      'The resource path is outside the skill package.';
+
+  @override
+  String get skillErrorReadSize =>
+      'The file exceeds the skill package size limit.';
+
+  @override
+  String get skillErrorUnpackedSize =>
+      'The extracted file exceeds the size limit.';
+
+  @override
+  String get skillErrorYamlDelimiter =>
+      'The SKILL.md YAML header is missing its closing delimiter.';
+
+  @override
+  String skillErrorYamlInvalid(String detail) {
+    return 'Invalid SKILL.md YAML: $detail';
+  }
+
+  @override
+  String get skillErrorYamlMapping =>
+      'The SKILL.md YAML header must be a mapping of fields.';
+
+  @override
+  String get skillErrorYamlDepth =>
+      'The SKILL.md YAML has too much nesting or too many fields.';
+
+  @override
+  String get skillErrorYamlKeys => 'YAML field names must be strings.';
+
+  @override
+  String get skillErrorYamlValue => 'Unsupported YAML value.';
+
+  @override
+  String skillErrorYamlString(String detail) {
+    return 'The SKILL.md field $detail must be a string.';
+  }
+
+  @override
+  String get skillErrorYamlBoolean =>
+      'disable-model-invocation must be a boolean.';
+
+  @override
+  String get promptsUcPreset => 'UC preset';
+
+  @override
+  String get referenceImageBadge => 'REF';
+
+  @override
+  String get toolFallbackName => 'Tool';
 }

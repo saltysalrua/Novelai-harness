@@ -496,11 +496,44 @@ void main() {
       final errors = events.whereType<ErrorEvent>().toList();
       expect(errors.length, equals(1));
       expect(errors.first.error, contains('401'));
+      expect(errors.first.code, isNull);
       // 半截内容不落盘：仅保留用户消息
       expect(
         harness.messages.where((m) => m.role == AgentRole.assistant),
         isEmpty,
       );
+    });
+
+    test('应用内置错误代码穿过 Harness 且不丢失', () async {
+      final provider = MockLlmProvider((messages, toolList) {
+        return const [
+          ErrorEvent(
+            '未配置 LLM API Key，请先在右上角设置中填写。',
+            code: HarnessErrorCode.apiKeyMissing,
+          ),
+        ];
+      });
+      final harness = buildHarness(provider);
+
+      final events = await harness.send('Hi').toList();
+
+      final error = events.whereType<ErrorEvent>().single;
+      expect(error.code, HarnessErrorCode.apiKeyMissing);
+    });
+
+    test('模型连续返回空响应时使用可本地化的兜底代码', () async {
+      final provider = MockLlmProvider((messages, toolList) => const []);
+      final harness = AgentHarness(
+        tools: tools,
+        provider: provider,
+        maxRetryAttempts: 1,
+        retryBaseDelay: Duration.zero,
+      );
+
+      final events = await harness.send('Hi').toList();
+
+      final error = events.whereType<ErrorEvent>().single;
+      expect(error.code, HarnessErrorCode.modelRequestFailed);
     });
 
     test('瞬态错误重试预算耗尽后报错终止', () async {

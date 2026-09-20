@@ -94,7 +94,11 @@ class BoardAnnotationToolbar extends StatelessWidget {
             const SizedBox(width: 4),
             BoardToolbarItem(
               icon: Icons.content_paste_rounded,
-              label: l10n.boardToolPasteImage,
+              label: l10n.boardToolPasteImage(
+                Theme.of(context).platform == TargetPlatform.macOS
+                    ? '⌘V'
+                    : 'Ctrl+V',
+              ),
               isSelected: false,
               onTap: onPasteImage,
             ),

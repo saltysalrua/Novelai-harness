@@ -21,71 +21,74 @@ class StudioSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Container(
-      width: 58,
-      margin: const EdgeInsets.fromLTRB(8, 8, 0, 8),
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: colors.borderDefault),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
+    return IntrinsicWidth(
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 58),
+        margin: const EdgeInsets.fromLTRB(8, 8, 0, 8),
+        decoration: BoxDecoration(
+          color: colors.cardBackground,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: colors.borderDefault),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 8),
 
-          // 导航分类项：参数
-          _buildTabItem(
-            context: context,
-            tab: StudioSidebarTab.parameters,
-            icon: Icons.tune_outlined,
-            label: context.l10n.sidebarTabParameters,
-            isSelected: activeTab == StudioSidebarTab.parameters,
-          ),
-          const SizedBox(height: 6),
+            // 导航分类项：参数
+            _buildTabItem(
+              context: context,
+              tab: StudioSidebarTab.parameters,
+              icon: Icons.tune_outlined,
+              label: context.l10n.sidebarTabParameters,
+              isSelected: activeTab == StudioSidebarTab.parameters,
+            ),
+            const SizedBox(height: 6),
 
-          // 导航分类项：提示词
-          _buildTabItem(
-            context: context,
-            tab: StudioSidebarTab.prompts,
-            icon: Icons.edit_note_outlined,
-            label: context.l10n.tabPrompts,
-            isSelected: activeTab == StudioSidebarTab.prompts,
-          ),
-          const SizedBox(height: 6),
+            // 导航分类项：提示词
+            _buildTabItem(
+              context: context,
+              tab: StudioSidebarTab.prompts,
+              icon: Icons.edit_note_outlined,
+              label: context.l10n.tabPrompts,
+              isSelected: activeTab == StudioSidebarTab.prompts,
+            ),
+            const SizedBox(height: 6),
 
-          // 导航分类项：修复
-          _buildTabItem(
-            context: context,
-            tab: StudioSidebarTab.inpaint,
-            icon: Icons.auto_fix_high_outlined,
-            label: context.l10n.sidebarTabInpaint,
-            isSelected: activeTab == StudioSidebarTab.inpaint,
-          ),
-          const SizedBox(height: 6),
+            // 导航分类项：修复
+            _buildTabItem(
+              context: context,
+              tab: StudioSidebarTab.inpaint,
+              icon: Icons.auto_fix_high_outlined,
+              label: context.l10n.sidebarTabInpaint,
+              isSelected: activeTab == StudioSidebarTab.inpaint,
+            ),
+            const SizedBox(height: 6),
 
-          // 导航分类项：词库 (覆盖三栏的沉浸式管理)
-          _buildTabItem(
-            context: context,
-            tab: StudioSidebarTab.library,
-            icon: Icons.collections_bookmark_outlined,
-            label: context.l10n.tabLibrary,
-            isSelected: activeTab == StudioSidebarTab.library,
-          ),
+            // 导航分类项：词库 (覆盖三栏的沉浸式管理)
+            _buildTabItem(
+              context: context,
+              tab: StudioSidebarTab.library,
+              icon: Icons.collections_bookmark_outlined,
+              label: context.l10n.tabLibrary,
+              isSelected: activeTab == StudioSidebarTab.library,
+            ),
 
-          const Spacer(),
+            const Spacer(),
 
-          // 底部全局设置按钮 (弹窗形式打开)
-          Divider(height: 1, color: colors.borderDefault),
-          const SizedBox(height: 8),
-          _buildActionItem(
-            context: context,
-            icon: Icons.settings_outlined,
-            label: context.l10n.settings,
-            tooltip: context.l10n.sidebarSettingsTooltip,
-            onTap: () => SettingsDialog.show(context, viewModel),
-          ),
-          const SizedBox(height: 10),
-        ],
+            // 底部全局设置按钮 (弹窗形式打开)
+            Divider(height: 1, color: colors.borderDefault),
+            const SizedBox(height: 8),
+            _buildActionItem(
+              context: context,
+              icon: Icons.settings_outlined,
+              label: context.l10n.settings,
+              tooltip: context.l10n.sidebarSettingsTooltip,
+              onTap: () => SettingsDialog.show(context, viewModel),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
       ),
     );
   }
@@ -98,43 +101,53 @@ class StudioSidebar extends StatelessWidget {
     required bool isSelected,
   }) {
     final colors = context.colors;
-    return Tooltip(
-      message: label,
-      child: InkWell(
-        onTap: () => onTabChanged(tab),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 44,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? colors.primaryTint : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(
-              color: isSelected
-                  ? colors.primary.withValues(alpha: 0.4)
-                  : Colors.transparent,
-              width: 1,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: isSelected ? colors.primary : colors.textSecondary,
+    return Semantics(
+      container: true,
+      button: true,
+      selected: isSelected,
+      child: Tooltip(
+        message: label,
+        excludeFromSemantics: true,
+        child: InkWell(
+          onTap: () => onTabChanged(tab),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? colors.primaryTint : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: isSelected
+                    ? colors.primary.withValues(alpha: 0.4)
+                    : Colors.transparent,
+                width: 1,
               ),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
                   color: isSelected ? colors.primary : colors.textSecondary,
                 ),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                    color: isSelected ? colors.primary : colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -149,24 +162,31 @@ class StudioSidebar extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     final colors = context.colors;
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Container(
-          width: 44,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 20, color: colors.textSecondary),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(fontSize: 10, color: colors.textSecondary),
-              ),
-            ],
+    return Semantics(
+      container: true,
+      button: true,
+      child: Tooltip(
+        message: tooltip,
+        excludeFromSemantics: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: colors.textSecondary),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                ),
+              ],
+            ),
           ),
         ),
       ),

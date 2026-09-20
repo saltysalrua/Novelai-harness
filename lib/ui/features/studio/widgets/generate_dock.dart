@@ -213,6 +213,7 @@ class GenerateDock extends StatelessWidget {
                         : (isRepairing
                               ? context.l10n.dockInpainting
                               : context.l10n.startInpaint),
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: compact ? 14 : 15,
                       fontWeight: FontWeight.w700,
@@ -223,6 +224,7 @@ class GenerateDock extends StatelessWidget {
                     listenable: viewModel.liveProgressController,
                     builder: (context, _) => Text(
                       _buildButtonLabel(context, estimatedCost),
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: compact ? 14 : 15,
                         fontWeight: FontWeight.w700,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../../data/models/nai_special_tags.dart';
 
 /// 预设灵感分类与精选标签 (标签灵感库数据源)
@@ -8,6 +9,30 @@ class TagInspirationGroup {
   final List<(String tag, String zh)> tags;
 
   const TagInspirationGroup(this.title, this.icon, this.tags);
+
+  String localizedTitle(AppLocalizations l10n) {
+    final raw = title.startsWith('NAI·') ? title.substring(4) : title;
+    final label = switch (raw) {
+      '画质' => l10n.tagGroupQuality,
+      '美学' => l10n.tagGroupAesthetic,
+      '复杂度' => l10n.tagGroupComplexity,
+      '年代' => l10n.tagGroupYear,
+      '数据集' => l10n.tagGroupDataset,
+      '透明通道' => l10n.tagGroupAlpha,
+      '改名标签' => l10n.tagGroupRenamed,
+      '其他' => l10n.tagGroupOther,
+      '画质与美学' => l10n.tagGroupQualityAesthetics,
+      '镜头与构图' => l10n.tagGroupCameraComposition,
+      '光影与氛围' => l10n.tagGroupLighting,
+      '表情与神情' => l10n.tagGroupExpression,
+      '发型与发色' => l10n.tagGroupHair,
+      '服饰与装扮' => l10n.tagGroupClothing,
+      '动作与姿势' => l10n.tagGroupPose,
+      '背景与场景' => l10n.tagGroupBackground,
+      _ => title,
+    };
+    return title.startsWith('NAI·') ? 'NAI·$label' : label;
+  }
 }
 
 const List<TagInspirationGroup> kTagInspirationPresets = [

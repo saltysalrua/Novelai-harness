@@ -192,7 +192,10 @@ class OpenAiCompatibleProvider implements LlmProvider {
     }
 
     if (apiKey.trim().isEmpty && !acceptsEmptyApiKey(endpoint)) {
-      yield ErrorEvent('未配置 LLM API Key，请先在右上角设置中填写。');
+      yield const ErrorEvent(
+        '未配置 LLM API Key，请先在右上角设置中填写。',
+        code: HarnessErrorCode.apiKeyMissing,
+      );
       return;
     }
 

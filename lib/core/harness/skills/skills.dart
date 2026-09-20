@@ -1,3 +1,4 @@
+import 'skill_format_exception.dart';
 import 'dart:convert';
 import 'package:yaml/yaml.dart';
 
@@ -132,19 +133,36 @@ class Skill {
       r'^---[ 	]*$',
       multiLine: true,
     ).firstMatch(normalized.substring(4));
-    if (end == null) throw const FormatException('SKILL.md 的 YAML 头缺少结束分隔符。');
+    if (end == null) {
+      throw const SkillFormatException(
+        SkillFormatError.yamlDelimiter,
+        'SKILL.md 的 YAML 头缺少结束分隔符。',
+      );
+    }
     final raw = normalized.substring(4, 4 + end.start);
     final Object? yaml;
     try {
       yaml = loadYaml(raw);
     } on YamlException catch (error) {
-      throw FormatException('SKILL.md YAML 格式错误：${error.message}');
+      throw SkillFormatException(
+        SkillFormatError.yamlInvalid,
+        'SKILL.md YAML 格式错误：${error.message}',
+        detail: error.message,
+      );
     }
-    if (yaml is! Map) throw const FormatException('SKILL.md 的 YAML 头必须是字段映射。');
+    if (yaml is! Map) {
+      throw const SkillFormatException(
+        SkillFormatError.yamlMapping,
+        'SKILL.md 的 YAML 头必须是字段映射。',
+      );
+    }
     var nodes = 0;
     Object? convert(Object? value, [int depth = 0]) {
       if (++nodes > 4096 || depth > 20) {
-        throw const FormatException('SKILL.md YAML 嵌套过深或字段过多。');
+        throw const SkillFormatException(
+          SkillFormatError.yamlDepth,
+          'SKILL.md YAML 嵌套过深或字段过多。',
+        );
       }
       return switch (value) {
         null || String() || bool() || num() => value,
@@ -153,12 +171,18 @@ class Skill {
           for (final entry in value.entries)
             (entry.key is String
                 ? entry.key as String
-                : throw const FormatException('YAML 字段名必须是字符串。')): convert(
+                : throw const SkillFormatException(
+                    SkillFormatError.yamlKeys,
+                    'YAML 字段名必须是字符串。',
+                  )): convert(
               entry.value,
               depth + 1,
             ),
         },
-        _ => throw const FormatException('不支持的 YAML 值。'),
+        _ => throw const SkillFormatException(
+          SkillFormatError.yamlValue,
+          '不支持的 YAML 值。',
+        ),
       };
     }
 
@@ -166,7 +190,13 @@ class Skill {
     String text(String key, [String fallback = '']) {
       final value = fields[key];
       if (value == null) return fallback;
-      if (value is! String) throw FormatException('SKILL.md 的 $key 必须是字符串。');
+      if (value is! String) {
+        throw SkillFormatException(
+          SkillFormatError.yamlString,
+          'SKILL.md 的 $key 必须是字符串。',
+          detail: key,
+        );
+      }
       return value;
     }
 
@@ -178,7 +208,10 @@ class Skill {
         fields['disable_model_invocation'] ??
         false;
     if (disabled is! bool) {
-      throw const FormatException('disable-model-invocation 必须是布尔值。');
+      throw const SkillFormatException(
+        SkillFormatError.yamlBoolean,
+        'disable-model-invocation 必须是布尔值。',
+      );
     }
     for (final key in [
       'name',

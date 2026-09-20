@@ -62,8 +62,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.state(promptPage), same(promptState));
     expect(find.text('提示词管理'), findsOneWidget);
-    expect(find.text('Prompt'), findsOneWidget);
-    expect(find.text('Undesired Content'), findsOneWidget);
+    expect(find.text('正向提示词'), findsOneWidget);
+    expect(find.text('负向提示词'), findsOneWidget);
     // 固定词缀面板在页面底部，滚动到可见后再断言
     await tester.drag(find.text('提示词管理'), const Offset(0, -500));
     await tester.pumpAndSettle();
