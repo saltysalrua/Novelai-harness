@@ -401,6 +401,7 @@ void main() {
       bool reasoning = true,
       String? effort = 'high',
       String? format,
+      String model = 'test-model',
     }) {
       final client = MockClient.streaming((req, body) async {
         capturedBody =
@@ -413,7 +414,7 @@ void main() {
       return OpenAiCompatibleProvider(
         baseUrl: baseUrl,
         apiKey: 'test-key',
-        model: 'test-model',
+        model: model,
         reasoning: reasoning,
         thinkingEffort: effort,
         thinkingParamFormat: format,
@@ -421,8 +422,13 @@ void main() {
       );
     }
 
-    Future<Map<String, dynamic>> requestBody(OpenAiCompatibleProvider p) async {
-      await p.streamChat(messages: [], tools: []).toList();
+    Future<Map<String, dynamic>> requestBody(
+      OpenAiCompatibleProvider p, {
+      double temperature = 0.7,
+    }) async {
+      await p
+          .streamChat(messages: [], tools: [], temperature: temperature)
+          .toList();
       return capturedBody!;
     }
 
@@ -440,6 +446,77 @@ void main() {
       expect(body.containsKey('reasoning_effort'), isFalse);
       expect(body.containsKey('thinking'), isFalse);
     });
+
+    test(
+      'Gemini compatibility explicitly sends none when thinking is off',
+      () async {
+        final body = await requestBody(
+          fmtProvider(
+            'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+            reasoning: false,
+            effort: 'none',
+            model: 'gemini-2.5-flash',
+          ),
+        );
+
+        expect(body['reasoning_effort'], 'none');
+        expect(body.containsKey('thinking'), isFalse);
+      },
+    );
+
+    for (final model in [
+      'gemini-2.5-pro',
+      'gemini-3-flash',
+      'gemini-2.5-flash-image',
+      'test-model',
+    ]) {
+      test('Gemini compatibility does not send none for $model', () async {
+        final body = await requestBody(
+          fmtProvider(
+            'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+            reasoning: false,
+            effort: 'none',
+            model: model,
+          ),
+        );
+
+        expect(body.containsKey('reasoning_effort'), isFalse);
+      });
+    }
+
+    test('Official Anthropic Sonnet 5 omits temperature', () async {
+      final body = await requestBody(
+        fmtProvider(
+          'https://api.anthropic.com/v1/chat/completions',
+          reasoning: false,
+          effort: null,
+          model: 'claude-sonnet-5',
+        ),
+        temperature: 0.3,
+      );
+
+      expect(body.containsKey('temperature'), isFalse);
+    });
+
+    for (final (endpoint, model) in [
+      (
+        'https://anthropic-relay.example/v1/chat/completions',
+        'claude-sonnet-5',
+      ),
+      (
+        'https://api.anthropic.com/v1/chat/completions',
+        'claude-haiku-4-5-20251001',
+      ),
+    ]) {
+      test('Temperature remains for $endpoint $model', () async {
+        final body = await requestBody(
+          fmtProvider(endpoint, reasoning: false, effort: null, model: model),
+          temperature: 0.3,
+        );
+
+        expect(body['temperature'], 0.3);
+      });
+    }
 
     test('模型不具备思考能力时不发送思考参数', () async {
       final body = await requestBody(
@@ -589,6 +666,62 @@ void main() {
         equals(ThinkingParamFormat.deepseek),
       );
     });
+  });
+
+  group('Ollama loopback authentication', () {
+    test('Exact local compatibility endpoint accepts an empty key', () async {
+      http.BaseRequest? captured;
+      final provider = OpenAiCompatibleProvider(
+        baseUrl: 'http://localhost:11434/v1/chat/completions',
+        apiKey: '',
+        model: 'llama3.3',
+        client: MockClient.streaming((request, body) async {
+          captured = request;
+          return _sse([
+            _delta({'content': 'local response'}),
+          ]);
+        }),
+      );
+
+      final events = await provider
+          .streamChat(messages: [], tools: [])
+          .toList();
+
+      expect(_contents(events), ['local response']);
+      expect(captured, isNotNull);
+      expect(captured!.headers.containsKey('Authorization'), isFalse);
+    });
+
+    for (final endpoint in [
+      'http://ollama.example:11434/v1/chat/completions',
+      'http://localhost.example:11434/v1/chat/completions',
+      'http://localhost:11435/v1/chat/completions',
+      'http://localhost:11434/api/chat',
+      'https://localhost:11434/v1/chat/completions',
+    ]) {
+      test('Empty key remains rejected for $endpoint', () async {
+        var requestCount = 0;
+        final provider = OpenAiCompatibleProvider(
+          baseUrl: endpoint,
+          apiKey: '',
+          model: 'llama3.3',
+          client: MockClient.streaming((request, body) async {
+            requestCount++;
+            return _sse([]);
+          }),
+        );
+
+        final events = await provider
+            .streamChat(messages: [], tools: [])
+            .toList();
+
+        expect(requestCount, 0);
+        expect(
+          events.whereType<ErrorEvent>().single.error,
+          contains('API Key'),
+        );
+      });
+    }
   });
 
   group('流式 usage 记账 (对齐 pi last-wins 语义)', () {

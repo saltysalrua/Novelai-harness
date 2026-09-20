@@ -232,6 +232,14 @@ mixin _StudioCore on ChangeNotifier {
   NaiAccountInfo? get accountInfo => _accountInfo;
 
   @visibleForTesting
+  OpenAiCompatibleProvider? get providerForTesting =>
+      _harness.provider as OpenAiCompatibleProvider?;
+
+  @visibleForTesting
+  OpenAiCompatibleProvider? get compactionProviderForTesting =>
+      _harness.compactionProvider as OpenAiCompatibleProvider?;
+
+  @visibleForTesting
   void setAccountInfoForTest(NaiAccountInfo? info) {
     _accountInfo = info;
     notifyListeners();

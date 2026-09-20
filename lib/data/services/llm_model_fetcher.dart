@@ -92,6 +92,8 @@ class LlmModelFetcher {
         lower.contains('o3_') ||
         lower.contains('claude-3-7') ||
         lower.contains('claude-3.7') ||
+        lower.contains('gemini-2.5-flash') ||
+        lower.contains('gemini-2.5-pro') ||
         lower.contains('thinking') ||
         lower.contains('qwq') ||
         lower.contains('deepseek-r') ||
@@ -142,10 +144,11 @@ class LlmModelFetcher {
   /// 智能检测模型上下文窗口大小 (启发式兜底)
   static int detectContextWindow(String modelId) {
     final lower = modelId.toLowerCase();
-    if (lower.contains('gemini-2.5-pro')) return 2000000;
-    if (lower.contains('gemini-2.5-flash') || lower.contains('gemini-1.5')) {
-      return 1000000;
+    if (lower.contains('gemini-2.5-pro') ||
+        lower.contains('gemini-2.5-flash')) {
+      return 1048576;
     }
+    if (lower.contains('gemini-1.5')) return 1000000;
     if (lower.contains('claude') || lower.contains('o3-mini')) {
       return 200000;
     }
@@ -217,10 +220,20 @@ class LlmModelFetcher {
     // 合成能力元数据并统计 models.dev 命中数
     var enrichedCount = 0;
     final models = <LlmModelConfig>[];
+    final suppressAnthropicCompatibilityReasoning =
+        protocol == LlmProtocol.openAiChat &&
+        Uri.tryParse(baseUrl)?.host == 'api.anthropic.com';
     for (final raw in rawModels) {
       final dev = await _lookupDev(raw.id);
       if (dev != null) enrichedCount++;
-      models.add(_resolveModelConfig(raw, dev, existingModels));
+      models.add(
+        _resolveModelConfig(
+          raw,
+          dev,
+          existingModels,
+          suppressReasoning: suppressAnthropicCompatibilityReasoning,
+        ),
+      );
     }
 
     // 远端不存在的本地自定义模型追加保留
@@ -346,20 +359,28 @@ class LlmModelFetcher {
   LlmModelConfig _resolveModelConfig(
     _RawModelEntry raw,
     ModelsDevModelInfo? dev,
-    List<LlmModelConfig> existingModels,
-  ) {
+    List<LlmModelConfig> existingModels, {
+    bool suppressReasoning = false,
+  }) {
     final existing = existingModels.where((m) => m.id == raw.id).firstOrNull;
 
-    final isReasoning =
-        raw.reasoning ?? dev?.reasoning ?? detectReasoningCapability(raw.id);
+    final isReasoning = suppressReasoning
+        ? false
+        : raw.reasoning ?? dev?.reasoning ?? detectReasoningCapability(raw.id);
     final multimodalFlag =
         raw.multimodal ??
         ((dev?.input.contains('image') ?? false) ||
             detectMultimodalCapability(raw.id));
 
     var levels = const <ThinkingEffort>[];
-    if (dev != null && dev.reasoning && dev.thinkingLevels.isNotEmpty) {
+    if (suppressReasoning) {
+      levels = const [];
+    } else if (dev != null && dev.reasoning && dev.thinkingLevels.isNotEmpty) {
       levels = dev.thinkingLevels;
+    } else if (existing != null &&
+        isReasoning &&
+        existing.supportedThinkingLevels.isNotEmpty) {
+      levels = existing.supportedThinkingLevels;
     } else if (isReasoning && dev == null) {
       levels = const [ThinkingEffort.high];
     }
@@ -386,6 +407,9 @@ class LlmModelFetcher {
       input: multimodalFlag ? const ['text', 'image'] : const ['text'],
       supportedThinkingLevels: levels,
       preferredThinkingEffort: existing?.preferredThinkingEffortFor(levels),
+      supportsThinkingOff:
+          existing?.supportsThinkingOff ??
+          !raw.id.toLowerCase().contains('gemini-2.5-pro'),
       contextWindow: contextWindow,
       maxTokens: maxTokens,
       temperature: temperature,
