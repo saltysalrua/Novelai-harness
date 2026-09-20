@@ -1,0 +1,94 @@
+name: macOS build and test
+
+on:
+  push:
+    branches: [master, 'codex/pr-macos-*']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - name: Read artifact version
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          match = re.search(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?:\+[0-9]+)?\s*$', Path('pubspec.yaml').read_text(), re.MULTILINE)
+          if match is None:
+              raise SystemExit('Expected a semantic version in pubspec.yaml')
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'ARTIFACT_STEM=NovelAI-Harness-v{match.group(1)}-macos\n')
+          PY
+
+      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          architecture: arm64
+          cache: true
+
+      - name: Record build environment
+        run: |
+          test "$(uname -m)" = arm64
+          flutter --version
+          xcodebuild -version
+          flutter config --no-analytics
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: dart run tool/gates.dart analyze
+
+      - name: Run all tests
+        run: dart run tool/gates.dart test --concurrency=2 --reporter=expanded --dart-define=HARNESS_AUTO_IMPORT_CREDENTIALS=false
+
+      - name: Build macOS app
+        run: flutter build macos --release
+
+      - name: Verify signed app and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=build/macos/Build/Products/Release/novelai_harness.app
+          codesign --verify --deep --strict "$app"
+          lipo -archs "$app/Contents/MacOS/novelai_harness" | grep -w arm64
+          codesign -d --entitlements :- "$app" > signed-entitlements.plist 2>/dev/null
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          data = plistlib.loads(Path('signed-entitlements.plist').read_bytes())
+          for key in (
+              'com.apple.security.app-sandbox',
+              'com.apple.security.network.client',
+              'com.apple.security.files.user-selected.read-write',
+          ):
+              assert data.get(key) is True, f'Missing signed entitlement: {key}'
+              print(f'{key}: verified')
+          PY
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$ARTIFACT_STEM.zip"
+          shasum -a 256 "$ARTIFACT_STEM.zip" > "$ARTIFACT_STEM.sha256"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.ARTIFACT_STEM }}
+          path: |
+            ${{ env.ARTIFACT_STEM }}.zip
+            ${{ env.ARTIFACT_STEM }}.sha256
+            signed-entitlements.plist
+          retention-days: 7
+          if-no-files-found: error

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../context_l10n.dart';
 import '../theme/app_theme.dart';
@@ -9,7 +10,9 @@ class CustomTitleBar extends StatefulWidget implements PreferredSizeWidget {
   const CustomTitleBar({super.key});
 
   @override
-  Size get preferredSize => const Size.fromHeight(38.0);
+  Size get preferredSize => Size.fromHeight(
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS ? 32 : 38,
+  );
 
   @override
   State<CustomTitleBar> createState() => _CustomTitleBarState();
@@ -20,74 +23,82 @@ class _CustomTitleBarState extends WindowControlsState<CustomTitleBar> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
-    return Container(
-      height: 38.0,
-      decoration: BoxDecoration(
-        color: colors.canvasBackground,
-        border: Border(
-          bottom: BorderSide(color: colors.borderDefault, width: 1),
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
+        height: widget.preferredSize.height,
+        decoration: BoxDecoration(
+          color: colors.canvasBackground,
+          border: Border(
+            bottom: BorderSide(color: colors.borderDefault, width: 1),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          // 左侧：可拖动区域包裹的应用 Logo 与标题
-          buildWindowDragArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 16,
-                    color: colors.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'NovelAI Harness',
-                    style: TextStyle(
-                      fontFamily: AppTheme.fontFamily,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                      letterSpacing: -0.2,
+        child: Row(
+          children: [
+            // 左侧：可拖动区域包裹的应用 Logo 与标题
+            buildWindowDragArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: usesNativeWindowControls ? 80 : 14,
+                  right: 14,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 16,
+                      color: colors.primary,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      'NovelAI Harness',
+                      style: TextStyle(
+                        fontFamily: AppTheme.fontFamily,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          // 中间：占据全部剩余空间的窗口拖拽区域（支持双击最大化/向下还原）
-          Expanded(child: buildWindowDragArea(child: const SizedBox.expand())),
+            // 中间：占据全部剩余空间的窗口拖拽区域（支持双击最大化/向下还原）
+            Expanded(
+              child: buildWindowDragArea(child: const SizedBox.expand()),
+            ),
 
-          // 右侧：窗口控制三键 (最小化、最大化/向下还原、关闭)
-          if (isDesktopWindow) ...[
-            AppWindowButton(
-              icon: Icons.remove,
-              iconSize: 14,
-              tooltip: l10n.windowMinimize,
-              onPressed: minimizeWindow,
-            ),
-            AppWindowButton(
-              icon: windowIsMaximized
-                  ? Icons.filter_none_rounded
-                  : Icons.crop_square_rounded,
-              iconSize: windowIsMaximized ? 11 : 13,
-              tooltip: windowIsMaximized
-                  ? l10n.windowRestore
-                  : l10n.windowMaximize,
-              onPressed: toggleMaximizeWindow,
-            ),
-            AppWindowButton(
-              icon: Icons.close_rounded,
-              iconSize: 15,
-              tooltip: l10n.close,
-              isClose: true,
-              onPressed: closeAppWindow,
-            ),
+            // 右侧：窗口控制三键 (最小化、最大化/向下还原、关闭)
+            if (showCustomWindowControls) ...[
+              AppWindowButton(
+                icon: Icons.remove,
+                iconSize: 14,
+                tooltip: l10n.windowMinimize,
+                onPressed: minimizeWindow,
+              ),
+              AppWindowButton(
+                icon: windowIsMaximized
+                    ? Icons.filter_none_rounded
+                    : Icons.crop_square_rounded,
+                iconSize: windowIsMaximized ? 11 : 13,
+                tooltip: windowIsMaximized
+                    ? l10n.windowRestore
+                    : l10n.windowMaximize,
+                onPressed: toggleMaximizeWindow,
+              ),
+              AppWindowButton(
+                icon: Icons.close_rounded,
+                iconSize: 15,
+                tooltip: l10n.close,
+                isClose: true,
+                onPressed: closeAppWindow,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

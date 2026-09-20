@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/services/image_metadata_service.dart';
@@ -349,7 +350,8 @@ class _StudioViewState extends State<StudioView> {
     return Column(
       children: [
         // 顶部自定义 Notion 风格标题栏 (支持窗口拖拽与三键控制)
-        const CustomTitleBar(),
+        if (kIsWeb || defaultTargetPlatform != TargetPlatform.macOS)
+          const CustomTitleBar(),
 
         // 全局错误提示微胶囊
         if (_viewModel.errorMessage != null) _buildErrorMessage(context),
@@ -822,7 +824,9 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               // 可用宽度不足时退化为图标胶囊 (Tooltip 补足语义)，避免窄屏 / 大缩放溢出
-              final reserved = isDesktopWindow ? _windowControlsWidth : 0.0;
+              final reserved = showCustomWindowControls
+                  ? _windowControlsWidth
+                  : 0.0;
               final compact = constraints.maxWidth - reserved < 280;
 
               return Row(
@@ -887,7 +891,7 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
                   ),
 
                   // 右侧：桌面端显示窗口控制三键，移动端不占位
-                  if (isDesktopWindow) ...[
+                  if (showCustomWindowControls) ...[
                     AppWindowButton(
                       icon: Icons.remove,
                       iconSize: 11,

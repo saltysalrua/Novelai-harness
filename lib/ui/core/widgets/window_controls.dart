@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
-import '../../../../data/services/window_state_service.dart';
+import '../../../data/services/window_state_service.dart';
 
 /// 桌面窗口控制 (窗口移动 / 双击最大化 / 最小化、最大化、关闭) 共用状态机。
 ///
@@ -13,6 +13,12 @@ abstract class WindowControlsState<T extends StatefulWidget> extends State<T>
 
   /// 当前窗口是否最大化 (驱动最大化/还原按钮图标)
   bool get windowIsMaximized => _windowIsMaximized;
+
+  bool get usesNativeWindowControls =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+
+  bool get showCustomWindowControls =>
+      isDesktopWindow && !usesNativeWindowControls;
 
   /// 是否为桌面平台 (移动端不提供窗口三键与拖拽区)
   bool get isDesktopWindow =>
