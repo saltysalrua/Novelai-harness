@@ -200,6 +200,8 @@ class AgentHarness {
           .where((tool) => currentPreset.isToolEnabled(tool.name))
           .toList();
 
+      final allowedToolNames = activeTools.map((tool) => tool.name).toSet();
+
       // 长程执行循环：
       // - 每轮流式请求对瞬态错误 (网络抖动 / 429 / 5xx / 流中断 / 空响应)
       //   自动指数退避重试，预算耗尽才报错终止；
@@ -416,6 +418,13 @@ class AgentHarness {
             result = ToolResult(
               toolCallId: call.id,
               content: '错误：未知工具 "${call.name}"',
+              isError: true,
+            );
+          } else if (!allowedToolNames.contains(call.name) ||
+              !currentPreset.isToolEnabled(call.name)) {
+            result = ToolResult(
+              toolCallId: call.id,
+              content: '错误：当前预设未启用工具 "${call.name}"，未执行。',
               isError: true,
             );
           } else {

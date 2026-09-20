@@ -788,9 +788,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     LlmModelConfig model,
     ThinkingEffort currentEffort,
   ) {
-    final availableLevels = model.supportedThinkingLevels.isNotEmpty
-        ? [ThinkingEffort.none, ...model.supportedThinkingLevels]
-        : ThinkingEffort.values;
+    final availableLevels = model.availableThinkingLevels;
 
     final dropdown = AppDropdown<ThinkingEffort>(
       key: const ValueKey('chat_thinking_selector'),

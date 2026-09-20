@@ -60,6 +60,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
   late final TextEditingController _contextController;
   late final TextEditingController _maxTokensController;
   late bool _reasoning;
+  late bool _supportsThinkingOff;
   late bool _multimodal;
   late bool _imageOutput;
   late double _temperature;
@@ -80,6 +81,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
       text: m.maxTokens > 0 ? '${m.maxTokens}' : '',
     );
     _reasoning = m.reasoning || m.supportedThinkingLevels.isNotEmpty;
+    _supportsThinkingOff = m.supportsThinkingOff;
     _multimodal = m.isMultimodal;
     _imageOutput = m.imageOutput;
     _temperature = m.temperature;
@@ -104,6 +106,10 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
 
   void _toggleLevel(ThinkingEffort level) {
     setState(() {
+      if (level == ThinkingEffort.none) {
+        _supportsThinkingOff = !_supportsThinkingOff;
+        return;
+      }
       if (_levels.contains(level)) {
         _levels.remove(level);
       } else {
@@ -144,6 +150,10 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
           reasoning: _reasoning,
           input: _multimodal ? const ['text', 'image'] : const ['text'],
           supportedThinkingLevels: levels,
+          preferredThinkingEffort: widget.model.preferredThinkingEffortFor(
+            levels,
+          ),
+          supportsThinkingOff: _supportsThinkingOff,
           contextWindow: contextWindow <= 0 ? 128000 : contextWindow,
           maxTokens: maxTokens <= 0 ? 8192 : maxTokens,
           temperature: _temperature,
@@ -244,6 +254,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
                       spacing: 6,
                       children:
                           [
+                                ThinkingEffort.none,
                                 ThinkingEffort.low,
                                 ThinkingEffort.medium,
                                 ThinkingEffort.high,
@@ -253,7 +264,9 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
                               .map(
                                 (level) => _buildLevelChip(
                                   level,
-                                  _levels.contains(level),
+                                  level == ThinkingEffort.none
+                                      ? _supportsThinkingOff
+                                      : _levels.contains(level),
                                 ),
                               )
                               .toList(),

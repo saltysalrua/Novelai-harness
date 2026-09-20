@@ -41,6 +41,40 @@ class OpenAiCompatibleProvider implements LlmProvider {
   @override
   String get modelId => model;
 
+  /// Ollama's local OpenAI-compatible endpoint does not require credentials.
+  /// Keep the exception exact so an empty key never enables a remote endpoint.
+  static bool acceptsEmptyApiKey(String endpoint) {
+    final uri = Uri.tryParse(endpoint.trim());
+    if (uri == null ||
+        uri.scheme != 'http' ||
+        uri.port != 11434 ||
+        uri.path != '/v1/chat/completions' ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.userInfo.isNotEmpty) {
+      return false;
+    }
+    return switch (uri.host.toLowerCase()) {
+      'localhost' || '127.0.0.1' || '::1' => true,
+      _ => false,
+    };
+  }
+
+  bool _isGemini25FlashChatEndpoint() {
+    final uri = Uri.tryParse(baseUrl.trim());
+    return uri?.host == 'generativelanguage.googleapis.com' &&
+        uri?.path.endsWith('/chat/completions') == true &&
+        model.trim() == 'gemini-2.5-flash';
+  }
+
+  bool _shouldOmitTemperature(String endpoint) {
+    final uri = Uri.tryParse(endpoint);
+    return uri?.scheme == 'https' &&
+        uri?.host == 'api.anthropic.com' &&
+        uri?.path == '/v1/chat/completions' &&
+        model.trim() == 'claude-sonnet-5';
+  }
+
   /// 判定 HTTP 状态码是否为瞬态可重试错误 (请求超时 / 频控 / 服务端临时故障)
   static bool isTransientStatus(int code) =>
       code == 408 || code == 429 || (code >= 500 && code <= 599);
@@ -52,8 +86,9 @@ class OpenAiCompatibleProvider implements LlmProvider {
       return configured;
     }
     final url = baseUrl.toLowerCase();
+    final host = Uri.tryParse(baseUrl.trim())?.host.toLowerCase();
     if (url.contains('openrouter.ai')) return 'openrouter';
-    if (url.contains('deepseek.com')) return 'deepseek';
+    if (host == 'api.deepseek.com') return 'deepseek';
     if (url.contains('dashscope') || url.contains('aliyuncs')) {
       return 'qwen';
     }
@@ -64,6 +99,21 @@ class OpenAiCompatibleProvider implements LlmProvider {
     }
     if (url.contains('together.ai')) return 'together';
     return 'openai';
+  }
+
+  /// DeepSeek 的工具请求要求完整回传历史 assistant 思考；其他兼容端点
+  /// 保持标准 OpenAI 消息形状。空思考不补字段，避免臆造模型未返回的内容。
+  Map<String, dynamic> _serializeMessage(
+    AgentMessage message, {
+    required bool replayDeepSeekReasoning,
+  }) {
+    final json = message.toOpenAiJson();
+    if (replayDeepSeekReasoning &&
+        message.role == AgentRole.assistant &&
+        message.thoughts.isNotEmpty) {
+      json['reasoning_content'] = message.thoughts;
+    }
+    return json;
   }
 
   /// 按格式写入思考开关参数 (对齐 pi openai-completions 的 thinkingFormat 分支):
@@ -99,7 +149,13 @@ class OpenAiCompatibleProvider implements LlmProvider {
         if (thinkingOn) body['reasoning_effort'] = effort;
       default:
         // OpenAI 风格: 开思考时发送 reasoning_effort，关闭时不发送
-        if (thinkingOn) body['reasoning_effort'] = effort;
+        if (thinkingOn) {
+          body['reasoning_effort'] = effort;
+        } else if (effort == 'none' && _isGemini25FlashChatEndpoint()) {
+          // Gemini 2.5 Flash distinguishes an omitted provider default from
+          // the explicit none value that disables thinking.
+          body['reasoning_effort'] = 'none';
+        }
     }
   }
 
@@ -124,11 +180,6 @@ class OpenAiCompatibleProvider implements LlmProvider {
     double temperature = 0.7,
     String? promptCacheKey,
   }) async* {
-    if (apiKey.trim().isEmpty) {
-      yield ErrorEvent('未配置 LLM API Key，请先在右上角设置中填写。');
-      return;
-    }
-
     String endpoint = baseUrl.trim();
     if (!endpoint.endsWith('/chat/completions') &&
         !endpoint.endsWith('/responses') &&
@@ -140,19 +191,39 @@ class OpenAiCompatibleProvider implements LlmProvider {
       }
     }
 
+    if (apiKey.trim().isEmpty && !acceptsEmptyApiKey(endpoint)) {
+      yield ErrorEvent('未配置 LLM API Key，请先在右上角设置中填写。');
+      return;
+    }
+
+    final replayDeepSeekReasoning =
+        tools.isNotEmpty && resolvedThinkingFormat == 'deepseek';
     final requestBody = <String, dynamic>{
       'model': model.trim(),
-      'messages': messages.map((m) => m.toOpenAiJson()).toList(),
+      'messages': messages
+          .map(
+            (message) => _serializeMessage(
+              message,
+              replayDeepSeekReasoning: replayDeepSeekReasoning,
+            ),
+          )
+          .toList(),
       'stream': true,
       'temperature': temperature,
     };
+    if (_shouldOmitTemperature(endpoint)) {
+      requestBody.remove('temperature');
+    }
 
     // 思考参数按供应商兼容矩阵写入 (格式不匹配时思考会被上游静默丢弃)
     _applyThinkingParams(requestBody);
 
     if (tools.isNotEmpty) {
       requestBody['tools'] = tools.map((t) => t.toOpenAiFunction()).toList();
-      requestBody['tool_choice'] = 'auto';
+      // DeepSeek 带工具时默认 auto；省略可兼容不同版本的思考模式。
+      if (resolvedThinkingFormat != 'deepseek') {
+        requestBody['tool_choice'] = 'auto';
+      }
     }
 
     final cachePolicy = PromptCachePolicy(
@@ -419,7 +490,10 @@ class OpenAiCompatibleProvider implements LlmProvider {
       request.headers['x-api-key'] = apiKey.trim();
       request.headers['anthropic-version'] = '2023-06-01';
     }
-    request.headers['Authorization'] = 'Bearer ${apiKey.trim()}';
+    final trimmedKey = apiKey.trim();
+    if (trimmedKey.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $trimmedKey';
+    }
     request.body = jsonEncode(requestBody);
     return _client.send(request);
   }

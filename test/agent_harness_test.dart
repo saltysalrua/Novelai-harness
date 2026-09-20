@@ -72,6 +72,7 @@ class MockSessionRecorder implements SessionRecorder {
 }
 
 class TestEchoTool extends AgentTool {
+  int executionCount = 0;
   TestEchoTool()
     : super(
         name: 'echo_test',
@@ -91,6 +92,7 @@ class TestEchoTool extends AgentTool {
     String toolCallId,
     Map<String, dynamic> args,
   ) async {
+    executionCount++;
     return ToolResult(toolCallId: toolCallId, content: 'Echo: ${args['text']}');
   }
 }
@@ -125,6 +127,92 @@ class TestImageEchoTool extends AgentTool {
 }
 
 void main() {
+  test('tool execution rejects calls outside the preset whitelist', () async {
+    final tool = TestEchoTool();
+    final registry = ToolRegistry()..register(tool);
+    final provider = MockLlmProvider((messages, tools) {
+      if (messages.any((m) => m.role == AgentRole.tool)) {
+        return [ContentDeltaEvent('done')];
+      }
+      expect(tools, isEmpty);
+      return [
+        ToolCallEvent(
+          ToolCall(
+            id: 'blocked',
+            name: 'echo_test',
+            arguments: {'text': 'must not execute'},
+          ),
+        ),
+      ];
+    });
+    final harness = AgentHarness(
+      tools: registry,
+      provider: provider,
+      initialPreset: const AgentPreset(
+        id: 'restricted',
+        name: 'Restricted',
+        description: '',
+        systemPrompt: '',
+        enabledToolNames: [],
+        allowedModifiableParams: [],
+      ),
+    );
+    await harness.send('test').toList();
+    expect(tool.executionCount, 0);
+    final result = harness.messages.singleWhere(
+      (m) => m.toolCallId == 'blocked',
+    );
+    expect(result.isError, isTrue);
+  });
+
+  for (final enabledAtStart in [false, true]) {
+    test(
+      'tool permission cannot be changed by switching presets mid-turn: $enabledAtStart',
+      () async {
+        final tool = TestEchoTool();
+        final registry = ToolRegistry()..register(tool);
+        AgentPreset preset(bool enabled) => AgentPreset(
+          id: enabled ? 'enabled' : 'restricted',
+          name: 'Test',
+          description: '',
+          systemPrompt: '',
+          enabledToolNames: enabled ? ['echo_test'] : [],
+          allowedModifiableParams: [],
+        );
+        late AgentHarness harness;
+        final provider = MockLlmProvider((messages, tools) {
+          if (messages.any((message) => message.role == AgentRole.tool)) {
+            return [ContentDeltaEvent('done')];
+          }
+          expect(tools.any((tool) => tool.name == 'echo_test'), enabledAtStart);
+          harness.setPreset(preset(!enabledAtStart));
+          return [
+            ToolCallEvent(
+              const ToolCall(
+                id: 'changed',
+                name: 'echo_test',
+                arguments: {'text': 'blocked'},
+              ),
+            ),
+          ];
+        });
+        harness = AgentHarness(
+          tools: registry,
+          provider: provider,
+          initialPreset: preset(enabledAtStart),
+        );
+        await harness.send('test').toList();
+        expect(tool.executionCount, 0);
+        expect(
+          harness.messages
+              .singleWhere((message) => message.toolCallId == 'changed')
+              .isError,
+          isTrue,
+        );
+      },
+    );
+  }
+
   group('AgentHarness Loop Tests', () {
     late ToolRegistry tools;
     late AgentHarness harness;

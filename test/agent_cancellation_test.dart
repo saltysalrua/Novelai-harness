@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/agent_harness.dart';
+import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
 import 'package:novelai_harness/core/harness/providers/llm_provider.dart';
 import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
@@ -83,6 +84,9 @@ void main() {
     final registry = ToolRegistry()..register(tool);
     final harness = AgentHarness(
       tools: registry,
+      initialPreset: BuiltinPresets.v5Architect.copyWith(
+        enabledToolNames: ['blocked'],
+      ),
       provider: _Provider(
         () => Stream.value(
           ToolCallEvent(ToolCall(id: 'call', name: 'blocked', arguments: {})),
@@ -90,7 +94,7 @@ void main() {
       ),
     );
     final finished = harness.send('tool').drain<void>();
-    await tool.started.future;
+    await tool.started.future.timeout(const Duration(seconds: 2));
     harness.abort();
     await finished.timeout(const Duration(seconds: 1));
     expect(harness.messages.last.role, AgentRole.tool);
