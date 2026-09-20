@@ -1,0 +1,50 @@
+/// Structured validation failures; the legacy message stays available to tools.
+enum SkillFormatError {
+  packageTooLarge,
+  instructionsTooLarge,
+  fileType,
+  tooManyEntries,
+  specialFile,
+  duplicatePath,
+  sizeLimit,
+  encrypted,
+  missingData,
+  compression,
+  checksum,
+  invalidZip,
+  directory,
+  linkFile,
+  pathEscape,
+  packageLimit,
+  specialEntry,
+  oneEntry,
+  invalidId,
+  description,
+  duplicateFile,
+  fileLimit,
+  treeConflict,
+  relativePath,
+  pathDepth,
+  unsafePath,
+  storageId,
+  missingPackage,
+  missingResource,
+  readLink,
+  resourceEscape,
+  readSize,
+  unpackedSize,
+  yamlDelimiter,
+  yamlInvalid,
+  yamlMapping,
+  yamlDepth,
+  yamlKeys,
+  yamlValue,
+  yamlString,
+  yamlBoolean,
+}
+
+class SkillFormatException extends FormatException {
+  final SkillFormatError code;
+  final String detail;
+  const SkillFormatException(this.code, super.message, {this.detail = ''});
+}

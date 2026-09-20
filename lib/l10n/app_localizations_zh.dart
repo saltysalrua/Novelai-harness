@@ -222,7 +222,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsLanguage => '语言';
 
   @override
-  String get settingsLanguageSubtitle => '切换界面显示语言；现阶段设置页优先接入，其余界面将分模块逐步迁移';
+  String get settingsLanguageSubtitle => '切换软件界面语言；技能正文、提示词和用户内容保持原样。';
 
   @override
   String get localeSystem => '跟随系统';
@@ -237,11 +237,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsUiZoom => '界面缩放';
 
   @override
-  String get settingsUiZoomSubtitle =>
-      '整体缩放工作台界面；快捷键 Ctrl + = / Ctrl + - 步进，Ctrl + 0 重置';
+  String settingsUiZoomSubtitle(String modifier) {
+    return '整体缩放工作台界面；快捷键 $modifier + = / $modifier + - 步进，$modifier + 0 重置';
+  }
 
   @override
-  String get settingsSectionNovelaiService => 'NovelAI Service';
+  String get settingsSectionNovelaiService => 'NovelAI 服务';
 
   @override
   String get settingsApiKeyTitle => 'NovelAI API Key';
@@ -379,7 +380,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsSectionTagAutocomplete => 'Danbooru Tag Autocomplete';
+  String get settingsSectionTagAutocomplete => 'Danbooru 标签补全';
 
   @override
   String get settingsTagAutocompleteTitle => '标签智能自动补全';
@@ -533,13 +534,13 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsSectionProviderSelection => 'Provider Selection';
+  String get settingsSectionProviderSelection => '服务商选择';
 
   @override
-  String get settingsSectionProviderProfile => 'Provider Profile & Endpoint';
+  String get settingsSectionProviderProfile => '服务商信息与接口';
 
   @override
-  String get settingsSectionModels => 'Models';
+  String get settingsSectionModels => '模型列表';
 
   @override
   String get settingsSectionImageEdit => 'AI 整图编辑';
@@ -660,19 +661,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsBadgeCustom => '自定义';
 
   @override
-  String get settingsSectionPresetSelection => 'Preset Selection';
+  String get settingsSectionPresetSelection => '预设选择';
 
   @override
-  String get settingsSectionPresetProfile => 'Preset Profile & System Prompt';
+  String get settingsSectionPresetProfile => '预设信息与系统提示词';
 
   @override
-  String get settingsSectionAvailableSkills => 'Available Skills';
+  String get settingsSectionAvailableSkills => '可用技能';
 
   @override
-  String get settingsSectionEnabledTools => 'Enabled Tools';
+  String get settingsSectionEnabledTools => '启用的工具';
 
   @override
-  String get settingsSectionModifiableParams => 'Modifiable Parameters';
+  String get settingsSectionModifiableParams => '可修改的参数';
 
   @override
   String get presetCurrentPreset => '当前预设';
@@ -985,7 +986,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsSubtitleBill => '按周期统计各模型的 Token 用量账单，数据来自本地增量账本。';
 
   @override
-  String get settingsSectionModelAndSampler => 'Model & Sampler';
+  String get settingsSectionModelAndSampler => '模型与采样器';
 
   @override
   String get settingsDefaultModelTitle => '默认生图模型';
@@ -1006,7 +1007,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsDefaultNoiseScheduleSubtitle => '采样降噪过程中的时间步长调度算法';
 
   @override
-  String get settingsSectionDefaultStepsAndScale => 'Default Steps & Scale';
+  String get settingsSectionDefaultStepsAndScale => '默认步数与引导强度';
 
   @override
   String get settingsDefaultStepsTitle => '默认步数 (Steps)';
@@ -1023,7 +1024,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsSectionAgentLoop => 'Agent Loop';
+  String get settingsSectionAgentLoop => '助手循环';
 
   @override
   String get settingsAgentMaxTurnsTitle => 'Agent 最大工具轮数';
@@ -1032,7 +1033,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsAgentMaxTurnsSubtitle => '单次对话允许的工具链式调用轮数，达到后自动收尾总结';
 
   @override
-  String get settingsSectionUsageBill => 'Usage Bill';
+  String get settingsSectionUsageBill => '用量账单';
 
   @override
   String get billPeriodToday => '今天';
@@ -1088,16 +1089,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get paramsSectionModel => '模型';
 
   @override
-  String get paramsSteps => 'Steps';
+  String get paramsSteps => '步数';
 
   @override
-  String get paramsPromptGuidance => 'Prompt Guidance';
+  String get paramsPromptGuidance => '提示词引导强度';
 
   @override
-  String get paramsSectionSeed => 'Seed';
+  String get paramsSectionSeed => '种子';
 
   @override
-  String get paramsSeedHint => 'Enter a seed';
+  String get paramsSeedHint => '输入种子';
 
   @override
   String paramsSeedTooltip(String mode, String timing) {
@@ -1120,7 +1121,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get paramsSeedTimingAfter => '生成后';
 
   @override
-  String get paramsSectionSampler => 'Sampler';
+  String get paramsSectionSampler => '采样器';
 
   @override
   String get paramsSeedModeGroup => '种子模式';
@@ -1153,13 +1154,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get paramsSeedResetRandom => '清空重置为随机 (-1)';
 
   @override
-  String get paramsSectionAdvanced => 'Advanced Settings';
+  String get paramsSectionAdvanced => '高级设置';
 
   @override
-  String get paramsPromptGuidanceRescale => 'Prompt Guidance Rescale';
+  String get paramsPromptGuidanceRescale => '提示词引导重缩放';
 
   @override
-  String get paramsSectionNoiseSchedule => 'Noise Schedule';
+  String get paramsSectionNoiseSchedule => '噪声调度';
 
   @override
   String get paramsStripMetadata => '删除元数据';
@@ -1183,20 +1184,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get resolutionTitle => '分辨率';
 
   @override
-  String get resolutionOrientationLandscape => 'Landscape';
+  String get resolutionOrientationLandscape => '横向';
 
   @override
-  String get resolutionOrientationPortrait => 'Portrait';
+  String get resolutionOrientationPortrait => '纵向';
 
   @override
-  String get resolutionOrientationSquare => 'Square';
+  String get resolutionOrientationSquare => '正方形';
 
   @override
   String get resolutionOrientationSquareDisabled =>
       'Square (Wallpaper 暂无 1:1 比例)';
 
   @override
-  String get resolutionSwapTooltip => 'Swap';
+  String get resolutionSwapTooltip => '交换宽高';
 
   @override
   String watermarkPickImageFailed(String error) {
@@ -1460,7 +1461,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get affixResizeSuffixTooltip => '拖动调整后缀词高度 (双击重置)';
 
   @override
-  String get annotHistoryTitle => 'History ';
+  String get annotHistoryTitle => '历史记录 ';
 
   @override
   String get annotHistoryEmpty => '无图片';
@@ -2026,7 +2027,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get boardToolAddImage => '+ 参考图';
 
   @override
-  String get boardToolPasteImage => '粘贴图 (Ctrl+V)';
+  String boardToolPasteImage(String shortcut) {
+    return '粘贴图 ($shortcut)';
+  }
 
   @override
   String get boardToolResetView => '适应视口';
@@ -2391,22 +2394,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatThinkingLabel => '思考:';
 
   @override
-  String get chatThinkingEffortNone => 'None';
+  String get chatThinkingEffortNone => '无';
 
   @override
-  String get chatThinkingEffortLow => 'Low';
+  String get chatThinkingEffortLow => '低';
 
   @override
-  String get chatThinkingEffortMedium => 'Medium';
+  String get chatThinkingEffortMedium => '中';
 
   @override
-  String get chatThinkingEffortHigh => 'High';
+  String get chatThinkingEffortHigh => '高';
 
   @override
-  String get chatThinkingEffortXHigh => 'XHigh';
+  String get chatThinkingEffortXHigh => '超高';
 
   @override
-  String get chatThinkingEffortMax => 'Max';
+  String get chatThinkingEffortMax => '最高';
 
   @override
   String get chatSessionUsageEmpty => '当前会话暂无 Token 用量记录';
@@ -2749,6 +2752,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String vmChatError(String error) {
     return '对话异常: $error';
   }
+
+  @override
+  String get vmChatProviderNotConfigured => '未配置 LLM 提供商，请在设置中添加提供商和 API Key。';
+
+  @override
+  String get vmChatApiKeyMissing => '当前 LLM 提供商未填写 API Key，请在设置中添加。';
+
+  @override
+  String get vmChatContextWindowInsufficient =>
+      '压缩后上下文仍超过模型的安全窗口。请释放旧回复、手动压缩，或切换到更大上下文窗口的模型。';
+
+  @override
+  String get vmChatModelRequestFailed => '模型请求失败。请检查提供商和模型设置后重试。';
 
   @override
   String get vmChatForceAborted => '已强制终止当前生成';
@@ -3304,4 +3320,322 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bootRetry => '重试';
+
+  @override
+  String get settingsSectionContextManagement => '上下文管理';
+
+  @override
+  String get settingsAutoCompaction => '自动压缩';
+
+  @override
+  String get settingsAutoCompactionHint => '保留近期消息，将更早内容转换为摘要；原始历史不删除。';
+
+  @override
+  String get settingsBackgroundCompaction => '后台异步压缩';
+
+  @override
+  String get settingsBackgroundCompactionHint => '安全窗口使用到 70% 时提前压缩；到达上限才等待。';
+
+  @override
+  String get settingsCompactionProvider => '压缩供应商';
+
+  @override
+  String get settingsCompactionProviderHint =>
+      '未选择独立模型或配置不可用时使用主模型。压缩请求单独计入账单。';
+
+  @override
+  String get settingsCompactionModel => '压缩模型';
+
+  @override
+  String get settingsFollowMainModel => '跟随主模型';
+
+  @override
+  String get commonSearchHint => '搜索…';
+
+  @override
+  String get commonClearInput => '清空输入';
+
+  @override
+  String get commonCopied => '已复制';
+
+  @override
+  String get commonClickToCopy => '点击复制';
+
+  @override
+  String get commonRequiredInput => '内容不能为空';
+
+  @override
+  String get commonInputHint => '请输入内容…';
+
+  @override
+  String get commonDropImage => '松开鼠标导入图片';
+
+  @override
+  String get commonUnrecognizedOption => '未识别';
+
+  @override
+  String get commonResizeWidth => '左右拖动调整宽度（双击重置）';
+
+  @override
+  String get inpaintSelectionLabel => '修复选区';
+
+  @override
+  String get promptsTransparentBackground => '透明背景';
+
+  @override
+  String get promptsQualityTags => '质量词';
+
+  @override
+  String get skillFileUnreadable => '无法读取所选文件。';
+
+  @override
+  String get promptsPositiveTitle => '正向提示词';
+
+  @override
+  String get promptsNegativeTitle => '负向提示词';
+
+  @override
+  String get promptsPrefixBadge => '前缀';
+
+  @override
+  String get promptsSuffixBadge => '后缀';
+
+  @override
+  String get presetLevelStandard => '标准';
+
+  @override
+  String get presetLevelLight => '轻量';
+
+  @override
+  String get presetLevelHeavy => '强力';
+
+  @override
+  String get presetLevelHuman => '人物';
+
+  @override
+  String get presetLevelNone => '关闭';
+
+  @override
+  String get tagGroupQuality => '画质';
+
+  @override
+  String get tagGroupAesthetic => '美学';
+
+  @override
+  String get tagGroupComplexity => '复杂度';
+
+  @override
+  String get tagGroupYear => '年代';
+
+  @override
+  String get tagGroupDataset => '数据集';
+
+  @override
+  String get tagGroupAlpha => '透明通道';
+
+  @override
+  String get tagGroupRenamed => '改名标签';
+
+  @override
+  String get tagGroupOther => '其他';
+
+  @override
+  String get tagGroupQualityAesthetics => '画质与美学';
+
+  @override
+  String get tagGroupCameraComposition => '镜头与构图';
+
+  @override
+  String get tagGroupLighting => '光影与氛围';
+
+  @override
+  String get tagGroupExpression => '表情与神情';
+
+  @override
+  String get tagGroupHair => '发型与发色';
+
+  @override
+  String get tagGroupClothing => '服饰与装扮';
+
+  @override
+  String get tagGroupPose => '动作与姿势';
+
+  @override
+  String get tagGroupBackground => '背景与场景';
+
+  @override
+  String get presetImportButton => '导入预设';
+
+  @override
+  String get presetExportButton => '导出预设';
+
+  @override
+  String get presetImportInvalidJson => '请选择包含一个预设对象或预设数组的有效 JSON 文件。';
+
+  @override
+  String presetImportInvalidField(String field) {
+    return '预设字段 $field 缺失或格式错误。权限列表必须显式填写，允许为空数组。';
+  }
+
+  @override
+  String presetImportUnknownTool(String field) {
+    return '未识别工具 $field，请先导入对应工具或检查文件。';
+  }
+
+  @override
+  String presetImportUnknownParameter(String field) {
+    return '未识别参数权限 $field，请检查文件。';
+  }
+
+  @override
+  String presetTransferFailed(String error) {
+    return '预设导入或导出失败：$error';
+  }
+
+  @override
+  String presetImportedDraft(int count) {
+    return '已追加 $count 个预设。点击“保存”保留，点击“取消”放弃；当前使用的预设未切换。';
+  }
+
+  @override
+  String get skillErrorPackageTooLarge => '技能包不能超过 32 MiB。';
+
+  @override
+  String get skillErrorInstructionsTooLarge => 'SKILL.md 不能超过 256 KiB。';
+
+  @override
+  String get skillErrorFileType => '请选择 .zip、.skill 或 .md 文件。';
+
+  @override
+  String get skillErrorTooManyEntries => '技能包条目过多。';
+
+  @override
+  String get skillErrorSpecialFile => '技能包不允许链接或特殊文件。';
+
+  @override
+  String skillErrorDuplicatePath(String detail) {
+    return '技能包存在重复路径：$detail';
+  }
+
+  @override
+  String get skillErrorSizeLimit => '技能包超出限制：单文件 8 MiB、总量 32 MiB、512 个文件。';
+
+  @override
+  String get skillErrorEncrypted => '不支持加密或损坏的技能包。';
+
+  @override
+  String get skillErrorMissingData => '技能包文件数据缺失。';
+
+  @override
+  String get skillErrorCompression => '技能包仅支持 ZIP Store / Deflate 压缩。';
+
+  @override
+  String get skillErrorChecksum => '技能包长度或 CRC 校验失败。';
+
+  @override
+  String get skillErrorInvalidZip => '无法读取 ZIP 技能包，请检查文件是否完整。';
+
+  @override
+  String get skillErrorDirectory => '请选择普通技能文件夹，不能选择链接。';
+
+  @override
+  String get skillErrorLinkFile => '技能包不允许链接文件。';
+
+  @override
+  String get skillErrorPathEscape => '技能包路径越界。';
+
+  @override
+  String get skillErrorPackageLimit => '技能包不能超过 32 MiB 或 512 个文件。';
+
+  @override
+  String get skillErrorSpecialEntry => '技能包不允许特殊文件。';
+
+  @override
+  String get skillErrorOneEntry => '请选择包含一个 SKILL.md 的技能目录或压缩包；多个技能请分别导入。';
+
+  @override
+  String get skillErrorInvalidId => '技能标识应为 1–64 位小写字母、数字与连字符，不能以连字符开头或结尾。';
+
+  @override
+  String get skillErrorDescription => '标准技能 description 必须为 1–1024 个字符。';
+
+  @override
+  String skillErrorDuplicateFile(String detail) {
+    return '重复的技能文件：$detail';
+  }
+
+  @override
+  String get skillErrorFileLimit => '技能包超出文件大小或数量限制。';
+
+  @override
+  String get skillErrorTreeConflict => '技能包文件和目录路径冲突。';
+
+  @override
+  String get skillErrorRelativePath => '无效的技能包相对路径。';
+
+  @override
+  String get skillErrorPathDepth => '技能包目录层级过深。';
+
+  @override
+  String skillErrorUnsafePath(String detail) {
+    return '不安全的技能包路径：$detail';
+  }
+
+  @override
+  String get skillErrorStorageId => '无效的技能存储标识。';
+
+  @override
+  String get skillErrorMissingPackage => '技能包文件缺失，请重新导入。';
+
+  @override
+  String get skillErrorMissingResource => '未找到该技能包内的资源。';
+
+  @override
+  String get skillErrorReadLink => '不能读取技能包内的链接。';
+
+  @override
+  String get skillErrorResourceEscape => '技能资源路径越界。';
+
+  @override
+  String get skillErrorReadSize => '文件超过技能包大小限制。';
+
+  @override
+  String get skillErrorUnpackedSize => '解压文件超过大小限制。';
+
+  @override
+  String get skillErrorYamlDelimiter => 'SKILL.md 的 YAML 头缺少结束分隔符。';
+
+  @override
+  String skillErrorYamlInvalid(String detail) {
+    return 'SKILL.md YAML 格式错误：$detail';
+  }
+
+  @override
+  String get skillErrorYamlMapping => 'SKILL.md 的 YAML 头必须是字段映射。';
+
+  @override
+  String get skillErrorYamlDepth => 'SKILL.md YAML 嵌套过深或字段过多。';
+
+  @override
+  String get skillErrorYamlKeys => 'YAML 字段名必须是字符串。';
+
+  @override
+  String get skillErrorYamlValue => '不支持的 YAML 值。';
+
+  @override
+  String skillErrorYamlString(String detail) {
+    return 'SKILL.md 的 $detail 必须是字符串。';
+  }
+
+  @override
+  String get skillErrorYamlBoolean => 'disable-model-invocation 必须是布尔值。';
+
+  @override
+  String get promptsUcPreset => 'UC 预设';
+
+  @override
+  String get referenceImageBadge => '参考图';
+
+  @override
+  String get toolFallbackName => '工具';
 }

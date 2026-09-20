@@ -117,7 +117,7 @@ void main() {
 
     // NovelAI 专属区块隐藏：模型选择 / Sampler 下拉 / 高级选项
     expect(find.text('模型'), findsNothing);
-    expect(find.text('Sampler'), findsNothing);
+    expect(find.text('采样器'), findsNothing);
     // ComfyUI 采样区块：未连接时展示等待提示而非下拉
     expect(find.text('采样器'), findsNothing);
     expect(find.text('调度器'), findsNothing);
@@ -165,7 +165,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('模型'), findsOneWidget);
-    expect(find.text('Sampler'), findsOneWidget);
+    expect(find.text('采样器'), findsOneWidget);
     // 连接状态卡不再展示 (后端切换胶囊仍常驻，ComfyUI 仅作为未选中选项出现)
     expect(find.text('http://127.0.0.1:9'), findsNothing);
     expect(find.textContaining('ComfyUI 未连接'), findsNothing);
@@ -177,9 +177,9 @@ void main() {
     await tester.pumpWidget(buildTestWidget(PromptsPage(viewModel: viewModel)));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Quality Tags'), findsNothing);
-    expect(find.textContaining('UC Preset'), findsNothing);
-    expect(find.textContaining('Transparent BG'), findsNothing);
+    expect(find.textContaining('质量词'), findsNothing);
+    expect(find.textContaining('UC 预设'), findsNothing);
+    expect(find.textContaining('透明背景'), findsNothing);
   });
 
   testWidgets('提示词页 NovelAI 模式：恢复质量词与 UC 预设工具条', (WidgetTester tester) async {
@@ -189,8 +189,8 @@ void main() {
     await tester.pumpWidget(buildTestWidget(PromptsPage(viewModel: viewModel)));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Quality Tags'), findsOneWidget);
-    expect(find.textContaining('UC Preset'), findsOneWidget);
+    expect(find.text('质量词: 标准'), findsOneWidget);
+    expect(find.text('UC 预设: 强力'), findsNWidgets(2));
   });
 
   testWidgets('生成坞 ComfyUI 模式：账号栏换成 Bridge 状态行', (WidgetTester tester) async {

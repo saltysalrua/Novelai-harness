@@ -208,7 +208,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 150));
 
       // 验证顶栏
-      expect(find.textContaining('History'), findsOneWidget);
+      expect(find.textContaining('历史记录'), findsOneWidget);
       expect(find.textContaining('2'), findsOneWidget); // 2 张历史图片
 
       // 验证 Draggable 缩略图存在

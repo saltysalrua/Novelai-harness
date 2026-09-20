@@ -31,7 +31,11 @@ ZIP 可用 `ditto -c -k --sequesterRsrc --keepParent` 打包 `.app`，解压后�
 
 ## 验证边界
 
-当前 Flutter 辅助功能桥接崩溃规避使用 `ExcludeSemantics`，应用内容不能由 VoiceOver 读取，原生窗口按钮仍可用。该规避是明确的功能限制，需要继续缩小或消除；构建成功不代表无障碍支持完成。
+本分支恢复 macOS 应用根节点和工作台的辅助功能语义，保留其他平台既有的屏蔽行为。侧栏提供按钮角色和选中状态；通用图标按钮以已有的本地化提示作为名称，并报告禁用/忙碌状态。鼠标提示仍然保留，避免仅依赖 tooltip 作为读屏名称。
+
+这是独立的 VoiceOver 验证候选，不能据此宣称完整支持或 Flutter 引擎崩溃已根治。此前本机在 `AccessibilityBridge::CreateRemoveReparentedNodesUpdate` 出现过崩溃；[Flutter #175041](https://github.com/flutter/flutter/issues/175041) 的原生语义树初始化问题和 [#182444](https://github.com/flutter/flutter/issues/182444) 的浮层问题仍需关注。不要通过预先持有 `ensureSemantics()`、修改共享 SDK 或添加固定延时来假定问题已解决。
+
+专项测试检查 macOS 工作台可达性、辅助功能点击切页、图标按钮名称与禁用状态，以及浮层、取消和中英文/100%/125% 保存过程中的语义树连通性。Dart 侧语义更新检查不执行 macOS 原生桥接，不能替代真机读屏。原生验收还需检查 VoiceOver 启动前后打开应用、首次访问与长时间操作、焦点和朗读顺序、输入框名称与内容编辑。目前部分输入框、设置标签和非通用操作控件仍需补充可访问性。
 
 键盘回归使用 Flutter 平台通道和模拟事件，覆盖组合区间、换行、Unicode 及选区替换。实体拼音输入法、Command+V 和 Shift+Enter 仍须在原生应用中检查，不能用自动化工具注入失败或模拟测试通过代替结论。原生验收还应覆盖语言保存/取消、100%/125% 缩放、文件选择器导入导出及退出重开。
 

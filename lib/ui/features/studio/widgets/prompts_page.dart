@@ -156,7 +156,10 @@ class _PromptsPageState extends State<PromptsPage> {
     final hasPrefix =
         params.applyFixedPrompts &&
         (params.prefixPrompt?.trim().isNotEmpty ?? false);
-    return [if (hasPrefix) GrayTag('PREFIX', params.prefixPrompt!.trim())];
+    return [
+      if (hasPrefix)
+        GrayTag(context.l10n.promptsPrefixBadge, params.prefixPrompt!.trim()),
+    ];
   }
 
   List<GrayTag> _promptFooterTags(NaiGenerationParams params) {
@@ -167,11 +170,16 @@ class _PromptsPageState extends State<PromptsPage> {
         ? ''
         : NovelAiQualityTagsHelper.getQualityTags(params.model, _qualityPreset);
     return [
-      if (hasSuffix) GrayTag('SUFFIX', params.suffixPrompt!.trim()),
-      if (qualityTags.isNotEmpty) GrayTag('QUALITY', qualityTags),
+      if (hasSuffix)
+        GrayTag(context.l10n.promptsSuffixBadge, params.suffixPrompt!.trim()),
+      if (qualityTags.isNotEmpty)
+        GrayTag(context.l10n.promptsQualityTags, qualityTags),
       // 透明背景为 NovelAI 专属标签，ComfyUI 模式不拼接也不展示
       if (params.transparentBg && !viewModelIsComfyUi)
-        const GrayTag('BG', 'transparent background'),
+        GrayTag(
+          context.l10n.promptsTransparentBackground,
+          'transparent background',
+        ),
     ];
   }
 
@@ -183,7 +191,10 @@ class _PromptsPageState extends State<PromptsPage> {
     );
     return [
       if (ucPresetStr.isNotEmpty)
-        GrayTag('UC: ${params.ucPresetKey.toUpperCase()}', ucPresetStr),
+        GrayTag(
+          '${context.l10n.promptsUcPreset}: ${_presetLabel(params.ucPresetKey)}',
+          ucPresetStr,
+        ),
     ];
   }
 
@@ -191,29 +202,37 @@ class _PromptsPageState extends State<PromptsPage> {
   /// ComfyUI 模式下质量预设与透明背景均不生效，不渲染工具条
   Widget? _promptToolbar(NaiGenerationParams params) {
     if (viewModelIsComfyUi) return null;
-    return Row(
-      children: [
-        if (params.model.isV5) ...[
-          AppToolChip(
-            isSelected: params.transparentBg,
-            icon: params.transparentBg
-                ? Icons.check_rounded
-                : Icons.close_rounded,
-            label: 'Transparent BG',
-            onTap: _toggleTransparentBg,
-          ),
-          const SizedBox(width: 8),
-        ],
-        Expanded(
-          child: AppDropdown<String>.simple(
-            value: _currentQualityPreset(params),
-            items: NovelAiQualityTagsHelper.getAvailablePresets(params.model),
-            labelOf: (p) => 'Quality Tags: $p',
-            variant: AppDropdownVariant.pill,
-            onChanged: _applyQualityPreset,
-          ),
-        ),
-      ],
+    final quality = AppDropdown<String>.simple(
+      value: _currentQualityPreset(params),
+      items: NovelAiQualityTagsHelper.getAvailablePresets(params.model),
+      labelOf: (p) => '${context.l10n.promptsQualityTags}: ${_presetLabel(p)}',
+      variant: AppDropdownVariant.pill,
+      onChanged: _applyQualityPreset,
+    );
+    if (!params.model.isV5) return quality;
+    final transparent = AppToolChip(
+      isSelected: params.transparentBg,
+      icon: params.transparentBg ? Icons.check_rounded : Icons.close_rounded,
+      label: context.l10n.promptsTransparentBackground,
+      onTap: _toggleTransparentBg,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.maxWidth < 420
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(alignment: Alignment.centerLeft, child: transparent),
+                const SizedBox(height: 4),
+                quality,
+              ],
+            )
+          : Row(
+              children: [
+                Flexible(child: transparent),
+                const SizedBox(width: 8),
+                Expanded(child: quality),
+              ],
+            ),
     );
   }
 
@@ -228,7 +247,8 @@ class _PromptsPageState extends State<PromptsPage> {
           child: AppDropdown<String>.simple(
             value: presets.contains(_ucPreset) ? _ucPreset : presets.first,
             items: presets,
-            labelOf: (p) => 'UC Preset: $p',
+            labelOf: (p) =>
+                '${context.l10n.promptsUcPreset}: ${_presetLabel(p)}',
             variant: AppDropdownVariant.pill,
             onChanged: _applyUcPreset,
           ),
@@ -236,6 +256,15 @@ class _PromptsPageState extends State<PromptsPage> {
       ],
     );
   }
+
+  String _presetLabel(String preset) => switch (preset.toLowerCase()) {
+    'standard' => context.l10n.presetLevelStandard,
+    'light' => context.l10n.presetLevelLight,
+    'heavy' => context.l10n.presetLevelHeavy,
+    'human' || 'human focus' => context.l10n.presetLevelHuman,
+    'none' || 'off' => context.l10n.presetLevelNone,
+    _ => preset,
+  };
 
   String _currentQualityPreset(NaiGenerationParams params) {
     final presets = NovelAiQualityTagsHelper.getAvailablePresets(params.model);
@@ -295,7 +324,7 @@ class _PromptsPageState extends State<PromptsPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const SectionHeader('Prompt'),
+            Expanded(child: SectionHeader(l10n.promptsPositiveTitle)),
             if (params.prompt.trim().isNotEmpty)
               ClearTextLink(
                 onTap: () {
@@ -329,7 +358,7 @@ class _PromptsPageState extends State<PromptsPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const SectionHeader('Undesired Content'),
+            Expanded(child: SectionHeader(l10n.promptsNegativeTitle)),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -394,20 +423,26 @@ class _PromptsPageState extends State<PromptsPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            AppSegmentedPillBar<String>(
-              items: const [
-                AppSegmentedItem(value: 'prompt', label: 'Prompt'),
-                AppSegmentedItem(
-                  value: 'undesired',
-                  label: 'Undesired Content',
-                ),
-              ],
-              selectedValue: isPromptTab ? 'prompt' : 'undesired',
-              onValueChanged: (v) {
-                final tab = v == 'prompt' ? 0 : 1;
-                setState(() => _activeTab = tab);
-                viewModel.setPromptActiveTab(tab);
-              },
+            Expanded(
+              child: AppSegmentedPillBar<String>(
+                scrollable: true,
+                items: [
+                  AppSegmentedItem(
+                    value: 'prompt',
+                    label: l10n.promptsPositiveTitle,
+                  ),
+                  AppSegmentedItem(
+                    value: 'undesired',
+                    label: l10n.promptsNegativeTitle,
+                  ),
+                ],
+                selectedValue: isPromptTab ? 'prompt' : 'undesired',
+                onValueChanged: (v) {
+                  final tab = v == 'prompt' ? 0 : 1;
+                  setState(() => _activeTab = tab);
+                  viewModel.setPromptActiveTab(tab);
+                },
+              ),
             ),
             Row(
               mainAxisSize: MainAxisSize.min,

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../context_l10n.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
@@ -188,7 +189,11 @@ class _AppKeyValueRowState extends State<AppKeyValueRow> {
 
     final effectiveTooltip =
         widget.tooltip ??
-        (widget.copyable ? (_isCopied ? '已复制' : '点击复制') : null);
+        (widget.copyable
+            ? (_isCopied
+                  ? (context.maybeL10n?.commonCopied ?? '已复制')
+                  : (context.maybeL10n?.commonClickToCopy ?? '点击复制'))
+            : null);
 
     if (effectiveTooltip != null) {
       row = Tooltip(message: effectiveTooltip, child: row);

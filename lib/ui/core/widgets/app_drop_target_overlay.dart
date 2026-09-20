@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -19,7 +20,7 @@ class AppDropTargetOverlay extends StatelessWidget {
   final IconData icon;
 
   /// 主标题提示文案，默认 '松开鼠标导入图片'
-  final String title;
+  final String? title;
 
   /// 副标题辅助文案 (可选，如 '自动识别生成元数据')
   final String? subtitle;
@@ -40,7 +41,7 @@ class AppDropTargetOverlay extends StatelessWidget {
     super.key,
     required this.isDragging,
     this.icon = Icons.file_download_outlined,
-    this.title = '松开鼠标导入图片',
+    this.title,
     this.subtitle,
     this.backgroundColor,
     this.borderColor,
@@ -83,7 +84,7 @@ class AppDropTargetOverlay extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      title ?? context.maybeL10n?.commonDropImage ?? '松开鼠标导入图片',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,

@@ -35,7 +35,11 @@ void main() {
       // 3. 找到添加角色三预设按钮并添加两个角色
       final addBtn = find.text('女');
       expect(addBtn, findsOneWidget);
+      await tester.ensureVisible(addBtn);
+      await tester.pumpAndSettle();
       await tester.tap(addBtn);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(addBtn);
       await tester.pumpAndSettle();
       await tester.tap(addBtn);
       await tester.pumpAndSettle();
@@ -43,13 +47,11 @@ void main() {
       // 验证添加了 2 个角色卡片
       expect(find.byType(CharacterCardItem), findsNWidgets(2));
 
-      // 向上滑动以确保模式行完全在视口内
-      await tester.drag(find.text('多角色提示词'), const Offset(0, -100));
-      await tester.pumpAndSettle();
-
       // 4. 点击模式行中的“画板编辑”胶囊按钮进入位置编辑
       final canvasEditBtn = find.text('画板编辑');
       expect(canvasEditBtn, findsOneWidget);
+      await tester.ensureVisible(canvasEditBtn);
+      await tester.pumpAndSettle();
       await tester.tap(canvasEditBtn);
       await tester.pumpAndSettle();
 

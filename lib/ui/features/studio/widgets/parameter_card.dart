@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/app_page_stack.dart';
 import '../view_models/studio_view_model.dart';
@@ -30,6 +31,9 @@ class ParameterCard extends StatelessWidget {
     };
 
     return ExcludeSemantics(
+      // The root is not the only exclusion: expose the active workstation
+      // page to macOS assistive technology as well.
+      excluding: kIsWeb || defaultTargetPlatform != TargetPlatform.macOS,
       child: Card(
         margin: EdgeInsets.zero,
         child: Column(

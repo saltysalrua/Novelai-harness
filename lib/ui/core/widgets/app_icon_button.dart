@@ -189,9 +189,20 @@ class _AppIconButtonState extends State<AppIconButton> {
     }
 
     if (widget.tooltip != null && widget.tooltip!.isNotEmpty) {
-      button = Tooltip(message: widget.tooltip!, child: button);
+      button = Tooltip(
+        message: widget.tooltip!,
+        excludeFromSemantics: true,
+        child: button,
+      );
     }
 
-    return button;
+    // A tooltip alone is help text on macOS, not the button's accessible name.
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: isInteractive,
+      label: widget.tooltip,
+      child: button,
+    );
   }
 }

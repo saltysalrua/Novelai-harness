@@ -226,9 +226,19 @@ class _AppAsyncIconButtonState extends State<AppAsyncIconButton> {
         : widget.tooltip;
 
     if (currentTooltip != null && currentTooltip.isNotEmpty) {
-      button = Tooltip(message: currentTooltip, child: button);
+      button = Tooltip(
+        message: currentTooltip,
+        excludeFromSemantics: true,
+        child: button,
+      );
     }
 
-    return button;
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: isInteractive,
+      label: currentTooltip,
+      child: button,
+    );
   }
 }

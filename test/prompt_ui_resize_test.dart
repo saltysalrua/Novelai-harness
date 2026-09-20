@@ -279,8 +279,8 @@ void main() {
         await tester.tap(find.text('固定词缀'));
         await tester.pumpAndSettle();
 
-        expect(find.text('PREFIX'), findsOneWidget);
-        expect(find.text('SUFFIX'), findsOneWidget);
+        expect(find.text('前缀'), findsOneWidget);
+        expect(find.text('后缀'), findsOneWidget);
         expect(find.text('0.7::artist::'), findsOneWidget);
 
         // 点击切回 Character Prompts (多角色提示词) 标签
@@ -298,7 +298,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('PREFIX'), findsOneWidget);
+        expect(find.text('前缀'), findsOneWidget);
 
         // 通过左右手势滑动切回 Character Prompts
         await tester.dragFrom(
@@ -357,7 +357,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('银发少女'), findsOneWidget);
-        expect(find.text('PREFIX'), findsNothing);
+        expect(find.text('前缀'), findsNothing);
 
         // 从分段栏空白处滑动仍可正常切页
         final swipeDetector = find.byKey(const ValueKey('deck_swipe_detector'));
@@ -368,7 +368,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('PREFIX'), findsOneWidget);
+        expect(find.text('前缀'), findsOneWidget);
       },
     );
   });

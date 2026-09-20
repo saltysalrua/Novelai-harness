@@ -68,6 +68,19 @@ class _ProtocolEchoTool extends AgentTool {
 }
 
 void main() {
+  test('空 API Key 使用可本地化的应用内置错误代码', () async {
+    final provider = OpenAiCompatibleProvider(
+      baseUrl: 'https://api.test/v1',
+      apiKey: '   ',
+      model: 'test-model',
+    );
+
+    final events = await provider.streamChat(messages: [], tools: []).toList();
+
+    final error = events.whereType<ErrorEvent>().single;
+    expect(error.code, HarnessErrorCode.apiKeyMissing);
+  });
+
   group('思考流字段解析', () {
     test('OpenRouter reasoning 字段解析为思考流', () async {
       final provider = _provider(

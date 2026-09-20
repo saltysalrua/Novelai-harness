@@ -308,7 +308,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
             child: Text(
-              'SETTINGS',
+              l10n.settings,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,

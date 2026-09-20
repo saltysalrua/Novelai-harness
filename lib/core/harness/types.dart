@@ -443,14 +443,27 @@ class TurnEndEvent extends HarnessEvent {
   TurnEndEvent(this.finalMessage);
 }
 
+/// 应用自身能稳定识别、由 UI 负责本地化的 Harness 错误。
+///
+/// 外部供应商错误不设 code，以保留其原始详情和协议原文。
+enum HarnessErrorCode {
+  providerNotConfigured,
+  apiKeyMissing,
+  contextWindowInsufficient,
+  modelRequestFailed,
+}
+
 class ErrorEvent extends HarnessEvent {
   final String error;
+
+  /// 可本地化的应用内置错误；null 表示 [error] 应原样展示。
+  final HarnessErrorCode? code;
 
   /// 是否为瞬态错误 (网络抖动 / 429 / 5xx / 流中断 / 空响应)。
   /// true 时 Harness 会指数退避自动重试，false 则直接终止本轮对话。
   final bool transient;
 
-  const ErrorEvent(this.error, {this.transient = false});
+  const ErrorEvent(this.error, {this.transient = false, this.code});
 }
 
 /// 一轮流式请求失败后的自动重试通知 (退避等待前发出)

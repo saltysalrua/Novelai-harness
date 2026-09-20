@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -19,7 +20,7 @@ class AppSearchField extends StatefulWidget {
   final TextEditingController? controller;
 
   /// 占位引导文案
-  final String hintText;
+  final String? hintText;
 
   /// 搜索输入变化回调 (支持防抖)
   final ValueChanged<String>? onChanged;
@@ -51,7 +52,7 @@ class AppSearchField extends StatefulWidget {
   const AppSearchField({
     super.key,
     this.controller,
-    this.hintText = '搜索...',
+    this.hintText,
     this.onChanged,
     this.onSubmitted,
     this.onClear,
@@ -149,7 +150,8 @@ class _AppSearchFieldState extends State<AppSearchField> {
         style: TextStyle(fontSize: widget.fontSize, color: colors.textPrimary),
         textAlignVertical: TextAlignVertical.center,
         decoration: InputDecoration(
-          hintText: widget.hintText,
+          hintText:
+              widget.hintText ?? context.maybeL10n?.commonSearchHint ?? '搜索…',
           hintStyle: TextStyle(
             fontSize: widget.fontSize,
             color: colors.textMuted,
@@ -184,7 +186,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
                   ),
                   splashRadius: 14,
                   color: colors.textSecondary,
-                  tooltip: '清空输入',
+                  tooltip: context.maybeL10n?.commonClearInput ?? '清空输入',
                   onPressed: _handleClear,
                 )
               : null,

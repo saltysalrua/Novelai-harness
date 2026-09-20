@@ -118,12 +118,14 @@ class _AppToolChipState extends State<AppToolChip> {
             Icon(widget.icon, size: widget.iconSize, color: fgColor),
             const SizedBox(width: 4),
           ],
-          Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: widget.fontSize,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              color: fgColor,
+          Flexible(
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: widget.fontSize,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: fgColor,
+              ),
             ),
           ),
         ],

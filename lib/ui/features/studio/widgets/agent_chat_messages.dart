@@ -273,7 +273,7 @@ class ToolResultBlock extends StatelessWidget {
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
-                    message.toolName ?? 'tool',
+                    message.toolName ?? context.l10n.toolFallbackName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

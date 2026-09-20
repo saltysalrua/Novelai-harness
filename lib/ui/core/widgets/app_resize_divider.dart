@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -69,7 +70,9 @@ class _AppResizeDividerState extends State<AppResizeDivider> {
     final colors = context.colors;
     final isVertical = widget.axis == Axis.vertical;
 
-    final defaultTooltip = isVertical ? '上下拖动调节高度 (双击重置)' : '左右拖动调整宽度 (双击重置)';
+    final defaultTooltip = isVertical
+        ? (context.maybeL10n?.promptResizeTooltip ?? '上下拖动调节高度 (双击重置)')
+        : (context.maybeL10n?.commonResizeWidth ?? '左右拖动调整宽度 (双击重置)');
 
     final cursor = isVertical
         ? SystemMouseCursors.resizeUpDown

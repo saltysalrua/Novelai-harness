@@ -18,12 +18,28 @@ class TagCategoryPill extends StatelessWidget {
     this.fontSize = 10,
   });
 
+  String _customLabel(BuildContext context, String label) {
+    final l10n = context.maybeL10n;
+    if (l10n == null) return label;
+    return switch (label) {
+      'NAI·画质' => 'NAI·${l10n.tagGroupQuality}',
+      'NAI·美学' => 'NAI·${l10n.tagGroupAesthetic}',
+      'NAI·复杂度' => 'NAI·${l10n.tagGroupComplexity}',
+      'NAI·年代' => 'NAI·${l10n.tagGroupYear}',
+      'NAI·数据集' => 'NAI·${l10n.tagGroupDataset}',
+      'NAI·透明通道' => 'NAI·${l10n.tagGroupAlpha}',
+      'NAI·改名标签' => 'NAI·${l10n.tagGroupRenamed}',
+      'NAI·其他' => 'NAI·${l10n.tagGroupOther}',
+      _ => label,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     // 分类展示文案：l10n 可用时走 UI 扩展层映射，否则回退数据域 zh label
     final l10n = context.maybeL10n;
     final label =
-        customLabel ??
+        (customLabel == null ? null : _customLabel(context, customLabel!)) ??
         (l10n != null ? tagCategoryLabelOf(l10n, category) : category.label);
     // 分类色统一事实源：context.tagCategoryColor (亮暗自适应)，
     // 数据模型固定色字段已在阶段 4C 删除
