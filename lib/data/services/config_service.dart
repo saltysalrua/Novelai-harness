@@ -945,137 +945,123 @@ class ConfigService {
     );
   }
 
-  /// 保存配置
-  Future<void> saveConfig(AppConfig config) async {
+  // 多个配置快照按调用顺序提交，避免交错写入混合的新旧配置。
+  Future<void> _configWriteQueue = Future<void>.value();
+  final _unconfirmedPreferenceKeys = <String>{};
+
+  /// 仅保存变化的字段；Windows 每个 setter 都会重写整个偏好文件。
+  /// 保持现有 keys，避免关闭窗口时重复写入几十次大型 Skills/预设 JSON。
+  Future<void> saveConfig(AppConfig config) {
+    final task = _configWriteQueue
+        .catchError((Object _) {})
+        .then((_) => _saveConfig(config));
+    _configWriteQueue = task;
+    return task;
+  }
+
+  Future<void> _saveConfig(AppConfig config) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyNovelAiKey, config.novelAiKey);
-    await prefs.setString(_keyAnySearchApiKey, config.anySearchApiKey);
-    await prefs.setString(_keyModel, config.defaultModel.id);
-    await prefs.setString(_keySampler, config.defaultSampler.id);
-    await prefs.setString(_keyNoiseSchedule, config.defaultNoiseSchedule.id);
-    await prefs.setString(_keyResolution, config.defaultResolution.key);
-    await prefs.setInt(_keyCustomWidth, config.customWidth);
-    await prefs.setInt(_keyCustomHeight, config.customHeight);
-    await prefs.setInt(_keySteps, config.defaultSteps);
-    await prefs.setDouble(_keyScale, config.defaultScale);
-    await prefs.setDouble(_keyCfgRescale, config.defaultCfgRescale);
-    await prefs.setBool(_keyOpusFreeMode, config.opusFreeMode);
-    await prefs.setString(
-      _keyThemeMode,
-      themeModePreferenceStorage(config.themeMode),
-    );
-    await prefs.setString(_keyAccentMode, accentModeStorage(config.accentMode));
-    await prefs.setString(
-      _keyAccentVariant,
-      accentVariantStorage(config.accentVariant),
-    );
-    if (config.accentSeedColor == null) {
-      await prefs.remove(_keyAccentSeedColor);
-    } else {
-      await prefs.setString(_keyAccentSeedColor, config.accentSeedColor!);
-    }
-    await prefs.setString(
-      _keyLocalePreference,
-      localePreferenceStorage(config.localePreference),
-    );
-    await prefs.setDouble(_keyUiZoom, clampUiZoom(config.uiZoom));
-    await prefs.setBool(_keyEnableStreamPreview, config.enableStreamPreview);
-    await prefs.setBool(
-      _keyEnableTagAutocomplete,
-      config.enableTagAutocomplete,
-    );
-    await prefs.setBool(_keyShowTagTranslations, config.showTagTranslations);
-    await prefs.setBool(
-      _keyShowTagCategoryColors,
-      config.showTagCategoryColors,
-    );
-    await prefs.setBool(
-      _keyEnableTagDictAutoUpdate,
-      config.enableTagDictionaryAutoUpdate,
-    );
-    await prefs.setBool(
-      _keyEnableImagePersistence,
-      config.enableImagePersistence,
-    );
-    await prefs.setInt(_keyMaxPersistentImages, config.maxPersistentImages);
-    await prefs.setBool(_keyAutoSaveImages, config.autoSaveImages);
-    await prefs.setBool(_keyAndroidGalleryExport, config.androidGalleryExport);
-    await prefs.setString(
-      _keyAndroidExportTreeUri,
-      config.androidExportTreeUri,
-    );
-    await prefs.setString(_keyPrefix, config.prefixPrompt);
-    await prefs.setString(_keySuffix, config.suffixPrompt);
-    await prefs.setString(_keyNegative, config.negativePrompt);
-    await prefs.setString(_keySaveDir, config.saveDirectory);
-    await prefs.setString(_keyImageSaveTemplate, config.imageSaveTemplate);
-    await prefs.setBool(_keyStripMetadata, config.stripMetadata);
-    await prefs.setBool(_keyEnableWatermark, config.enableWatermark);
-    await prefs.setBool(_keyKeepOriginalImage, config.keepOriginalImage);
-    await prefs.setString(
-      _keyWatermarkConfig,
-      jsonEncode(config.watermarkConfig.toJson()),
-    );
-
-    // 保存 ComfyUI 模式配置
-    await prefs.setBool(_keyComfyUiEnabled, config.comfyUiEnabled);
-    await prefs.setString(_keyComfyUiBaseUrl, config.comfyUiBaseUrl);
-    await prefs.setString(_keyComfyUiPromptNodeId, config.comfyUiPromptNodeId);
-    await prefs.setString(
-      _keyComfyUiResolutionNodeId,
-      config.comfyUiResolutionNodeId,
-    );
-    await prefs.setString(_keyComfyUiParamsNodeId, config.comfyUiParamsNodeId);
-    await prefs.setString(_keyComfyUiSampler, config.comfyUiSampler);
-    await prefs.setString(_keyComfyUiScheduler, config.comfyUiScheduler);
-
-    // 保存多供应商配置
+    final active = config.activeLlmProvider;
     final providersJson = jsonEncode(
       config.llmProviders.map((p) => p.toJson()).toList(),
     );
-    await prefs.setString(_keyLlmProviders, providersJson);
-    await prefs.setString(_keyActiveLlmProviderId, config.activeLlmProviderId);
-    await prefs.setString(_keyImageEditProviderId, config.imageEditProviderId);
-    await prefs.setString(_keyImageEditModelId, config.imageEditModelId);
-    await prefs.setInt(_keyAgentMaxTurns, config.agentMaxTurns.clamp(1, 100));
-    await prefs.setBool(
-      _keyAgentCompactionEnabled,
-      config.agentCompactionEnabled,
-    );
-    await prefs.setBool(
-      _keyAgentBackgroundCompaction,
-      config.agentBackgroundCompaction,
-    );
-    await prefs.setString(
-      _keyCompactionProviderId,
-      config.compactionProviderId,
-    );
-    await prefs.setString(_keyCompactionModelId, config.compactionModelId);
-
-    // 保存 Agent 预设配置
     final presetsJson = jsonEncode(
       config.presets.map((p) => p.toJson()).toList(),
     );
-    await prefs.setString(_keyPresets, presetsJson);
-    await prefs.setString(_keyActivePresetId, config.activePresetId);
-
-    // 保存自定义 Skills 与 Tools
     final customSkillsJson = jsonEncode(
       config.customSkills.map((s) => s.toJson()).toList(),
     );
-    await prefs.setString(_keyCustomSkills, customSkillsJson);
-
     final customToolsJson = jsonEncode(
       config.customTools.map((t) => t.toJson()).toList(),
     );
-    await prefs.setString(_keyCustomTools, customToolsJson);
+    final values = <String, Object?>{
+      _keyNovelAiKey: config.novelAiKey,
+      _keyAnySearchApiKey: config.anySearchApiKey,
+      _keyModel: config.defaultModel.id,
+      _keySampler: config.defaultSampler.id,
+      _keyNoiseSchedule: config.defaultNoiseSchedule.id,
+      _keyResolution: config.defaultResolution.key,
+      _keyCustomWidth: config.customWidth,
+      _keyCustomHeight: config.customHeight,
+      _keySteps: config.defaultSteps,
+      _keyScale: config.defaultScale,
+      _keyCfgRescale: config.defaultCfgRescale,
+      _keyOpusFreeMode: config.opusFreeMode,
+      _keyThemeMode: themeModePreferenceStorage(config.themeMode),
+      _keyAccentMode: accentModeStorage(config.accentMode),
+      _keyAccentVariant: accentVariantStorage(config.accentVariant),
+      _keyAccentSeedColor: config.accentSeedColor,
+      _keyLocalePreference: localePreferenceStorage(config.localePreference),
+      _keyUiZoom: clampUiZoom(config.uiZoom),
+      _keyEnableStreamPreview: config.enableStreamPreview,
+      _keyEnableTagAutocomplete: config.enableTagAutocomplete,
+      _keyShowTagTranslations: config.showTagTranslations,
+      _keyShowTagCategoryColors: config.showTagCategoryColors,
+      _keyEnableTagDictAutoUpdate: config.enableTagDictionaryAutoUpdate,
+      _keyEnableImagePersistence: config.enableImagePersistence,
+      _keyMaxPersistentImages: config.maxPersistentImages,
+      _keyAutoSaveImages: config.autoSaveImages,
+      _keyAndroidGalleryExport: config.androidGalleryExport,
+      _keyAndroidExportTreeUri: config.androidExportTreeUri,
+      _keyPrefix: config.prefixPrompt,
+      _keySuffix: config.suffixPrompt,
+      _keyNegative: config.negativePrompt,
+      _keySaveDir: config.saveDirectory,
+      _keyImageSaveTemplate: config.imageSaveTemplate,
+      _keyStripMetadata: config.stripMetadata,
+      _keyEnableWatermark: config.enableWatermark,
+      _keyKeepOriginalImage: config.keepOriginalImage,
+      _keyWatermarkConfig: jsonEncode(config.watermarkConfig.toJson()),
+      _keyComfyUiEnabled: config.comfyUiEnabled,
+      _keyComfyUiBaseUrl: config.comfyUiBaseUrl,
+      _keyComfyUiPromptNodeId: config.comfyUiPromptNodeId,
+      _keyComfyUiResolutionNodeId: config.comfyUiResolutionNodeId,
+      _keyComfyUiParamsNodeId: config.comfyUiParamsNodeId,
+      _keyComfyUiSampler: config.comfyUiSampler,
+      _keyComfyUiScheduler: config.comfyUiScheduler,
+      _keyLlmProviders: providersJson,
+      _keyActiveLlmProviderId: config.activeLlmProviderId,
+      _keyImageEditProviderId: config.imageEditProviderId,
+      _keyImageEditModelId: config.imageEditModelId,
+      _keyAgentMaxTurns: config.agentMaxTurns.clamp(1, 100),
+      _keyAgentCompactionEnabled: config.agentCompactionEnabled,
+      _keyAgentBackgroundCompaction: config.agentBackgroundCompaction,
+      _keyCompactionProviderId: config.compactionProviderId,
+      _keyCompactionModelId: config.compactionModelId,
+      _keyPresets: presetsJson,
+      _keyActivePresetId: config.activePresetId,
+      _keyCustomSkills: customSkillsJson,
+      _keyCustomTools: customToolsJson,
+      _keyLlmBaseUrl: active.baseUrl,
+      _keyLlmApiKey: active.apiKey,
+      _keyLlmModel: active.activeModel.id,
+      _keyLlmTemperature: active.activeModel.temperature,
+    };
+    for (final entry in values.entries) {
+      await _saveChangedPreference(prefs, entry.key, entry.value);
+    }
+  }
 
-    // 兼容保存活跃供应商基础字段
-    final active = config.activeLlmProvider;
-    await prefs.setString(_keyLlmBaseUrl, active.baseUrl);
-    await prefs.setString(_keyLlmApiKey, active.apiKey);
-    await prefs.setString(_keyLlmModel, active.activeModel.id);
-    await prefs.setDouble(_keyLlmTemperature, active.activeModel.temperature);
+  Future<void> _saveChangedPreference(
+    SharedPreferences prefs,
+    String key,
+    Object? value,
+  ) async {
+    if (prefs.get(key) == value && !_unconfirmedPreferenceKeys.contains(key)) {
+      return;
+    }
+    // SharedPreferences 在 IO 成功前就更新缓存，失败项不得被下一次差分跳过。
+    _unconfirmedPreferenceKeys.add(key);
+    final saved = switch (value) {
+      null => await prefs.remove(key),
+      String() => await prefs.setString(key, value),
+      bool() => await prefs.setBool(key, value),
+      int() => await prefs.setInt(key, value),
+      double() => await prefs.setDouble(key, value),
+      _ => throw ArgumentError.value(value, key, '不支持的配置值类型'),
+    };
+    if (!saved) throw StateError('配置保存失败: $key');
+    _unconfirmedPreferenceKeys.remove(key);
   }
 
   /// 恢复完整工作台参数。旧版本散项由调用方组成 fallback；缺失字段也沿用它。
@@ -1260,7 +1246,7 @@ class ConfigService {
   /// 快捷键即时调整 UI 缩放时的单字段落盘 (不整包重写 config)
   Future<void> saveUiZoom(double zoom) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_keyUiZoom, clampUiZoom(zoom));
+    await _saveChangedPreference(prefs, _keyUiZoom, clampUiZoom(zoom));
   }
 
   /// 保存分栏左右宽度
@@ -1471,21 +1457,21 @@ class ConfigService {
     bool isMaximized = false,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_keyWindowWidth, width);
-    await prefs.setDouble(_keyWindowHeight, height);
+    await _saveChangedPreference(prefs, _keyWindowWidth, width);
+    await _saveChangedPreference(prefs, _keyWindowHeight, height);
     if (posX != null) {
-      await prefs.setDouble(_keyWindowPosX, posX);
+      await _saveChangedPreference(prefs, _keyWindowPosX, posX);
     }
     if (posY != null) {
-      await prefs.setDouble(_keyWindowPosY, posY);
+      await _saveChangedPreference(prefs, _keyWindowPosY, posY);
     }
-    await prefs.setBool(_keyWindowMaximized, isMaximized);
+    await _saveChangedPreference(prefs, _keyWindowMaximized, isMaximized);
   }
 
   /// 保存窗口最大化状态
   Future<void> saveWindowMaximized(bool isMaximized) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyWindowMaximized, isMaximized);
+    await _saveChangedPreference(prefs, _keyWindowMaximized, isMaximized);
   }
 
   Map<String, dynamic>? _tryLoadLocalPiNovelAiJson() {

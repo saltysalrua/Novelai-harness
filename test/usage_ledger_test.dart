@@ -15,12 +15,13 @@ void main() {
   });
 
   tearDown(() async {
+    await service.flush();
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
   });
 
-  test('record writes ledger file and aggregates by model', () {
+  test('record writes ledger file and aggregates by model', () async {
     final ok1 = service.record(
       key: 'usage_1',
       provider: 'deepseek',
@@ -36,6 +37,7 @@ void main() {
 
     expect(ok1, isTrue);
     expect(ok2, isTrue);
+    await service.flush();
     expect(File('${tempDir.path}/usage-ledger.json').existsSync(), isTrue);
 
     final summary = service.aggregate(BillPeriod.all);
@@ -115,6 +117,7 @@ void main() {
       usage: const TokenUsage(input: 1234, output: 567),
     );
 
+    await service.flush();
     final reloaded = UsageLedgerService();
     await reloaded.init(baseDir: tempDir.path);
     final summary = reloaded.aggregate(BillPeriod.all);
@@ -123,7 +126,7 @@ void main() {
     expect(summary.models.single.usage.output, equals(567));
   });
 
-  test('ledger file follows pi-bill structure', () {
+  test('ledger file follows pi-bill structure', () async {
     service.record(
       key: 'usage_struct',
       provider: 'deepseek',
@@ -131,6 +134,7 @@ void main() {
       usage: const TokenUsage(input: 100, output: 50, cacheRead: 10),
     );
 
+    await service.flush();
     final file = File('${tempDir.path}/usage-ledger.json');
     final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
     expect(data['version'], equals(2));
@@ -179,6 +183,7 @@ void main() {
         model: 'm',
         usage: const TokenUsage(input: 100),
       );
+      await migrated.flush();
       final reloaded = UsageLedgerService();
       await reloaded.init(baseDir: tempDir.path);
       final usage = reloaded.aggregate(BillPeriod.all).usage;
@@ -189,6 +194,26 @@ void main() {
       expect(jsonDecode(file.readAsStringSync())['version'], 2);
     },
   );
+
+  test('异步记账期间追加记录，flush 保存最新完整快照', () async {
+    for (var i = 0; i < 40; i++) {
+      service.record(
+        key: 'batch_$i',
+        provider: 'p',
+        model: 'm',
+        usage: const TokenUsage(input: 3, output: 2),
+      );
+      // 内存用量立即可读，不必等磁盘。
+      expect(service.aggregate(BillPeriod.all).requests, i + 1);
+      if (i % 5 == 0) await Future<void>.delayed(Duration.zero);
+    }
+    await service.flush();
+    final reloaded = UsageLedgerService();
+    await reloaded.init(baseDir: tempDir.path);
+    expect(reloaded.aggregate(BillPeriod.all).requests, 40);
+    expect(reloaded.aggregate(BillPeriod.all).usage.total, 200);
+    expect(File('${tempDir.path}/usage-ledger.json.tmp').existsSync(), isFalse);
+  });
 
   test('formatTokens renders K/M/B units', () {
     expect(UsageLedgerService.formatTokens(999), equals('999'));

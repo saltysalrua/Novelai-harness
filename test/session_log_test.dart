@@ -384,6 +384,49 @@ void main() {
     },
   );
 
+  test('列表缓存随追加、外部修改、回溯、切换和删除更新', () async {
+    service.recordMessage(userMsg('会话一'));
+    service.recordMessage(assistantMsg(content: '回答一'));
+    final first = (await service.listSessions()).single;
+    expect(first.messageCount, 2);
+
+    final second = await service.createSession(title: '会话二');
+    var sessions = await service.listSessions();
+    expect(sessions.firstWhere((s) => s.id == first.id).isActive, isFalse);
+    expect(sessions.firstWhere((s) => s.id == second.id).isActive, isTrue);
+
+    service.loadSession(first.id);
+    service.recordMessage(assistantMsg(content: '追加的回答'));
+    sessions = await service.listSessions();
+    var updated = sessions.firstWhere((s) => s.id == first.id);
+    expect(updated.isActive, isTrue);
+    expect(updated.messageCount, 3);
+    expect(updated.preview, '追加的回答');
+
+    // 非服务写入的变化也通过文件指纹失效，不会永久返回旧缓存。
+    await File(first.filePath).writeAsString(
+      '${jsonEncode({'type': 'session_info', 'title': '外部改名'})}\n',
+      mode: FileMode.append,
+    );
+    expect(
+      (await service.listSessions()).firstWhere((s) => s.id == first.id).title,
+      '外部改名',
+    );
+    service.rewindToMessageCount(1);
+    updated = (await service.listSessions()).firstWhere(
+      (s) => s.id == first.id,
+    );
+    expect(updated.messageCount, 1);
+    expect(updated.preview, '会话一');
+    await service.renameSession(first.id, '缓存后的改名');
+    expect(
+      (await service.listSessions()).firstWhere((s) => s.id == first.id).title,
+      '缓存后的改名',
+    );
+    await service.deleteSession(second.id);
+    expect((await service.listSessions()).single.id, first.id);
+  });
+
   test('createSession, loadSession and deleteSession lifecycle', () async {
     service.recordMessage(userMsg('会话一消息'));
     await service.flush();

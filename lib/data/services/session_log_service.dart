@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -105,6 +106,10 @@ class SessionLogService implements SessionRecorder {
 
   /// 串行写队列，保证 JSONL 行序与写入顺序一致
   Future<void> _queue = Future.value();
+
+  /// 列表只缓存轻量元数据；文件大小/修改时间变化时才重新解析。
+  final _sessionInfoCache =
+      <String, ({int size, DateTime modified, SessionInfo? info})>{};
 
   bool get isInitialized => _baseDir != null;
 
@@ -332,6 +337,7 @@ class SessionLogService implements SessionRecorder {
       }
 
       file.writeAsStringSync('${keptLines.join('\n')}\n', flush: true);
+      _sessionInfoCache.remove(file.path);
       _lastEntryId = lastKeptId;
     });
   }
@@ -346,24 +352,43 @@ class SessionLogService implements SessionRecorder {
   /// 列出所有已保存的会话信息，按最后修改时间倒序排列
   Future<List<SessionInfo>> listSessions() async {
     final dir = _baseDir;
-    if (dir == null || !dir.existsSync()) return [];
+    if (dir == null || !await dir.exists()) return [];
 
     await flush();
 
-    final files = dir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.jsonl'))
-        .toList();
-
-    final sessions = <SessionInfo>[];
-
-    for (final file in files) {
-      final info = _parseSessionInfoFromFile(file);
-      if (info != null) {
-        sessions.add(info);
+    final stamps = <String, ({int size, DateTime modified})>{};
+    final changed = <String>[];
+    await for (final entity in dir.list()) {
+      if (entity is! File || !entity.path.endsWith('.jsonl')) continue;
+      final stat = await entity.stat();
+      if (stat.type != FileSystemEntityType.file) continue;
+      stamps[entity.path] = (size: stat.size, modified: stat.modified);
+      final cached = _sessionInfoCache[entity.path];
+      if (cached == null ||
+          cached.size != stat.size ||
+          cached.modified != stat.modified) {
+        changed.add(entity.path);
       }
     }
+
+    // JSONL 可包含大量 base64 图片；读取和 JSON 解码都不能占用 UI isolate。
+    if (changed.isNotEmpty) {
+      final parsed = await Isolate.run(() => _readSessionInfos(changed));
+      for (final path in changed) {
+        final stamp = stamps[path]!;
+        _sessionInfoCache[path] = (
+          size: stamp.size,
+          modified: stamp.modified,
+          info: parsed[path],
+        );
+      }
+    }
+    _sessionInfoCache.removeWhere((path, _) => !stamps.containsKey(path));
+    final sessions = <SessionInfo>[
+      for (final path in stamps.keys)
+        if (_sessionInfoCache[path]?.info case final info?)
+          info.copyWith(isActive: _currentFile?.path == path),
+    ];
 
     sessions.sort((a, b) {
       final m = b.lastModified.compareTo(a.lastModified);
@@ -456,6 +481,7 @@ class SessionLogService implements SessionRecorder {
 
     try {
       file.deleteSync();
+      _sessionInfoCache.remove(file.path);
       for (final suffix in ['.context.json', '.context.json.tmp']) {
         final sidecar = File('${file.path}$suffix');
         if (sidecar.existsSync()) sidecar.deleteSync();
@@ -501,6 +527,7 @@ class SessionLogService implements SessionRecorder {
     lines.add(jsonEncode(infoEntry));
 
     file.writeAsStringSync('${lines.join('\n')}\n', flush: true);
+    _sessionInfoCache.remove(file.path);
     _lastEntryId = _lastEntryIdOfFile(file);
   }
 
@@ -579,7 +606,7 @@ class SessionLogService implements SessionRecorder {
     return null;
   }
 
-  String? _extractSessionIdFromFile(File file) {
+  static String? _extractSessionIdFromFile(File file) {
     final base = p.basenameWithoutExtension(file.path);
     if (base.contains('_')) {
       return base.substring(base.indexOf('_') + 1);
@@ -680,7 +707,11 @@ class SessionLogService implements SessionRecorder {
     );
   }
 
-  SessionInfo? _parseSessionInfoFromFile(File file) {
+  static Map<String, SessionInfo?> _readSessionInfos(List<String> paths) => {
+    for (final path in paths) path: _parseSessionInfoFromFile(File(path)),
+  };
+
+  static SessionInfo? _parseSessionInfoFromFile(File file) {
     try {
       final lines = file.readAsLinesSync();
       if (lines.isEmpty) return null;
@@ -767,10 +798,6 @@ class SessionLogService implements SessionRecorder {
         preview = messageCount == 0 ? '空会话' : title;
       }
 
-      final isActive =
-          _currentFile != null &&
-          p.canonicalize(_currentFile!.path) == p.canonicalize(file.path);
-
       return SessionInfo(
         id: id,
         filePath: file.path,
@@ -782,7 +809,6 @@ class SessionLogService implements SessionRecorder {
         provider: provider,
         modelId: modelId,
         totalTokens: totalTokens,
-        isActive: isActive,
       );
     } catch (_) {
       return null;
@@ -908,7 +934,7 @@ class SessionLogService implements SessionRecorder {
     }
   }
 
-  String _joinContentText(dynamic content) {
+  static String _joinContentText(dynamic content) {
     if (content is String) return content;
     if (content is List) {
       final buffer = StringBuffer();

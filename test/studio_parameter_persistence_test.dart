@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
@@ -262,6 +263,26 @@ void main() {
     await restarted.init();
     expect(restarted.params.toJson(), vm.params.toJson());
     expect(restarted.config.stripMetadata, isTrue);
+  });
+
+  test('关闭冲刷等待异步账本的最终快照落盘', () async {
+    final vm = createViewModel();
+    await vm.init();
+    vm.usageLedger.record(
+      key: 'close_usage',
+      provider: 'p',
+      model: 'm',
+      usage: const TokenUsage(input: 10, output: 5),
+    );
+    await vm.flushPendingSaves();
+    final ledger =
+        jsonDecode(await File('${temp.path}/usage-ledger.json').readAsString())
+            as Map<String, Object?>;
+    expect(
+      (ledger['keys'] as Map<String, Object?>).containsKey('close_usage'),
+      isTrue,
+    );
+    expect(File('${temp.path}/usage-ledger.json.tmp').existsSync(), isFalse);
   });
 
   test('启动恢复前关闭不会以出厂参数覆盖已有快照', () async {

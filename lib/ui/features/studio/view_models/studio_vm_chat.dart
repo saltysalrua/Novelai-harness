@@ -148,8 +148,9 @@ mixin _StudioChatMixin on _StudioCore {
       _chatCompletion = null;
       _isChatStreaming = false;
       _streamingText.reset();
-      await refreshSessions();
+      // 先提交最终气泡与停止键状态，不等会话目录扫描/日志落盘。
       _notifyNow();
+      await refreshSessions();
     }
   }
 

@@ -302,6 +302,7 @@ sequenceDiagram
   - **批量工具参数约定**：凡以 ID/编号定位多条目集合的 Agent 工具均同时提供单数与复数参数（`id`/`ids`、`annotation`/`annotations`、`title`/`entries`、`skill_name`/`skill_names`、`url`/`urls`），新增与修改同理（`characters`、`updates`）。批量写入前先整体校验规格，再一次性落盘（批注批量新增只写盘一次），部分失败只作提示、全量失败才报错，避免模型为清理复数条目反复往返调用。
   - 释放旧回复时同时省略其工具结果，以固定占位保留编号；原始用户要求不删除，当前轮回复及已进入摘要的回复不能单独释放。必要信息可先存为笔记，之后仍可按编号读取原文；笔记仅为参考数据，不覆盖系统规则。
   - `SessionLogService` 在 JSONL 消息中保留应用消息 ID 和编号，以同目录 `.jsonl.context.json` 原子写入摘要、窗口、笔记、释放集合及编号高水位。恢复先校验消息 ID 前缀，拒绝过期分支检查点；切换/新建会话隔离记忆，删除会话同时删除检查点。原始消息在 UI 与磁盘 JSONL 中**完整保留**。
+- **回复收尾与持久化性能**：流结束先通知最终消息与输入栏状态，再刷新会话列表。`SessionLogService.listSessions()` 异步枚举目录，以文件大小和修改时间缓存轻量元数据，仅将变化文件的读取与 JSONL 解码交给 Isolate，避免每轮在 UI 线程重解析所有含图片的历史。`UsageLedgerService.record()` 立即更新内存，后台单飞合并快照、Isolate 编码并异步原子写盘；退出通过 `flush()` 等待最终快照。
 - **视觉附件单次展示与 1024 像素降采样**：
   - 视觉模型在多轮对话中如果不断重新读取旧大图，会导致上下文迅速爆满并破坏 Prompt Cache。
   - 系统引入 `imageEpoch` 机制：**图片只给模型看一次**。旧轮次历史图片自动折叠为固定占位文本，仅当前轮新增附件与画板审查结果发送图片数据；
@@ -500,7 +501,7 @@ classDiagram
 - **完整快照**：`ConfigService.saveStudioParameters` 将 `NaiGenerationParams.toJson()` 与可复用修复设置合写到 SharedPreferences 的 `novelai_studio_parameters`。覆盖模型、宽高、Prompt Guidance / CFG、CFG Rescale、步数、采样器、噪声调度、种子数值/模式/时机、张数、质量词开关/档位、UC 档位、透明背景、正负提示词、固定词缀以及角色提示词/坐标/定位模式；修复保存模式、强度、噪声、外延、画笔大小、独立提示词/模型/采样覆盖项及 AI 编辑比例/分辨率。选区、笔迹、蒙版包围盒不保存，也不从损坏或旧快照恢复，避免套用到另一张图。
 - **恢复与默认值**：启动优先读完整快照；缺失字段或无快照时兼容旧版提示词/角色/种子散项及设置页默认值。工作台调整不反写默认设置；用户显式修改默认设置时，仅将改动项应用到工作台，不因保存主题等无关设置重置现有参数。损坏 JSON/类型回退，不阻塞启动。
 - **保存时机**：`_StudioCore._scheduleParameterSave()` 统一 300ms 防抖，写入按调用顺序串行，防止慢旧快照覆盖新值。UI、Agent、元数据回填、回溯及普通/ComfyUI 生图自动变更种子均沿用此入口。
-- **正常退出**：`WindowStateService` 拦截系统关闭请求，标题栏也走同一 `closeWindow()`；通过宿主注入的 `beforeClose` 回调等待 `StudioViewModel.flushPendingSaves()`（参数、待保存布局、全局配置、会话写队列），再保存窗口状态并销毁窗口。重复关闭合并，参数保存失败则保留窗口以便重试。启动尚未恢复本地参数时关闭不写空默认值，也不等待账号网络查询。强制终止进程不属于此保证范围。
+- **正常退出**：`WindowStateService` 拦截系统关闭请求，标题栏也走同一 `closeWindow()`；通过宿主注入的 `beforeClose` 回调等待 `StudioViewModel.flushPendingSaves()`（参数、待保存布局、全局配置、会话与异步账本写队列），再采集一次最终窗口状态并销毁窗口。`ConfigService.saveConfig()` 按调用顺序串行提交，只写变化字段；UI 缩放和窗口状态也跳过未变化值，避免 Windows 每个 setter 都重写偏好文件的开销。失败字段标记为未确认，重试不受 SharedPreferences 乐观缓存影响。重复关闭合并，参数保存失败则保留窗口以便重试。启动尚未恢复本地参数时关闭不写空默认值，也不等待账号网络查询。强制终止进程不属于此保证范围。
 
 ---
 

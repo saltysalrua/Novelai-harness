@@ -75,12 +75,18 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '删除'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.runAsync(() async {
-      for (var attempt = 0; attempt < 100; attempt++) {
-        if (!vm.sessions.any((s) => s.title.startsWith('目标'))) break;
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+    // 目录流与 isolate 是真实异步 IO；逐次让出真实事件循环并 pump，
+    // 避免在 fakeAsync 内 pumpAndSettle 把等待磁盘的忙碌动画推进到超时。
+    for (var attempt = 0; attempt < 100; attempt++) {
+      if (!vm.sessions.any((s) => s.title.startsWith('目标')) &&
+          find.byType(LinearProgressIndicator).evaluate().isEmpty) {
+        break;
       }
-    });
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
     expect(vm.sessions.where((s) => s.title.startsWith('目标')), isEmpty);
     expect(vm.sessions.any((s) => s.title == '保留 C'), isTrue);

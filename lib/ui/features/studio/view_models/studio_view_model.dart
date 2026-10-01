@@ -1039,7 +1039,7 @@ class StudioViewModel extends ChangeNotifier
     _configSaveDebounceTimer?.cancel();
     await _lastConfigSave;
     await _configService.saveConfig(_config);
-    await _sessionLog.flush();
+    await Future.wait([_sessionLog.flush(), _usageLedger.flush()]);
   }
 
   /// 防抖保存全局配置 (避免滑块/高频拖拽频繁写盘)

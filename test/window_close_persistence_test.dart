@@ -71,6 +71,15 @@ void main() {
     expect(window.height, 800);
   });
 
+  test('有窗口防抖保存时关闭只采集一次最终状态', () async {
+    service.onWindowResize();
+    expect(service.hasPendingSave, isTrue);
+    await service.closeWindow();
+    expect(events.where((e) => e == 'isMaximized'), hasLength(1));
+    expect(service.hasPendingSave, isFalse);
+    expect(events, contains('destroy'));
+  });
+
   test('保存失败保持窗口，后续关闭可以重试', () async {
     service.beforeClose = () async => throw StateError('模拟写盘失败');
     await expectLater(service.closeWindow(), throwsStateError);

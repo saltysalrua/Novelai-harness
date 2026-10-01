@@ -152,7 +152,10 @@ class WindowStateService with WindowListener {
   Future<void> _flushAndClose() async {
     if (!_isDesktop) return;
     await beforeClose?.call();
-    await flushPendingSave();
+    // 关闭时只采集最终状态一次，不先冲刷计时器再重复采集/写盘。
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    await _lastSaveFuture;
     await saveCurrentState();
     await windowManager.destroy();
   }

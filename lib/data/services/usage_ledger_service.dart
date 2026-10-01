@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../core/harness/types.dart';
@@ -44,6 +45,15 @@ class UsageLedgerService {
   static const int _version = 2;
 
   File? _ledgerFile;
+  Future<void>? _pendingWrite;
+  bool _dirty = false;
+
+  /// 退出和测试时等待最新账本落盘；记账本身只更新内存，不阻塞 UI。
+  Future<void> flush() async {
+    while (_pendingWrite != null) {
+      await _pendingWrite;
+    }
+  }
 
   /// 内存中的账本数据: {version, days, keys}
   /// 注意: 内层容器必须显式声明为 `Map<String, dynamic>`，否则字面量会被
@@ -111,7 +121,8 @@ class UsageLedgerService {
     final merged = existing.add(usage);
     providerUsage[model] = merged.toJson();
 
-    _persist();
+    _dirty = true;
+    _schedulePersist();
     return true;
   }
 
@@ -218,15 +229,28 @@ class UsageLedgerService {
     }
   }
 
-  void _persist() {
+  void _schedulePersist() {
+    _pendingWrite ??= _persist().whenComplete(() {
+      _pendingWrite = null;
+      if (_dirty) _schedulePersist();
+    });
+  }
+
+  Future<void> _persist() async {
     final file = _ledgerFile;
     if (file == null) return;
-    try {
-      final tmp = File('${file.path}.tmp');
-      tmp.writeAsStringSync('${jsonEncode(_data)}\n', flush: true);
-      tmp.renameSync(file.path);
-    } catch (_) {
-      // 落盘失败不影响主流程，内存数据仍可用于本会话统计
+    while (_dirty) {
+      _dirty = false;
+      try {
+        // isolate 消息复制得到此时的快照，编码期间的新记录由下一次循环保存。
+        final data = _data;
+        final encoded = await Isolate.run(() => jsonEncode(data));
+        final tmp = File('${file.path}.tmp');
+        await tmp.writeAsString('$encoded\n', flush: true);
+        await tmp.rename(file.path);
+      } catch (_) {
+        // 落盘失败不影响主流程，内存数据仍可用于本会话统计。
+      }
     }
   }
 
