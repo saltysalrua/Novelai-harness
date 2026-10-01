@@ -1,6 +1,11 @@
 import '../tools/agent_tool.dart';
 import '../types.dart';
 
+/// 供应商额外注入的协议文本，供无 usage 锚点时估算上下文。
+abstract interface class LlmRequestOverhead {
+  String get requestProtocolPrompt;
+}
+
 /// LLM 提供商通用接口
 abstract class LlmProvider {
   /// 当前使用的模型 ID (用于会话记录元数据)

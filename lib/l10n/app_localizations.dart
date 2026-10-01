@@ -98,6 +98,18 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @settingsPromptToolUse.
+  ///
+  /// In zh, this message translates to:
+  /// **'提示词工具调用'**
+  String get settingsPromptToolUse;
+
+  /// No description provided for @settingsPromptToolUseSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'将工具定义与结果转成聊天文本，绕过渠道原生工具协议。仅在工具调用不兼容时开启；可靠性取决于模型遵循格式的能力。'**
+  String get settingsPromptToolUseSubtitle;
+
   /// No description provided for @chatStopOutput.
   ///
   /// In zh, this message translates to:

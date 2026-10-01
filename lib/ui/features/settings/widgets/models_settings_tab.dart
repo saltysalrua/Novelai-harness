@@ -39,6 +39,7 @@ class ModelsSettingsDraft {
     apiKeyController = TextEditingController(text: active.apiKey);
     protocol = active.protocol;
     thinkingParamFormat = active.thinkingParamFormat;
+    promptToolUse = active.promptToolUse;
     imageEditProviderId = config.imageEditProviderId;
     imageEditModelId = config.imageEditModelId;
     _validateImageEditSelection();
@@ -53,6 +54,7 @@ class ModelsSettingsDraft {
 
   /// 思考参数请求格式 (不同供应商用不同字段开关思维链)
   late ThinkingParamFormat thinkingParamFormat;
+  late bool promptToolUse;
 
   /// AI 整图编辑：绘图模型供应商与模型 ID (独立于对话 LLM)
   late String imageEditProviderId;
@@ -80,6 +82,7 @@ class ModelsSettingsDraft {
         protocol: protocol,
         apiKey: apiKeyController.text.trim(),
         thinkingParamFormat: thinkingParamFormat,
+        promptToolUse: promptToolUse,
       );
     }
   }
@@ -92,6 +95,7 @@ class ModelsSettingsDraft {
     protocol = provider.protocol;
     apiKeyController.text = provider.apiKey;
     thinkingParamFormat = provider.thinkingParamFormat;
+    promptToolUse = provider.promptToolUse;
     fetchStatusMessage = null;
   }
 
@@ -563,6 +567,14 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
             onChanged: (val) =>
                 setState(() => _draft.thinkingParamFormat = val),
           ),
+        ),
+
+        AppSettingTile.switchTile(
+          key: const ValueKey('prompt_tool_use_toggle'),
+          title: l10n.settingsPromptToolUse,
+          subtitle: l10n.settingsPromptToolUseSubtitle,
+          value: _draft.promptToolUse,
+          onChanged: (value) => setState(() => _draft.promptToolUse = value),
         ),
 
         const SizedBox(height: 12),

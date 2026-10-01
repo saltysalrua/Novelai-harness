@@ -309,6 +309,15 @@ sequenceDiagram
 
 ---
 
+### 3.1.0 工具调用协议与渠道兼容
+
+- **原生协议 ID 修复**：`tool_call_ids.dart` 在请求侧规范化空、非法或重复的工具 ID，同步按原 ID/工具名/顺序配对结果，确保 Claude 中转上游要求的全请求 ID 唯一性。新 SSE 调用也与历史 ID 去重；UI 与磁盘历史不被重写，旧会话无需删除。展示层 `AssistantMessageItem` 以消息 ID + 工具 ID + 调用位置作为组件 Key，兼容旧历史中的重复/空 ID，避免撞键并保留各工具块独立折叠状态；回归见 `agent_chat_tool_identity_test.dart`。
+- **提示词工具调用**：设置 → 模型 → 供应商配置中的开关默认关闭，`LlmProviderConfig.promptToolUse` 随供应商 JSON 持久化。用于 Claude 等渠道原生工具协议不兼容，也适用于只支持聊天的渠道；不是自动失败重试切换。开启后 `PromptToolCodec` 将白名单内的工具 Schema 注入系统文本，历史调用转换为 Hermes 风格 `<tool_call>` JSON，结果转换为用户消息中的不可信 `<tool_response>` JSON；完全不发送 `tools`、`tool_choice`、`tool_calls`、`tool_call_id` 或 `tool` 角色。
+- **解析与执行边界**：仅解析正文里的独立调用块，思考、围栏、引用与行内示例不执行。增量正文保持流式输出，调用需包含严格 JSON 对象与对象类型的 arguments，单块 64 KiB、每条回复最多 32 个调用。完整流结束后才一次性提交；非法/截断/越权调用整组拒绝，格式错误仍消费尾部 usage。实际执行复用 Harness 的串行工具链、预设权限、点数确认、取消及轮数收尾，不执行任意脚本。
+- **图片与上下文**：请求转换发生在 imageEpoch 折叠之后。原生模式对齐 `reference/pi`：`tool` 角色只回传文本与调用 ID，连续工具结果全部配对后，再插入携带来源标识与 `image_url` 的 `user` 多模态消息；不把图片放进网关可能丢弃的 `tool.content` 数组。兼容模式的工具结果本就以 `user` 多模态消息回传，提示词明确文本调用协议不关闭视觉输入。已折叠图片不重新发送，直接用户附件路径不变。`llm_tool_image_request_test.dart` 从 Harness 到实际 HTTP 请求验证两种模式的用户/工具附件、单轮多个工具结果连续配对以及跨轮折叠；额外协议文本通过 `LlmRequestOverhead` 纳入无用量锚点时的上下文估算。压缩模型也沿用所属供应商开关，无工具摘要轮只要求直接回答。
+- **画板工具原图懒加载**：恢复历史时 `NaiGeneratedImage.bytes` 有意为空，缩略图可见不代表原图已进入内存。`view_canvas_image` 与 `view_image_annotations` 通过宿主注入的 `NovelAiRepository.loadHistoryImageBytes` 按需读取 LRU/磁盘中的原图缓存；不误用缩略图或带水印导出图。原图缺失、空文件或加载异常明确返回工具错误，不再以空 base64 假报“已附图”。批注仅返回文本或模型无视觉能力时不读原图；回归 `canvas_tool_lazy_image_test.dart` 覆盖真实持久化恢复、重复加载、缺失/空图及工具 → Harness → HTTP 的多轮图片请求。
+- **参考与回归**：通过 AnySearch 参考 [Qwen Function Calling / Qwen-Agent](https://qwen.readthedocs.io/en/latest/framework/function_call.html)；协议与重复 ID 用 `prompt_tool_use_test.dart` 覆盖，现有思考、缓存与供应商装配行为继续由对应测试验证。提示词协议依赖模型遵守格式，不保证所有渠道表现一致。
+
 ### 3.1.1 标准技能包导入与资源按需加载
 
 - **入口与格式**：设置 → 预设 → Available Skills → 导入技能。支持桌面文件夹、`.zip` / `.skill`（ZIP 容器）以及单个 `.md` 或粘贴 SKILL.md。包内须有唯一的 `SKILL.md`，允许外层包装目录；多个技能应分别导入。移动端使用文件导入，不把 SAF 目录 URI 当普通磁盘路径。参考格式：[Agent Skills specification](https://agentskills.io/specification)。

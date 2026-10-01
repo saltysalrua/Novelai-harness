@@ -14,6 +14,34 @@ import 'vision_image_codec.dart';
 /// 历史图片列表获取器 (从新到旧排序，索引 0 为最新生成的一张)
 typedef CanvasHistoryGetter = List<NaiGeneratedImage> Function();
 
+/// 仓储原图加载器：历史条目可能只保留缩略图，原图需从 LRU/磁盘读取。
+typedef CanvasImageBytesLoader =
+    Future<Uint8List?> Function(NaiGeneratedImage image);
+
+/// 工具层不自行读盘，统一复用宿主注入的仓储原图加载管线。
+Future<Uint8List?> resolveCanvasImageBytes(
+  NaiGeneratedImage image,
+  CanvasImageBytesLoader? loader,
+) async {
+  if (image.bytes.isNotEmpty) return image.bytes;
+  try {
+    final bytes = await loader?.call(image);
+    return bytes == null || bytes.isEmpty ? null : bytes;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// 不允许空图片编码成空字符串后假报“图片已作为附件返回”。
+ToolResult unavailableCanvasImageResult(String toolCallId, int index) =>
+    ToolResult(
+      toolCallId: toolCallId,
+      content:
+          '无法读取历史图片 (索引: $index) 的原图数据。文件可能已被移走、删除或无法访问；'
+          '本次没有图片附件，请用户重新导入图片后再查看。',
+      isError: true,
+    );
+
 /// 视觉能力检查器 (当前对话模型是否支持图像输入)
 typedef ModelVisionChecker = bool Function();
 
@@ -294,39 +322,43 @@ void _paintLabelBadge(
 class ViewCanvasImageTool extends AgentTool {
   final CanvasHistoryGetter getHistory;
   final ModelVisionChecker isModelMultimodal;
+  final CanvasImageBytesLoader? loadImageBytes;
 
-  ViewCanvasImageTool({required this.getHistory, required this.isModelMultimodal})
-    : super(
-        name: 'view_canvas_image',
-        label: '查看画板图片',
-        description:
-            '获取已生成的历史图片供视觉检查。通过 index 参数从新到旧指定图片（0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。'
-            '默认返回叠加了角色位置覆盖层的版本 (各启用角色的编号锚点与名称标签，'
-            'V5 附带中心十字参考线，V4/V4.5 附带 5x5 网格)，便于核对多角色构图与布局；'
-            '传入 with_overlay=false 可获取未处理的原图。'
-            '返回的图片默认压缩到最长边 1024px 以控制视觉 Token；'
-            '若因分辨率不足看不清细节（小字、纹理、面部瑕疵等），可传 full_resolution=true 获取未压缩的原始尺寸图片。'
-            '注意：当前对话模型需要具备图像理解能力。',
-        parameters: const {
-          'type': 'object',
-          'properties': {
-            'index': {
-              'type': 'integer',
-              'description':
-                  '要查看的图片索引（从新到旧排序，0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。',
-            },
-            'with_overlay': {
-              'type': 'boolean',
-              'description': '是否叠加角色位置覆盖层 (默认 true)。false 时返回原图。',
-            },
-            'full_resolution': {
-              'type': 'boolean',
-              'description':
-                  '是否返回未压缩的原始尺寸图片 (默认 false，压缩到最长边 1024px)。仅在压缩版看不清细节时使用，原图会消耗更多视觉 Token。',
-            },
-          },
-        },
-      );
+  ViewCanvasImageTool({
+    required this.getHistory,
+    required this.isModelMultimodal,
+    this.loadImageBytes,
+  }) : super(
+         name: 'view_canvas_image',
+         label: '查看画板图片',
+         description:
+             '获取已生成的历史图片供视觉检查。通过 index 参数从新到旧指定图片（0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。'
+             '默认返回叠加了角色位置覆盖层的版本 (各启用角色的编号锚点与名称标签，'
+             'V5 附带中心十字参考线，V4/V4.5 附带 5x5 网格)，便于核对多角色构图与布局；'
+             '传入 with_overlay=false 可获取未处理的原图。'
+             '返回的图片默认压缩到最长边 1024px 以控制视觉 Token；'
+             '若因分辨率不足看不清细节（小字、纹理、面部瑕疵等），可传 full_resolution=true 获取未压缩的原始尺寸图片。'
+             '注意：当前对话模型需要具备图像理解能力。',
+         parameters: const {
+           'type': 'object',
+           'properties': {
+             'index': {
+               'type': 'integer',
+               'description':
+                   '要查看的图片索引（从新到旧排序，0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。',
+             },
+             'with_overlay': {
+               'type': 'boolean',
+               'description': '是否叠加角色位置覆盖层 (默认 true)。false 时返回原图。',
+             },
+             'full_resolution': {
+               'type': 'boolean',
+               'description':
+                   '是否返回未压缩的原始尺寸图片 (默认 false，压缩到最长边 1024px)。仅在压缩版看不清细节时使用，原图会消耗更多视觉 Token。',
+             },
+           },
+         },
+       );
 
   @override
   Future<ToolResult> execute(
@@ -373,7 +405,13 @@ class ViewCanvasImageTool extends AgentTool {
     }
 
     final targetImage = history[index];
-    final imageBytes = targetImage.bytes;
+    final imageBytes = await resolveCanvasImageBytes(
+      targetImage,
+      loadImageBytes,
+    );
+    if (imageBytes == null) {
+      return unavailableCanvasImageResult(toolCallId, index);
+    }
 
     final params = targetImage.params;
     final withOverlay = args['with_overlay'] is bool

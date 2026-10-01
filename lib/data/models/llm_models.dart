@@ -247,6 +247,9 @@ class LlmProviderConfig {
   /// 思考参数请求格式 (auto = 按 baseUrl 域名自动识别，中转站可手动指定)
   final ThinkingParamFormat thinkingParamFormat;
 
+  /// 将工具协议转换成提示词与聊天文本，绕过渠道原生工具协议。
+  final bool promptToolUse;
+
   const LlmProviderConfig({
     required this.id,
     required this.name,
@@ -256,6 +259,7 @@ class LlmProviderConfig {
     this.models = const [],
     this.activeModelId = '',
     this.thinkingParamFormat = ThinkingParamFormat.auto,
+    this.promptToolUse = false,
   });
 
   /// 获取当前激活的模型配置
@@ -290,6 +294,7 @@ class LlmProviderConfig {
     List<LlmModelConfig>? models,
     String? activeModelId,
     ThinkingParamFormat? thinkingParamFormat,
+    bool? promptToolUse,
   }) {
     return LlmProviderConfig(
       id: id ?? this.id,
@@ -300,6 +305,7 @@ class LlmProviderConfig {
       models: models ?? this.models,
       activeModelId: activeModelId ?? this.activeModelId,
       thinkingParamFormat: thinkingParamFormat ?? this.thinkingParamFormat,
+      promptToolUse: promptToolUse ?? this.promptToolUse,
     );
   }
 
@@ -314,6 +320,7 @@ class LlmProviderConfig {
         ? activeModelId
         : (models.isNotEmpty ? models.first.id : ''),
     'thinkingParamFormat': thinkingParamFormat.id,
+    'promptToolUse': promptToolUse,
   };
 
   factory LlmProviderConfig.fromJson(Map<String, dynamic> json) {
@@ -383,6 +390,7 @@ class LlmProviderConfig {
       thinkingParamFormat: ThinkingParamFormat.fromId(
         json['thinkingParamFormat'] as String?,
       ),
+      promptToolUse: json['promptToolUse'] == true,
     )._migrateOfficialDeepSeekAliases()._migrateCanonicalChatBuiltins();
   }
 

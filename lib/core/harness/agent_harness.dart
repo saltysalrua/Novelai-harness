@@ -623,7 +623,14 @@ class AgentHarness {
           (sum, t) =>
               sum + _estimateTextTokens(jsonEncode(t.toOpenAiFunction())),
         );
+    final protocolTokens = switch (provider) {
+      LlmRequestOverhead(:final requestProtocolPrompt) => _estimateTextTokens(
+        requestProtocolPrompt,
+      ),
+      _ => 0,
+    };
     return toolTokens +
+        protocolTokens +
         request.fold<int>(0, (sum, m) => sum + _estimateMessageTokens(m) + 8);
   }
 

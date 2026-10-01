@@ -205,6 +205,7 @@ mixin _StudioHarnessMixin on _StudioCore {
     _toolRegistry.register(
       ViewCanvasImageTool(
         getHistory: () => _repository.history,
+        loadImageBytes: _repository.loadHistoryImageBytes,
         isModelMultimodal: () =>
             _config.activeLlmProvider.activeModel.isMultimodal,
       ),
@@ -214,6 +215,7 @@ mixin _StudioHarnessMixin on _StudioCore {
     _toolRegistry.register(
       ViewImageAnnotationsTool(
         getHistory: () => _repository.history,
+        loadImageBytes: _repository.loadHistoryImageBytes,
         isModelMultimodal: () =>
             _config.activeLlmProvider.activeModel.isMultimodal,
       ),
@@ -320,6 +322,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         // 思考参数格式 (对齐 pi thinkingFormat 兼容矩阵，中转站可手动指定)
         thinkingParamFormat: activeLlm.thinkingParamFormat.id,
         cacheConfig: activeModel.cacheConfig,
+        promptToolUse: activeLlm.promptToolUse,
       );
     } else {
       _harness.provider = null;
@@ -369,6 +372,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         thinkingEffort: compactionEffort?.id,
         thinkingParamFormat: summaryProvider.thinkingParamFormat.id,
         cacheConfig: summaryModel.cacheConfig,
+        promptToolUse: summaryProvider.promptToolUse,
       );
       _harness.compactionModelWindowTokens = summaryModel.contextWindow;
     }

@@ -5,10 +5,12 @@ import '../tools/agent_tool.dart';
 import '../types.dart';
 import 'llm_provider.dart';
 import 'prompt_cache_policy.dart';
+import 'prompt_tool_codec.dart';
+import 'tool_call_ids.dart';
 import '../../../data/models/llm_cache_config.dart';
 
 /// OpenAI 兼容格式提供商 (兼容 DeepSeek, Qwen, Moonshot, OpenAI, Ollama, LocalAI 等)
-class OpenAiCompatibleProvider implements LlmProvider {
+class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
   /// 拒绝记录按端点、模型、字段隔离，不能让一个中转站关闭所有供应商的缓存键。
   static final Set<(String, String, String)> _unsupportedCacheFields = {};
 
@@ -27,6 +29,9 @@ class OpenAiCompatibleProvider implements LlmProvider {
   final http.Client _client;
   final LlmCacheConfig cacheConfig;
 
+  /// 纯聊天渠道兼容模式：提示词声明工具，正文解析调用。
+  final bool promptToolUse;
+
   OpenAiCompatibleProvider({
     required this.baseUrl,
     required this.apiKey,
@@ -35,11 +40,16 @@ class OpenAiCompatibleProvider implements LlmProvider {
     this.thinkingEffort,
     this.thinkingParamFormat,
     this.cacheConfig = const LlmCacheConfig(),
+    this.promptToolUse = false,
     http.Client? client,
   }) : _client = client ?? http.Client();
 
   @override
   String get modelId => model;
+
+  @override
+  String get requestProtocolPrompt =>
+      promptToolUse ? PromptToolCodec.instructions : '';
 
   /// Ollama's local OpenAI-compatible endpoint does not require credentials.
   /// Keep the exception exact so an empty key never enables a remote endpoint.
@@ -114,6 +124,59 @@ class OpenAiCompatibleProvider implements LlmProvider {
       json['reasoning_content'] = message.thoughts;
     }
     return json;
+  }
+
+  /// 对齐 pi：tool 角色只回传文本；连续工具结果全部配对后，
+  /// 再以 user 多模态消息附图，避免兼容网关丢弃 tool 里的 image_url。
+  List<Map<String, dynamic>> _serializeMessages(
+    List<AgentMessage> messages, {
+    required bool replayDeepSeekReasoning,
+  }) {
+    final result = <Map<String, dynamic>>[];
+    final imageBlocks = <Map<String, dynamic>>[];
+    void flushToolImages() {
+      if (imageBlocks.isEmpty) return;
+      result.add({
+        'role': 'user',
+        'content': [
+          {'type': 'text', 'text': '以下是前面工具结果附带的图片，请直接查看。'},
+          ...imageBlocks,
+        ],
+      });
+      imageBlocks.clear();
+    }
+
+    for (final message in messages) {
+      if (message.role != AgentRole.tool) flushToolImages();
+      final json = _serializeMessage(
+        message,
+        replayDeepSeekReasoning: replayDeepSeekReasoning,
+      );
+      if (message.role == AgentRole.tool && message.hasVisionImages) {
+        json['content'] = message.content.isEmpty
+            ? '图片见随后的附件。'
+            : message.content;
+        imageBlocks.addAll([
+          {
+            'type': 'text',
+            'text': jsonEncode({
+              'tool_name': message.toolName,
+              'tool_call_id': message.toolCallId,
+            }),
+          },
+          {
+            'type': 'image_url',
+            'image_url': {
+              'url':
+                  'data:${message.imageMimeType};base64,${message.imageBase64}',
+            },
+          },
+        ]);
+      }
+      result.add(json);
+    }
+    flushToolImages();
+    return result;
   }
 
   /// 按格式写入思考开关参数 (对齐 pi openai-completions 的 thinkingFormat 分支):
@@ -199,18 +262,18 @@ class OpenAiCompatibleProvider implements LlmProvider {
       return;
     }
 
+    final normalizedMessages = normalizeToolCallIds(messages);
+    final promptParser = promptToolUse ? PromptToolStreamParser(tools) : null;
     final replayDeepSeekReasoning =
         tools.isNotEmpty && resolvedThinkingFormat == 'deepseek';
     final requestBody = <String, dynamic>{
       'model': model.trim(),
-      'messages': messages
-          .map(
-            (message) => _serializeMessage(
-              message,
+      'messages': promptToolUse
+          ? PromptToolCodec.serialize(normalizedMessages, tools)
+          : _serializeMessages(
+              normalizedMessages,
               replayDeepSeekReasoning: replayDeepSeekReasoning,
             ),
-          )
-          .toList(),
       'stream': true,
       'temperature': temperature,
     };
@@ -221,7 +284,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
     // 思考参数按供应商兼容矩阵写入 (格式不匹配时思考会被上游静默丢弃)
     _applyThinkingParams(requestBody);
 
-    if (tools.isNotEmpty) {
+    if (tools.isNotEmpty && !promptToolUse) {
       requestBody['tools'] = tools.map((t) => t.toOpenAiFunction()).toList();
       // DeepSeek 带工具时默认 auto；省略可兼容不同版本的思考模式。
       if (resolvedThinkingFormat != 'deepseek') {
@@ -303,6 +366,20 @@ class OpenAiCompatibleProvider implements LlmProvider {
     final Map<int, Map<String, dynamic>> toolCallsAccumulator = {};
     bool inThinkTag = false;
     String pendingTagBuffer = '';
+    bool streamCompleted = false;
+    String? finishReason;
+    FormatException? promptParseError;
+
+    // 格式错误后仍消费 SSE 尾部，以保留真实 usage；任何调用都不提交。
+    List<ContentDeltaEvent> contentEvents(String text) {
+      if (promptParseError != null) return const [];
+      try {
+        return promptParser?.add(text) ?? [ContentDeltaEvent(text)];
+      } on FormatException catch (error) {
+        promptParseError = error;
+        return const [];
+      }
+    }
 
     // 流式 usage 快照: 部分 newapi 系网关会在每个 SSE chunk 都回传全量累计
     // usage，若逐 chunk 上报会让账本按 chunk 数重复记账 (input 虚增数倍)。
@@ -321,7 +398,10 @@ class OpenAiCompatibleProvider implements LlmProvider {
         if (!trimmed.startsWith('data:')) continue;
 
         final data = trimmed.substring(5).trim();
-        if (data == '[DONE]') break;
+        if (data == '[DONE]') {
+          streamCompleted = true;
+          break;
+        }
 
         Map<String, dynamic> json;
         try {
@@ -336,6 +416,10 @@ class OpenAiCompatibleProvider implements LlmProvider {
         final firstChoice = choices != null && choices.isNotEmpty
             ? choices.first
             : null;
+        if (firstChoice is Map && firstChoice['finish_reason'] is String) {
+          finishReason = firstChoice['finish_reason'] as String;
+          streamCompleted = true;
+        }
         final usageJson = json['usage'] is Map
             ? json['usage']
             : firstChoice is Map
@@ -387,7 +471,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
                   if (inThinkTag) {
                     yield ThoughtDeltaEvent(emit);
                   } else {
-                    yield ContentDeltaEvent(emit);
+                    yield* Stream.fromIterable(contentEvents(emit));
                   }
                 }
                 if (overlap > 0) {
@@ -400,7 +484,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
                 if (inThinkTag) {
                   yield ThoughtDeltaEvent(emit);
                 } else {
-                  yield ContentDeltaEvent(emit);
+                  yield* Stream.fromIterable(contentEvents(emit));
                 }
               }
               rest = rest.substring(idx + tag.length);
@@ -410,10 +494,11 @@ class OpenAiCompatibleProvider implements LlmProvider {
         }
 
         // 3. 处理 tool_calls 流式组装
-        if (delta.containsKey('tool_calls') && delta['tool_calls'] is List) {
+        if (!promptToolUse && delta['tool_calls'] is List) {
           final deltaToolCalls = delta['tool_calls'] as List<dynamic>;
-          for (final tc in deltaToolCalls) {
-            final index = tc['index'] as int? ?? 0;
+          for (var position = 0; position < deltaToolCalls.length; position++) {
+            final tc = deltaToolCalls[position];
+            final index = tc['index'] as int? ?? position;
             if (!toolCallsAccumulator.containsKey(index)) {
               toolCallsAccumulator[index] = {
                 'id':
@@ -430,7 +515,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
             }
             final func = tc['function'] as Map<String, dynamic>?;
             if (func != null) {
-              if (func['name'] != null) {
+              if (func['name'] != null && func['name'] != current['name']) {
                 current['name'] = '${current['name']}${func['name']}';
               }
               if (func['arguments'] != null) {
@@ -447,12 +532,24 @@ class OpenAiCompatibleProvider implements LlmProvider {
         if (inThinkTag) {
           yield ThoughtDeltaEvent(pendingTagBuffer);
         } else {
-          yield ContentDeltaEvent(pendingTagBuffer);
+          yield* Stream.fromIterable(contentEvents(pendingTagBuffer));
         }
         pendingTagBuffer = '';
       }
 
-      // 如果有工具调用完成组装，发送 ToolCallEvent
+      if (promptParser != null) {
+        if (promptParseError != null) throw promptParseError!;
+        if (!streamCompleted) {
+          throw StateError('提示词工具调用响应流提前结束，未执行。');
+        }
+        if (finishReason == 'length' || finishReason == 'content_filter') {
+          throw FormatException('提示词工具调用响应未完整生成 ($finishReason)，未执行。');
+        }
+        yield* Stream.fromIterable(promptParser.finish());
+      }
+
+      // 整条流成功后一次性提交调用，统一保证与历史 ID 不冲突。
+      final completedCalls = <ToolCall>[...?promptParser?.calls];
       for (final entry in toolCallsAccumulator.entries) {
         final raw = entry.value;
         final name = raw['name'] as String? ?? '';
@@ -465,9 +562,24 @@ class OpenAiCompatibleProvider implements LlmProvider {
         } catch (_) {}
 
         if (name.isNotEmpty) {
-          yield ToolCallEvent(ToolCall(id: id, name: name, arguments: args));
+          completedCalls.add(ToolCall(id: id, name: name, arguments: args));
         }
       }
+      if (completedCalls.isNotEmpty) {
+        final normalized = normalizeToolCallIds([
+          ...normalizedMessages,
+          AgentMessage(
+            id: 'pending_tool_calls',
+            role: AgentRole.assistant,
+            toolCalls: completedCalls,
+          ),
+        ]).last.toolCalls!;
+        for (final call in normalized) {
+          yield ToolCallEvent(call);
+        }
+      }
+    } on FormatException catch (e) {
+      yield ErrorEvent('工具调用格式错误: ${e.message}');
     } catch (e) {
       // 流中断 / 解码失败多为服务端提前断连，按瞬态处理交给上层退避重试
       yield ErrorEvent('解析流式数据异常: $e', transient: true);

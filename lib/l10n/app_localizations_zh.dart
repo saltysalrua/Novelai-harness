@@ -9,6 +9,13 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get settingsPromptToolUse => '提示词工具调用';
+
+  @override
+  String get settingsPromptToolUseSubtitle =>
+      '将工具定义与结果转成聊天文本，绕过渠道原生工具协议。仅在工具调用不兼容时开启；可靠性取决于模型遵循格式的能力。';
+
+  @override
   String get chatStopOutput => '停止输出 (Esc)';
 
   @override

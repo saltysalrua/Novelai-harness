@@ -9,7 +9,13 @@ import '../../../data/models/novelai_models.dart';
 import '../../../data/services/anlas_calculator.dart';
 import '../types.dart';
 import 'agent_tool.dart';
-import 'canvas_view_tool.dart' show CanvasHistoryGetter, ModelVisionChecker;
+import 'canvas_view_tool.dart'
+    show
+        CanvasHistoryGetter,
+        CanvasImageBytesLoader,
+        ModelVisionChecker,
+        resolveCanvasImageBytes,
+        unavailableCanvasImageResult;
 import 'vision_image_codec.dart';
 
 /// 图像与批注覆盖层离屏渲染结果
@@ -313,10 +319,12 @@ void _drawGlobalBanner(
 class ViewImageAnnotationsTool extends AgentTool {
   final CanvasHistoryGetter getHistory;
   final ModelVisionChecker isModelMultimodal;
+  final CanvasImageBytesLoader? loadImageBytes;
 
   ViewImageAnnotationsTool({
     required this.getHistory,
     required this.isModelMultimodal,
+    this.loadImageBytes,
   }) : super(
          name: 'view_image_annotations',
          label: '查看图片批注',
@@ -388,7 +396,6 @@ class ViewImageAnnotationsTool extends AgentTool {
     final targetImage = history[index];
     final annotations = targetImage.annotations;
     final params = targetImage.params;
-    final imageBytes = targetImage.bytes;
 
     final withImage = args['with_image'] is bool
         ? args['with_image'] as bool
@@ -400,17 +407,24 @@ class ViewImageAnnotationsTool extends AgentTool {
         ? args['full_resolution'] as bool
         : false;
 
-    final dims = await AnlasCalculator.decodeImageDimensions(imageBytes);
+    final attachImage = withImage && isModelMultimodal();
+    final imageBytes = attachImage
+        ? await resolveCanvasImageBytes(targetImage, loadImageBytes)
+        : targetImage.bytes;
+    if (imageBytes == null) {
+      return unavailableCanvasImageResult(toolCallId, index);
+    }
+    final dims = imageBytes.isEmpty
+        ? null
+        : await AnlasCalculator.decodeImageDimensions(imageBytes);
     final width = dims?.width ?? params.width;
     final height = dims?.height ?? params.height;
 
     Uint8List? finalImageBytes;
     var overlayApplied = false;
 
-    if (withImage) {
-      if (!isModelMultimodal()) {
-        // 模型不支持图片输入时仅返回结构化文本
-      } else if (withOverlay && annotations.isNotEmpty) {
+    if (attachImage) {
+      if (withOverlay && annotations.isNotEmpty) {
         try {
           final rendered = await renderImageWithAnnotationOverlay(
             imageBytes,
@@ -428,7 +442,9 @@ class ViewImageAnnotationsTool extends AgentTool {
 
     // 视觉附件压缩：默认压到最长边 1024px 控制视觉 Token，
     // 模型看不清批注细节时可传 full_resolution=true 获取原图
-    String resultMime = 'image/png';
+    String resultMime = finalImageBytes == null
+        ? 'image/png'
+        : sniffImageMimeType(finalImageBytes);
     if (finalImageBytes != null && !fullResolution) {
       final compressed = await compressVisionImage(finalImageBytes);
       finalImageBytes = compressed.bytes;

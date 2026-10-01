@@ -167,9 +167,11 @@ class AssistantMessageItem extends StatelessWidget {
           AgentTimelineStep(child: AgentMarkdownBody(data: content)),
         ],
         if (message.toolCalls != null)
-          for (final call in message.toolCalls!)
+          for (final (index, call) in message.toolCalls!.indexed)
             AgentTimelineStep(
-              key: ValueKey(call.id),
+              // 协议 ID 在旧历史中可能重复或为空，不能直接当组件身份。
+              // 消息 + 调用位置保证唯一，追加调用/思考块时保留各自折叠状态。
+              key: ValueKey((message.id, call.id, index)),
               accent: context.colors.primary,
               child: ToolCallBlock(call: call),
             ),

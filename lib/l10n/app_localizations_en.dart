@@ -9,6 +9,13 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get settingsPromptToolUse => 'Prompt-based tool calling';
+
+  @override
+  String get settingsPromptToolUseSubtitle =>
+      'Send tool definitions and results as chat text to bypass native tool protocol incompatibilities. Enable only when needed; reliability depends on the model following the format.';
+
+  @override
   String get chatStopOutput => 'Stop output (Esc)';
 
   @override
