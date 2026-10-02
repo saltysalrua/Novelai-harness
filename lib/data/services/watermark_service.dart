@@ -48,17 +48,16 @@ class WatermarkService {
         config: config,
       ),
     );
-    return encodeRawRgbaToPng(
-      outRgba.materialize(),
-      baseImage.width,
-      baseImage.height,
-    );
+    return encodeRawRgbaToPng(outRgba, baseImage.width, baseImage.height);
   }
 
   /// 可见水印纯像素合成 (compute isolate 内执行)：
   /// 缩放水印 (预乘插值防光晕) → 选位 (固定/智能) → 自动对比度 → 不透明度 → alpha 混合
-  static Uint8List _applyWatermarkPixels(_WatermarkTaskArgs args) {
-    final baseRgba = args.base.materialize();
+  static Uint8List _applyWatermarkPixels(
+    _WatermarkTaskArgs args, {
+    Uint8List? base,
+  }) {
+    final baseRgba = base ?? args.base.materialize();
     final wmRgba = args.wm.materialize();
     final config = args.config;
     final imgW = args.baseWidth;
@@ -131,7 +130,7 @@ class WatermarkService {
       }
     }
 
-    final out = Uint8List.fromList(baseRgba);
+    final out = baseRgba;
     // 合成水印 (BlendMode.alpha 语义，透明底与原图正常混合，不会盖掉背景)
     blendAlphaRect(
       out,
@@ -373,7 +372,7 @@ class WatermarkService {
       ),
     );
     if (outRgba == null) return imageBytes;
-    return encodeRawRgbaToPng(outRgba.materialize(), image.width, image.height);
+    return encodeRawRgbaToPng(outRgba, image.width, image.height);
   }
 
   /// 从图像字节提取盲水印文本，无水印或校验失败返回 null
@@ -453,6 +452,7 @@ class WatermarkService {
     final rng = _BlindRng(_blindKeySeed);
     final block = List<double>.filled(64, 0.0);
     final dct = List<double>.filled(64, 0.0);
+    final scratch = List<double>.filled(64, 0.0);
 
     var blockIndex = 0;
     for (var by = 0; by < blocksY; by++) {
@@ -472,6 +472,7 @@ class WatermarkService {
           step,
           block,
           dct,
+          scratch,
         );
         blockIndex++;
       }
@@ -490,6 +491,7 @@ class WatermarkService {
     final rng = _BlindRng(_blindKeySeed);
     final block = List<double>.filled(64, 0.0);
     final dct = List<double>.filled(64, 0.0);
+    final scratch = List<double>.filled(64, 0.0);
     var idx = 0;
     for (var by = 0; by < blocksY; by++) {
       for (var bx = 0; bx < blocksX; bx++) {
@@ -502,6 +504,7 @@ class WatermarkService {
           _blindPairs[pairIndex],
           block,
           dct,
+          scratch,
         );
       }
     }
@@ -562,6 +565,7 @@ class WatermarkService {
     double baseStep,
     List<double> block,
     List<double> dct,
+    List<double> scratch,
   ) {
     for (var y = 0; y < 8; y++) {
       for (var x = 0; x < 8; x++) {
@@ -572,7 +576,7 @@ class WatermarkService {
     }
 
     // 2. 正向 DCT
-    _dct8x8(block, dct);
+    _dct8x8(block, dct, scratch);
 
     // 平坦块能量评估 (中高频 u+v>=2，排除 DC 与最低频)
     var energy = 0.0;
@@ -599,7 +603,7 @@ class WatermarkService {
     dct[i2] -= adjust;
 
     // 3. 逆向 DCT 并写回 (亮度差值等量叠加到 RGB，保持色相)
-    _idct8x8(dct, block);
+    _idct8x8(dct, block, scratch);
     for (var y = 0; y < 8; y++) {
       for (var x = 0; x < 8; x++) {
         final i = ((py + y) * imgWidth + (px + x)) * 4;
@@ -628,6 +632,7 @@ class WatermarkService {
     (int, int, int, int) pair,
     List<double> block,
     List<double> dct,
+    List<double> scratch,
   ) {
     for (var y = 0; y < 8; y++) {
       for (var x = 0; x < 8; x++) {
@@ -636,7 +641,7 @@ class WatermarkService {
             0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2];
       }
     }
-    _dct8x8(block, dct);
+    _dct8x8(block, dct, scratch);
     final (u1, v1, u2, v2) = pair;
     final d = dct[v1 * 8 + u1] - dct[v2 * 8 + u2];
     return d > 0 ? 1 : 0;
@@ -714,8 +719,7 @@ class WatermarkService {
   static final double _s1 = math.sqrt(2 / 8);
 
   /// 正交 2D DCT-II: F(v,u) = c(v)c(u) ΣΣ f(y,x) cos... (先 行后 列)
-  static void _dct8x8(List<double> src, List<double> dst) {
-    final tmp = List<double>.filled(64, 0.0);
+  static void _dct8x8(List<double> src, List<double> dst, List<double> tmp) {
     // 行变换
     for (var y = 0; y < 8; y++) {
       for (var k = 0; k < 8; k++) {
@@ -739,8 +743,7 @@ class WatermarkService {
   }
 
   /// 正交 2D DCT-III (逆变换): 先列后行
-  static void _idct8x8(List<double> src, List<double> dst) {
-    final tmp = List<double>.filled(64, 0.0);
+  static void _idct8x8(List<double> src, List<double> dst, List<double> tmp) {
     // 列逆变换
     for (var x = 0; x < 8; x++) {
       for (var n = 0; n < 8; n++) {
@@ -775,47 +778,105 @@ class WatermarkService {
     WatermarkConfig? watermarkConfig,
     Uint8List? watermarkBytes,
   }) async {
-    var resultBytes = rawBytes;
-
-    // 1. 添加可见水印 (若开启且提供了水印数据)
-    if (enableWatermark &&
+    final visible =
+        enableWatermark &&
         watermarkBytes != null &&
         watermarkBytes.isNotEmpty &&
-        watermarkConfig != null) {
-      try {
-        resultBytes = await applyWatermarkAsync(
-          imageBytes: resultBytes,
-          watermarkBytes: watermarkBytes,
-          config: watermarkConfig,
-        );
-      } catch (_) {}
-    }
-
-    // 2. 剔除元数据 (若开启)
-    if (stripMetadata) {
-      try {
-        resultBytes = await ImageMetadataService.stripPngMetadataAsync(
-          resultBytes,
-        );
-      } catch (_) {}
-    }
-
-    // 3. 嵌入盲水印 (若开启且有载荷文本)
+        watermarkConfig != null;
     final blindText = watermarkConfig?.blindText.trim() ?? '';
-    if (watermarkConfig != null &&
-        watermarkConfig.blindEnabled &&
-        blindText.isNotEmpty) {
-      try {
-        resultBytes = await embedBlindWatermarkAsync(
-          resultBytes,
-          text: blindText,
-          strength: watermarkConfig.blindStrength,
-        );
-      } catch (_) {}
+    final payload = watermarkConfig?.blindEnabled == true
+        ? _buildBlindPayload(blindText)
+        : null;
+    if (!visible && payload == null) {
+      return stripMetadata
+          ? ImageMetadataService.stripPngMetadataAsync(rawBytes)
+          : rawBytes;
     }
-
-    return resultBytes;
+    final base = await decodeToRawRgba(rawBytes);
+    if (base == null) return rawBytes;
+    final wm = visible ? await decodeToRawRgba(watermarkBytes) : null;
+    final transfer = IsolateBytes(base.rgba);
+    final result = await runIsolated(
+      _processExportPixels,
+      _ExportPixelTask(
+        base: transfer,
+        width: base.width,
+        height: base.height,
+        visible: wm == null
+            ? null
+            : _WatermarkTaskArgs(
+                base: transfer,
+                baseWidth: base.width,
+                baseHeight: base.height,
+                wm: IsolateBytes(wm.rgba),
+                wmWidth: wm.width,
+                wmHeight: wm.height,
+                config: watermarkConfig!,
+              ),
+        stripMetadata: stripMetadata,
+        clearAlpha: ImageMetadataService.pngMayHaveAlpha(rawBytes),
+        payload: payload,
+        strength: (watermarkConfig?.blindStrength ?? 3).clamp(1, 5),
+      ),
+    );
+    // 一次解码、一次像素任务、一次编码；每个阶段的语义顺序不变。
+    return result == null
+        ? rawBytes
+        : encodeRawRgbaToPng(result, base.width, base.height);
   }
+}
+
+class _ExportPixelTask {
+  final IsolateBytes base;
+  final int width, height, strength;
+  final _WatermarkTaskArgs? visible;
+  final bool stripMetadata, clearAlpha;
+  final Uint8List? payload;
+  const _ExportPixelTask({
+    required this.base,
+    required this.width,
+    required this.height,
+    required this.visible,
+    required this.stripMetadata,
+    required this.clearAlpha,
+    required this.payload,
+    required this.strength,
+  });
+}
+
+Uint8List? _processExportPixels(_ExportPixelTask task) {
+  var rgba = task.base.materialize();
+  var changed = false;
+  if (task.visible case final visible?) {
+    try {
+      rgba = WatermarkService._applyWatermarkPixels(visible, base: rgba);
+      changed = true;
+    } catch (_) {
+      /* 与原管线相同：可见水印失败不阻断后续处理 */
+    }
+  }
+  if (task.stripMetadata) {
+    if (changed || task.clearAlpha) {
+      ImageMetadataService.clearAlphaLsbInPlace(rgba);
+    }
+    changed = true; // 最终编码同时清除所有元数据块。
+  }
+  if (task.payload case final payload?) {
+    try {
+      changed =
+          WatermarkService._embedBlindBits(
+            rgba,
+            task.width,
+            task.height,
+            payload,
+            task.strength,
+          ) ||
+          changed;
+    } catch (_) {
+      /* 容量不足/处理失败不影响已有结果 */
+    }
+  }
+  return changed ? rgba : null;
 }
 
 // ==================== Isolate 入口与参数对象 ====================
@@ -840,9 +901,8 @@ class _WatermarkTaskArgs {
   });
 }
 
-IsolateBytes _applyWatermarkIsolate(_WatermarkTaskArgs args) {
-  return IsolateBytes(WatermarkService._applyWatermarkPixels(args));
-}
+Uint8List _applyWatermarkIsolate(_WatermarkTaskArgs args) =>
+    WatermarkService._applyWatermarkPixels(args);
 
 class _SmartPositionArgs {
   final IsolateBytes base;
@@ -892,7 +952,7 @@ class _BlindEmbedTask {
 }
 
 /// 容量不足时返回 null (调用方原样返回原图)
-IsolateBytes? _embedBlindIsolate(_BlindEmbedTask args) {
+Uint8List? _embedBlindIsolate(_BlindEmbedTask args) {
   final rgba = args.image.materialize();
   final ok = WatermarkService._embedBlindBits(
     rgba,
@@ -901,7 +961,7 @@ IsolateBytes? _embedBlindIsolate(_BlindEmbedTask args) {
     args.payload,
     args.strength,
   );
-  return ok ? IsolateBytes(rgba) : null;
+  return ok ? rgba : null;
 }
 
 class _BlindExtractTask {

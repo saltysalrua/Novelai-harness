@@ -141,6 +141,44 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('FreeformAnnotationBoard 交互回归测试 (漫游/拖拽/删除/圈选)', () {
+    testWidgets('离屏图片节点不挂载，漫游进入后挂载且不全局通知', (tester) async {
+      final vm = await _pumpBoard(tester);
+      vm.board.addImageNodeToBoard(
+        _makeImage('far-ref'),
+        position: const Offset(5500, 5500),
+      );
+      await tester.pump();
+      expect(find.byType(BoardImageCard), findsOneWidget);
+      expect(
+        tester
+            .widget<BoardImageCard>(find.byType(BoardImageCard))
+            .imageNode
+            .isMain,
+        isTrue,
+      );
+      var globalNotifications = 0;
+      vm.addListener(() => globalNotifications++);
+      final controller = tester
+          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+          .transformationController!;
+      controller.value = Matrix4.identity()
+        ..storage[12] = -5400
+        ..storage[13] = -5400;
+      await tester.pump();
+      expect(find.byType(BoardImageCard), findsOneWidget);
+      expect(
+        tester
+            .widget<BoardImageCard>(find.byType(BoardImageCard))
+            .imageNode
+            .image
+            .id,
+        'far-ref',
+      );
+      expect(globalNotifications, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+      vm.dispose();
+    });
+
     testWidgets('左键拖拽空白区域直接漫游，无需切换工具', (tester) async {
       await _pumpBoard(tester);
 

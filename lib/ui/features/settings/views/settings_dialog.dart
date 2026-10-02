@@ -149,6 +149,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       autoSaveImages: _generalDraft.autoSaveImages,
       androidGalleryExport: _generalDraft.androidGalleryExport,
       androidExportTreeUri: _generalDraft.androidExportTreeUri,
+      rtxUpscaleScale: _generalDraft.rtxUpscaleScale,
       comfyUiEnabled: _generalDraft.comfyUiEnabled,
       comfyUiBaseUrl: _generalDraft.comfyBaseUrlController.text.trim(),
       comfyUiPromptNodeId: _generalDraft.comfyPromptNodeController.text.trim(),

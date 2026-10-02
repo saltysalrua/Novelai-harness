@@ -85,8 +85,8 @@ void main() {
     final repo = NovelAiRepository(
       imageEditService: ImageEditService(client: client),
     );
-    final vm = StudioViewModel(repository: repo);
-    addTearDown(vm.dispose);
+    late StudioViewModel vm;
+    addTearDown(() => vm.dispose());
     const provider = LlmProviderConfig(
       id: 'mock-edit',
       name: 'Mock',
@@ -101,6 +101,8 @@ void main() {
       ],
     );
     await tester.runAsync(() async {
+      // 配置写队列和真实 I/O 放在同一非 FakeAsync 区域，避免跨区等待。
+      vm = StudioViewModel(repository: repo);
       await vm.updateConfig(
         vm.config.copyWith(
           llmProviders: [provider],
@@ -154,7 +156,7 @@ void main() {
       expect(requests, 1);
       final result = repo.history.single;
       expect(result.isAiEdited, isTrue);
-      expect(result.bytes, output);
+      expect(await repo.loadHistoryImageBytes(result), output);
       expect(result.params.width, 2816);
       expect(result.params.height, 4096);
       expect(vm.inpaintSourceImage!.id, result.id);

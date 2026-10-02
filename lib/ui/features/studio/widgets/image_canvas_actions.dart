@@ -239,6 +239,14 @@ void showImageContextMenu(
         label: l10n.canvasActionUpscale,
         onTap: isGenerating ? null : () => viewModel.upscaleSelected(),
       ),
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
+        ContextMenuItem(
+          icon: Icons.auto_awesome_outlined,
+          label: l10n.canvasActionRtxUpscale,
+          onTap: isGenerating || !viewModel.supportsRtxUpscale
+              ? null
+              : () => viewModel.upscaleRtx(image),
+        ),
       ContextMenuItem(
         icon: Icons.drive_file_move_outlined,
         label: l10n.canvasSaveToFolder,
@@ -288,7 +296,11 @@ void showImageContextMenu(
       ContextMenuItem(
         icon: Icons.fullscreen_rounded,
         label: l10n.canvasActionViewLightbox,
-        onTap: () => showImageLightbox(context, image),
+        onTap: () => showImageLightbox(
+          context,
+          image,
+          loader: () => viewModel.ensureImageLoaded(image),
+        ),
       ),
       const ContextMenuDivider(),
       ContextMenuItem(

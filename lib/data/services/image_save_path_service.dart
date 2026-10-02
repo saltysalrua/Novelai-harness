@@ -28,7 +28,7 @@ class ImageSaveContext {
         createdAt: image.createdAt,
         seed: image.seed,
         prefix: image.isUpscaled
-            ? 'nai_upscaled'
+            ? (image.id.startsWith('rtx_') ? 'rtx_upscaled' : 'nai_upscaled')
             : image.isInpainted
             ? 'nai_inpaint'
             : image.isAiEdited
@@ -39,7 +39,7 @@ class ImageSaveContext {
       );
 
   String get type => switch (prefix) {
-    'nai_upscaled' => 'upscale',
+    'nai_upscaled' || 'rtx_upscaled' => 'upscale',
     'nai_inpaint' => 'inpaint',
     'nai_ai_edit' => 'ai_edit',
     'comfyui' => 'comfyui',

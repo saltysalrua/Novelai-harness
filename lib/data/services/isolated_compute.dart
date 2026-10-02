@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart';
 ///
 /// 与 [compute] 签名完全一致，作为全项目后台像素/解析计算的单一收敛点。
 /// 约定：任务对象中的大字节块 (原始 RGBA / PNG 字节) 用 [IsolateBytes]
-/// 包装，经 TransferableTypedData 零拷贝传输；小参数 (尺寸/枚举/配置)
-/// 直接随消息拷贝。返回值中的大字节块同样用 [IsolateBytes] 包装回传。
+/// 包装，创建时复制一次、跨线程发送常数时间；小参数 (尺寸/枚举/配置)
+/// 直接随消息拷贝。一次性 compute 返回的字节优先直接返回 Uint8List。
 ///
 /// ```dart
 /// final task = _Task(image: IsolateBytes(rgba), width: w, height: h);
@@ -18,24 +18,14 @@ import 'package:flutter/foundation.dart';
 Future<R> runIsolated<Q, R>(R Function(Q) action, Q message) =>
     compute(action, message);
 
-/// 大字节块的零拷贝 isolate 传输容器
-///
-/// 构造时底层缓冲所有权转移给 [TransferableTypedData] (原列表变 detached，
-/// 不可再用)，isolate 侧调用 [materialize] 取回字节；isolate 内用返回值
-/// 构造 [IsolateBytes] 可零拷贝传回根 isolate。
-///
-/// 若传入的是大缓冲的切片视图 (offset 非零或长度不满)，会退化为一次
-/// 精确拷贝以保证 materialize 长度语义正确。
+/// 跨 isolate 传输容器：fromList 会复制一次，发送/接收阶段为常数时间。
+/// 输入原列表仍有效，不会 detached；切片视图也无需额外预复制。
+/// compute 的返回值可直接用 Uint8List，利用 Isolate.exit 的所有权移交避免再次复制。
 class IsolateBytes {
   final TransferableTypedData _data;
 
   IsolateBytes(Uint8List bytes)
-    : _data = TransferableTypedData.fromList([
-        (bytes.offsetInBytes == 0 &&
-                bytes.lengthInBytes == bytes.buffer.lengthInBytes)
-            ? bytes
-            : Uint8List.fromList(bytes),
-      ]);
+    : _data = TransferableTypedData.fromList([bytes]);
 
   /// 取回字节 (所有权一次性，只能调用一次)
   Uint8List materialize() => _data.materialize().asUint8List();

@@ -38,3 +38,10 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
+
+# Isolate GPU processing from Flutter's UI/render threads.
+add_executable(rtx_upscale "rtx_upscale.cpp")
+apply_standard_settings(rtx_upscale)
+target_compile_definitions(rtx_upscale PRIVATE "NOMINMAX")
+target_link_libraries(rtx_upscale PRIVATE d3d11 dxgi windowscodecs ole32)
+add_dependencies(${BINARY_NAME} rtx_upscale)

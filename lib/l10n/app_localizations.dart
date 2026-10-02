@@ -3182,6 +3182,24 @@ abstract class AppLocalizations {
   /// **'超分放大'**
   String get canvasActionUpscale;
 
+  /// No description provided for @canvasActionRtxUpscale.
+  ///
+  /// In zh, this message translates to:
+  /// **'RTX 放大'**
+  String get canvasActionRtxUpscale;
+
+  /// No description provided for @settingsRtxScaleTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'放大倍率'**
+  String get settingsRtxScaleTitle;
+
+  /// No description provided for @settingsRtxScaleSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片右键菜单使用此倍率。需要 NVIDIA RTX 显卡，画质由 NVIDIA 视频超分设置控制。'**
+  String get settingsRtxScaleSubtitle;
+
   /// No description provided for @canvasActionCopyImage.
   ///
   /// In zh, this message translates to:

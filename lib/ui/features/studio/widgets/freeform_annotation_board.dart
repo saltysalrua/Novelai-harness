@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -67,6 +68,30 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   // 记录鼠标在画板上的全局坐标
   Offset _lastPointerLocal = const Offset(400, 300);
   bool _hasInitialCentered = false;
+  Size _viewportSize = Size.zero;
+  final ValueNotifier<({Rect bounds, double scale})> _imageViewport =
+      ValueNotifier((bounds: Rect.zero, scale: 1));
+
+  void _updateImageViewport() {
+    if (_viewportSize.isEmpty) return;
+    final matrix = _transformController.value;
+    final scale = matrix.getMaxScaleOnAxis();
+    if (!scale.isFinite || scale <= 0) return;
+    final bounds = MatrixUtils.transformRect(
+      Matrix4.inverted(matrix),
+      Offset.zero & _viewportSize,
+    );
+    final lod = math.pow(2, (math.log(scale) / math.ln2).ceil()).toDouble();
+    final previous = _imageViewport.value;
+    final safe = previous.bounds.deflate(120 / scale);
+    if (previous.scale == lod &&
+        safe.contains(bounds.topLeft) &&
+        safe.contains(bounds.bottomRight)) {
+      return;
+    }
+    // 预取边缘 + 滞后区；漫游矩阵每帧更新，节点层只在跨边界/缩放档位时更新。
+    _imageViewport.value = (bounds: bounds.inflate(300 / scale), scale: lod);
+  }
 
   @override
   void initState() {
@@ -80,6 +105,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _transformController.removeListener(_syncViewport);
+    _imageViewport.dispose();
     _wireDrag.dispose();
     _liveOverlays.dispose();
     _transformController.dispose();
@@ -88,6 +114,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
 
   /// 把当前视口矩阵 (缩放/平移) 同步给 ViewModel 用于恢复布局
   void _syncViewport() {
+    _updateImageViewport();
     final m = _transformController.value;
     widget.viewModel.board.updateBoardViewport(
       m.storage[0],
@@ -345,6 +372,12 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (_viewportSize != constraints.biggest) {
+          _viewportSize = constraints.biggest;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _updateImageViewport();
+          });
+        }
         if (!_hasInitialCentered &&
             constraints.maxWidth > 0 &&
             constraints.maxHeight > 0) {
@@ -476,23 +509,50 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                       ),
                                     ),
 
-                                    for (final imgNode in boardData.imageNodes)
-                                      BoardImageCard(
-                                        key: ValueKey(imgNode.id),
-                                        viewModel: viewModel,
-                                        imageNode: imgNode,
-                                        toolMode: _toolMode,
-                                        isPanMode: _isPanMode,
-                                        isWireDragging: _wireDrag.value != null,
-                                        live: _liveApi,
-                                        onStartWireFromImage: (anchor) =>
-                                            _beginWireDragFromImage(
-                                              imgNode.id,
-                                              anchor,
-                                            ),
-                                        onUpdateWire: _updateWireFromGlobal,
-                                        onEndWire: _endWireDrag,
+                                    ValueListenableBuilder<
+                                      ({Rect bounds, double scale})
+                                    >(
+                                      valueListenable: _imageViewport,
+                                      builder: (context, viewport, _) => Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          for (final imgNode
+                                              in boardData.imageNodes)
+                                            if (viewport.bounds.overlaps(
+                                                  Rect.fromLTWH(
+                                                    imgNode.offset.dx,
+                                                    imgNode.offset.dy,
+                                                    imgNode.width,
+                                                    imgNode.height + 32,
+                                                  ),
+                                                ) ||
+                                                _liveOverlays.value.nodeOffsets
+                                                    .containsKey(imgNode.id) ||
+                                                _liveOverlays.value.nodeSizes
+                                                    .containsKey(imgNode.id))
+                                              BoardImageCard(
+                                                key: ValueKey(imgNode.id),
+                                                viewModel: viewModel,
+                                                imageNode: imgNode,
+                                                decodeScale: viewport.scale,
+                                                toolMode: _toolMode,
+                                                isPanMode: _isPanMode,
+                                                isWireDragging:
+                                                    _wireDrag.value != null,
+                                                live: _liveApi,
+                                                onStartWireFromImage:
+                                                    (anchor) =>
+                                                        _beginWireDragFromImage(
+                                                          imgNode.id,
+                                                          anchor,
+                                                        ),
+                                                onUpdateWire:
+                                                    _updateWireFromGlobal,
+                                                onEndWire: _endWireDrag,
+                                              ),
+                                        ],
                                       ),
+                                    ),
 
                                     // 1.2 便利贴节点渲染 (左侧端口拖拽连线)
                                     for (final noteNode in boardData.noteNodes)

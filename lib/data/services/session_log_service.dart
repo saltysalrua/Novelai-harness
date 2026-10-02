@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'dart:math';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'isolated_compute.dart';
 import '../../core/harness/session_recorder.dart';
 import '../../core/harness/types.dart';
 
@@ -75,6 +76,7 @@ class SessionSnapshot {
 
   /// 本会话内各模型 (provider/model) 累计的 Token 用量
   final Map<String, TokenUsage> sessionUsage;
+  final String? lastEntryId;
 
   const SessionSnapshot({
     this.sessionId,
@@ -84,6 +86,7 @@ class SessionSnapshot {
     this.modelId,
     this.thinkingLevel,
     this.sessionUsage = const {},
+    this.lastEntryId,
   });
 }
 
@@ -102,7 +105,8 @@ class SessionLogService implements SessionRecorder {
   Directory? _baseDir;
   File? _currentFile;
   String? _lastEntryId;
-  final Random _random = Random();
+  static final Random _random = Random();
+  int _sessionLoadEpoch = 0;
 
   /// 串行写队列，保证 JSONL 行序与写入顺序一致
   Future<void> _queue = Future.value();
@@ -171,14 +175,14 @@ class SessionLogService implements SessionRecorder {
     }
 
     final dir = Directory(dirPath);
-    dir.createSync(recursive: true);
+    await dir.create(recursive: true);
     _baseDir = dir;
 
     // 接管最新会话文件：后续记录追加到该文件末尾
-    final latest = _latestSessionFile();
-    if (latest != null) {
-      _currentFile = latest;
-      _lastEntryId = _lastEntryIdOfFile(latest);
+    final resumed = await runIsolated(_resumeLatestFile, dirPath);
+    if (resumed != null) {
+      _currentFile = File(resumed.path);
+      _lastEntryId = resumed.lastEntryId;
     }
   }
 
@@ -288,6 +292,7 @@ class SessionLogService implements SessionRecorder {
 
   @override
   void startNewSession() {
+    _sessionLoadEpoch++;
     if (_baseDir == null) return;
     _currentFile = null;
     _lastEntryId = null;
@@ -298,48 +303,58 @@ class SessionLogService implements SessionRecorder {
   @override
   void rewindToMessageCount(int keepCount) {
     final file = _currentFile;
-    if (file == null || !file.existsSync()) return;
-
+    if (file == null) return;
+    final path = file.path;
     _queue = _queue.then((_) async {
-      List<String> lines;
-      try {
-        lines = file.readAsLinesSync();
-      } catch (_) {
-        return;
-      }
-      if (lines.isEmpty) return;
-
-      final keptLines = <String>[];
-      keptLines.add(lines.first); // 保留 session 头
-
-      int msgCount = 0;
-      String? lastKeptId;
-
-      for (var i = 1; i < lines.length; i++) {
-        final line = lines[i].trim();
-        if (line.isEmpty) continue;
-        Map<String, dynamic> entry;
-        try {
-          entry = jsonDecode(line) as Map<String, dynamic>;
-        } catch (_) {
-          continue;
-        }
-
-        if (entry['type'] == 'message') {
-          if (msgCount >= keepCount) {
-            // 已达到保留上限，停止保留后续消息与关联条目
-            break;
-          }
-          msgCount++;
-        }
-        keptLines.add(line);
-        lastKeptId = entry['id'] as String? ?? lastKeptId;
-      }
-
-      file.writeAsStringSync('${keptLines.join('\n')}\n', flush: true);
-      _sessionInfoCache.remove(file.path);
-      _lastEntryId = lastKeptId;
+      final lastId = await runIsolated(_truncateSessionFile, (
+        path: path,
+        keepCount: keepCount,
+      ));
+      _sessionInfoCache.remove(path);
+      if (_currentFile?.path == path) _lastEntryId = lastId;
     });
+  }
+
+  static String? _truncateSessionFile(({String path, int keepCount}) task) {
+    final file = File(task.path);
+    final keepCount = task.keepCount;
+    List<String> lines;
+    try {
+      lines = file.readAsLinesSync();
+    } catch (_) {
+      return null;
+    }
+    if (lines.isEmpty) return null;
+
+    final keptLines = <String>[];
+    keptLines.add(lines.first); // 保留 session 头
+
+    int msgCount = 0;
+    String? lastKeptId;
+
+    for (var i = 1; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty) continue;
+      Map<String, dynamic> entry;
+      try {
+        entry = jsonDecode(line) as Map<String, dynamic>;
+      } catch (_) {
+        continue;
+      }
+
+      if (entry['type'] == 'message') {
+        if (msgCount >= keepCount) {
+          // 已达到保留上限，停止保留后续消息与关联条目
+          break;
+        }
+        msgCount++;
+      }
+      keptLines.add(line);
+      lastKeptId = entry['id'] as String? ?? lastKeptId;
+    }
+
+    file.writeAsStringSync('${keptLines.join('\n')}\n', flush: true);
+    return lastKeptId;
   }
 
   /// 等待所有排队的写入落盘 (测试与退出前调用)
@@ -402,6 +417,7 @@ class SessionLogService implements SessionRecorder {
 
   /// 切换并加载指定 sessionId 的会话快照
   SessionSnapshot? loadSession(String sessionId) {
+    _sessionLoadEpoch++;
     if (_baseDir == null) return null;
     final file = _findSessionFileById(sessionId);
     if (file == null) return null;
@@ -409,7 +425,7 @@ class SessionLogService implements SessionRecorder {
     final snapshot = _loadSnapshotFromFile(file);
     if (snapshot != null) {
       _currentFile = file;
-      _lastEntryId = _lastEntryIdOfFile(file);
+      _lastEntryId = snapshot.lastEntryId;
     }
     return snapshot;
   }
@@ -417,6 +433,7 @@ class SessionLogService implements SessionRecorder {
   /// 加载最新会话文件的快照 (消息列表 + 最终模型/思考强度状态)。
   /// 文件不存在或无可恢复消息时返回 null。
   SessionSnapshot? loadLatestSession() {
+    _sessionLoadEpoch++;
     if (_baseDir == null) return null;
     final file = _latestSessionFile();
     if (file == null) return null;
@@ -424,9 +441,45 @@ class SessionLogService implements SessionRecorder {
     final snapshot = _loadSnapshotFromFile(file);
     if (snapshot != null) {
       _currentFile = file;
-      _lastEntryId = _lastEntryIdOfFile(file);
+      _lastEntryId = snapshot.lastEntryId;
     }
     return snapshot;
+  }
+
+  Future<SessionSnapshot?> loadSessionAsync(String sessionId) =>
+      _loadSessionAsync(sessionId);
+
+  Future<SessionSnapshot?> loadLatestSessionAsync() => _loadSessionAsync(null);
+
+  Future<SessionSnapshot?> _loadSessionAsync(String? sessionId) async {
+    final directory = _baseDir?.path;
+    if (directory == null) return null;
+    final epoch = ++_sessionLoadEpoch;
+    await flush();
+    final loaded = await runIsolated(_readSessionTask, (
+      directory: directory,
+      sessionId: sessionId,
+    ));
+    if (epoch != _sessionLoadEpoch) return null;
+    final snapshot = loaded.snapshot;
+    if (snapshot != null && loaded.path != null) {
+      _currentFile = File(loaded.path!);
+      _lastEntryId = snapshot.lastEntryId;
+    }
+    return snapshot;
+  }
+
+  static ({String? path, SessionSnapshot? snapshot}) _readSessionTask(
+    ({String directory, String? sessionId}) task,
+  ) {
+    final directory = task.directory, sessionId = task.sessionId;
+    final file = sessionId == null
+        ? _latestSessionInDirectory(directory)
+        : _findSessionInDirectory(directory, sessionId);
+    return (
+      path: file?.path,
+      snapshot: file == null ? null : _loadSnapshotFromFile(file),
+    );
   }
 
   /// 创建一个全新的会话文件并设为当前活跃会话
@@ -434,6 +487,7 @@ class SessionLogService implements SessionRecorder {
     if (_baseDir == null) {
       throw StateError('SessionLogService 未初始化');
     }
+    _sessionLoadEpoch++;
     await flush();
 
     final now = DateTime.now().toUtc();
@@ -469,6 +523,7 @@ class SessionLogService implements SessionRecorder {
   /// 删除指定 sessionId 的会话文件
   Future<bool> deleteSession(String sessionId) async {
     if (_baseDir == null) return false;
+    _sessionLoadEpoch++;
     await flush();
 
     final file = _findSessionFileById(sessionId);
@@ -494,15 +549,31 @@ class SessionLogService implements SessionRecorder {
 
   /// 重命名会话 (更新 JSONL 文件头中的 title 并写入 session_info 条目)
   Future<void> renameSession(String sessionId, String newTitle) async {
-    if (_baseDir == null) return;
-    await flush();
-
-    final file = _findSessionFileById(sessionId);
-    if (file == null || !file.existsSync()) return;
-
+    final directory = _baseDir?.path;
     final trimmedTitle = newTitle.trim();
-    if (trimmedTitle.isEmpty) return;
+    if (directory == null || trimmedTitle.isEmpty) return;
+    await flush();
+    final path = await runIsolated(_findSessionPath, (
+      directory: directory,
+      sessionId: sessionId,
+    ));
+    if (path == null) return;
+    // 后台读取/重写与正常追加共用写队列，不覆盖期间的新消息。
+    final task = _queue.then((_) async {
+      await runIsolated(_renameSessionFile, (path: path, title: trimmedTitle));
+      _sessionInfoCache.remove(path);
+    });
+    _queue = task;
+    await task;
+  }
 
+  static String? _findSessionPath(
+    ({String directory, String sessionId}) task,
+  ) => _findSessionInDirectory(task.directory, task.sessionId)?.path;
+
+  static void _renameSessionFile(({String path, String title}) task) {
+    final file = File(task.path);
+    final trimmedTitle = task.title;
     List<String> lines;
     try {
       lines = file.readAsLinesSync();
@@ -527,8 +598,6 @@ class SessionLogService implements SessionRecorder {
     lines.add(jsonEncode(infoEntry));
 
     file.writeAsStringSync('${lines.join('\n')}\n', flush: true);
-    _sessionInfoCache.remove(file.path);
-    _lastEntryId = _lastEntryIdOfFile(file);
   }
 
   // ---------------------------------------------------------------------------
@@ -575,8 +644,10 @@ class SessionLogService implements SessionRecorder {
     });
   }
 
-  File? _latestSessionFile() {
-    final dir = _baseDir;
+  File? _latestSessionFile() => _latestSessionInDirectory(_baseDir?.path);
+
+  static File? _latestSessionInDirectory(String? path) {
+    final dir = path == null ? null : Directory(path);
     if (dir == null || !dir.existsSync()) return null;
     final files = dir
         .listSync()
@@ -592,8 +663,11 @@ class SessionLogService implements SessionRecorder {
     return files.first;
   }
 
-  File? _findSessionFileById(String sessionId) {
-    final dir = _baseDir;
+  File? _findSessionFileById(String sessionId) =>
+      _findSessionInDirectory(_baseDir?.path, sessionId);
+
+  static File? _findSessionInDirectory(String? path, String sessionId) {
+    final dir = path == null ? null : Directory(path);
     if (dir == null || !dir.existsSync()) return null;
     final files = dir.listSync().whereType<File>().where(
       (f) => f.path.endsWith('.jsonl'),
@@ -621,7 +695,16 @@ class SessionLogService implements SessionRecorder {
     return null;
   }
 
-  String? _lastEntryIdOfFile(File file) {
+  static ({String path, String? lastEntryId})? _resumeLatestFile(
+    String directory,
+  ) {
+    final file = _latestSessionInDirectory(directory);
+    return file == null
+        ? null
+        : (path: file.path, lastEntryId: _lastEntryIdOfFile(file));
+  }
+
+  static String? _lastEntryIdOfFile(File file) {
     try {
       final lines = file.readAsLinesSync();
       for (final line in lines.reversed) {
@@ -638,7 +721,7 @@ class SessionLogService implements SessionRecorder {
     return null;
   }
 
-  SessionSnapshot? _loadSnapshotFromFile(File file) {
+  static SessionSnapshot? _loadSnapshotFromFile(File file) {
     final messages = <AgentMessage>[];
     final sessionUsage = <String, TokenUsage>{};
     String? sessionId = _extractSessionIdFromFile(file);
@@ -646,6 +729,7 @@ class SessionLogService implements SessionRecorder {
     String? provider;
     String? modelId;
     String? thinkingLevel;
+    String? lastEntryId;
 
     List<String> lines;
     try {
@@ -671,6 +755,7 @@ class SessionLogService implements SessionRecorder {
         continue;
       }
 
+      lastEntryId = entry['id'] as String? ?? lastEntryId;
       switch (type) {
         case 'message':
           final msg = _parseMessageEntry(entry);
@@ -704,6 +789,7 @@ class SessionLogService implements SessionRecorder {
       modelId: modelId,
       thinkingLevel: thinkingLevel,
       sessionUsage: sessionUsage,
+      lastEntryId: lastEntryId,
     );
   }
 
@@ -815,7 +901,7 @@ class SessionLogService implements SessionRecorder {
     }
   }
 
-  AgentMessage? _parseMessageEntry(Map<String, dynamic> entry) {
+  static AgentMessage? _parseMessageEntry(Map<String, dynamic> entry) {
     final msg = entry['message'] as Map<String, dynamic>?;
     if (msg == null) return null;
 
@@ -969,7 +1055,7 @@ class SessionLogService implements SessionRecorder {
   }
 
   /// 8 位十六进制短 ID (Pi 条目 ID 风格)
-  String _hexId(int length) {
+  static String _hexId(int length) {
     const chars = '0123456789abcdef';
     return List.generate(
       length,

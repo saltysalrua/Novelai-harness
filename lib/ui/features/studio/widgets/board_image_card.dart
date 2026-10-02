@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HardwareKeyboard;
 import '../../../../data/models/novelai_models.dart';
@@ -22,6 +22,7 @@ class BoardImageCard extends StatefulWidget {
   final bool isPanMode;
   final bool isWireDragging;
   final BoardLiveApi live;
+  final double decodeScale;
 
   /// 从顶栏端口拉出连线 (参数为端口在画布坐标系中的锚点)
   final ValueChanged<Offset> onStartWireFromImage;
@@ -40,6 +41,7 @@ class BoardImageCard extends StatefulWidget {
     required this.isPanMode,
     required this.isWireDragging,
     required this.live,
+    this.decodeScale = 1,
     required this.onStartWireFromImage,
     required this.onUpdateWire,
     required this.onEndWire,
@@ -73,6 +75,46 @@ class _BoardImageCardState extends State<BoardImageCard> {
 
   // 图片主体 Stack 的全局键 (把指针全局坐标换算为归一化画布坐标)
   final GlobalKey _canvasStackKey = GlobalKey();
+
+  Widget _buildImage(BuildContext context, Size size) {
+    final image = widget.imageNode.image;
+    final target =
+        (size.width *
+                widget.decodeScale *
+                MediaQuery.devicePixelRatioOf(context))
+            .ceil();
+    final cacheWidth = (((target + 127) ~/ 128) * 128).clamp(
+      1,
+      image.params.width,
+    );
+    Widget fallback() {
+      final thumb = image.thumbnailBytes;
+      return thumb != null && thumb.isNotEmpty
+          ? Image.memory(thumb, fit: BoxFit.contain)
+          : const Center(child: Icon(Icons.broken_image_outlined));
+    }
+
+    final path = image.displayFilePath;
+    if (path != null && path.isNotEmpty) {
+      // FileImage 的 key 不持有整张 PNG；引擎按显示档位解码，原图仍供审查/修复懒加载。
+      return Image.file(
+        File(path),
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        cacheWidth: cacheWidth,
+        errorBuilder: (_, _, _) => fallback(),
+      );
+    }
+    return image.bytes.isNotEmpty
+        ? Image.memory(
+            image.bytes,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            cacheWidth: cacheWidth,
+            errorBuilder: (_, _, _) => fallback(),
+          )
+        : fallback();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,48 +250,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
                     fit: StackFit.expand,
                     clipBehavior: Clip.none,
                     children: [
-                      ValueListenableBuilder<Map<String, Uint8List>>(
-                        valueListenable: viewModel.imageBytesNotifier,
-                        builder: (context, bytesMap, _) {
-                          final fullBytes = imgNode.image.bytes.isNotEmpty
-                              ? imgNode.image.bytes
-                              : bytesMap[imgNode.image.id];
-                          if (fullBytes != null && fullBytes.isNotEmpty) {
-                            return Image.memory(
-                              fullBytes,
-                              fit: BoxFit.contain,
-                              gaplessPlayback: true,
-                            );
-                          }
-
-                          viewModel.ensureImageLoaded(imgNode.image);
-
-                          final thumb = imgNode.image.thumbnailBytes;
-                          if (thumb != null && thumb.isNotEmpty) {
-                            return Image.memory(
-                              thumb,
-                              fit: BoxFit.contain,
-                              gaplessPlayback: true,
-                            );
-                          }
-
-                          return Container(
-                            color: colors.mutedBackground,
-                            child: Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    colors.primary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                      _buildImage(context, canvasSize),
 
                       // 绘制选区/锚点手势 (漫游模式与连线拖拽时让位)
                       if (isMain && !widget.isPanMode && !widget.isWireDragging)

@@ -314,10 +314,11 @@ void main() {
       ),
       saveDir: dir.path,
     );
-    final board = (await NovelAiRepository().loadBoardLayout(
-      saveDir: dir.path,
-    ))!;
-    expect(board.imageNodes.single.image.bytes, source.bytes);
+    final restoredRepo = NovelAiRepository();
+    final board = (await restoredRepo.loadBoardLayout(saveDir: dir.path))!;
+    final image = board.imageNodes.single.image;
+    expect(image.bytes, isEmpty);
+    expect(await restoredRepo.loadHistoryImageBytes(image), source.bytes);
     expect(board.imageNodes.single.image.localFilePath, source.localFilePath);
     expect(
       board.imageNodes.single.image.originalFilePath,

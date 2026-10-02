@@ -83,6 +83,30 @@ void main() {
     });
   }
 
+  test('异步恢复保留消息及父链，旧恢复结果不覆盖新会话', () async {
+    final original = await service.createSession(title: '原会话');
+    service.recordMessage(userMsg('保留原文'));
+    await service.flush();
+    final before = service.currentSessionFile!.readAsStringSync();
+    final snapshot = (await service.loadSessionAsync(original.id))!;
+    expect(snapshot.messages.single.content, '保留原文');
+    expect(service.currentSessionFile!.readAsStringSync(), before);
+    await service.renameSession(original.id, '新标题');
+    await service.loadSessionAsync(original.id);
+    service.recordMessage(assistantMsg());
+    await service.flush();
+    final messages = service.currentSessionFile!
+        .readAsLinesSync()
+        .map((line) => jsonDecode(line) as Map<String, dynamic>)
+        .where((entry) => entry['type'] == 'message')
+        .toList();
+    expect(messages.last['parentId'], messages.first['id']);
+    final stale = service.loadSessionAsync(original.id);
+    final current = await service.createSession(title: '当前会话');
+    expect(await stale, isNull);
+    expect(service.currentSessionId, current.id);
+  });
+
   test('writes Pi session format header and entries', () async {
     service.recordModelChange('deepseek', 'deepseek-chat');
     service.recordThinkingLevelChange('high');

@@ -453,20 +453,25 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                   ),
 
                 // 4. 执行中的中间帧预览 (贴在外延裁剪框位置)
-                if (isExecuting && vm.inpaintPreviewBytes != null)
-                  Positioned.fromRect(
-                    key: const ValueKey('inpaint-preview'),
-                    rect: (isFocus && cropCanvasRect != null)
-                        ? cropCanvasRect
-                        : imageRect,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.memory(
-                        vm.inpaintPreviewBytes!,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                      ),
-                    ),
+                if (isExecuting)
+                  ValueListenableBuilder<Uint8List?>(
+                    valueListenable: vm.inpaintPreviewNotifier,
+                    builder: (context, bytes, _) => bytes == null
+                        ? const SizedBox.shrink()
+                        : Positioned.fromRect(
+                            key: const ValueKey('inpaint-preview'),
+                            rect: (isFocus && cropCanvasRect != null)
+                                ? cropCanvasRect
+                                : imageRect,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Image.memory(
+                                bytes,
+                                fit: BoxFit.contain,
+                                gaplessPlayback: true,
+                              ),
+                            ),
+                          ),
                   ),
 
                 // 5. 手势交互层 (整个源图区域；执行中与 AI 整图编辑模式禁用)

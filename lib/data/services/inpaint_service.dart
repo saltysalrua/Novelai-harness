@@ -194,6 +194,28 @@ abstract final class InpaintService {
     return RawRgbaImage(rgba: buf, width: sourceWidth, height: sourceHeight);
   }
 
+  static Future<RawRgbaImage> buildSourceMaskAsync({
+    required int sourceWidth,
+    required int sourceHeight,
+    List<InpaintBrushStroke> brushStrokes = const [],
+    Rect? selectionRect,
+  }) => runIsolated(_buildSourceMaskTask, (
+    width: sourceWidth,
+    height: sourceHeight,
+    strokes: brushStrokes,
+    rect: selectionRect,
+  ));
+
+  static RawRgbaImage _buildSourceMaskTask(
+    ({int width, int height, List<InpaintBrushStroke> strokes, Rect? rect})
+    task,
+  ) => buildSourceMask(
+    sourceWidth: task.width,
+    sourceHeight: task.height,
+    brushStrokes: task.strokes,
+    selectionRect: task.rect,
+  );
+
   /// 将画笔描边按提交顺序栅格化进蒙版：正向描边盖章白色 (待重绘)，
   /// 反向橡皮描边盖章黑色 (抵消先前笔迹，后画优先)
   static void _paintStrokes(
@@ -524,6 +546,20 @@ abstract final class InpaintService {
       throw StateError('无法解码原图进行焦点裁剪。');
     }
 
+    return _prepareRequestInBackground(
+      decodedSource,
+      geometry.requestWidth,
+      geometry.requestHeight,
+      sourceMask: sourceMask,
+      geometry: geometry,
+    );
+  }
+
+  static ({Uint8List source, Uint8List mask}) _focusedRequestPixels(
+    RawRgbaImage decodedSource,
+    InpaintGeometry geometry,
+    RawRgbaImage? sourceMask,
+  ) {
     final crop = _cropRectFor(
       decodedSource.width,
       decodedSource.height,
@@ -580,18 +616,7 @@ abstract final class InpaintService {
       ),
     );
 
-    return (
-      sourceBytes: await encodeRawRgbaToPng(
-        resizedRgba,
-        geometry.requestWidth,
-        geometry.requestHeight,
-      ),
-      maskBytes: await encodeRawRgbaToPng(
-        quantizedMask.rgba,
-        geometry.requestWidth,
-        geometry.requestHeight,
-      ),
-    );
+    return (source: resizedRgba, mask: quantizedMask.rgba);
   }
 
   /// 构建焦点选区对应的二值遮罩 (黑底白块)
@@ -647,6 +672,66 @@ abstract final class InpaintService {
       throw StateError('无法解码原图进行常规重绘。');
     }
 
+    return _prepareRequestInBackground(
+      decodedSource,
+      requestWidth,
+      requestHeight,
+      sourceMask: sourceMask,
+    );
+  }
+
+  static Future<({Uint8List sourceBytes, Uint8List maskBytes})>
+  _prepareRequestInBackground(
+    RawRgbaImage source,
+    int width,
+    int height, {
+    RawRgbaImage? sourceMask,
+    InpaintGeometry? geometry,
+  }) async {
+    final result = await runIsolated(_prepareRequestPixels, (
+      source: IsolateBytes(source.rgba),
+      sourceWidth: source.width,
+      sourceHeight: source.height,
+      mask: sourceMask == null ? null : IsolateBytes(sourceMask.rgba),
+      maskWidth: sourceMask?.width ?? 0,
+      maskHeight: sourceMask?.height ?? 0,
+      width: width,
+      height: height,
+      geometry: geometry,
+    ));
+    return (
+      sourceBytes: await encodeRawRgbaToPng(result.source, width, height),
+      maskBytes: await encodeRawRgbaToPng(result.mask, width, height),
+    );
+  }
+
+  static ({Uint8List source, Uint8List mask}) _prepareRequestPixels(
+    _RequestPixelTask task,
+  ) {
+    final source = RawRgbaImage(
+      rgba: task.source.materialize(),
+      width: task.sourceWidth,
+      height: task.sourceHeight,
+    );
+    final mask = task.mask == null
+        ? null
+        : RawRgbaImage(
+            rgba: task.mask!.materialize(),
+            width: task.maskWidth,
+            height: task.maskHeight,
+          );
+    if (task.geometry case final geometry?) {
+      return _focusedRequestPixels(source, geometry, mask);
+    }
+    return _standardRequestPixels(source, task.width, task.height, mask);
+  }
+
+  static ({Uint8List source, Uint8List mask}) _standardRequestPixels(
+    RawRgbaImage decodedSource,
+    int requestWidth,
+    int requestHeight,
+    RawRgbaImage? sourceMask,
+  ) {
     final resizedRgba =
         (decodedSource.width == requestWidth &&
             decodedSource.height == requestHeight)
@@ -660,7 +745,9 @@ abstract final class InpaintService {
           );
 
     final Uint8List requestMaskRgba;
-    if (sourceMask != null && sourceMask.width == decodedSource.width) {
+    if (sourceMask != null &&
+        sourceMask.width == decodedSource.width &&
+        sourceMask.height == decodedSource.height) {
       requestMaskRgba = resizeRgbaNearest(
         sourceMask.rgba,
         sourceMask.width,
@@ -681,18 +768,7 @@ abstract final class InpaintService {
       ),
     );
 
-    return (
-      sourceBytes: await encodeRawRgbaToPng(
-        resizedRgba,
-        requestWidth,
-        requestHeight,
-      ),
-      maskBytes: await encodeRawRgbaToPng(
-        quantizedMask.rgba,
-        requestWidth,
-        requestHeight,
-      ),
-    );
+    return (source: resizedRgba, mask: quantizedMask.rgba);
   }
 
   // ---------------------------------------------------------------------------
@@ -753,7 +829,7 @@ abstract final class InpaintService {
       ),
     );
     return encodeRawRgbaToPng(
-      outRgba.materialize(),
+      outRgba,
       originalSource.width,
       originalSource.height,
     );
@@ -761,8 +837,8 @@ abstract final class InpaintService {
 
   /// 焦点回贴纯像素合成 (compute isolate 执行)：
   /// 蒙版量化 → 膨胀 → 羽化 → alpha 混合盖回原图
-  static IsolateBytes _compositeFocusedIsolate(_FocusedCompositeTask task) {
-    return IsolateBytes(_compositeFocusedPixels(task));
+  static Uint8List _compositeFocusedIsolate(_FocusedCompositeTask task) {
+    return _compositeFocusedPixels(task);
   }
 
   static Uint8List _compositeFocusedPixels(_FocusedCompositeTask task) {
@@ -911,7 +987,7 @@ abstract final class InpaintService {
       ),
     );
     return encodeRawRgbaToPng(
-      outRgba.materialize(),
+      outRgba,
       originalSource.width,
       originalSource.height,
     );
@@ -919,8 +995,8 @@ abstract final class InpaintService {
 
   /// 常规回贴纯像素合成 (compute isolate 执行)：
   /// 按蒙版亮度做 alpha 混合 (m==1 整像素替换，0<m<1 线性 lerp)
-  static IsolateBytes _compositeStandardIsolate(_StandardCompositeTask task) {
-    return IsolateBytes(_compositeStandardPixels(task));
+  static Uint8List _compositeStandardIsolate(_StandardCompositeTask task) {
+    return _compositeStandardPixels(task);
   }
 
   static Uint8List _compositeStandardPixels(_StandardCompositeTask task) {
@@ -1102,3 +1178,16 @@ class _StandardCompositeTask {
     required this.maskHeight,
   });
 }
+
+// 仅传输 RGBA 与小参数；引擎对象始终留在根 isolate。
+typedef _RequestPixelTask = ({
+  IsolateBytes source,
+  int sourceWidth,
+  int sourceHeight,
+  IsolateBytes? mask,
+  int maskWidth,
+  int maskHeight,
+  int width,
+  int height,
+  InpaintGeometry? geometry,
+});

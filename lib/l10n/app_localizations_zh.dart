@@ -1671,6 +1671,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get canvasActionUpscale => '超分放大';
 
   @override
+  String get canvasActionRtxUpscale => 'RTX 放大';
+
+  @override
+  String get settingsRtxScaleTitle => '放大倍率';
+
+  @override
+  String get settingsRtxScaleSubtitle =>
+      '图片右键菜单使用此倍率。需要 NVIDIA RTX 显卡，画质由 NVIDIA 视频超分设置控制。';
+
+  @override
   String get canvasActionCopyImage => '复制图像';
 
   @override

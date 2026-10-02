@@ -159,7 +159,7 @@ const int _kOldestYearTag = 1900;
 // ==================== 后台检索 Isolate (阶段2 性能治理) ====================
 //
 // 32 万词条的线性扫描逐次检索不再占用 UI 主线程：常驻 worker isolate
-// 持有词条全量引用 (同 isolate 组内按引用共享，近零拷贝)，主线程把
+// 持有唯一的常驻完整词条表；可变对象跨 isolate 会复制，主线程只保留反查表与原始文本，把
 // 查询词发过去，扫描完成后回传 top-N 结果。worker 不可用时 (启动失败/
 // 测试 FakeAsync 环境) 自动退回主线程同步扫描，行为完全兼容。
 
@@ -195,8 +195,10 @@ class _SearchReply {
 /// 常驻检索 isolate 主入口：持有词条引用，逐请求线性扫描
 void _searchIsolateMain(_SearchInit init) {
   var entries = init.entries;
+  // 闭包只捕获端口，不能捕获包含启动词库的 init，否则热替换后旧表仍常驻。
+  final replyPort = init.replyPort;
   final command = ReceivePort();
-  init.replyPort.send(command.sendPort);
+  replyPort.send(command.sendPort);
   command.listen((message) {
     if (message is _SearchQuery) {
       List<TagSuggestion> results = const [];
@@ -208,7 +210,7 @@ void _searchIsolateMain(_SearchInit init) {
           limit: message.limit,
         );
       } catch (_) {}
-      init.replyPort.send(_SearchReply(message.id, results));
+      replyPort.send(_SearchReply(message.id, results));
     } else if (message is _SearchReplace) {
       entries = message.entries;
     }
@@ -432,11 +434,22 @@ class TagDictionaryService {
   static bool backgroundSearchEnabled = true;
 
   List<_DictEntry>? _entries;
+  String? _rawContent;
+  bool _loaded = false;
+  int _entryCount = 0;
+  int _revision = 0;
+  Future<void> _replaceQueue = Future.value();
+
+  @visibleForTesting
+  int get retainedMainEntryCount => _entries?.length ?? 0;
+
   final Map<String, String> _tagToZh = {};
   final Map<String, DanbooruTagCategory> _tagToCat = {};
 
   // ---- 后台检索 worker isolate 状态 ----
   ReceivePort? _workerPort;
+  ReceivePort? _workerErrorPort;
+  Completer<void>? _workerReady;
   SendPort? _workerCommandPort;
   Isolate? _workerIsolate;
   Future<void>? _workerBoot;
@@ -445,8 +458,8 @@ class TagDictionaryService {
   int _searchSeq = 0;
 
   Future<void>? _loadingFuture;
-  bool get isLoaded => _entries != null;
-  int get count => _entries?.length ?? 0;
+  bool get isLoaded => _loaded;
+  int get count => _entryCount;
 
   // 查询结果缓存 (超过容量上限整表清空，防止长会话无界增长)
   static const int _cacheCapacity = 500;
@@ -454,7 +467,7 @@ class TagDictionaryService {
 
   /// 预热并异步加载词库 (加载完成后顺手预热后台检索 worker)
   Future<void> ensureLoaded({String? rawTsvContent}) async {
-    if (_entries != null) return;
+    if (_loaded) return;
     return _loadingFuture ??= _load(rawTsvContent);
   }
 
@@ -462,15 +475,27 @@ class TagDictionaryService {
   void clearQueryCache() => _queryCache.clear();
 
   /// 用外部下载的新词库内容整体热替换当前词库 (在线更新完成后调用)
-  Future<void> replaceWithContent(String rawTsv) async {
-    // 若正在加载旧词库，先等它结束，避免状态交叉
-    await _loadingFuture;
-    final parsed = await runIsolated(_parseDanbooruTsv, rawTsv);
-    _entries = parsed;
-    _queryCache.clear();
-    _rebuildLookupMaps(parsed);
-    // 后台 worker 同步持有新词条引用
-    _workerCommandPort?.send(_SearchReplace(parsed));
+  Future<void> replaceWithContent(String rawTsv) {
+    final task = _replaceQueue.catchError((Object _) {}).then((_) async {
+      await _loadingFuture;
+      await _workerBoot;
+      final parsed = await runIsolated(_parseDanbooruTsv, rawTsv);
+      _rawContent = rawTsv;
+      _loaded = true;
+      _entryCount = parsed.length;
+      _revision++;
+      _queryCache.clear();
+      _rebuildLookupMaps(parsed);
+      if (_workerCommandPort case final command?) {
+        command.send(_SearchReplace(parsed));
+        _entries = backgroundSearchEnabled ? null : parsed;
+      } else {
+        _entries = parsed;
+        await _ensureSearchWorker();
+      }
+    });
+    _replaceQueue = task;
+    return task;
   }
 
   Future<void> _load(String? rawContent) async {
@@ -484,13 +509,17 @@ class TagDictionaryService {
 
       // 后台 isolate 解析
       final parsed = await runIsolated(_parseDanbooruTsv, raw);
+      _rawContent = raw;
       _entries = parsed;
+      _entryCount = parsed.length;
+      _loaded = true;
       _rebuildLookupMaps(parsed);
-      // 预热常驻检索 worker (失败静默，后续检索自动主线程兑底)
-      unawaited(_ensureSearchWorker());
+      // 就绪后释放主线程的完整词条表；保留轻量反查表与不可变原始文本。
+      await _ensureSearchWorker();
     } catch (e) {
       debugPrint('[TagDictionaryService] 词库加载失败或资产未找到: $e');
       _entries = [];
+      _loaded = true;
     }
   }
 
@@ -538,7 +567,10 @@ class TagDictionaryService {
   /// 确保后台检索 worker 已就绪 (幂等；不可用时不做任何事)
   Future<void> _ensureSearchWorker() async {
     if (!backgroundSearchEnabled || _workerBroken) return;
-    if (_workerCommandPort != null) return;
+    if (_workerCommandPort != null) {
+      _entries = null;
+      return;
+    }
     final entries = _entries;
     if (entries == null || entries.isEmpty) return;
     final boot = _workerBoot ??= _bootSearchWorker(entries);
@@ -551,6 +583,8 @@ class TagDictionaryService {
     final port = ReceivePort();
     final errorPort = ReceivePort();
     final ready = Completer<void>();
+    _workerReady = ready;
+    _workerErrorPort = errorPort;
 
     Isolate? spawned;
     try {
@@ -569,35 +603,44 @@ class TagDictionaryService {
 
     _workerIsolate = spawned;
     _workerPort = port;
-    port.listen((message) {
-      if (message is SendPort) {
-        _workerCommandPort = message;
-        if (!ready.isCompleted) ready.complete();
-      } else if (message is _SearchReply) {
-        final completer = _pendingSearches.remove(message.id);
-        if (completer != null && !completer.isCompleted) {
-          completer.complete(message.results);
-        }
-      }
-    });
+    // 使用方法 tear-off，避免监听闭包保留本方法的 entries 参数。
+    port.listen(_onWorkerMessage);
     errorPort.listen((_) => _failSearchWorker());
 
     // 就绪等待保险丝：超时则永久回退主线程 (正常情况下毫秒级就绪)
     try {
       await ready.future.timeout(const Duration(seconds: 2));
+      if (backgroundSearchEnabled && identical(_entries, entries)) {
+        _entries = null;
+      }
     } on TimeoutException {
       debugPrint('[TagDictionaryService] 检索 isolate 就绪超时，回退主线程');
       _failSearchWorker();
     }
   }
 
-  /// worker 损坏：终后续检索全部主线程兑底，唤醒挂起请求
+  void _onWorkerMessage(Object? message) {
+    if (message is SendPort) {
+      _workerCommandPort = message;
+      final ready = _workerReady;
+      if (ready != null && !ready.isCompleted) ready.complete();
+    } else if (message is _SearchReply) {
+      final completer = _pendingSearches.remove(message.id);
+      if (completer != null && !completer.isCompleted) {
+        completer.complete(message.results);
+      }
+    }
+  }
+
+  /// worker 损坏：后续后台重新解析兑底，唤醒挂起请求
   void _failSearchWorker() {
     if (_workerBroken) return;
     _workerBroken = true;
     _workerCommandPort = null;
     _workerPort?.close();
     _workerPort = null;
+    _workerErrorPort?.close();
+    _workerErrorPort = null;
     _workerIsolate?.kill(priority: Isolate.immediate);
     _workerIsolate = null;
     final pending = List.of(_pendingSearches.values);
@@ -634,6 +677,25 @@ class TagDictionaryService {
     }
   }
 
+  Future<List<TagSuggestion>> _fallbackSearch(
+    String rawQ,
+    DanbooruTagCategory? category,
+    int limit,
+  ) async {
+    final entries = _entries;
+    if (entries != null) {
+      return _scanEntries(entries, rawQ, category: category, limit: limit);
+    }
+    // 生产 worker 不可用时也不把 32 万条解析与扫描挪回 UI 线程。
+    final raw = _rawContent ?? '';
+    return runIsolated(_fallbackSearchTask, (
+      raw: raw,
+      query: rawQ,
+      category: category,
+      limit: limit,
+    ));
+  }
+
   /// 智能多模态标签搜索
   Future<List<TagSuggestion>> search(
     String query, {
@@ -653,8 +715,8 @@ class TagDictionaryService {
     final yearMatches = _yearTagMatches(rawQ, limit, category: category);
 
     await ensureLoaded();
-    final entries = _entries;
-    if (entries == null || entries.isEmpty) {
+    final revision = _revision;
+    if (_entryCount == 0) {
       // 词库缺失/为空时仍扫描官方专属清单 (传空词条表即可命中专属词)
       final specialMatches = _scanEntries(
         const [],
@@ -677,9 +739,17 @@ class TagDictionaryService {
 
     // 3. 32 万词条线性扫描优先在后台 isolate 执行 (不占 UI 主线程)；
     //    worker 不可用时主线程同步兑底 (行为与旧实现完全一致)
+    final workerMatches = await _searchViaWorker(rawQ, category, limit);
     final dictMatches =
-        await _searchViaWorker(rawQ, category, limit) ??
-        _scanEntries(entries, rawQ, category: category, limit: limit);
+        workerMatches ?? await _fallbackSearch(rawQ, category, limit);
+    if (revision != _revision) {
+      return search(
+        query,
+        limit: limit,
+        category: category,
+        includePromptCombos: includePromptCombos,
+      );
+    }
 
     // 所有条目 (词组合 + 年代合成 + Danbooru 词典 + 官方专属词) 参与公平打分排序
     final matches = _dedupeSuggestions([
@@ -699,3 +769,12 @@ class TagDictionaryService {
     return results;
   }
 }
+
+List<TagSuggestion> _fallbackSearchTask(
+  ({String raw, String query, DanbooruTagCategory? category, int limit}) task,
+) => _scanEntries(
+  _parseDanbooruTsv(task.raw),
+  task.query,
+  category: task.category,
+  limit: task.limit,
+);

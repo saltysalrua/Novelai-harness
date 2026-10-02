@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Rect;
 import 'package:flutter/foundation.dart';
-import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import '../models/novelai_models.dart';
@@ -12,78 +11,63 @@ import '../services/image_metadata_service.dart';
 import '../services/image_file_store.dart';
 import '../services/image_save_path_service.dart';
 import '../services/inpaint_service.dart';
-import '../services/isolated_compute.dart';
+import '../services/image_thumbnail_service.dart';
 import '../services/media_store_service.dart' show MediaGalleryExportFn;
 import '../services/skia_image_codec.dart';
 import '../services/watermark_service.dart';
 import '../services/novelai_service.dart';
 import '../services/image_edit_service.dart';
-
-/// 在独立 isolate 中为持久化历史图片后台生成 ≤240px 缩略图
-Map<String, Uint8List> _generateThumbnailsIsolate(
-  List<Map<String, String>> tasks,
-) {
-  final result = <String, Uint8List>{};
-  for (final task in tasks) {
-    final id = task['id'];
-    final path = task['path'];
-    if (id == null || path == null) continue;
-    try {
-      final file = File(path);
-      if (!file.existsSync()) continue;
-      final bytes = file.readAsBytesSync();
-      if (bytes.isEmpty) continue;
-
-      // 小于 50KB 的小型图直接复用为缩略图
-      if (bytes.lengthInBytes <= 50 * 1024) {
-        result[id] = bytes;
-        continue;
-      }
-
-      final decoded = img.decodeImage(bytes);
-      if (decoded == null) {
-        result[id] = bytes;
-        continue;
-      }
-
-      if (decoded.width <= 240 && decoded.height <= 240) {
-        result[id] = bytes;
-        continue;
-      }
-
-      final int targetWidth;
-      final int targetHeight;
-      if (decoded.width >= decoded.height) {
-        targetWidth = 240;
-        targetHeight = (240 * decoded.height / decoded.width).round().clamp(
-          1,
-          240,
-        );
-      } else {
-        targetHeight = 240;
-        targetWidth = (240 * decoded.width / decoded.height).round().clamp(
-          1,
-          240,
-        );
-      }
-
-      final resized = img.copyResize(
-        decoded,
-        width: targetWidth,
-        height: targetHeight,
-        interpolation: img.Interpolation.linear,
-      );
-      result[id] = Uint8List.fromList(img.encodePng(resized));
-    } catch (_) {}
-  }
-  return result;
-}
+import '../services/rtx_upscale_service.dart';
 
 class NovelAiRepository {
   final NovelAiService _service;
   final ImageEditService _imageEditService;
+  final RtxUpscaleService _rtxUpscaleService;
+
+  int _rtxEpoch = 0;
+  bool get supportsRtxUpscale => _rtxUpscaleService.isSupported;
+
+  void cancelRtxUpscale() {
+    _rtxEpoch++;
+    _rtxUpscaleService.cancel();
+  }
+
+  void _checkRtxEpoch(int? epoch) {
+    if (epoch != null && epoch != _rtxEpoch) {
+      throw const RtxUpscaleException('RTX upscale cancelled', cancelled: true);
+    }
+  }
+
   final List<NaiGeneratedImage> _history = [];
   static const int maxLruCacheSize = 5;
+  static const int maxLruCacheBytes = 64 * 1024 * 1024;
+  final ValueNotifier<Map<String, Uint8List>> imageBytesNotifier =
+      ValueNotifier(const {});
+  final Map<String, Future<Uint8List?>> _imageLoads = {};
+  int _cacheEpoch = 0;
+  final Set<Future<void>> _thumbnailTasks = {};
+  final Set<Future<Uint8List?>> _imageReadTasks = {};
+
+  Future<void> flushPendingImageLoads() async {
+    await Future.wait(List.of(_thumbnailTasks));
+    await Future.wait(List.of(_imageReadTasks));
+  }
+
+  void _publishImageCache() {
+    imageBytesNotifier.value = Map.unmodifiable(_lruImageCache);
+  }
+
+  void _clearImageCache() {
+    _cacheEpoch++;
+    _lruImageCache.clear();
+    _imageLoads.clear();
+    _publishImageCache();
+  }
+
+  int get cachedImageByteCount => _lruImageCache.values.fold(
+    0,
+    (total, bytes) => total + bytes.lengthInBytes,
+  );
   final LinkedHashMap<String, Uint8List> _lruImageCache =
       LinkedHashMap<String, Uint8List>();
 
@@ -96,8 +80,10 @@ class NovelAiRepository {
   NovelAiRepository({
     NovelAiService? service,
     ImageEditService? imageEditService,
+    RtxUpscaleService? rtxUpscaleService,
   }) : _service = service ?? NovelAiService(),
-       _imageEditService = imageEditService ?? ImageEditService();
+       _imageEditService = imageEditService ?? ImageEditService(),
+       _rtxUpscaleService = rtxUpscaleService ?? RtxUpscaleService();
 
   List<NaiGeneratedImage> get history => List.unmodifiable(_history);
 
@@ -110,33 +96,61 @@ class NovelAiRepository {
     if (bytes.isEmpty) return;
     _lruImageCache.remove(id);
     _lruImageCache[id] = bytes;
-    if (_lruImageCache.length > maxLruCacheSize) {
+    // 单张超预算图片只允许当前一张驻留，不与其他大图一起累积。
+    while (_lruImageCache.length > maxLruCacheSize ||
+        (_lruImageCache.length > 1 &&
+            cachedImageByteCount > maxLruCacheBytes)) {
       _lruImageCache.remove(_lruImageCache.keys.first);
     }
+    _publishImageCache();
   }
 
   /// 按需异步加载历史大图完整字节 (优先内存 LRU 缓存，未命中时按磁盘路径加载)
-  Future<Uint8List?> loadHistoryImageBytes(NaiGeneratedImage image) async {
-    if (image.bytes.isNotEmpty) {
-      _cacheImageBytes(image.id, image.bytes);
-      return image.bytes;
-    }
+  Future<Uint8List?> loadHistoryImageBytes(NaiGeneratedImage image) {
     final cached = _lruImageCache.remove(image.id);
     if (cached != null) {
       _lruImageCache[image.id] = cached;
-      return cached;
+      return Future.value(cached);
     }
-    final filePath = image.displayFilePath;
-    if (filePath == null || filePath.isEmpty) return null;
-    final file = File(filePath);
-    if (!file.existsSync()) return null;
+    final pending = _imageLoads[image.id];
+    if (pending != null) return pending;
+    final epoch = _cacheEpoch;
+    final task = _readHistoryImageBytes(image, epoch);
+    _imageLoads[image.id] = task;
+    _imageReadTasks.add(task);
+    return task.whenComplete(() {
+      _imageReadTasks.remove(task);
+      if (identical(_imageLoads[image.id], task)) _imageLoads.remove(image.id);
+    });
+  }
+
+  Future<Uint8List?> _readHistoryImageBytes(
+    NaiGeneratedImage image,
+    int epoch,
+  ) async {
+    // 延后通知，调用者可以在 widget build 中触发懒加载。
+    await Future<void>.value();
     try {
-      final bytes = await file.readAsBytes();
-      _cacheImageBytes(image.id, bytes);
+      final path = image.displayFilePath;
+      final bytes = image.bytes.isNotEmpty
+          ? image.bytes
+          : path == null || path.isEmpty
+          ? null
+          : await File(path).readAsBytes();
+      if (bytes != null && bytes.isNotEmpty && epoch == _cacheEpoch) {
+        _cacheImageBytes(image.id, bytes);
+      }
       return bytes;
-    } catch (_) {
+    } on FileSystemException {
       return null;
     }
+  }
+
+  NaiGeneratedImage _historySnapshot(NaiGeneratedImage image) {
+    final path = image.displayFilePath;
+    return path == null || path.isEmpty
+        ? image
+        : image.copyWith(bytes: Uint8List(0));
   }
 
   /// 大画布布局持久化文件名 (与图片历史同目录)
@@ -163,9 +177,10 @@ class NovelAiRepository {
   Future<List<NaiGeneratedImage>> loadPersistedHistory({
     required String saveDir,
     int maxImages = 50,
+    bool includeThumbnails = true,
   }) async {
     _history.clear();
-    _lruImageCache.clear();
+    _clearImageCache();
     if (saveDir.isEmpty) return List.unmodifiable(_history);
 
     final historyFile = File(p.join(saveDir, 'image_history.json'));
@@ -176,7 +191,6 @@ class NovelAiRepository {
       final decoded = jsonDecode(content);
       if (decoded is List) {
         final validEntries = <Map<String, dynamic>>[];
-        final tasks = <Map<String, String>>[];
 
         for (final item in decoded) {
           if (validEntries.length >= maxImages) break;
@@ -186,31 +200,55 @@ class NovelAiRepository {
               final imgFile = File(filePath);
               if (imgFile.existsSync()) {
                 validEntries.add(item);
-                final id = item['id'] as String? ?? '';
-                tasks.add({'id': id, 'path': filePath});
               }
             }
           }
         }
 
-        final thumbnails = tasks.isNotEmpty
-            ? await runIsolated(_generateThumbnailsIsolate, tasks)
-            : <String, Uint8List>{};
-
         for (final item in validEntries) {
-          final id = item['id'] as String? ?? '';
-          final thumb = thumbnails[id];
-          _history.add(
-            NaiGeneratedImage.fromJson(
-              item,
-              bytes: Uint8List(0),
-              thumbnailBytes: thumb,
-            ),
-          );
+          _history.add(NaiGeneratedImage.fromJson(item, bytes: Uint8List(0)));
         }
       }
     } catch (_) {}
+    if (includeThumbnails) await loadHistoryThumbnails(saveDir: saveDir);
     return List.unmodifiable(_history);
+  }
+
+  static String thumbnailDirOf(String saveDir) =>
+      p.join(cacheDirOf(saveDir), 'thumbnails');
+
+  /// 渐进填充缩略图，不阻塞首屏；代次校验防止切目录/删除后晚到数据复活。
+  Future<void> loadHistoryThumbnails({
+    required String saveDir,
+    VoidCallback? onUpdated,
+  }) {
+    final task = _loadHistoryThumbnails(saveDir, onUpdated);
+    _thumbnailTasks.add(task);
+    return task.whenComplete(() => _thumbnailTasks.remove(task));
+  }
+
+  Future<void> _loadHistoryThumbnails(
+    String saveDir,
+    VoidCallback? onUpdated,
+  ) async {
+    final epoch = _cacheEpoch;
+    var changes = 0;
+    for (final image in List.of(_history)) {
+      if (epoch != _cacheEpoch) return;
+      if (image.thumbnailBytes != null) continue;
+      final path = image.displayFilePath;
+      if (path == null) continue;
+      final thumb = await ImageThumbnailService.load(
+        sourcePath: path,
+        cacheDirectory: thumbnailDirOf(saveDir),
+      );
+      if (epoch != _cacheEpoch) return;
+      final index = _history.indexWhere((entry) => entry.id == image.id);
+      if (thumb == null || index < 0) continue;
+      _history[index] = _history[index].copyWith(thumbnailBytes: thumb);
+      if (++changes % 4 == 0) onUpdated?.call();
+    }
+    if (changes % 4 != 0) onUpdated?.call();
   }
 
   /// 将当前历史记录保存至本地存储目录 (自动裁剪至 maxImages)。
@@ -237,6 +275,7 @@ class NovelAiRepository {
       // 淘汰工作台原图缓存，但保留正式导出文件。
       for (final image in removed) {
         _lruImageCache.remove(image.id);
+        _publishImageCache();
         await _deleteImageCache(image, saveDir);
       }
     }
@@ -252,10 +291,14 @@ class NovelAiRepository {
   }
 
   /// 确保保存目录存在并写入图片文件，返回落盘路径 (目录为空或写入失败返回 null)
-  String? _writeImageFile(String saveDir, String fileName, List<int> bytes) {
+  Future<String?> _writeImageFile(
+    String saveDir,
+    String fileName,
+    List<int> bytes,
+  ) async {
     if (saveDir.isEmpty) return null;
     try {
-      return ImageFileStore.write(
+      return await ImageFileStore.writeAsync(
         root: saveDir,
         relativePath: fileName,
         bytes: bytes,
@@ -297,6 +340,9 @@ class NovelAiRepository {
   ) async {
     final paths = {image.originalFilePath, image.localFilePath};
     for (final path in paths) {
+      if (path != null) {
+        await ImageThumbnailService.remove(path, thumbnailDirOf(saveDir));
+      }
       if (path != null && isCacheFilePath(saveDir, path)) {
         await _deleteIfExists(File(path));
       }
@@ -321,7 +367,7 @@ class NovelAiRepository {
   }) async {
     final originalPath =
         existingOriginalPath ??
-        _writeImageFile(cacheDirOf(saveDir), '$baseName.png', rawBytes);
+        await _writeImageFile(cacheDirOf(saveDir), '$baseName.png', rawBytes);
     if (saveDir.isNotEmpty && originalPath == null) {
       throw FileSystemException('无法保存工作台原图缓存', cacheDirOf(saveDir));
     }
@@ -357,7 +403,7 @@ class NovelAiRepository {
     );
     if (saveDir.isNotEmpty) {
       try {
-        filePath = ImageFileStore.write(
+        filePath = await ImageFileStore.writeAsync(
           root: saveDir,
           relativePath: relativePath,
           bytes: fileBytes,
@@ -430,7 +476,7 @@ class NovelAiRepository {
       watermarkConfig: watermarkConfig,
       watermarkBytes: watermarkBytes,
     );
-    final image = _recordGenerated(
+    final image = await _recordGenerated(
       id: id,
       bytes: bytes,
       params: displayParams,
@@ -448,7 +494,7 @@ class NovelAiRepository {
   }
 
   /// 构造生成结果并插入历史头部
-  NaiGeneratedImage _recordGenerated({
+  Future<NaiGeneratedImage> _recordGenerated({
     required String id,
     required List<int> bytes,
     String? filePath,
@@ -461,12 +507,20 @@ class NovelAiRepository {
     bool isAiEdited = false,
     DateTime? createdAt,
     String? outputModel,
-  }) {
+  }) async {
     final uBytes = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
     _cacheImageBytes(id, uBytes);
+    final thumb = originalFilePath == null
+        ? await ImageThumbnailService.fromBytes(uBytes)
+        : await ImageThumbnailService.load(
+            sourcePath: originalFilePath,
+            cacheDirectory: p.join(p.dirname(originalFilePath), 'thumbnails'),
+            sourceBytes: uBytes,
+          );
     final image = NaiGeneratedImage(
       id: id,
       bytes: uBytes,
+      thumbnailBytes: thumb,
       localFilePath: filePath,
       originalFilePath: originalFilePath,
       params: params,
@@ -479,7 +533,7 @@ class NovelAiRepository {
       isInpainted: isInpainted,
       isAiEdited: isAiEdited,
     );
-    _history.insert(0, image);
+    _history.insert(0, _historySnapshot(image));
     return image;
   }
 
@@ -534,7 +588,7 @@ class NovelAiRepository {
           watermarkConfig: watermarkConfig,
           watermarkBytes: watermarkBytes,
         );
-        final generatedImage = _recordGenerated(
+        final generatedImage = await _recordGenerated(
           id: '${now.millisecondsSinceEpoch}_0',
           createdAt: now,
           bytes: rawFinal,
@@ -613,7 +667,7 @@ class NovelAiRepository {
         watermarkBytes: watermarkBytes,
       );
       results.add(
-        _recordGenerated(
+        await _recordGenerated(
           id: '${now.millisecondsSinceEpoch}_$i',
           createdAt: now,
           bytes: rawWithMeta,
@@ -684,7 +738,7 @@ class NovelAiRepository {
 
     // 1. 源图尺寸蒙版：画笔描边优先；无描边时焦点模式用生效选区、
     //    常规模式无选区则整图重绘
-    final sourceMask = InpaintService.buildSourceMask(
+    final sourceMask = await InpaintService.buildSourceMaskAsync(
       sourceWidth: srcW,
       sourceHeight: srcH,
       brushStrokes: inpaintParams.brushStrokes,
@@ -860,7 +914,7 @@ class NovelAiRepository {
       watermarkConfig: watermarkConfig,
       watermarkBytes: watermarkBytes,
     );
-    final generatedImage = _recordGenerated(
+    final generatedImage = await _recordGenerated(
       id: '${now.millisecondsSinceEpoch}_inpaint',
       createdAt: now,
       bytes: rawFinal,
@@ -1082,7 +1136,8 @@ class NovelAiRepository {
     );
   }
 
-  /// 图像超分放大 (官方新超分模型，固定倍率输出)
+  /// 图像超分放大：默认官方接口；rtxScale 指定 Windows 本地 2×/4×。
+  /// 两种后端复用原图缓存、导出处理、命名与历史管线。
   Future<NaiGeneratedImage> upscale({
     required String apiKey,
     required NaiGeneratedImage sourceImage,
@@ -1096,25 +1151,44 @@ class NovelAiRepository {
     Uint8List? watermarkBytes,
     bool autoSave = true,
     String imageSaveTemplate = '',
+    int? rtxScale,
   }) async {
+    final rtxEpoch = rtxScale == null ? null : _rtxEpoch;
     final srcBytes = sourceImage.bytes.isNotEmpty
         ? sourceImage.bytes
         : (await loadHistoryImageBytes(sourceImage) ?? sourceImage.bytes);
-    final upscaledBytes = await _service.upscaleImage(
-      apiKey: apiKey,
-      imageBytes: srcBytes,
-    );
+    _checkRtxEpoch(rtxEpoch);
+    if (srcBytes.isEmpty) {
+      throw const RtxUpscaleException('Source image is missing or empty');
+    }
+    final resultBytes = rtxScale == null
+        ? await _service.upscaleImage(apiKey: apiKey, imageBytes: srcBytes)
+        : await _rtxUpscaleService.upscale(srcBytes, scale: rtxScale);
 
     // 新超分不再接受 scale 参数：以解码出的真实输出尺寸为准
-    final resultDims = await AnlasCalculator.decodeImageDimensions(
-      upscaledBytes,
+    final resultDims = await AnlasCalculator.decodeImageDimensions(resultBytes);
+    if (resultDims == null) {
+      throw const RtxUpscaleException('Cannot decode upscaled image');
+    }
+    final outWidth = resultDims.width;
+    final outHeight = resultDims.height;
+    final displayParams = sourceImage.params.copyWith(
+      width: outWidth,
+      height: outHeight,
     );
-    final outWidth = resultDims?.width ?? sourceImage.params.width;
-    final outHeight = resultDims?.height ?? sourceImage.params.height;
-
+    final upscaledBytes = rtxScale == null
+        ? resultBytes
+        : ImageMetadataService.embedNovelAiMetadata(
+            pngBytes: resultBytes,
+            params: displayParams,
+            seed: sourceImage.seed,
+          );
+    // 松手/关闭期间取消也覆盖懒加载与输出解码阶段；落盘开始后为提交阶段。
+    _checkRtxEpoch(rtxEpoch);
+    final prefix = rtxScale == null ? 'nai_upscaled' : 'rtx_upscaled';
     final now = DateTime.now();
-    final timeStr = DateFormat('yyyyMMdd_HHmmss').format(now);
-    final baseName = 'nai_${timeStr}_upscaled_${sourceImage.seed}';
+    final baseName =
+        '${prefix}_${now.microsecondsSinceEpoch}_${sourceImage.seed}';
 
     final files = await _persistImageFiles(
       rawBytes: upscaledBytes,
@@ -1124,7 +1198,7 @@ class NovelAiRepository {
         params: sourceImage.params.copyWith(width: outWidth, height: outHeight),
         createdAt: now,
         seed: sourceImage.seed,
-        prefix: 'nai_upscaled',
+        prefix: prefix,
         outputModel: sourceImage.outputModel,
       ),
       autoSave: autoSave,
@@ -1137,7 +1211,7 @@ class NovelAiRepository {
     );
 
     final upscaledImage = NaiGeneratedImage(
-      id: '${now.millisecondsSinceEpoch}_upscaled',
+      id: '${rtxScale == null ? 'nai' : 'rtx'}_${now.microsecondsSinceEpoch}_upscaled',
       bytes: upscaledBytes,
       localFilePath: files.filePath,
       originalFilePath: files.originalFilePath,
@@ -1219,7 +1293,7 @@ class NovelAiRepository {
       originalFilePath: files.originalFilePath,
       isUnsaved: false,
     );
-    _history[index] = updated;
+    _history[index] = _historySnapshot(updated);
     _cacheImageBytes(updated.id, rawBytes);
 
     if (enablePersistence) {
@@ -1258,7 +1332,7 @@ class NovelAiRepository {
     if (index < 0) return null;
 
     final updated = _history[index].copyWith(annotations: annotations);
-    _history[index] = updated;
+    _history[index] = _historySnapshot(updated);
 
     if (enablePersistence && saveDir.isNotEmpty) {
       await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
@@ -1284,7 +1358,7 @@ class NovelAiRepository {
     final fileName =
         'nai_ref_${timeStr}_${now.millisecondsSinceEpoch % 10000}$ext';
 
-    final filePath = _writeImageFile(saveDir, fileName, bytes);
+    final filePath = await _writeImageFile(saveDir, fileName, bytes);
     final uBytes = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
 
     final image = NaiGeneratedImage(
@@ -1302,7 +1376,7 @@ class NovelAiRepository {
       isImportedReference: true,
     );
 
-    _history.insert(0, image);
+    _history.insert(0, _historySnapshot(image));
     _cacheImageBytes(image.id, uBytes);
 
     if (enablePersistence && saveDir.isNotEmpty) {
@@ -1323,7 +1397,9 @@ class NovelAiRepository {
     final index = _history.indexWhere((img) => img.id == imageId);
     if (index < 0) return false;
 
+    _cacheEpoch++;
     _lruImageCache.remove(imageId);
+    _publishImageCache();
     final removedImage = _history.removeAt(index);
     await _deleteImageCache(removedImage, saveDir);
 
@@ -1347,7 +1423,7 @@ class NovelAiRepository {
   /// 清理历史 (传 saveDir 时一并删除持久化索引文件)
   void clearHistory({String? saveDir}) {
     _history.clear();
-    _lruImageCache.clear();
+    _clearImageCache();
     if (saveDir != null && saveDir.isNotEmpty) {
       final historyFile = File(p.join(saveDir, 'image_history.json'));
       if (historyFile.existsSync()) {
@@ -1478,7 +1554,6 @@ class NovelAiRepository {
     if (!file.existsSync()) return null;
 
     try {
-      final bytes = await file.readAsBytes();
       final meta = (raw['imageMeta'] as Map?)?.cast<String, dynamic>() ?? {};
       final createdAtStr = meta['createdAt'] as String?;
       final imgId = raw['imageId'] as String? ?? raw['id'] as String? ?? '';
@@ -1486,7 +1561,7 @@ class NovelAiRepository {
         id: imgId.isNotEmpty
             ? imgId
             : 'ref-${DateTime.now().millisecondsSinceEpoch}',
-        bytes: bytes,
+        bytes: Uint8List(0),
         localFilePath: raw['imageFilePath'] as String?,
         originalFilePath: raw['imageOriginalFilePath'] as String?,
         params: NaiGenerationParams(
@@ -1563,7 +1638,7 @@ class NovelAiRepository {
   /// 测试专用：直接向历史中注入图片
   @visibleForTesting
   void addImageForTesting(NaiGeneratedImage image) {
-    _history.insert(0, image);
+    _history.insert(0, _historySnapshot(image));
     if (image.bytes.isNotEmpty) {
       _cacheImageBytes(image.id, image.bytes);
     }

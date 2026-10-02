@@ -89,7 +89,7 @@ mixin _StudioGenerationMixin on _StudioCore {
     try {
       final bytes = await getExportImageBytes(image, raw: false);
       if (bytes.isEmpty) return false;
-      final path = ImageFileStore.write(
+      final path = await ImageFileStore.writeAsync(
         root: targetDir,
         relativePath: ImageSavePathService.resolve(
           _config.imageSaveTemplate,
@@ -129,6 +129,10 @@ mixin _StudioGenerationMixin on _StudioCore {
   /// 强行中止当前正在执行的生图流
   Future<void> abortGeneration() async {
     if (!_isGenerating) return;
+    if (_isRtxUpscaling) {
+      _repository.cancelRtxUpscale();
+      return;
+    }
     // ComfyUI 模式：置中止标记，由轮询循环自行收尾
     if (isComfyUiMode) {
       _requestComfyAbort();
@@ -399,6 +403,59 @@ mixin _StudioGenerationMixin on _StudioCore {
       _isGenerating = false;
       notifyListeners();
       refreshAccountInfo();
+    }
+  }
+
+  /// Windows 本地 RTX 放大：冻结菜单目标，不读取执行期间切换的选中图。
+  Future<void> _upscaleRtxImage(NaiGeneratedImage image) async {
+    if (_isGenerating || _rtxDisposed || !supportsRtxUpscale) return;
+    _isGenerating = true;
+    _isRtxUpscaling = true;
+    _errorMessage = null;
+    _statusMessage = vmL10n.vmUpscaleRunning;
+    notifyListeners();
+    // 配置也取快照，避免处理期间切换目录造成混用。
+    final config = _config;
+    try {
+      final result = await _repository.upscale(
+        apiKey: '',
+        rtxScale: config.rtxUpscaleScale,
+        sourceImage: image,
+        saveDir: config.saveDirectory,
+        enablePersistence: config.enableImagePersistence,
+        maxImages: config.maxPersistentImages,
+        stripMetadata: config.stripMetadata,
+        enableWatermark: config.enableWatermark,
+        keepOriginalImage: config.keepOriginalImage,
+        watermarkConfig: config.watermarkConfig,
+        watermarkBytes: config.watermarkConfig.imageBytes,
+        autoSave: config.autoSaveImages,
+        imageSaveTemplate: config.imageSaveTemplate,
+      );
+      if (_rtxDisposed) return;
+      _applyGeneratedImage(result, wasViewingLatest: true);
+      _statusMessage = result.isUnsaved
+          ? vmL10n.vmUpscaleDoneUnsaved(
+              result.params.width,
+              result.params.height,
+            )
+          : vmL10n.vmUpscaleDone(result.params.width, result.params.height);
+    } on RtxUpscaleException catch (e) {
+      if (_rtxDisposed) return;
+      if (e.cancelled) {
+        _statusMessage = vmL10n.vmGenAborted;
+      } else {
+        _errorMessage = vmL10n.vmUpscaleFailed('$e');
+        _statusMessage = null;
+      }
+    } catch (e) {
+      if (_rtxDisposed) return;
+      _errorMessage = vmL10n.vmUpscaleFailed('$e');
+      _statusMessage = null;
+    } finally {
+      _isRtxUpscaling = false;
+      _isGenerating = false;
+      if (!_rtxDisposed) notifyListeners();
     }
   }
 

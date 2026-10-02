@@ -75,7 +75,8 @@ class GeneralSettingsDraft {
       androidGalleryExport = config.androidGalleryExport,
       androidExportTreeUri = config.androidExportTreeUri,
       androidExportFolderName = '',
-      comfyUiEnabled = config.comfyUiEnabled;
+      comfyUiEnabled = config.comfyUiEnabled,
+      rtxUpscaleScale = config.rtxUpscaleScale;
 
   final TextEditingController naiKeyController;
 
@@ -113,6 +114,7 @@ class GeneralSettingsDraft {
   final TextEditingController comfyResolutionNodeController;
   final TextEditingController comfyParamsNodeController;
   bool comfyUiEnabled;
+  int rtxUpscaleScale;
 
   /// 主题模式偏好 (跟随系统/亮色/深色)，保存时由 SettingsDialog 聚合进 AppConfig
   AppThemeModePreference themeMode;
@@ -550,6 +552,23 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   ),
                 ),
               const SizedBox(height: 12),
+              if (!kIsWeb &&
+                  defaultTargetPlatform == TargetPlatform.windows) ...[
+                AppSectionHeader(title: l10n.canvasActionRtxUpscale),
+                AppSettingTile(
+                  title: l10n.settingsRtxScaleTitle,
+                  subtitle: l10n.settingsRtxScaleSubtitle,
+                  control: AppDropdown<int>.simple(
+                    value: _draft.rtxUpscaleScale,
+                    items: const [2, 4],
+                    labelOf: (scale) => '$scale×',
+                    width: 110,
+                    onChanged: (scale) =>
+                        setState(() => _draft.rtxUpscaleScale = scale),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               AppSectionHeader(title: l10n.settingsSectionWebSearch),
               AppSettingTile(
                 title: l10n.settingsAnySearchKeyTitle,

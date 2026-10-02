@@ -299,7 +299,7 @@ class NovelAiUpscaleTool extends AgentTool {
       if (imagePath != null && imagePath.isNotEmpty) {
         final file = File(imagePath);
         if (file.existsSync()) {
-          final bytes = file.readAsBytesSync();
+          final bytes = await file.readAsBytes();
           targetImage = NaiGeneratedImage(
             id: 'file_${DateTime.now().millisecondsSinceEpoch}',
             bytes: bytes,
@@ -324,6 +324,12 @@ class NovelAiUpscaleTool extends AgentTool {
         );
       }
 
+      // 懒加载原图后再计费，不能用空缓存或缩略图猜尺寸。
+      final sourceBytes = await _repository.loadHistoryImageBytes(targetImage);
+      if (sourceBytes == null || sourceBytes.isEmpty) {
+        throw StateError('待放大原图缺失或为空');
+      }
+      targetImage = targetImage.copyWith(bytes: sourceBytes);
       // 付费闸门: 按输入面积分档计费，预计消耗非零时先向用户确认
       final dims = await AnlasCalculator.decodeImageDimensions(
         targetImage.bytes,

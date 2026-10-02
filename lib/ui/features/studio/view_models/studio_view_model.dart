@@ -40,6 +40,7 @@ import '../../../../data/services/image_metadata_service.dart';
 import '../../../../data/services/image_save_path_service.dart';
 import '../../../../data/services/media_store_service.dart';
 import '../../../../data/services/palette_service.dart';
+import '../../../../data/services/rtx_upscale_service.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../data/services/inpaint_service.dart';
 import '../../../../data/services/watermark_service.dart';
@@ -123,6 +124,10 @@ mixin _StudioCore on ChangeNotifier {
   NaiAccountInfo? _accountInfo;
   bool _isLoadingAccount = false;
   bool _isGenerating = false;
+  bool _isRtxUpscaling = false;
+  bool _rtxDisposed = false;
+  Future<void>? _rtxOperation;
+  bool get supportsRtxUpscale => _repository.supportsRtxUpscale;
   bool _isChatStreaming = false;
 
   /// 流式对话瞬态文本控制器：思考链/正文/重试提示增量只驱动对话气泡局部刷新
@@ -148,7 +153,12 @@ mixin _StudioCore on ChangeNotifier {
   bool _isExecutingAiEdit = false;
   NaiGeneratedImage? _inpaintSourceImage;
   InpaintTool _inpaintTool = InpaintTool.rect;
-  Uint8List? _inpaintPreviewBytes;
+  bool _previewDisposed = false;
+  final ValueNotifier<Uint8List?> inpaintPreviewNotifier = ValueNotifier(null);
+  Uint8List? get _inpaintPreviewBytes => inpaintPreviewNotifier.value;
+  set _inpaintPreviewBytes(Uint8List? bytes) {
+    if (!_previewDisposed) inpaintPreviewNotifier.value = bytes;
+  }
 
   // --- 页面布局持久化状态 ---
   double _splitLeftWidth = 320.0;
@@ -486,6 +496,8 @@ mixin _StudioCore on ChangeNotifier {
   /// 超分放大当前图片 (官方新超分模型，固定倍率)
   Future<void> upscaleSelected();
 
+  Future<void> upscaleRtx(NaiGeneratedImage image);
+
   /// 刷新账号与体力信息
   Future<void> refreshAccountInfo();
 
@@ -589,44 +601,35 @@ mixin _StudioCore on ChangeNotifier {
   void setActiveSidebarTab(StudioSidebarTab tab);
 
   /// 历史大图完整字节缓存通知器：避免大图加载逐帧触发 notifyListeners() 全局重建
-  final ValueNotifier<Map<String, Uint8List>> imageBytesNotifier =
-      ValueNotifier<Map<String, Uint8List>>({});
+  ValueNotifier<Map<String, Uint8List>> get imageBytesNotifier =>
+      _repository.imageBytesNotifier;
 
-  /// 获取指定图片已加载的大图字节 (若内存中存在)
   Uint8List? getImageBytes(NaiGeneratedImage image) {
     if (image.bytes.isNotEmpty) return image.bytes;
+    if (_selectedImage?.id == image.id && _selectedImage!.bytes.isNotEmpty) {
+      return _selectedImage!.bytes;
+    }
+    if (_inpaintSourceImage?.id == image.id &&
+        _inpaintSourceImage!.bytes.isNotEmpty) {
+      return _inpaintSourceImage!.bytes;
+    }
     return imageBytesNotifier.value[image.id];
   }
 
-  /// 确保指定图片的大图字节已载入内存，按需异步加载并通过 imageBytesNotifier 局部通知
+  /// 唯一的共享缓存由仓储按张数与字节预算治理；当前查看/修复源图单独固定驻留。
   Future<Uint8List?> ensureImageLoaded(NaiGeneratedImage image) async {
-    if (image.bytes.isNotEmpty) {
-      if (!imageBytesNotifier.value.containsKey(image.id)) {
-        final map = Map<String, Uint8List>.from(imageBytesNotifier.value);
-        map[image.id] = image.bytes;
-        imageBytesNotifier.value = map;
-      }
-      return image.bytes;
-    }
-
-    final inMemory = imageBytesNotifier.value[image.id];
-    if (inMemory != null) return inMemory;
-
+    final pinned = getImageBytes(image);
+    if (pinned != null) return pinned;
     final loaded = await _repository.loadHistoryImageBytes(image);
-    if (loaded != null) {
-      final map = Map<String, Uint8List>.from(imageBytesNotifier.value);
-      map[image.id] = loaded;
-      imageBytesNotifier.value = map;
-      if (_selectedImage?.id == image.id && _selectedImage!.bytes.isEmpty) {
+    if (loaded != null && loaded.isNotEmpty) {
+      if (_selectedImage?.id == image.id) {
         _selectedImage = _selectedImage!.copyWith(bytes: loaded);
       }
-      if (_inpaintSourceImage?.id == image.id &&
-          _inpaintSourceImage!.bytes.isEmpty) {
+      if (_inpaintSourceImage?.id == image.id) {
         _inpaintSourceImage = _inpaintSourceImage!.copyWith(bytes: loaded);
       }
-      return loaded;
     }
-    return null;
+    return loaded;
   }
 }
 
@@ -644,6 +647,13 @@ class StudioViewModel extends ChangeNotifier
         _StudioSlashMixin,
         _StudioLibraryMixin,
         _StudioInpaintMixin {
+  /// 公开入口在主类实现；本地 GPU 生命周期由生图分部管理。
+  @override
+  Future<void> upscaleRtx(NaiGeneratedImage image) {
+    if (_isRtxUpscaling) return Future<void>.value();
+    return _rtxOperation = _upscaleRtxImage(image);
+  }
+
   StudioViewModel({
     ConfigService? configService,
     NovelAiRepository? repository,
@@ -805,7 +815,7 @@ class StudioViewModel extends ChangeNotifier
     // 初始化会话日志并续接上次对话 (Pi --continue 语义)
     await _sessionLog.init(baseDir: _sessionLogBaseDir);
     await _usageLedger.init(baseDir: _sessionLog.baseDirPath);
-    final snapshot = _sessionLog.loadLatestSession();
+    final snapshot = await _sessionLog.loadLatestSessionAsync();
     if (snapshot != null && snapshot.messages.isNotEmpty) {
       _harness.restoreMessages(snapshot.messages);
       _harness.restoreContextState(_sessionLog.loadContextState());
@@ -826,6 +836,13 @@ class StudioViewModel extends ChangeNotifier
       await _repository.loadPersistedHistory(
         saveDir: _config.saveDirectory,
         maxImages: _config.maxPersistentImages,
+        includeThumbnails: false,
+      );
+      unawaited(
+        _repository.loadHistoryThumbnails(
+          saveDir: _config.saveDirectory,
+          onUpdated: _notifyHistoryThumbnails,
+        ),
       );
       if (_repository.history.isNotEmpty && _selectedImage == null) {
         _selectedImage = _repository.history.first;
@@ -858,6 +875,11 @@ class StudioViewModel extends ChangeNotifier
         enabled: _config.enableTagDictionaryAutoUpdate,
       );
     }());
+  }
+
+  bool _disposed = false;
+  void _notifyHistoryThumbnails() {
+    if (!_disposed) notifyListeners();
   }
 
   // ------------------------- 配置 -------------------------
@@ -1028,6 +1050,11 @@ class StudioViewModel extends ChangeNotifier
 
   /// 关闭前冲刷工作台、布局、全局配置与对话日志，不能只 cancel 防抖计时器。
   Future<void> flushPendingSaves() async {
+    if (_isRtxUpscaling) {
+      _repository.cancelRtxUpscale();
+      // 等待子进程退出及临时原图清理，再允许销毁窗口。
+      await _rtxOperation;
+    }
     // 启动尚未读完偏好时直接关闭：保留磁盘原值，不用空工作台覆盖它，
     // 也不等待初始化尾部的账号网络查询才能退出。
     if (!_hasRestoredParameterState) return;
@@ -1039,7 +1066,11 @@ class StudioViewModel extends ChangeNotifier
     _configSaveDebounceTimer?.cancel();
     await _lastConfigSave;
     await _configService.saveConfig(_config);
-    await Future.wait([_sessionLog.flush(), _usageLedger.flush()]);
+    await Future.wait([
+      _sessionLog.flush(),
+      _usageLedger.flush(),
+      _repository.flushPendingImageLoads(),
+    ]);
   }
 
   /// 防抖保存全局配置 (避免滑块/高频拖拽频繁写盘)
@@ -1184,10 +1215,6 @@ class StudioViewModel extends ChangeNotifier
       maxImages: _config.maxPersistentImages,
     );
 
-    final map = Map<String, Uint8List>.from(imageBytesNotifier.value)
-      ..remove(imageId);
-    imageBytesNotifier.value = map;
-
     if (wasSelected) {
       if (gallery.isNotEmpty) {
         final nextIndex = deletedIndex < gallery.length
@@ -1228,7 +1255,6 @@ class StudioViewModel extends ChangeNotifier
 
     _selectedImage = null;
     _hasUnseenLatest = false;
-    imageBytesNotifier.value = const {};
 
     // 同步大画布：移除来自历史的图片节点 (保留外部导入的参考卡片与自由便利贴，
     // 指向已删节点的连线/便签连接同步解绑)
@@ -1465,6 +1491,11 @@ class StudioViewModel extends ChangeNotifier
 
   @override
   void dispose() {
+    _disposed = true;
+    _previewDisposed = true;
+    inpaintPreviewNotifier.dispose();
+    _rtxDisposed = true;
+    _repository.cancelRtxUpscale();
     _harness.dispose();
     _generationSubscription?.cancel();
     _paramSaveDebounceTimer?.cancel();

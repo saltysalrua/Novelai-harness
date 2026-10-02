@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' show Rect;
 import '../types.dart';
 import '../../../data/models/novelai_models.dart';
@@ -385,7 +384,7 @@ class NovelAiInpaintTool extends AgentTool {
       if (imagePath != null && imagePath.isNotEmpty) {
         final file = File(imagePath);
         if (file.existsSync()) {
-          final bytes = file.readAsBytesSync();
+          final bytes = await file.readAsBytes();
           final dims = await AnlasCalculator.decodeImageDimensions(bytes);
           targetImage = NaiGeneratedImage(
             id: 'file_${DateTime.now().millisecondsSinceEpoch}',
@@ -424,7 +423,11 @@ class NovelAiInpaintTool extends AgentTool {
 
       // 2. 按实际图片字节解码尺寸 (导入图 params 可能是假宽高；
       //    rect 像素坐标换算也依赖真实尺寸，必须先于选区解析)
-      final targetBytes = Uint8List.fromList(targetImage.bytes);
+      final targetBytes =
+          await _repository.loadHistoryImageBytes(targetImage) ??
+          targetImage.bytes;
+      if (targetBytes.isEmpty) throw StateError('待修复原图缺失或为空');
+      targetImage = targetImage.copyWith(bytes: targetBytes);
       final resolvedDims = await AnlasCalculator.decodeImageDimensions(
         targetBytes,
       );
@@ -758,7 +761,9 @@ class NovelAiInpaintGeometryTool extends AgentTool {
       var srcW = targetImage?.params.width ?? 1024;
       var srcH = targetImage?.params.height ?? 1024;
       if (targetImage != null) {
-        final bytes = targetImage.bytes;
+        final bytes =
+            await _repository.loadHistoryImageBytes(targetImage) ??
+            targetImage.bytes;
         final dims = await AnlasCalculator.decodeImageDimensions(bytes);
         srcW = dims?.width ?? srcW;
         srcH = dims?.height ?? srcH;

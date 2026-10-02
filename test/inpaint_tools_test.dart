@@ -268,7 +268,9 @@ void main() {
     });
 
     test('NovelAiInpaintTool 整图批注无法作为选区时明确报错', () async {
-      final bytes = repository.history.first.bytes;
+      final bytes = (await repository.loadHistoryImageBytes(
+        repository.history.first,
+      ))!;
       final annotated = NaiGeneratedImage(
         id: 'test_img_global',
         bytes: bytes,
@@ -296,7 +298,9 @@ void main() {
 
     test('NovelAiInpaintGeometryTool 支持 annotation_id 且按实际字节解码尺寸', () async {
       // params 写假宽高 512，实际字节 1024x1024 —— 几何必须按实际字节算
-      final bytes = repository.history.first.bytes;
+      final bytes = (await repository.loadHistoryImageBytes(
+        repository.history.first,
+      ))!;
       final annotated = NaiGeneratedImage(
         id: 'test_img_ann',
         bytes: bytes,

@@ -2,6 +2,8 @@ part of 'studio_view_model.dart';
 
 /// 会话列表 / 切换 / 新建 / 删除 / 回溯
 mixin _StudioSessionsMixin on _StudioCore {
+  int _sessionNavigationEpoch = 0;
+
   /// 刷新会话列表
   @override
   Future<void> refreshSessions() async {
@@ -12,12 +14,15 @@ mixin _StudioSessionsMixin on _StudioCore {
 
   /// 切换至指定会话
   Future<void> switchSession(String sessionId) async {
+    final epoch = ++_sessionNavigationEpoch;
     if (_isChatStreaming) {
       await abortChat();
     }
     _harness.memoryChanged();
     await _sessionLog.flush();
-    final snapshot = _sessionLog.loadSession(sessionId);
+    if (epoch != _sessionNavigationEpoch) return;
+    final snapshot = await _sessionLog.loadSessionAsync(sessionId);
+    if (epoch != _sessionNavigationEpoch) return;
     if (snapshot != null) {
       _harness.setMessages(snapshot.messages);
       _harness.restoreContextState(_sessionLog.loadContextState());
@@ -52,11 +57,14 @@ mixin _StudioSessionsMixin on _StudioCore {
   /// 创建全新会话
   @override
   Future<void> createNewSession({String? title}) async {
+    final epoch = ++_sessionNavigationEpoch;
     if (_isChatStreaming) {
       await abortChat();
     }
     _harness.memoryChanged();
+    if (epoch != _sessionNavigationEpoch) return;
     await _sessionLog.createSession(title: title);
+    if (epoch != _sessionNavigationEpoch) return;
     _harness.setMessages([]);
     _sessionModelUsage = {};
     _paramJournal.reset(_params);
@@ -72,6 +80,7 @@ mixin _StudioSessionsMixin on _StudioCore {
   Future<void> deleteSessions(Iterable<String> sessionIds) async {
     final ids = sessionIds.toSet();
     if (ids.isEmpty) return;
+    _sessionNavigationEpoch++;
     final isCurrent = ids.contains(currentSessionId);
     if (isCurrent && _isChatStreaming) await abortChat();
     if (isCurrent) _harness.memoryChanged();

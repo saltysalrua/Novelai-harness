@@ -285,7 +285,7 @@ mixin _StudioInpaintMixin on _StudioCore {
       if (config.enableStreamPreview) {
         final stream = _repository.generateInpaintStream(
           apiKey: config.novelAiKey,
-          sourceImageBytes: Uint8List.fromList(target.bytes),
+          sourceImageBytes: target.bytes,
           inpaintParams: _inpaintParams,
           generationParams: _params,
           saveDir: config.saveDirectory,
@@ -310,13 +310,12 @@ mixin _StudioInpaintMixin on _StudioCore {
           } else if (!progress.isFinal && progress.previewImage != null) {
             // 修复中间帧预览只驱动修复画板，不占用生图预览通道
             _inpaintPreviewBytes = progress.previewImage;
-            notifyListeners();
           }
         }
       } else {
         final result = await _repository.generateInpaint(
           apiKey: config.novelAiKey,
-          sourceImageBytes: Uint8List.fromList(target.bytes),
+          sourceImageBytes: target.bytes,
           inpaintParams: _inpaintParams,
           generationParams: _params,
           saveDir: config.saveDirectory,
@@ -390,7 +389,7 @@ mixin _StudioInpaintMixin on _StudioCore {
         provider: provider,
         modelId: config.imageEditModelId,
         prompt: prompt,
-        sourceImageBytes: Uint8List.fromList(target.bytes),
+        sourceImageBytes: target.bytes,
         generationParams: _params,
         aspectRatio: _inpaintParams.aiEditAspectRatio,
         imageResolution: _inpaintParams.aiEditResolution,

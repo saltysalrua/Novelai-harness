@@ -232,7 +232,7 @@ class BoardController extends ChangeNotifier {
 
       final mainNode = CanvasImageNode(
         id: 'main-${mainImg.id}',
-        image: mainImg,
+        image: _boardImageSnapshot(mainImg),
         offset: const Offset(3000, 3000),
         width: displayW,
         height: displayH,
@@ -329,6 +329,11 @@ class BoardController extends ChangeNotifier {
 
   // ==================== 大画布节点与便利贴 CRUD ====================
 
+  NaiGeneratedImage _boardImageSnapshot(NaiGeneratedImage image) =>
+      image.displayFilePath == null
+      ? image
+      : image.copyWith(bytes: Uint8List(0));
+
   /// 添加一张参考图卡片到自由大画布中
   void addImageNodeToBoard(NaiGeneratedImage image, {Offset? position}) {
     if (_boardData == null) _initBoardData();
@@ -352,7 +357,7 @@ class BoardController extends ChangeNotifier {
 
     final newNode = CanvasImageNode(
       id: 'ref-${image.id}-${DateTime.now().millisecondsSinceEpoch}',
-      image: image,
+      image: _boardImageSnapshot(image),
       offset: defaultPos,
       width: displayW,
       height: displayH,

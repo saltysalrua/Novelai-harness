@@ -1790,6 +1790,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get canvasActionUpscale => 'Upscale';
 
   @override
+  String get canvasActionRtxUpscale => 'RTX Upscale';
+
+  @override
+  String get settingsRtxScaleTitle => 'Scale factor';
+
+  @override
+  String get settingsRtxScaleSubtitle =>
+      'Used by the image context menu. Requires an NVIDIA RTX GPU; quality is controlled by NVIDIA Video Super Resolution settings.';
+
+  @override
   String get canvasActionCopyImage => 'Copy Image';
 
   @override

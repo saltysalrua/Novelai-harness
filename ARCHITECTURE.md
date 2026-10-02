@@ -119,9 +119,11 @@ Novelai-harness/
 │   │   │   ├── inpaint_service.dart            # 焦点特写几何计算 (1MP 潜空间超采样/64 步长)、量化蒙版与无损回贴
 │   │   │   ├── watermark_service.dart          # 图像导出管道单一事实源 (可见水印/自动对比度/智能选位/Koch-Zhao DCT 盲水印)
 │   │   │   ├── image_save_path_service.dart    # 图片命名宏、生成快照、相对目录模板校验与安全净化
-│   │   │   ├── image_file_store.dart           # 递归目录、独占占位、防覆盖编号与配对原图副本写入
+│   │   │   ├── image_file_store.dart           # 递归目录、独占占位、防覆盖编号与配对原图副本异步写入
+│   │   │   ├── image_thumbnail_service.dart    # Skia 按目标尺寸解码、缩略图持久缓存与失效清理
 │   │   │   ├── image_storage_directory_service.dart # 安卓存储目录读写探测、旧配置修复与应用文档目录回退
 │   │   │   ├── image_edit_service.dart         # 外部绘图模型整图编辑服务 (OpenAI 兼容 /chat/completions 传图返图)
+│   │   │   ├── rtx_upscale_service.dart        # Windows NVIDIA 驱动 VSR 子进程、取消/超时与临时文件清理
 │   │   │   ├── comfyui_service.dart            # ComfyUI PromptToolkit AI Bridge 客户端 (注册表探测/参数下发/采样器选项实时拉取)
 │   │   │   ├── image_metadata_service.dart     # PNG Chunks 与 Alpha LSB 隐写读取、元数据脱敏抹除与注入
 │   │   │   ├── palette_service.dart            # 图片主色盘提取 (MD3 Celebi 量化+Score 打分，后台 Isolate，LRU 缓存)
@@ -359,6 +361,16 @@ graph LR
 
 ---
 
+### 3.2.1 Windows RTX 本地放大
+
+- **入口与依赖**：Windows 图片右键菜单只提供一个「RTX 放大」入口；设置 → 常规 → RTX 放大可选 2× / 4×，默认 2×，以 `AppConfig.rtxUpscaleScale` / `novelai_rtx_upscale_scale` 持久化。执行时冻结倍率及其余配置，不受处理期间改设置影响。不访问 NovelAI、不使用点数或 API Key，也不依赖 ComfyUI/Python/额外模型包。需要支持 RTX VSR 的 NVIDIA RTX 显卡和新版驱动，质量与启用状态由 NVIDIA 的视频超分设置控制。
+- **参考实现**：协议参考 [Chromium 的 NVIDIA VSR 扩展](https://chromium.googlesource.com/chromium/src/+/main/ui/gl/swap_chain_presenter.cc) 与 [mpv d3d11vpp](https://github.com/mpv-player/mpv/blob/master/video/filter/vf_d3d11vpp.c)，而不是调用 ComfyUI 节点。`windows/runner/rtx_upscale.cpp` 经 CMake 编译为与主程序同目录的 `rtx_upscale.exe`，随 Windows 构建安装；GPU 与 PNG 编解码均在独立进程，避免堵塞 Flutter UI。
+- **原生管线**：WIC 解码 BGRA → D3D11 视频处理器转换 NV12 → NVIDIA PPE 扩展 (`version=1, method=2, enable=1`) 开启 VSR → BGRA 回读 → WIC PNG 输出。显式选择 NVIDIA 适配器，扩展失败明确报错，不自行回退普通插值；奇数宽高补边后按原尺寸裁切，透明通道独立重采样保留。输入边长 ≤4096，输出边长 ≤8192 且总面积 ≤32 Mi 像素。
+- **生命周期与落图**：`RtxUpscaleService` 使用私有临时目录与非 Shell 参数调用，禁止重复启动，2 分钟超时杀进程，取消与退出亦终止运行并清理临时文件。`StudioViewModel.upscaleRtx` 捕获右键目标及配置快照；仓储取消代次覆盖原图懒加载和解码阶段，落盘开始后视为提交。原图缺失/空图/输出不可解码不登记成功，结果以实际尺寸重新嵌入参数，复用 `_persistImageFiles` 的历史、原图缓存、自动保存、元数据与水印顺序；`{prefix}=rtx_upscaled`、`{type}=upscale`，原图片不被覆盖。
+- **验证**：`rtx_upscale_test.dart` 覆盖懒加载、尺寸/透明通道、历史恢复、脱敏导出、命名、缺图/损坏输出、无密钥调用、重入与 ComfyUI 模式下的取消。设置环境变量 `RTX_UPSCALE_EXE` 为构建出的 worker 绝对路径可额外启用真实 RTX 2×/4×测试；无 RTX CI 默认跳过该硬件测试。
+
+---
+
 ### 3.3 局部修复与焦点特写管线 (Inpaint Pipeline)
 
 局部修复体系彻底将常规修复与焦点特写在几何、潜空间与渲染层面进行了无缝统一：
@@ -580,3 +592,14 @@ Agent 对话可联网检索：AnySearch (`https://api.anysearch.com`) 三端点�
 - **全屏大图与批注双指手势**：`AppScaleGestureRegion` 在第二触点落下、Scale 基准重建后接受手势，避免默认 span 阈值吞掉手机短距离捏合。大图保留单指平移、双击、居中滚轮动画与触控板；批注节点外层使用 `multitouchOnly`，单指仍用于节点编辑，空白背景独立保留单指漫游及加指捏合，竞技场保证不重复写矩阵。不会抢夺已经开始的单指节点编辑；节点上双指结束后剩余一指也不会误建批注。漫游工具在第二指落下时停止原始指针平移，缩放不丢弃微小增量，视口平移统一使用未受画板矩阵变换的局部坐标；矩阵仍由 ValueNotifier 驱动，不逐帧全局通知。批注顶部工具坞在窄屏横向滚动，末尾操作可达。`app_scale_gesture_region_test.dart`、`image_lightbox_test.dart` 与 `board_interaction_test.dart` 覆盖手机弹窗路由短捏合、编辑竞争、取消、慢速缩放与 UI 缩放下的精确漫游；图片瀑布流本身不启用卡内缩放。
 - **切页保活**：窄屏三卡片由 `PageView` 承载，视口默认 `cacheExtent = 0`，离开视口的页面整个 Element 树会被卸载，切页往返会丢滚动位置、折叠状态与输入框高度。三张卡片统一套 `lib/ui/core/widgets/app_keep_alive_page.dart` 的 `AppKeepAlivePage`（`AutomaticKeepAliveClientMixin` 常驻保活 + 隐藏页 `TickerMode` 暂停离屏动画），行为与桌面三栏常驻页 `AppPageStack` 对齐；词库覆盖层用 `Visibility(maintainSize)` 承载，不卸载 `PageView`。
 - **预览与提交**：分辨率、角色和水印拖动期间只更新局部预览，松手一次性提交 ViewModel，取消不写参数。水印缩放手柄完整放在父盒有效命中范围内，避免可见却点不到。`mobile_pan_gesture_test.dart` 逐帧验证横/纵/斜拖不移动外层 PageView/ListView、不逐帧全局通知，并覆盖松手、取消与外围正常滚动。
+
+
+### 3.11 性能与资源生命周期
+
+- **词库单份工作集**：后台模式就绪后，主线程释放完整 `_DictEntry` 列表，仅保留高亮/翻译索引及条数；首次加载与热替换串行。worker 的监听闭包不捕获 `_SearchInit`，只持有可替换的当前词条和 reply port，避免旧词库滞留。可变对象图经 SendPort 发送仍会复制，不能称作零拷贝；测试或 worker 不可用时保留本地搜索回退。
+- **原图缓存统一**：`NovelAiRepository` 同时按 5 张和 64 MiB 淘汰大图，单张超预算图片允许独占缓存；`imageBytesNotifier` 只发布该缓存，不另存永久 Map。磁盘已有原图的历史/画布记录清空 `bytes`，当前选图与修复源按需固定驻留。没有磁盘副本的纯内存图片不能盲目清空。并发读取同一 ID 合并，目录切换/清理使晚到缓存提交失效；关闭时等待所有已启动读图和缩略图任务。AI 编辑、修复、超分、视觉工具及灯箱均显式懒加载原图。
+- **缩略图先索引后加载**：历史恢复先返回轻量元信息，再渐进填充缩略图，不阻塞初始化；缩略图位于 `<saveDir>/cache/thumbnails/`，以规范化来源路径、文件大小/修改时间和版本辨别缓存。Skia 直接按最长边 240 解码，不先创建完整尺寸 Dart 像素图。缺失/截断缓存重建，来源变更清理旧版本，删图同步清理。缩略图不是导出文件，原图及水印语义不变。
+- **修复与画布局部更新**：裁剪、双三次缩放、画笔蒙版栅格化及量化在 isolate 执行；修复预览仅更新 `inpaintPreviewNotifier`，不逐帧通知工作台。批注图片节点只挂载视口及预取边界内的卡片，拖动中保留活动节点；缩放按分档选择显示解码尺寸，连线仍使用完整模型，灯箱/修复继续加载全分辨率原图。
+- **导出与写盘**：可见水印合成、Alpha LSB 脱敏和 DCT 盲水印复用一份 RGBA，在后台按原顺序处理，最后仅编码一次；无 Alpha 隐写的 PNG 脱敏直接处理 chunks，不无谓解码。DCT/IDCT 复用块级 scratch。`TransferableTypedData.fromList` 创建时仍复制一次，一次性 compute 的字节返回利用 `Isolate.exit` 直接移交，不再套第二层传输副本。成品/原图/cache 的独占路径占位语义不变，实际文件写入与 flush 改为异步，失败只清理本次占位。
+- **会话恢复**：UI 使用 `loadSessionAsync` 后台读文件、解析消息树、解码附件和读取上下文检查点；异步重命名/回溯写入保留父链。会话导航和服务加载各自用代次拒绝晚到结果，切换、新建或删除不让旧恢复覆盖新会话；同步恢复 API 仅为旧调用兼容保留。
+- **验证**：资源边界与缓存生命周期见 `performance_resource_regression_test.dart`；画布裁剪、异步会话父链及原图懒加载沿用对应回归。可单独执行 `flutter test tool/benchmarks/image_pipeline_benchmark_test.dart`，它使用合成 PNG 对比旧/新脱敏和冷/热缩略图，不属于默认测试发现范围，也不设易波动的时间门禁。一次同进程测试环境测得脱敏 832×1216 为 252→51 ms、3328×4864 为 2394→823 ms；20 张缩略图旧路径 1606 ms，新冷缓存 473 ms、热缓存 27 ms。不是 Release 或实际画布 FPS 结论，进程总内存与 GPU 帧耗时仍需实机 Profile 复测。

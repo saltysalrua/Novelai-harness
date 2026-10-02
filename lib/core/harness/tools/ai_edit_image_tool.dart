@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import '../types.dart';
 import '../../../data/models/novelai_models.dart';
@@ -115,7 +114,7 @@ class AiEditImageTool extends AgentTool {
             isError: true,
           );
         }
-        final bytes = file.readAsBytesSync();
+        final bytes = await file.readAsBytes();
         final dims = await AnlasCalculator.decodeImageDimensions(bytes);
         targetImage = NaiGeneratedImage(
           id: 'file_${DateTime.now().millisecondsSinceEpoch}',
@@ -171,13 +170,17 @@ class AiEditImageTool extends AgentTool {
           : aspectArg;
       final resolution = args['resolution'] as String? ?? '';
 
+      final sourceBytes = await _repository.loadHistoryImageBytes(targetImage);
+      if (sourceBytes == null || sourceBytes.isEmpty) {
+        throw StateError('待编辑原图缺失或为空');
+      }
       _onBeforeGenerate?.call();
 
       final result = await _repository.editImageAi(
         provider: provider,
         modelId: config.imageEditModelId,
         prompt: prompt,
-        sourceImageBytes: Uint8List.fromList(targetImage.bytes),
+        sourceImageBytes: sourceBytes,
         generationParams: targetImage.params,
         aspectRatio: aspectRatio,
         imageResolution: resolution,

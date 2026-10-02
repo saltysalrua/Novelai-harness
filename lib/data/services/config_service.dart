@@ -192,6 +192,9 @@ class AppConfig {
   final bool keepOriginalImage;
   final WatermarkConfig watermarkConfig;
 
+  /// Windows RTX 本地放大倍率 (2 / 4)，默认 2 倍。
+  final int rtxUpscaleScale;
+
   // ComfyUI 模式 (经 PromptToolkit AI Bridge 驱动本地/局域网 ComfyUI 生图)
   /// 是否启用 ComfyUI 模式：开启后生图改走 Bridge，
   /// 质量词/UC 预设拼接与 Token 上限计数全部旁路
@@ -319,6 +322,7 @@ class AppConfig {
     this.enableWatermark = false,
     this.keepOriginalImage = false,
     this.watermarkConfig = const WatermarkConfig(),
+    this.rtxUpscaleScale = 2,
     this.comfyUiEnabled = false,
     this.comfyUiBaseUrl = 'http://127.0.0.1:8188',
     this.comfyUiPromptNodeId = '',
@@ -380,6 +384,7 @@ class AppConfig {
     bool? enableWatermark,
     bool? keepOriginalImage,
     WatermarkConfig? watermarkConfig,
+    int? rtxUpscaleScale,
     bool? comfyUiEnabled,
     String? comfyUiBaseUrl,
     String? comfyUiPromptNodeId,
@@ -446,6 +451,7 @@ class AppConfig {
       enableWatermark: enableWatermark ?? this.enableWatermark,
       keepOriginalImage: keepOriginalImage ?? this.keepOriginalImage,
       watermarkConfig: watermarkConfig ?? this.watermarkConfig,
+      rtxUpscaleScale: rtxUpscaleScale ?? this.rtxUpscaleScale,
       comfyUiEnabled: comfyUiEnabled ?? this.comfyUiEnabled,
       comfyUiBaseUrl: comfyUiBaseUrl ?? this.comfyUiBaseUrl,
       comfyUiPromptNodeId: comfyUiPromptNodeId ?? this.comfyUiPromptNodeId,
@@ -545,6 +551,8 @@ class ConfigService {
   static const String _keyCharacterAiPosition = 'novelai_character_ai_position';
   static const String _keySeedMode = 'novelai_seed_mode';
   static const String _keySeedTiming = 'novelai_seed_timing';
+
+  static const String _keyRtxUpscaleScale = 'novelai_rtx_upscale_scale';
 
   // ComfyUI 模式持久化 Keys
   static const String _keyComfyUiEnabled = 'novelai_comfyui_enabled';
@@ -920,6 +928,10 @@ class ConfigService {
       enableWatermark: enableWm,
       keepOriginalImage: keepOrig,
       watermarkConfig: wmConfig,
+      rtxUpscaleScale: switch (prefs.get(_keyRtxUpscaleScale)) {
+        4 => 4,
+        _ => 2,
+      },
       comfyUiEnabled: comfyEnabled,
       comfyUiBaseUrl: comfyBaseUrl,
       comfyUiPromptNodeId: comfyPromptNodeId,
@@ -1012,6 +1024,7 @@ class ConfigService {
       _keyEnableWatermark: config.enableWatermark,
       _keyKeepOriginalImage: config.keepOriginalImage,
       _keyWatermarkConfig: jsonEncode(config.watermarkConfig.toJson()),
+      _keyRtxUpscaleScale: config.rtxUpscaleScale == 4 ? 4 : 2,
       _keyComfyUiEnabled: config.comfyUiEnabled,
       _keyComfyUiBaseUrl: config.comfyUiBaseUrl,
       _keyComfyUiPromptNodeId: config.comfyUiPromptNodeId,

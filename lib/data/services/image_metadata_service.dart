@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'isolated_compute.dart';
+import 'skia_image_codec.dart';
 import 'package:pasteboard/pasteboard.dart';
 import '../models/novelai_models.dart';
 
@@ -660,8 +661,8 @@ class ImageMetadataService {
     try {
       final commentJson = jsonEncode(params.toMetadataComment(seed: seed));
       final chunks = _parsePngChunks(pngBytes);
-      final output = BytesBuilder();
-      output.add(pngBytes.sublist(0, 8)); // PNG 签名
+      final output = BytesBuilder(copy: false);
+      output.add(Uint8List.sublistView(pngBytes, 0, 8)); // PNG 签名
 
       var inserted = false;
       for (final chunk in chunks) {
@@ -693,7 +694,7 @@ class ImageMetadataService {
             continue;
           }
         }
-        _writeChunk(output, chunk.type, chunk.data);
+        output.add(chunk.rawBytes);
       }
 
       if (!inserted) {
@@ -744,11 +745,49 @@ class ImageMetadataService {
 
   /// 抹除 PNG 图片的所有元数据文本块和 Alpha LSB 隐写数据
   static Future<Uint8List> stripPngMetadataAsync(Uint8List bytes) async {
-    final out = await runIsolated(
-      _stripPngMetadataIsolate,
-      IsolateBytes(bytes),
-    );
-    return out.materialize();
+    if (isPngHeader(bytes) && !pngMayHaveAlpha(bytes)) {
+      return runIsolated(_stripPngTextIsolate, IsolateBytes(bytes));
+    }
+    final decoded = await decodeToRawRgba(bytes);
+    if (decoded == null) return bytes;
+    final rgba = await runIsolated(_clearAlphaIsolate, (
+      bytes: IsolateBytes(decoded.rgba),
+      clearAlpha: pngMayHaveAlpha(bytes),
+    ));
+    return encodeRawRgbaToPng(rgba, decoded.width, decoded.height);
+  }
+
+  /// RGB PNG 无 alpha 时只删除文本/私有块，无需解码整幅图像。
+  static bool pngMayHaveAlpha(Uint8List bytes) {
+    if (!isPngHeader(bytes) || bytes.length < 33) return false;
+    final type = bytes[25];
+    if (type == 4 || type == 6) return true;
+    return _parsePngChunks(bytes).any((chunk) => chunk.type == 'tRNS');
+  }
+
+  static void clearAlphaLsbInPlace(Uint8List rgba) {
+    for (var i = 3; i < rgba.length; i += 4) {
+      rgba[i] &= 0xFE;
+    }
+  }
+
+  static Uint8List _clearAlphaIsolate(
+    ({IsolateBytes bytes, bool clearAlpha}) task,
+  ) {
+    final rgba = task.bytes.materialize();
+    if (task.clearAlpha) clearAlphaLsbInPlace(rgba);
+    return rgba;
+  }
+
+  static Uint8List stripPngTextChunks(Uint8List bytes) {
+    if (!isPngHeader(bytes)) return bytes;
+    const removed = {'tEXt', 'iTXt', 'zTXt', 'eXIf', 'dSIG', 'prWm'};
+    final output = BytesBuilder(copy: false)
+      ..add(Uint8List.sublistView(bytes, 0, 8));
+    for (final chunk in _parsePngChunks(bytes)) {
+      if (!removed.contains(chunk.type)) output.add(chunk.rawBytes);
+    }
+    return output.takeBytes();
   }
 
   /// 同步抹除 PNG 图片元数据
@@ -778,12 +817,12 @@ class ImageMetadataService {
         'prWm',
       };
 
-      final output = BytesBuilder();
+      final output = BytesBuilder(copy: false);
       output.add(bytes.sublist(0, 8)); // PNG 签名
 
       for (final chunk in chunks) {
         if (!metadataChunkTypes.contains(chunk.type)) {
-          _writeChunk(output, chunk.type, chunk.data);
+          output.add(chunk.rawBytes);
         }
       }
 
@@ -828,8 +867,18 @@ class ImageMetadataService {
       final type = latin1.decode(bytes.sublist(offset + 4, offset + 8));
       if (offset + 12 + length > bytes.length) break;
 
-      final data = bytes.sublist(offset + 8, offset + 8 + length);
-      chunks.add(_PngChunk(type, data));
+      final data = Uint8List.sublistView(
+        bytes,
+        offset + 8,
+        offset + 8 + length,
+      );
+      chunks.add(
+        _PngChunk(
+          type,
+          data,
+          Uint8List.sublistView(bytes, offset, offset + 12 + length),
+        ),
+      );
       offset += 12 + length;
     }
 
@@ -1178,9 +1227,10 @@ class ImageMetadataService {
 }
 
 class _PngChunk {
-  const _PngChunk(this.type, this.data);
+  const _PngChunk(this.type, this.data, this.rawBytes);
   final String type;
   final Uint8List data;
+  final Uint8List rawBytes;
 }
 
 // ==================== Isolate 入口 (统一走 isolated_compute) ====================
@@ -1189,8 +1239,5 @@ ImageMetadataResult? _parseMetadataIsolate(IsolateBytes bytes) {
   return ImageMetadataService.parseMetadata(bytes.materialize());
 }
 
-IsolateBytes _stripPngMetadataIsolate(IsolateBytes bytes) {
-  return IsolateBytes(
-    ImageMetadataService.stripPngMetadata(bytes.materialize()),
-  );
-}
+Uint8List _stripPngTextIsolate(IsolateBytes bytes) =>
+    ImageMetadataService.stripPngTextChunks(bytes.materialize());

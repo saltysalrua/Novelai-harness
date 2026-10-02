@@ -130,7 +130,7 @@ void main() {
     addTearDown(tester.view.reset);
 
     // 直接注入模拟选项清单并选中一个采样器 (绕过网络探测)
-    await viewModel.setComfySampler('dpmpp_2m');
+    await tester.runAsync(() => viewModel.setComfySampler('dpmpp_2m'));
     viewModel.setComfyOptionCatalogForTesting(
       const ComfyUiOptionCatalog(
         samplers: ['euler', 'dpmpp_2m'],
@@ -156,8 +156,10 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await viewModel.updateConfig(
-      viewModel.config.copyWith(comfyUiEnabled: false),
+    await tester.runAsync(
+      () => viewModel.updateConfig(
+        viewModel.config.copyWith(comfyUiEnabled: false),
+      ),
     );
     await tester.pumpWidget(
       buildTestWidget(ParametersPage(viewModel: viewModel)),
@@ -183,8 +185,10 @@ void main() {
   });
 
   testWidgets('提示词页 NovelAI 模式：恢复质量词与 UC 预设工具条', (WidgetTester tester) async {
-    await viewModel.updateConfig(
-      viewModel.config.copyWith(comfyUiEnabled: false),
+    await tester.runAsync(
+      () => viewModel.updateConfig(
+        viewModel.config.copyWith(comfyUiEnabled: false),
+      ),
     );
     await tester.pumpWidget(buildTestWidget(PromptsPage(viewModel: viewModel)));
     await tester.pumpAndSettle();
