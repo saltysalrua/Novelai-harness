@@ -107,6 +107,24 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         model.trim() == 'claude-sonnet-5';
   }
 
+  /// 判定 Responses 请求是否应省略 temperature：
+  /// 官方限制端点、开启思考、或 o1/o3/o4/gpt-5 推理模型均不接受 temperature。
+  bool _shouldOmitResponsesTemperature(
+    String endpoint,
+    String? reasoningEffort,
+  ) {
+    if (_shouldOmitTemperature(endpoint)) return true;
+    if (reasoningEffort != null && reasoningEffort.trim().isNotEmpty) {
+      return true;
+    }
+    final id = model.trim().toLowerCase();
+    final bare = id.replaceAll('models/', '').replaceAll('openai/', '');
+    return bare.startsWith('o1') ||
+        bare.startsWith('o3') ||
+        bare.startsWith('o4') ||
+        bare.startsWith('gpt-5');
+  }
+
   /// 判定 HTTP 状态码是否为瞬态可重试错误 (请求超时 / 频控 / 服务端临时故障)
   static bool isTransientStatus(int code) =>
       code == 408 || code == 429 || (code >= 500 && code <= 599);
@@ -376,6 +394,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         tools: tools,
         temperature: temperature,
         promptParser: promptParser,
+        promptCacheKey: promptCacheKey,
       );
       return;
     }
@@ -430,44 +449,24 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     }
 
     http.StreamedResponse streamedResponse;
+    String? badRequestBody;
     try {
-      streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
+      final (response, errBody) = await _drainRejectedCacheFields(
+        await _send(endpoint, requestBody, cacheHeaders),
+        endpoint,
+        requestBody,
+        cacheHeaders,
+      );
+      streamedResponse = response;
+      badRequestBody = errBody;
     } catch (e) {
       // 连接失败 / 超时 / TLS 握手中断等网络层异常均为瞬态
       yield ErrorEvent('网络请求异常: $e', transient: true);
       return;
     }
-
-    // 仅在明确拒绝缓存字段时逐项降级，最多两次；长度/值错误不能污染能力记录。
-    while (streamedResponse.statusCode == 400) {
-      final errBody = await streamedResponse.stream.bytesToString();
-      final lower = errBody.toLowerCase();
-      String? rejectedField;
-      if (RegExp(
-        r'unsupported|not supported|unknown|unrecognized|not permitted|not allowed|extra inputs',
-      ).hasMatch(lower)) {
-        for (final field in const [
-          'prompt_cache_key',
-          'prompt_cache_retention',
-        ]) {
-          if (requestBody.containsKey(field) && lower.contains(field)) {
-            rejectedField = field;
-            break;
-          }
-        }
-      }
-      if (rejectedField == null) {
-        yield ErrorEvent('LLM API 响应错误 (HTTP 400): $errBody');
-        return;
-      }
-      _unsupportedCacheFields.add((endpoint, model.trim(), rejectedField));
-      requestBody.remove(rejectedField);
-      try {
-        streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
-      } catch (e) {
-        yield ErrorEvent('网络请求异常: $e', transient: true);
-        return;
-      }
+    if (badRequestBody != null) {
+      yield ErrorEvent('LLM API 响应错误 (HTTP 400): $badRequestBody');
+      return;
     }
 
     if (streamedResponse.statusCode != 200) {
@@ -728,6 +727,42 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     }
   }
 
+  /// HTTP 400 降级重试：错误体明确拒绝 prompt_cache_key / prompt_cache_retention
+  /// 时移除该字段、记入能力记录并重发，最多重试两次；其余 400 原样返回给调用方。
+  /// Chat Completions 与 Responses 两条路径共用。
+  Future<(http.StreamedResponse, String?)> _drainRejectedCacheFields(
+    http.StreamedResponse streamedResponse,
+    String endpoint,
+    Map<String, dynamic> requestBody,
+    Map<String, String> cacheHeaders,
+  ) async {
+    while (streamedResponse.statusCode == 400) {
+      final errBody = await streamedResponse.stream.bytesToString();
+      final lower = errBody.toLowerCase();
+      String? rejectedField;
+      if (RegExp(
+        r'unsupported|not supported|unknown|unrecognized|not permitted|not allowed|extra inputs',
+      ).hasMatch(lower)) {
+        for (final field in const [
+          'prompt_cache_key',
+          'prompt_cache_retention',
+        ]) {
+          if (requestBody.containsKey(field) && lower.contains(field)) {
+            rejectedField = field;
+            break;
+          }
+        }
+      }
+      if (rejectedField == null) {
+        return (streamedResponse, errBody);
+      }
+      _unsupportedCacheFields.add((endpoint, model.trim(), rejectedField));
+      requestBody.remove(rejectedField);
+      streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
+    }
+    return (streamedResponse, null);
+  }
+
   /// 发送 POST 请求 (缓存键降级重试复用)
   Future<http.StreamedResponse> _send(
     String endpoint,
@@ -768,7 +803,10 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     required List<AgentTool> tools,
     required double temperature,
     required PromptToolStreamParser? promptParser,
+    String? promptCacheKey,
   }) async* {
+    // 先算出思考强度：非空时官方推理模型不接受 temperature。
+    final effort = _responsesReasoningEffort();
     final requestBody = OpenAiResponses.buildRequestBody(
       model: _isGoogleHost
           ? GoogleInteractionsProvider.normalizeModelId(model)
@@ -777,15 +815,50 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       tools: tools,
       temperature: temperature,
       stream: true,
-      reasoningEffort: _responsesReasoningEffort(),
+      reasoningEffort: effort,
+      includeTemperature: !_shouldOmitResponsesTemperature(endpoint, effort),
       promptToolUse: promptToolUse,
     );
 
+    // 提示缓存：仅 openai 模式在 Responses 请求体上写 prompt_cache_key /
+    // prompt_cache_retention；anthropic 模式的 apply 依赖 body['messages']，
+    // 在 Responses 请求体 (input/instructions) 上调用会崩溃，故不调用。
+    final cachePolicy = PromptCachePolicy(
+      config: cacheConfig,
+      endpoint: Uri.parse(endpoint),
+      model: model,
+    );
+    final cacheHeaders = <String, String>{};
+    if (cachePolicy.mode == LlmCacheMode.openai) {
+      cachePolicy.apply(requestBody, promptCacheKey);
+      cacheHeaders.addAll(cachePolicy.headers(promptCacheKey));
+      for (final field in const [
+        'prompt_cache_key',
+        'prompt_cache_retention',
+      ]) {
+        if (_unsupportedCacheFields.contains((endpoint, model.trim(), field))) {
+          requestBody.remove(field);
+        }
+      }
+    }
+
     http.StreamedResponse streamedResponse;
+    String? badRequestBody;
     try {
-      streamedResponse = await _send(endpoint, requestBody, const {});
+      final (response, errBody) = await _drainRejectedCacheFields(
+        await _send(endpoint, requestBody, cacheHeaders),
+        endpoint,
+        requestBody,
+        cacheHeaders,
+      );
+      streamedResponse = response;
+      badRequestBody = errBody;
     } catch (e) {
       yield ErrorEvent('网络请求异常: $e', transient: true);
+      return;
+    }
+    if (badRequestBody != null) {
+      yield ErrorEvent('LLM API 响应错误 (HTTP 400): $badRequestBody');
       return;
     }
 
@@ -948,6 +1021,11 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
           yield ErrorEvent('工具调用格式错误: ${e.message}');
         }
       }
+    } else if (promptParser == null && !failed && !streamCompleted) {
+      // 原生工具模式：流未正常结束（无 completed/[DONE]）时，残缺的
+      // 工具调用参数不可信，报瞬态错误并跳过执行。
+      failed = true;
+      yield const ErrorEvent('Responses 响应流提前结束，未执行工具调用。', transient: true);
     }
 
     final promptCalls =

@@ -80,9 +80,12 @@ class OpenAiResponses {
       if (includeTemperature && temperature != null) 'temperature': temperature,
       'top_p': ?topP,
       if (maxTokens != null && maxTokens > 0) 'max_output_tokens': maxTokens,
-      if (effort != null && effort.isNotEmpty) 'reasoning': {'effort': effort},
+      if (effort != null && effort.isNotEmpty)
+        'reasoning': {'effort': effort, 'summary': 'auto'},
       if (previous != null && previous.isNotEmpty)
-        'previous_response_id': previous,
+        'previous_response_id': previous
+      else
+        'store': false,
       'stream': ?stream,
     };
   }
@@ -92,29 +95,16 @@ class OpenAiResponses {
   encodeMessages(List<AgentMessage> messages) {
     final instructionParts = <String>[];
     final input = <Map<String, dynamic>>[];
-    final imageBlocks = <Map<String, dynamic>>[];
+    // 待回应的 function_call 队列，用于给缺失 toolCallId 的工具结果回填 call_id。
+    final pendingCallIds = <String>[];
 
-    void flushToolImages() {
-      if (imageBlocks.isEmpty) return;
-      input.add({
-        'role': 'user',
-        'content': [
-          {'type': 'input_text', 'text': '以下是前面工具结果附带的图片，请直接查看。'},
-          ...imageBlocks,
-        ],
-      });
-      imageBlocks.clear();
-    }
-
-    for (final message in messages) {
+    for (final (index, message) in messages.indexed) {
       switch (message.role) {
         case AgentRole.system:
-          flushToolImages();
           if (message.content.trim().isNotEmpty) {
             instructionParts.add(message.content);
           }
         case AgentRole.user:
-          flushToolImages();
           final content = <Map<String, dynamic>>[
             if (message.content.isNotEmpty)
               {'type': 'input_text', 'text': message.content},
@@ -126,7 +116,6 @@ class OpenAiResponses {
             input.add({'role': 'user', 'content': content});
           }
         case AgentRole.assistant:
-          flushToolImages();
           if (message.content.isNotEmpty) {
             input.add({
               'role': 'assistant',
@@ -135,41 +124,71 @@ class OpenAiResponses {
               ],
             });
           }
-          for (final call in message.toolCalls ?? const <ToolCall>[]) {
+          for (final (callIndex, call)
+              in (message.toolCalls ?? const <ToolCall>[]).indexed) {
+            // Responses 要求 call_id 非空，缺失时用稳定回退 id 保证输入可复现。
+            final callId = call.id.isNotEmpty
+                ? call.id
+                : 'call_${index}_$callIndex';
+            pendingCallIds.add(callId);
             input.add({
               'type': 'function_call',
-              'call_id': call.id,
+              'call_id': callId,
               'name': call.name,
               'arguments': jsonEncode(call.arguments),
             });
           }
         case AgentRole.tool:
           final hasImage = message.hasVisionImages;
-          final output = hasImage && message.content.isEmpty
-              ? '图片见随后的附件。'
+          var callId = message.toolCallId ?? '';
+          if (callId.isEmpty) {
+            // 回填最近的未回应调用，保证 function_call 与 output 成对。
+            if (pendingCallIds.isNotEmpty) {
+              callId = pendingCallIds.removeAt(0);
+            }
+          } else {
+            pendingCallIds.remove(callId);
+          }
+          if (callId.isEmpty) {
+            // 找不到可配对的调用时改发 user 文本，避免 call_id 为空导致 400。
+            final fallbackText =
+                '[工具 ${message.toolName} 结果] ${message.content}'.trim();
+            final content = <Map<String, dynamic>>[
+              {'type': 'input_text', 'text': fallbackText},
+              if (hasImage)
+                {
+                  'type': 'input_image',
+                  'image_url':
+                      'data:${message.imageMimeType};base64,${message.imageBase64}',
+                },
+            ];
+            if (content.length > 1 || fallbackText.isNotEmpty) {
+              input.add({'role': 'user', 'content': content});
+            }
+            break;
+          }
+          final output = hasImage
+              ? [
+                  {
+                    'type': 'input_text',
+                    'text': message.content.isEmpty
+                        ? '工具返回了图片。'
+                        : message.content,
+                  },
+                  {
+                    'type': 'input_image',
+                    'image_url':
+                        'data:${message.imageMimeType};base64,${message.imageBase64}',
+                  },
+                ]
               : message.content;
           input.add({
             'type': 'function_call_output',
-            'call_id': message.toolCallId ?? '',
+            'call_id': callId,
             'output': output,
           });
-          if (hasImage) {
-            imageBlocks.add({
-              'type': 'input_text',
-              'text': jsonEncode({
-                'tool_name': message.toolName,
-                'tool_call_id': message.toolCallId,
-              }),
-            });
-            imageBlocks.add({
-              'type': 'input_image',
-              'image_url':
-                  'data:${message.imageMimeType};base64,${message.imageBase64}',
-            });
-          }
       }
     }
-    flushToolImages();
     return (instructions: instructionParts.join('\n\n'), input: input);
   }
 
@@ -179,24 +198,12 @@ class OpenAiResponses {
   encodeChatMessages(List<Map<String, dynamic>> messages) {
     final instructionParts = <String>[];
     final input = <Map<String, dynamic>>[];
-    final imageBlocks = <Map<String, dynamic>>[];
+    // 待回应的 function_call 队列，用于给缺失 tool_call_id 的工具结果回填 call_id。
+    final pendingCallIds = <String>[];
 
-    void flushToolImages() {
-      if (imageBlocks.isEmpty) return;
-      input.add({
-        'role': 'user',
-        'content': [
-          {'type': 'input_text', 'text': '以下是前面工具结果附带的图片，请直接查看。'},
-          ...imageBlocks,
-        ],
-      });
-      imageBlocks.clear();
-    }
-
-    for (final message in messages) {
+    for (final (index, message) in messages.indexed) {
       final role = message['role'] as String? ?? '';
       if (isInstructionRole(role)) {
-        flushToolImages();
         final text = _plainText(message['content']);
         if (text.trim().isNotEmpty) instructionParts.add(text);
         continue;
@@ -204,27 +211,46 @@ class OpenAiResponses {
       if (role == 'tool') {
         final images = _imageUrls(message['content']);
         final text = _plainText(message['content']);
+        var callId =
+            (message['tool_call_id'] ?? message['call_id'] ?? '') as String;
+        if (callId.isEmpty) {
+          // 回填最近的未回应调用，保证 function_call 与 output 成对。
+          if (pendingCallIds.isNotEmpty) {
+            callId = pendingCallIds.removeAt(0);
+          }
+        } else {
+          pendingCallIds.remove(callId);
+        }
+        if (callId.isEmpty) {
+          // 找不到可配对的调用时改发 user 文本，避免 call_id 为空导致 400。
+          final toolName = message['tool_name'] ?? message['name'] ?? '';
+          final fallbackText = '[工具 $toolName 结果] $text'.trim();
+          final content = <Map<String, dynamic>>[
+            {'type': 'input_text', 'text': fallbackText},
+            for (final url in images) {'type': 'input_image', 'image_url': url},
+          ];
+          if (content.length > 1 || fallbackText.isNotEmpty) {
+            input.add({'role': 'user', 'content': content});
+          }
+          continue;
+        }
+        final output = images.isNotEmpty
+            ? [
+                {
+                  'type': 'input_text',
+                  'text': text.isEmpty ? '工具返回了图片。' : text,
+                },
+                for (final url in images)
+                  {'type': 'input_image', 'image_url': url},
+              ]
+            : text;
         input.add({
           'type': 'function_call_output',
-          'call_id':
-              (message['tool_call_id'] ?? message['call_id'] ?? '') as String,
-          'output': images.isNotEmpty && text.isEmpty ? '图片见随后的附件。' : text,
+          'call_id': callId,
+          'output': output,
         });
-        if (images.isNotEmpty) {
-          imageBlocks.add({
-            'type': 'input_text',
-            'text': jsonEncode({
-              'tool_name': message['tool_name'] ?? message['name'],
-              'tool_call_id': message['tool_call_id'] ?? message['call_id'],
-            }),
-          });
-          for (final url in images) {
-            imageBlocks.add({'type': 'input_image', 'image_url': url});
-          }
-        }
         continue;
       }
-      flushToolImages();
       if (role == 'assistant') {
         final text = _plainText(message['content']);
         if (text.isNotEmpty) {
@@ -237,7 +263,7 @@ class OpenAiResponses {
         }
         final calls = message['tool_calls'];
         if (calls is List) {
-          for (final call in calls) {
+          for (final (callIndex, call) in calls.indexed) {
             if (call is! Map) continue;
             final function = call['function'];
             final name = call['name'] is String
@@ -249,9 +275,15 @@ class OpenAiResponses {
             final rawArgs = function is Map
                 ? function['arguments']
                 : call['arguments'];
+            final rawCallId = (call['call_id'] ?? call['id'] ?? '') as String;
+            // Responses 要求 call_id 非空，缺失时用稳定回退 id 保证输入可复现。
+            final callId = rawCallId.isNotEmpty
+                ? rawCallId
+                : 'call_${index}_$callIndex';
+            pendingCallIds.add(callId);
             input.add({
               'type': 'function_call',
-              'call_id': (call['call_id'] ?? call['id'] ?? '') as String,
+              'call_id': callId,
               'name': name,
               'arguments': _encodeArguments(rawArgs),
             });
@@ -266,7 +298,6 @@ class OpenAiResponses {
         }
       }
     }
-    flushToolImages();
     return (instructions: instructionParts.join('\n\n'), input: input);
   }
 
@@ -278,6 +309,16 @@ class OpenAiResponses {
         _errorText(json) ?? (identical(root, json) ? null : _errorText(root));
     final status = root['status'];
     final usage = _usageOf(root) ?? _usageOf(json);
+    if (status == 'incomplete') {
+      // 截断响应无法还原完整工具调用，直接按失败处理。
+      final details = root['incomplete_details'];
+      final reason = details is Map ? details['reason'] : null;
+      return OpenAiResponsesCompletion(
+        error:
+            'Responses API 响应不完整: ${reason is String && reason.isNotEmpty ? reason : 'unknown'}',
+        usage: usage,
+      );
+    }
     final failed =
         status == 'failed' || (error != null && root['output'] is! List);
     if (failed) {
@@ -288,6 +329,19 @@ class OpenAiResponses {
       );
     }
     final extracted = _readOutput(root['output']);
+    if (extracted.callError != null) {
+      return OpenAiResponsesCompletion(
+        error: extracted.callError,
+        usage: usage,
+      );
+    }
+    if (extracted.text.isEmpty && extracted.refusal.isNotEmpty) {
+      // 只有拒答没有正文时按失败处理，避免上层误判为空响应触发重试。
+      return OpenAiResponsesCompletion(
+        error: '模型拒绝回答: ${extracted.refusal}',
+        usage: usage,
+      );
+    }
     return OpenAiResponsesCompletion(
       text: extracted.text,
       reasoning: extracted.reasoning,
@@ -334,7 +388,9 @@ class OpenAiResponses {
   static _OutputPieces _readOutput(Object? output) {
     final text = StringBuffer();
     final reasoning = StringBuffer();
+    final refusal = StringBuffer();
     final calls = <ToolCall>[];
+    String? callError;
     if (output is! List) {
       return _OutputPieces(text: '', reasoning: '', calls: const []);
     }
@@ -345,6 +401,7 @@ class OpenAiResponses {
       switch (type) {
         case 'message':
           text.write(messageText(item['content']));
+          refusal.write(refusalText(item['content']));
         case 'reasoning':
           reasoning.write(reasoningText(item['summary']));
         case 'function_call':
@@ -352,16 +409,43 @@ class OpenAiResponses {
             Map<String, dynamic>.from(item),
             fallbackIndex: index,
           );
-          if (call != null) calls.add(call);
+          if (call != null) {
+            calls.add(call);
+          } else if (item['name'] is String &&
+              hasInvalidArguments(item['arguments'])) {
+            callError = '工具调用参数不是合法 JSON: ${item['name']}';
+          }
         default:
           break;
       }
     }
+    if (callError != null) {
+      return _OutputPieces(
+        text: text.toString(),
+        reasoning: reasoning.toString(),
+        calls: const [],
+        callError: callError,
+      );
+    }
     return _OutputPieces(
       text: text.toString(),
       reasoning: reasoning.toString(),
+      refusal: refusal.toString(),
       calls: calls,
     );
+  }
+
+  /// 读取 message content 里的 `refusal` 部分。
+  static String refusalText(Object? content) {
+    if (content is! List) return '';
+    final buffer = StringBuffer();
+    for (final part in content) {
+      if (part is! Map) continue;
+      if (part['type'] != 'refusal') continue;
+      final text = part['refusal'];
+      if (text is String) buffer.write(text);
+    }
+    return buffer.toString();
   }
 
   static String messageText(Object? content) {
@@ -407,7 +491,21 @@ class OpenAiResponses {
         ? itemId
         : 'call_$fallbackIndex';
     final rawArgs = argumentsOverride ?? item['arguments'];
+    if (hasInvalidArguments(rawArgs)) return null;
     return ToolCall(id: id, name: name, arguments: decodeArguments(rawArgs));
+  }
+
+  /// 参数为非空字符串但不是合法 JSON 对象时返回 true（空串/缺失视为 {}）。
+  static bool hasInvalidArguments(Object? raw) {
+    if (raw is Map) return false;
+    if (raw is String && raw.trim().isNotEmpty) {
+      try {
+        return jsonDecode(raw) is! Map;
+      } catch (_) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static Map<String, dynamic> decodeArguments(Object? raw) {
@@ -456,7 +554,10 @@ class OpenAiResponses {
   static bool _isTransient(Map<String, dynamic> json) {
     final response = json['response'];
     final error = json['error'] ?? (response is Map ? response['error'] : null);
-    final code = error is Map ? '${error['code'] ?? ''}'.toLowerCase() : '';
+    // 顶层 error 事件的 code 在根对象上，不在 error 对象里。
+    final code = error is Map
+        ? '${error['code'] ?? json['code'] ?? ''}'.toLowerCase()
+        : '${json['code'] ?? ''}'.toLowerCase();
     final message = (_messageOf(error) ?? '').toLowerCase();
     return code == '429' ||
         code == '500' ||
@@ -545,12 +646,16 @@ class OpenAiResponses {
 class _OutputPieces {
   final String text;
   final String reasoning;
+  final String refusal;
   final List<ToolCall> calls;
+  final String? callError;
 
   const _OutputPieces({
     required this.text,
     required this.reasoning,
+    this.refusal = '',
     required this.calls,
+    this.callError,
   });
 }
 
@@ -584,6 +689,18 @@ class OpenAiResponsesStreamParser {
   bool _unindexedReasoning = false;
   final Set<int> _textIndexes = {};
   final Set<int> _reasoningIndexes = {};
+  final StringBuffer _refusalDelta = StringBuffer();
+  String? _refusalDone;
+  String? _refusalFromItem;
+
+  /// 综合流事件与消息体得到最终拒答文本，只取一路避免重复。
+  String get _refusal {
+    final done = _refusalDone;
+    if (done != null && done.isNotEmpty) return done;
+    final delta = _refusalDelta.toString();
+    if (delta.isNotEmpty) return delta;
+    return _refusalFromItem ?? '';
+  }
 
   List<HarnessEvent> add(Map<String, dynamic> json, {String? eventType}) {
     _captureUsage(json);
@@ -602,6 +719,14 @@ class OpenAiResponsesStreamParser {
           _markReasoning(_indexOf(json));
           return [ThoughtDeltaEvent(delta)];
         }
+        return const [];
+      case 'response.refusal.delta':
+        final delta = json['delta'];
+        if (delta is String && delta.isNotEmpty) _refusalDelta.write(delta);
+        return const [];
+      case 'response.refusal.done':
+        final refusal = json['refusal'];
+        if (refusal is String && refusal.isNotEmpty) _refusalDone = refusal;
         return const [];
       case 'response.output_item.added':
         _absorbFunction(json['item'], index: _indexOf(json));
@@ -643,6 +768,17 @@ class OpenAiResponsesStreamParser {
           }
         }
         return events;
+      case 'response.incomplete':
+        final response = json['response'];
+        final details = response is Map
+            ? response['incomplete_details']
+            : json['incomplete_details'];
+        final reason = details is Map ? details['reason'] : null;
+        return [
+          ErrorEvent(
+            'Responses API 响应不完整: ${reason is String && reason.isNotEmpty ? reason : 'unknown'}',
+          ),
+        ];
       case 'response.failed':
       case 'error':
         return [
@@ -664,11 +800,15 @@ class OpenAiResponsesStreamParser {
     }
   }
 
-  /// 冲刷尚未完成的工具调用，并提交唯一一次用量快照。
+  /// 冲刷尚未完成的工具调用，报告拒答，并提交唯一一次用量快照。
   List<HarnessEvent> finish() {
     final events = <HarnessEvent>[];
+    final refusal = _refusal;
+    if (refusal.isNotEmpty) {
+      events.add(ErrorEvent('模型拒绝回答: $refusal'));
+    }
     for (final state in _calls) {
-      final event = _emitCall(state);
+      final event = _emitCall(state, strictArguments: false);
       if (event != null) events.add(event);
     }
     if (!_usageEmitted && _usage != null && _usage!.total > 0) {
@@ -710,11 +850,14 @@ class OpenAiResponsesStreamParser {
   }
 
   bool _textSeen(int? index) =>
-      _unindexedText || (index != null && _textIndexes.contains(index));
+      _unindexedText ||
+      _textIndexes.isNotEmpty &&
+          (index == null || _textIndexes.contains(index));
 
   bool _reasoningSeen(int? index) =>
       _unindexedReasoning ||
-      (index != null && _reasoningIndexes.contains(index));
+      _reasoningIndexes.isNotEmpty &&
+          (index == null || _reasoningIndexes.contains(index));
 
   List<HarnessEvent> _eventsFromItem(
     Object? raw, {
@@ -725,6 +868,10 @@ class OpenAiResponsesStreamParser {
     final item = Map<String, dynamic>.from(raw);
     switch (item['type']) {
       case 'message':
+        if (_refusalDone == null && _refusalDelta.isEmpty) {
+          final refusal = OpenAiResponses.refusalText(item['content']);
+          if (refusal.isNotEmpty) _refusalFromItem = refusal;
+        }
         if (onlyIfMissing && _textSeen(index)) return const [];
         final text = OpenAiResponses.messageText(item['content']);
         if (text.isEmpty) return const [];
@@ -739,7 +886,7 @@ class OpenAiResponsesStreamParser {
       case 'function_call':
         final state = _absorbFunction(item, index: index);
         if (state == null) return const [];
-        final event = _emitCall(state);
+        final event = _emitCall(state, strictArguments: true);
         return event == null ? const [] : [event];
       default:
         return const [];
@@ -786,7 +933,10 @@ class OpenAiResponsesStreamParser {
     return created;
   }
 
-  ToolCallEvent? _emitCall(_StreamCall state) {
+  /// [strictArguments] 为 true（参数来自权威的 done/completed 事件）时，
+  /// 非法 JSON 参数产生非瞬态错误；为 false（finish 冲刷残缺调用）时跳过该调用，
+  /// 由上层报告流提前结束。
+  HarnessEvent? _emitCall(_StreamCall state, {bool strictArguments = false}) {
     if (state.emitted || state.name.isEmpty) return null;
     state.emitted = true;
     final item = <String, dynamic>{
@@ -794,6 +944,10 @@ class OpenAiResponsesStreamParser {
       if (state.callId.isNotEmpty) 'call_id': state.callId,
       if (state.itemId != null) 'id': state.itemId,
     };
+    if (strictArguments &&
+        OpenAiResponses.hasInvalidArguments(state.resolvedArguments)) {
+      return ErrorEvent('工具调用参数不是合法 JSON: ${state.name}');
+    }
     final call = OpenAiResponses.toolCallFromItem(
       item,
       fallbackIndex: state.outputIndex ?? _calls.indexOf(state),
