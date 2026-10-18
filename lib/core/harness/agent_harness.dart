@@ -255,6 +255,7 @@ class AgentHarness {
 
           String content = '';
           String thoughts = '';
+          String? thoughtSignature;
           // 流式增量里的回复标记过滤：UI 与入库正文都不会看到回显的标记
           final contentFilter = ReplyMarkerStreamFilter();
           final thoughtFilter = ReplyMarkerStreamFilter();
@@ -278,6 +279,10 @@ class AgentHarness {
                 thoughts += chunk;
                 yield ThoughtDeltaEvent(chunk);
               }
+            } else if (event is ThoughtSignatureEvent) {
+              if (event.signature.isNotEmpty) {
+                thoughtSignature = event.signature;
+              }
             } else if (event is ContentDeltaEvent) {
               final chunk = contentFilter.add(event.delta);
               if (chunk.isNotEmpty) {
@@ -286,6 +291,11 @@ class AgentHarness {
               }
             } else if (event is ToolCallEvent) {
               toolCalls.add(event.toolCall);
+              if (thoughtSignature == null &&
+                  event.toolCall.thoughtSignature != null &&
+                  event.toolCall.thoughtSignature!.isNotEmpty) {
+                thoughtSignature = event.toolCall.thoughtSignature;
+              }
               yield event;
             } else if (event is UsageEvent) {
               usage = event.usage;
@@ -319,6 +329,7 @@ class AgentHarness {
                 role: AgentRole.assistant,
                 content: stripReplyMarkers(content),
                 thoughts: thoughts,
+                thoughtSignature: thoughtSignature,
                 usage: usage,
                 provider: providerLabel,
                 model: provider?.modelId,
@@ -377,6 +388,7 @@ class AgentHarness {
             role: AgentRole.assistant,
             content: stripReplyMarkers(content),
             thoughts: thoughts,
+            thoughtSignature: thoughtSignature,
             toolCalls: toolCalls.isNotEmpty ? toolCalls : null,
             usage: usage,
             provider: providerLabel,

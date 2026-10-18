@@ -53,7 +53,7 @@ class LlmModelFetcher {
   static String calculateModelsEndpoint(String baseUrl, LlmProtocol protocol) {
     var base = baseUrl.trim();
     if (base.isEmpty) return '';
-    if (base.endsWith('/')) {
+    while (base.endsWith('/')) {
       base = base.substring(0, base.length - 1);
     }
 
@@ -64,6 +64,20 @@ class LlmModelFetcher {
       base = base.substring(0, base.length - '/responses'.length);
     } else if (base.endsWith('/messages')) {
       base = base.substring(0, base.length - '/messages'.length);
+    } else if (base.endsWith('/interactions')) {
+      base = base.substring(0, base.length - '/interactions'.length);
+    }
+
+    if (protocol == LlmProtocol.googleInteractions) {
+      if (base.endsWith('/openai')) {
+        base = base.substring(0, base.length - '/openai'.length);
+      }
+      final uri = Uri.tryParse(base);
+      if (uri != null &&
+          uri.host == 'generativelanguage.googleapis.com' &&
+          (uri.path.isEmpty || uri.path == '/')) {
+        return '$base/v1beta/models';
+      }
     }
 
     if (base.endsWith('/models') || base.endsWith('/api/tags')) {
@@ -76,6 +90,28 @@ class LlmModelFetcher {
     }
 
     return '$base/models';
+  }
+
+  static bool _isGeminiReasoningModelId(String lowerId) {
+    final clean = lowerId.replaceFirst(RegExp(r'^models/'), '');
+    if (clean.contains('image') ||
+        clean.contains('tts') ||
+        clean.contains('embedding') ||
+        clean.contains('aqa')) {
+      return false;
+    }
+    return clean.startsWith('gemini-4') ||
+        clean.startsWith('gemini-3') ||
+        clean.contains('gemini-2.5-flash') ||
+        clean.contains('gemini-2.5-pro');
+  }
+
+  static bool _isGeminiAlwaysThinkingModelId(String lowerId) {
+    final clean = lowerId.replaceFirst(RegExp(r'^models/'), '');
+    if (!_isGeminiReasoningModelId(clean)) return false;
+    return clean.startsWith('gemini-4') ||
+        clean.startsWith('gemini-3') ||
+        clean.contains('gemini-2.5-pro');
   }
 
   /// 智能检测模型是否具备深度思考 / 推理能力 (启发式兜底)
@@ -92,8 +128,7 @@ class LlmModelFetcher {
         lower.contains('o3_') ||
         lower.contains('claude-3-7') ||
         lower.contains('claude-3.7') ||
-        lower.contains('gemini-2.5-flash') ||
-        lower.contains('gemini-2.5-pro') ||
+        _isGeminiReasoningModelId(lower) ||
         lower.contains('thinking') ||
         lower.contains('qwq') ||
         lower.contains('deepseek-r') ||
@@ -144,7 +179,9 @@ class LlmModelFetcher {
   /// 智能检测模型上下文窗口大小 (启发式兜底)
   static int detectContextWindow(String modelId) {
     final lower = modelId.toLowerCase();
-    if (lower.contains('gemini-2.5-pro') ||
+    if (lower.contains('gemini-4') ||
+        lower.contains('gemini-3') ||
+        lower.contains('gemini-2.5-pro') ||
         lower.contains('gemini-2.5-flash')) {
       return 1048576;
     }
@@ -184,11 +221,21 @@ class LlmModelFetcher {
 
     final trimmedKey = apiKey.trim();
     if (trimmedKey.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $trimmedKey';
-      if (protocol == LlmProtocol.anthropicMessages ||
-          baseUrl.contains('anthropic.com')) {
-        headers['x-api-key'] = trimmedKey;
-        headers['anthropic-version'] = '2023-06-01';
+      final isOfficialGoogleNative =
+          uri.host == 'generativelanguage.googleapis.com' &&
+          !uri.path.contains('/openai');
+      if (isOfficialGoogleNative) {
+        headers['x-goog-api-key'] = trimmedKey;
+      } else {
+        headers['Authorization'] = 'Bearer $trimmedKey';
+        if (protocol == LlmProtocol.googleInteractions) {
+          headers['x-goog-api-key'] = trimmedKey;
+        }
+        if (protocol == LlmProtocol.anthropicMessages ||
+            baseUrl.contains('anthropic.com')) {
+          headers['x-api-key'] = trimmedKey;
+          headers['anthropic-version'] = '2023-06-01';
+        }
       }
     }
 
@@ -255,7 +302,7 @@ class LlmModelFetcher {
     }
   }
 
-  /// 解析服务端原始模型条目 (支持 OpenAI / Anthropic / Ollama / 根数组等格式)
+  /// 解析服务端原始模型条目 (支持 OpenAI / Anthropic / Google / Ollama / 根数组等格式)
   List<_RawModelEntry> _parseRawModels(dynamic decoded) {
     List<dynamic>? items;
     if (decoded is Map<String, dynamic> && decoded['data'] is List) {
@@ -280,12 +327,14 @@ class LlmModelFetcher {
     return result;
   }
 
-  /// 提取服务端直接给出的能力字段 (OpenRouter 及部分兼容网关)
+  /// 提取服务端直接给出的能力字段 (OpenRouter / Google Native 及兼容网关)
   _RawModelEntry _parseRawEntry(String id, Map<String, dynamic> item) {
     final displayName =
         item['display_name'] as String? ??
         item['displayName'] as String? ??
-        (item['name'] is String && item['name'] != id
+        (item['name'] is String &&
+                item['name'] != id &&
+                item['name'] != 'models/$id'
             ? item['name'] as String?
             : null);
 
@@ -310,8 +359,9 @@ class LlmModelFetcher {
       }
     }
 
-    // 思考能力: OpenRouter reasoning 字段或 supported_parameters 含 reasoning
-    bool? reasoning = item['reasoning'] as bool?;
+    // 思考能力: OpenRouter reasoning / Google thinking / supported_parameters
+    bool? reasoning =
+        (item['reasoning'] as bool?) ?? (item['thinking'] as bool?);
     final supportedParameters = item['supported_parameters'];
     if (reasoning == null && supportedParameters is List) {
       if (supportedParameters.any((p) => p == 'reasoning')) {
@@ -319,20 +369,22 @@ class LlmModelFetcher {
       }
     }
 
-    // 上下文窗口: OpenRouter context_length 及各家兼容字段
+    // 上下文窗口: OpenRouter context_length / Google inputTokenLimit 及各家兼容字段
     int? contextWindow =
         (item['context_length'] as num?)?.toInt() ??
         (item['context_window'] as num?)?.toInt() ??
+        (item['inputTokenLimit'] as num?)?.toInt() ??
         (item['max_context_length'] as num?)?.toInt() ??
         (item['max_model_len'] as num?)?.toInt();
     if (contextWindow == null && architecture is Map<String, dynamic>) {
       contextWindow = (architecture['context_length'] as num?)?.toInt();
     }
 
-    // 最大输出: OpenRouter top_provider.max_completion_tokens 及兼容字段
+    // 最大输出: OpenRouter top_provider.max_completion_tokens / Google outputTokenLimit 及兼容字段
     int? maxTokens =
         (item['max_completion_tokens'] as num?)?.toInt() ??
         (item['max_output_tokens'] as num?)?.toInt() ??
+        (item['outputTokenLimit'] as num?)?.toInt() ??
         (item['max_tokens'] as num?)?.toInt();
     if (maxTokens == null) {
       final topProvider = item['top_provider'];
@@ -363,6 +415,8 @@ class LlmModelFetcher {
     bool suppressReasoning = false,
   }) {
     final existing = existingModels.where((m) => m.id == raw.id).firstOrNull;
+    final lowerId = raw.id.toLowerCase();
+    final isGeminiReasoning = _isGeminiReasoningModelId(lowerId);
 
     final isReasoning = suppressReasoning
         ? false
@@ -381,13 +435,22 @@ class LlmModelFetcher {
         isReasoning &&
         existing.supportedThinkingLevels.isNotEmpty) {
       levels = existing.supportedThinkingLevels;
+    } else if (isReasoning && isGeminiReasoning) {
+      levels = const [
+        ThinkingEffort.low,
+        ThinkingEffort.medium,
+        ThinkingEffort.high,
+      ];
     } else if (isReasoning && dev == null) {
       levels = const [ThinkingEffort.high];
     }
 
     final contextWindow =
         raw.contextWindow ?? dev?.contextWindow ?? detectContextWindow(raw.id);
-    final maxTokens = raw.maxTokens ?? dev?.maxTokens ?? 8192;
+    final maxTokens =
+        raw.maxTokens ??
+        dev?.maxTokens ??
+        (isGeminiReasoning ? 65536 : 8192);
 
     final imageOutput =
         raw.imageOutput ??
@@ -398,7 +461,9 @@ class LlmModelFetcher {
     final name = (existing != null && existing.name != existing.id)
         ? existing.name
         : (raw.displayName ?? dev?.name ?? raw.id);
-    final temperature = existing?.temperature ?? (isReasoning ? 0.6 : 1.0);
+    final temperature =
+        existing?.temperature ??
+        (isGeminiReasoning ? 1.0 : (isReasoning ? 0.6 : 1.0));
 
     return LlmModelConfig(
       id: raw.id,
@@ -406,10 +471,12 @@ class LlmModelFetcher {
       reasoning: isReasoning,
       input: multimodalFlag ? const ['text', 'image'] : const ['text'],
       supportedThinkingLevels: levels,
-      preferredThinkingEffort: existing?.preferredThinkingEffortFor(levels),
+      preferredThinkingEffort:
+          existing?.preferredThinkingEffortFor(levels) ??
+          (isGeminiReasoning ? ThinkingEffort.medium : null),
       supportsThinkingOff:
           existing?.supportsThinkingOff ??
-          !raw.id.toLowerCase().contains('gemini-2.5-pro'),
+          !_isGeminiAlwaysThinkingModelId(lowerId),
       contextWindow: contextWindow,
       maxTokens: maxTokens,
       temperature: temperature,

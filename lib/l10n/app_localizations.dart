@@ -4910,6 +4910,12 @@ abstract class AppLocalizations {
   /// **'Message (/messages)'**
   String get llmProtocolAnthropicMessages;
 
+  /// No description provided for @llmProtocolGoogleInteractions.
+  ///
+  /// In zh, this message translates to:
+  /// **'Google Interactions (/interactions)'**
+  String get llmProtocolGoogleInteractions;
+
   /// No description provided for @thinkingFormatAuto.
   ///
   /// In zh, this message translates to:

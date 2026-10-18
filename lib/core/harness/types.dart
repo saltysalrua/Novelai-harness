@@ -117,11 +117,13 @@ class ToolCall {
   final String id;
   final String name;
   final Map<String, dynamic> arguments;
+  final String? thoughtSignature;
 
   const ToolCall({
     required this.id,
     required this.name,
     required this.arguments,
+    this.thoughtSignature,
   });
 
   Map<String, dynamic> toOpenAiJson() {
@@ -129,6 +131,10 @@ class ToolCall {
       'id': id,
       'type': 'function',
       'function': {'name': name, 'arguments': jsonEncode(arguments)},
+      if (thoughtSignature != null && thoughtSignature!.isNotEmpty)
+        'extra_content': {
+          'google': {'thought_signature': thoughtSignature},
+        },
     };
   }
 }
@@ -226,6 +232,7 @@ class AgentMessage {
   final String content;
   final int? replyNumber;
   final String thoughts; // 思考过程 (Reasoning / Thinking)
+  final String? thoughtSignature; // 思考加密签名 (Gemini 3/4 多轮工具与推理连续性必需)
   final List<ToolCall>? toolCalls;
   final String? toolCallId;
   final String? toolName; // 工具结果消息对应的工具名 (仅 role == tool)
@@ -272,6 +279,7 @@ class AgentMessage {
     required this.role,
     this.content = '',
     this.thoughts = '',
+    this.thoughtSignature,
     this.replyNumber,
     this.toolCalls,
     this.toolCallId,
@@ -293,6 +301,7 @@ class AgentMessage {
     AgentRole? role,
     String? content,
     String? thoughts,
+    String? thoughtSignature,
     int? replyNumber,
     List<ToolCall>? toolCalls,
     String? toolCallId,
@@ -314,6 +323,7 @@ class AgentMessage {
       role: role ?? this.role,
       content: content ?? this.content,
       thoughts: thoughts ?? this.thoughts,
+      thoughtSignature: thoughtSignature ?? this.thoughtSignature,
       replyNumber: replyNumber ?? this.replyNumber,
       toolCalls: toolCalls ?? this.toolCalls,
       toolCallId: toolCallId ?? this.toolCallId,
@@ -351,6 +361,7 @@ class AgentMessage {
       role: role,
       content: content.isEmpty ? placeholder : '$content\n\n$placeholder',
       thoughts: thoughts,
+      thoughtSignature: thoughtSignature,
       replyNumber: replyNumber,
       toolCalls: toolCalls,
       toolCallId: toolCallId,
@@ -416,6 +427,11 @@ class TurnStartEvent extends HarnessEvent {
 class ThoughtDeltaEvent extends HarnessEvent {
   final String delta;
   ThoughtDeltaEvent(this.delta);
+}
+
+class ThoughtSignatureEvent extends HarnessEvent {
+  final String signature;
+  const ThoughtSignatureEvent(this.signature);
 }
 
 class ContentDeltaEvent extends HarnessEvent {

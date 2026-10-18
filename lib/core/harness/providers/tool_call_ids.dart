@@ -30,6 +30,7 @@ List<AgentMessage> normalizeToolCallIds(List<AgentMessage> messages) {
           id: uniqueId(call.id),
           name: call.name,
           arguments: call.arguments,
+          thoughtSignature: call.thoughtSignature,
         );
         (pending[call.id] ??= []).add(normalized);
         return normalized;

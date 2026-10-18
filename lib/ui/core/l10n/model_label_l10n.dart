@@ -46,6 +46,7 @@ String llmProtocolLabelOf(AppLocalizations l10n, LlmProtocol protocol) =>
       LlmProtocol.openAiChat => l10n.llmProtocolOpenAiChat,
       LlmProtocol.openAiResponses => l10n.llmProtocolOpenAiResponses,
       LlmProtocol.anthropicMessages => l10n.llmProtocolAnthropicMessages,
+      LlmProtocol.googleInteractions => l10n.llmProtocolGoogleInteractions,
     };
 
 /// 思考参数请求格式展示名。

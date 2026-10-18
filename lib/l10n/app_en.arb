@@ -1243,6 +1243,7 @@
   "llmProtocolOpenAiChat": "OpenAI-compatible (/chat/completions)",
   "llmProtocolOpenAiResponses": "Response (/responses)",
   "llmProtocolAnthropicMessages": "Message (/messages)",
+  "llmProtocolGoogleInteractions": "Google Interactions (/interactions)",
   "thinkingFormatAuto": "Auto (detect by endpoint)",
   "thinkingFormatOpenai": "OpenAI (reasoning_effort)",
   "thinkingFormatDeepseek": "DeepSeek (thinking)",

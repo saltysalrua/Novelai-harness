@@ -8,7 +8,8 @@ export 'llm_cache_config.dart';
 enum LlmProtocol {
   openAiChat('openai', '/chat/completions'),
   openAiResponses('responses', '/responses'),
-  anthropicMessages('messages', '/messages');
+  anthropicMessages('messages', '/messages'),
+  googleInteractions('interactions', '/interactions');
 
   final String id;
   final String defaultPath;
@@ -277,11 +278,29 @@ class LlmProviderConfig {
   String get fullEndpointUrl {
     var base = baseUrl.trim();
     if (base.isEmpty) return '';
-    if (base.endsWith('/')) {
+    while (base.endsWith('/')) {
       base = base.substring(0, base.length - 1);
     }
     final path = protocol.defaultPath;
     if (base.endsWith(path)) return base;
+    if (protocol == LlmProtocol.googleInteractions) {
+      if (base.endsWith('/openai')) {
+        base = base.substring(0, base.length - '/openai'.length);
+      }
+      final uri = Uri.tryParse(base);
+      if (uri != null &&
+          uri.host == 'generativelanguage.googleapis.com' &&
+          (uri.path.isEmpty || uri.path == '/')) {
+        return '$base/v1beta$path';
+      }
+    } else if (protocol == LlmProtocol.openAiChat) {
+      final uri = Uri.tryParse(base);
+      if (uri != null &&
+          uri.host == 'generativelanguage.googleapis.com' &&
+          (base.endsWith('/v1beta') || base.endsWith('/v1'))) {
+        return '$base/openai$path';
+      }
+    }
     return '$base$path';
   }
 
@@ -595,7 +614,52 @@ class LlmProviderConfig {
         );
       }
     }
+
+    if (migrated.models.any(_needsGeminiThinkingMigration)) {
+      migrated = migrated.copyWith(
+        models: migrated.models.map(_migrateGeminiThinkingModel).toList(),
+      );
+    }
     return migrated;
+  }
+
+  static bool _needsGeminiThinkingMigration(LlmModelConfig model) {
+    final lower = model.id.toLowerCase().replaceFirst(RegExp(r'^models/'), '');
+    if (!lower.startsWith('gemini-4') && !lower.startsWith('gemini-3')) {
+      return false;
+    }
+    if (lower.contains('image') ||
+        lower.contains('tts') ||
+        lower.contains('embedding')) {
+      return false;
+    }
+    return !model.reasoning ||
+        model.supportsThinkingOff ||
+        model.supportedThinkingLevels.isEmpty;
+  }
+
+  static LlmModelConfig _migrateGeminiThinkingModel(LlmModelConfig model) {
+    if (!_needsGeminiThinkingMigration(model)) return model;
+    return model.copyWith(
+      reasoning: true,
+      supportsThinkingOff: false,
+      supportedThinkingLevels: model.supportedThinkingLevels.isNotEmpty
+          ? model.supportedThinkingLevels
+                .where(
+                  (e) =>
+                      e == ThinkingEffort.low ||
+                      e == ThinkingEffort.medium ||
+                      e == ThinkingEffort.high,
+                )
+                .toList()
+          : const [
+              ThinkingEffort.low,
+              ThinkingEffort.medium,
+              ThinkingEffort.high,
+            ],
+      preferredThinkingEffort:
+          model.preferredThinkingEffort ?? ThinkingEffort.medium,
+    );
   }
 
   // 官方文档核验于 2026-09-17：
@@ -721,6 +785,38 @@ class LlmProviderConfig {
             ThinkingEffort.medium,
             ThinkingEffort.high,
           ],
+          supportsThinkingOff: false,
+          contextWindow: 1048576,
+          maxTokens: 65536,
+          temperature: 1.0,
+        ),
+        LlmModelConfig(
+          id: 'gemini-4-argon',
+          name: 'Gemini 4 Argon',
+          reasoning: true,
+          input: ['text', 'image'],
+          supportedThinkingLevels: [
+            ThinkingEffort.low,
+            ThinkingEffort.medium,
+            ThinkingEffort.high,
+          ],
+          preferredThinkingEffort: ThinkingEffort.medium,
+          supportsThinkingOff: false,
+          contextWindow: 1048576,
+          maxTokens: 65536,
+          temperature: 1.0,
+        ),
+        LlmModelConfig(
+          id: 'gemini-3.8-flash',
+          name: 'Gemini 3.8 Flash',
+          reasoning: true,
+          input: ['text', 'image'],
+          supportedThinkingLevels: [
+            ThinkingEffort.low,
+            ThinkingEffort.medium,
+            ThinkingEffort.high,
+          ],
+          preferredThinkingEffort: ThinkingEffort.medium,
           supportsThinkingOff: false,
           contextWindow: 1048576,
           maxTokens: 65536,

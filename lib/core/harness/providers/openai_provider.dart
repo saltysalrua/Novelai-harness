@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../tools/agent_tool.dart';
 import '../types.dart';
+import 'google_interactions_provider.dart';
 import 'llm_provider.dart';
 import 'prompt_cache_policy.dart';
 import 'prompt_tool_codec.dart';
@@ -70,11 +71,31 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     };
   }
 
+  String get _normalizedModelLower =>
+      model.trim().toLowerCase().replaceFirst(RegExp(r'^models/'), '');
+
+  bool get _isGeminiModel => _normalizedModelLower.startsWith('gemini-');
+
+  bool get _isGoogleHost =>
+      Uri.tryParse(baseUrl.trim())?.host == 'generativelanguage.googleapis.com';
+
+  bool get _isGoogleOrGemini => _isGoogleHost || _isGeminiModel;
+
+  /// Gemini 2.5 Flash / Flash-Lite 允许通过 `reasoning_effort: "none"` 关闭思考；
+  /// Gemini 2.5 Pro、Gemini 3 系列与 Gemini 4 Argon 思考不可关闭，发送 `"none"` 会报 400。
   bool _isGemini25FlashChatEndpoint() {
     final uri = Uri.tryParse(baseUrl.trim());
     return uri?.host == 'generativelanguage.googleapis.com' &&
         uri?.path.endsWith('/chat/completions') == true &&
-        model.trim() == 'gemini-2.5-flash';
+        _normalizedModelLower.startsWith('gemini-2.5-flash') &&
+        !_normalizedModelLower.contains('image');
+  }
+
+  static String _clampGeminiReasoningEffort(String effort) {
+    return switch (effort) {
+      'xhigh' || 'max' => 'high',
+      _ => effort,
+    };
   }
 
   bool _shouldOmitTemperature(String endpoint) {
@@ -111,8 +132,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     return 'openai';
   }
 
-  /// DeepSeek 的工具请求要求完整回传历史 assistant 思考；其他兼容端点
-  /// 保持标准 OpenAI 消息形状。空思考不补字段，避免臆造模型未返回的内容。
+  /// DeepSeek 的工具请求要求完整回传历史 assistant 思考；
+  /// Gemini 3 / Gemini 4 Argon 的 OpenAI 兼容端点要求多轮工具调用在首个 tool_call
+  /// 上携带 `extra_content.google.thought_signature` (若历史无签名则回传官方跳过标记)。
   Map<String, dynamic> _serializeMessage(
     AgentMessage message, {
     required bool replayDeepSeekReasoning,
@@ -122,6 +144,35 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         message.role == AgentRole.assistant &&
         message.thoughts.isNotEmpty) {
       json['reasoning_content'] = message.thoughts;
+    }
+    if (_isGoogleOrGemini &&
+        message.role == AgentRole.assistant &&
+        json['tool_calls'] is List) {
+      final toolCallsList = json['tool_calls'] as List<dynamic>;
+      if (toolCallsList.isNotEmpty && toolCallsList.first is Map<String, dynamic>) {
+        final hasSignature = toolCallsList.any(
+          (tc) =>
+              tc is Map &&
+              tc['extra_content'] is Map &&
+              (tc['extra_content'] as Map)['google'] is Map &&
+              ((tc['extra_content'] as Map)['google'] as Map)['thought_signature']
+                  is String,
+        );
+        if (!hasSignature) {
+          final firstTc = Map<String, dynamic>.from(
+            toolCallsList.first as Map<String, dynamic>,
+          );
+          final fallbackSig =
+              (message.thoughtSignature != null &&
+                  message.thoughtSignature!.isNotEmpty)
+              ? message.thoughtSignature!
+              : 'skip_thought_signature_validator';
+          firstTc['extra_content'] = {
+            'google': {'thought_signature': fallbackSig},
+          };
+          toolCallsList[0] = firstTc;
+        }
+      }
     }
     return json;
   }
@@ -187,13 +238,16 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     // 模型不具备思考能力时不发送任何思考参数
     if (effort == null || effort.isEmpty) return;
     final thinkingOn = reasoning;
+    final effectiveEffort = _isGoogleOrGemini
+        ? _clampGeminiReasoningEffort(effort)
+        : effort;
     switch (resolvedThinkingFormat) {
       case 'deepseek':
         body['thinking'] = {'type': thinkingOn ? 'enabled' : 'disabled'};
-        if (thinkingOn) body['reasoning_effort'] = effort;
+        if (thinkingOn) body['reasoning_effort'] = effectiveEffort;
       case 'qwen':
         body['enable_thinking'] = thinkingOn;
-        if (thinkingOn) body['reasoning_effort'] = effort;
+        if (thinkingOn) body['reasoning_effort'] = effectiveEffort;
       case 'qwen_chat_template':
         body['chat_template_kwargs'] = {
           'enable_thinking': thinkingOn,
@@ -203,23 +257,52 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         body['thinking'] = thinkingOn
             ? {'type': 'enabled', 'clear_thinking': false}
             : {'type': 'disabled'};
-        if (thinkingOn) body['reasoning_effort'] = effort;
+        if (thinkingOn) body['reasoning_effort'] = effectiveEffort;
       case 'openrouter':
-        // OpenRouter 用嵌套 reasoning 对象归一化各上游的思考开关
-        body['reasoning'] = {'effort': thinkingOn ? effort : 'none'};
+        // OpenRouter 用嵌套 reasoning 对象归一化各上游的思考开关；
+        // Gemini 2.5 Pro / Gemini 3 / Gemini 4 Argon 不支持关闭思考，不发 none
+        if (thinkingOn) {
+          body['reasoning'] = {
+            'effort': effectiveEffort == 'none' ? 'low' : effectiveEffort,
+          };
+        } else if (!_isGeminiModel ||
+            _normalizedModelLower.startsWith('gemini-2.5-flash')) {
+          body['reasoning'] = {'effort': 'none'};
+        }
       case 'together':
         body['reasoning'] = {'enabled': thinkingOn};
-        if (thinkingOn) body['reasoning_effort'] = effort;
+        if (thinkingOn) body['reasoning_effort'] = effectiveEffort;
       default:
         // OpenAI 风格: 开思考时发送 reasoning_effort，关闭时不发送
         if (thinkingOn) {
-          body['reasoning_effort'] = effort;
+          if (_isGoogleOrGemini && effectiveEffort == 'none') {
+            if (_isGemini25FlashChatEndpoint()) {
+              body['reasoning_effort'] = 'none';
+            }
+          } else {
+            body['reasoning_effort'] = effectiveEffort;
+          }
         } else if (effort == 'none' && _isGemini25FlashChatEndpoint()) {
           // Gemini 2.5 Flash distinguishes an omitted provider default from
           // the explicit none value that disables thinking.
           body['reasoning_effort'] = 'none';
         }
     }
+  }
+
+  static String? _extractToolCallThoughtSignature(dynamic tc) {
+    if (tc is! Map) return null;
+    final direct = tc['thought_signature'];
+    if (direct is String && direct.isNotEmpty) return direct;
+    final extra = tc['extra_content'];
+    if (extra is Map) {
+      final google = extra['google'];
+      if (google is Map) {
+        final sig = google['thought_signature'];
+        if (sig is String && sig.isNotEmpty) return sig;
+      }
+    }
+    return null;
   }
 
   /// 内嵌思考标签 (QwQ / Qwen3 等模型把思考过程直接写进 content 流)
@@ -244,6 +327,27 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     String? promptCacheKey,
   }) async* {
     String endpoint = baseUrl.trim();
+    if (endpoint.endsWith('/interactions') ||
+        endpoint.endsWith('/interactions/')) {
+      final interactionsProvider = GoogleInteractionsProvider(
+        apiKey: apiKey,
+        baseUrl: endpoint,
+        modelId: model,
+        reasoning: reasoning,
+        thinkingEffort: thinkingEffort ?? 'medium',
+        promptToolUse: promptToolUse,
+        cacheConfig: cacheConfig,
+        client: _client,
+      );
+      yield* interactionsProvider.streamChat(
+        messages: messages,
+        tools: tools,
+        temperature: temperature,
+        promptCacheKey: promptCacheKey,
+      );
+      return;
+    }
+
     if (!endpoint.endsWith('/chat/completions') &&
         !endpoint.endsWith('/responses') &&
         !endpoint.endsWith('/messages')) {
@@ -267,7 +371,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     final replayDeepSeekReasoning =
         tools.isNotEmpty && resolvedThinkingFormat == 'deepseek';
     final requestBody = <String, dynamic>{
-      'model': model.trim(),
+      'model': _isGoogleHost
+          ? GoogleInteractionsProvider.normalizeModelId(model)
+          : model.trim(),
       'messages': promptToolUse
           ? PromptToolCodec.serialize(normalizedMessages, tools)
           : _serializeMessages(
@@ -437,6 +543,11 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         final delta = choices[0]['delta'] as Map<String, dynamic>?;
         if (delta == null) continue;
 
+        final deltaSig = _extractToolCallThoughtSignature(delta);
+        if (deltaSig != null) {
+          yield ThoughtSignatureEvent(deltaSig);
+        }
+
         // 1. 原生思考流字段 (优先级短路，对齐 pi 的 openai-completions 实现):
         //    reasoning_content (llama.cpp / DeepSeek-R1 / Qwen) -> reasoning
         //    (OpenRouter 及多数兼容网关) -> reasoning_text。
@@ -506,12 +617,18 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
                     'call_${DateTime.now().millisecondsSinceEpoch}_$index',
                 'name': '',
                 'arguments': '',
+                'thoughtSignature': null,
               };
             }
 
             final current = toolCallsAccumulator[index]!;
             if (tc['id'] != null) {
               current['id'] = tc['id'];
+            }
+            final tcSig = _extractToolCallThoughtSignature(tc);
+            if (tcSig != null) {
+              current['thoughtSignature'] = tcSig;
+              yield ThoughtSignatureEvent(tcSig);
             }
             final func = tc['function'] as Map<String, dynamic>?;
             if (func != null) {
@@ -555,6 +672,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         final name = raw['name'] as String? ?? '';
         final id = raw['id'] as String? ?? '';
         final argsStr = raw['arguments'] as String? ?? '{}';
+        final sig = raw['thoughtSignature'] as String?;
 
         Map<String, dynamic> args = {};
         try {
@@ -562,7 +680,14 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         } catch (_) {}
 
         if (name.isNotEmpty) {
-          completedCalls.add(ToolCall(id: id, name: name, arguments: args));
+          completedCalls.add(
+            ToolCall(
+              id: id,
+              name: name,
+              arguments: args,
+              thoughtSignature: sig,
+            ),
+          );
         }
       }
       if (completedCalls.isNotEmpty) {

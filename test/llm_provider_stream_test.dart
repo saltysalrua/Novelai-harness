@@ -843,4 +843,260 @@ void main() {
       expect(events.whereType<UsageEvent>(), isEmpty);
     });
   });
+
+  group('Google Interactions API & Gemini 4 Argon 兼容', () {
+    test('OpenAI 兼容端口调用 gemini-4-argon 时收敛 thinking 档位并回传 thought_signature', () async {
+      late Map<String, dynamic> capturedBody;
+
+      final client = MockClient.streaming((request, bodyStream) async {
+        final raw = await bodyStream.bytesToString();
+        capturedBody = jsonDecode(raw) as Map<String, dynamic>;
+        return _sse([
+          {
+            'choices': [
+              {
+                'delta': {
+                  'tool_calls': [
+                    {
+                      'index': 0,
+                      'id': 'call_1',
+                      'function': {
+                        'name': 'generate_image',
+                        'arguments': '{"prompt":"1girl"}',
+                      },
+                      'extra_content': {
+                        'google': {
+                          'thought_signature': 'sig_abc_123',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ]);
+      });
+
+      final provider = OpenAiCompatibleProvider(
+        baseUrl:
+            'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        apiKey: 'test-key',
+        model: 'gemini-4-argon',
+        reasoning: true,
+        thinkingEffort: 'xhigh',
+        client: client,
+      );
+
+      final firstTurnEvents = await provider
+          .streamChat(
+            messages: [
+              AgentMessage(
+                id: 'u1',
+                role: AgentRole.user,
+                content: 'draw',
+              ),
+            ],
+            tools: const [],
+          )
+          .toList();
+
+      expect(capturedBody['reasoning_effort'], 'high');
+      final tcEvent = firstTurnEvents.whereType<ToolCallEvent>().single;
+      expect(tcEvent.toolCall.thoughtSignature, 'sig_abc_123');
+      final sigEvent =
+          firstTurnEvents.whereType<ThoughtSignatureEvent>().single;
+      expect(sigEvent.signature, 'sig_abc_123');
+
+      await provider
+          .streamChat(
+            messages: [
+              AgentMessage(
+                id: 'u1',
+                role: AgentRole.user,
+                content: 'draw',
+              ),
+              AgentMessage(
+                id: 'a1',
+                role: AgentRole.assistant,
+                content: '',
+                thoughtSignature: sigEvent.signature,
+                toolCalls: [tcEvent.toolCall],
+              ),
+              AgentMessage(
+                id: 't1',
+                role: AgentRole.tool,
+                content: '{"ok":true}',
+                toolCallId: 'call_1',
+              ),
+            ],
+            tools: const [],
+          )
+          .toList();
+
+      final sentMessages = capturedBody['messages'] as List<dynamic>;
+      final assistantMsg = sentMessages[1] as Map<String, dynamic>;
+      final firstToolCall =
+          (assistantMsg['tool_calls'] as List<dynamic>).first
+              as Map<String, dynamic>;
+      expect(
+        ((firstToolCall['extra_content'] as Map<String, dynamic>)['google']
+            as Map<String, dynamic>)['thought_signature'],
+        'sig_abc_123',
+      );
+    });
+
+    test('Google Interactions 端口支持 SSE 事件流、thought 签名回传与工具调用', () async {
+      late Map<String, dynamic> capturedBody;
+      late Map<String, String> capturedHeaders;
+
+      final client = MockClient.streaming((request, bodyStream) async {
+        capturedHeaders = request.headers;
+        final raw = await bodyStream.bytesToString();
+        capturedBody = jsonDecode(raw) as Map<String, dynamic>;
+        return _sse([
+          {
+            'event': 'step.start',
+            'step_id': 's_thought',
+            'step': {'type': 'thought'},
+          },
+          {
+            'event': 'step.delta',
+            'step_id': 's_thought',
+            'delta': {
+              'summary': [
+                {'type': 'text', 'text': 'Thinking about prompt...'},
+              ],
+              'signature': 'interactions_sig_999',
+            },
+          },
+          {
+            'event': 'step.start',
+            'step_id': 's_call',
+            'step': {
+              'type': 'function_call',
+              'id': 'fc_1',
+              'name': 'generate_image',
+            },
+          },
+          {
+            'event': 'step.delta',
+            'step_id': 's_call',
+            'delta': {
+              'arguments': '{"prompt":"1girl"}',
+            },
+          },
+          {
+            'event': 'step.start',
+            'step_id': 's_out',
+            'step': {'type': 'model_output'},
+          },
+          {
+            'event': 'step.delta',
+            'step_id': 's_out',
+            'delta': {
+              'content': [
+                {'type': 'text', 'text': 'Done!'},
+              ],
+            },
+          },
+          {
+            'event': 'interaction.completed',
+            'interaction': {
+              'usage': {
+                'total_input_tokens': 120,
+                'total_cached_tokens': 20,
+                'total_output_tokens': 30,
+                'total_thought_tokens': 15,
+              },
+            },
+          },
+        ]);
+      });
+
+      final provider = OpenAiCompatibleProvider(
+        baseUrl:
+            'https://generativelanguage.googleapis.com/v1beta/interactions',
+        apiKey: 'goog-key',
+        model: 'models/gemini-4-argon',
+        reasoning: true,
+        thinkingEffort: 'medium',
+        client: client,
+      );
+
+      final events = await provider
+          .streamChat(
+            messages: [
+              AgentMessage(
+                id: 's1',
+                role: AgentRole.system,
+                content: 'Sys prompt',
+              ),
+              AgentMessage(
+                id: 'u1',
+                role: AgentRole.user,
+                content: 'Hello',
+              ),
+              AgentMessage(
+                id: 'a1',
+                role: AgentRole.assistant,
+                content: 'Checking',
+                thoughts: 'Prior thought',
+                thoughtSignature: 'prev_sig_001',
+                toolCalls: const [
+                  ToolCall(
+                    id: 'fc_0',
+                    name: 'lookup',
+                    arguments: {'q': 'test'},
+                    thoughtSignature: 'prev_sig_001',
+                  ),
+                ],
+              ),
+              AgentMessage(
+                id: 't1',
+                role: AgentRole.tool,
+                content: 'result_ok',
+                toolCallId: 'fc_0',
+                toolName: 'lookup',
+              ),
+            ],
+            tools: const [],
+          )
+          .toList();
+
+      expect(capturedHeaders['x-goog-api-key'], 'goog-key');
+      expect(capturedBody['model'], 'gemini-4-argon');
+      expect(
+        (capturedBody['generation_config']
+            as Map<String, dynamic>)['thinking_level'],
+        'medium',
+      );
+      final inputSteps = capturedBody['input'] as List<dynamic>;
+      expect(
+        inputSteps.any(
+          (s) =>
+              s is Map<String, dynamic> &&
+              s['type'] == 'thought' &&
+              s['signature'] == 'prev_sig_001',
+        ),
+        isTrue,
+      );
+
+      expect(_thoughts(events).join(), 'Thinking about prompt...');
+      expect(_contents(events).join(), 'Done!');
+      final tc = events.whereType<ToolCallEvent>().single.toolCall;
+      expect(tc.id, 'fc_1');
+      expect(tc.name, 'generate_image');
+      expect(tc.arguments, equals({'prompt': '1girl'}));
+      expect(tc.thoughtSignature, 'interactions_sig_999');
+
+      final usage = events.whereType<UsageEvent>().single.usage;
+      expect(usage.input, 100);
+      expect(usage.cacheRead, 20);
+      expect(usage.output, 45);
+    });
+  });
 }
+
+
+

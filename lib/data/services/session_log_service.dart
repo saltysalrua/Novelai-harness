@@ -218,8 +218,16 @@ class SessionLogService implements SessionRecorder {
 
       case AgentRole.assistant:
         final parts = <Map<String, dynamic>>[];
-        if (message.thoughts.isNotEmpty) {
-          parts.add({'type': 'thinking', 'thinking': message.thoughts});
+        if (message.thoughts.isNotEmpty ||
+            (message.thoughtSignature != null &&
+                message.thoughtSignature!.isNotEmpty)) {
+          parts.add({
+            'type': 'thinking',
+            'thinking': message.thoughts,
+            if (message.thoughtSignature != null &&
+                message.thoughtSignature!.isNotEmpty)
+              'signature': message.thoughtSignature,
+          });
         }
         if (message.toolCalls != null) {
           for (final tc in message.toolCalls!) {
@@ -228,6 +236,9 @@ class SessionLogService implements SessionRecorder {
               'id': tc.id,
               'name': tc.name,
               'arguments': tc.arguments,
+              if (tc.thoughtSignature != null &&
+                  tc.thoughtSignature!.isNotEmpty)
+                'thoughtSignature': tc.thoughtSignature,
             });
           }
         }
@@ -946,6 +957,7 @@ class SessionLogService implements SessionRecorder {
 
       case 'assistant':
         var thoughts = '';
+        String? thoughtSignature;
         var content = '';
         TokenUsage? usage;
         final toolCalls = <ToolCall>[];
@@ -956,10 +968,20 @@ class SessionLogService implements SessionRecorder {
             switch (part['type'] as String?) {
               case 'thinking':
                 thoughts += part['thinking'] as String? ?? '';
+                final sig = part['signature'] as String?;
+                if (sig != null && sig.isNotEmpty) {
+                  thoughtSignature = sig;
+                }
               case 'text':
                 content += part['text'] as String? ?? '';
               case 'toolCall':
                 final args = part['arguments'];
+                final tcSig = part['thoughtSignature'] as String?;
+                if (thoughtSignature == null &&
+                    tcSig != null &&
+                    tcSig.isNotEmpty) {
+                  thoughtSignature = tcSig;
+                }
                 toolCalls.add(
                   ToolCall(
                     id: part['id'] as String? ?? _hexId(8),
@@ -967,6 +989,7 @@ class SessionLogService implements SessionRecorder {
                     arguments: args is Map<String, dynamic>
                         ? args
                         : <String, dynamic>{},
+                    thoughtSignature: tcSig,
                   ),
                 );
             }
@@ -983,6 +1006,7 @@ class SessionLogService implements SessionRecorder {
           replyNumber: msg['replyNumber'] as int?,
           content: content,
           thoughts: thoughts,
+          thoughtSignature: thoughtSignature,
           toolCalls: toolCalls.isNotEmpty ? toolCalls : null,
           usage: usage,
           provider: msg['provider'] as String?,

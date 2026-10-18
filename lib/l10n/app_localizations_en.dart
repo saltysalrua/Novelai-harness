@@ -2818,6 +2818,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get llmProtocolAnthropicMessages => 'Message (/messages)';
 
   @override
+  String get llmProtocolGoogleInteractions =>
+      'Google Interactions (/interactions)';
+
+  @override
   String get thinkingFormatAuto => 'Auto (detect by endpoint)';
 
   @override
