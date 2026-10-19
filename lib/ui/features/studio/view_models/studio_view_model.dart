@@ -130,6 +130,9 @@ mixin _StudioCore on ChangeNotifier {
   bool get supportsRtxUpscale => _repository.supportsRtxUpscale;
   bool _isChatStreaming = false;
 
+  /// 宿主已 dispose。后台刷新会话列表时不得再 notifyListeners。
+  bool _disposed = false;
+
   /// 流式对话瞬态文本控制器：思考链/正文/重试提示增量只驱动对话气泡局部刷新
   final StreamingTextController _streamingText = StreamingTextController();
 
@@ -885,7 +888,6 @@ class StudioViewModel extends ChangeNotifier
     }());
   }
 
-  bool _disposed = false;
   void _notifyHistoryThumbnails() {
     if (!_disposed) notifyListeners();
   }

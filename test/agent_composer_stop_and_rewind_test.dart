@@ -75,8 +75,14 @@ void main() {
     expect(viewModel.chatDraft, '要编辑的问题');
     expect(viewModel.composerRestore?.text, '要编辑的问题');
     expect(viewModel.composerRestore?.images.single.base64, image.base64);
-    expect(viewModel.statusMessage, contains('放回输入框'));
-    expect(viewModel.statusMessage, contains('不会自动发送'));
+    expect(
+      viewModel.statusMessage,
+      anyOf(contains('放回输入框'), contains('back in the input')),
+    );
+    expect(
+      viewModel.statusMessage,
+      anyOf(contains('不会自动发送'), contains('Nothing was sent')),
+    );
   });
 
   test('/undo 把最后一条用户消息放回草稿，不启动新的生成', () async {
@@ -143,7 +149,10 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('chat_stop_button')));
     await tester.pump();
-    expect(viewModel.statusMessage, '已强制终止当前生成');
+    expect(
+      viewModel.statusMessage,
+      anyOf('已强制终止当前生成', 'Current generation force-terminated'),
+    );
 
     viewModel.setChatStreamingForTesting(false);
     await tester.pump();
@@ -203,6 +212,8 @@ void main() {
     expect(viewModel.isChatStreaming, isTrue);
     expect(viewModel.chatDraft, '还没发出的草稿');
     expect(find.byKey(const ValueKey('chat_stop_button')), findsOneWidget);
+    // 草稿防抖落盘计时器必须走完，否则用例结束时仍有未触发的 Timer。
+    await tester.pump(const Duration(milliseconds: 400));
   });
 
   testWidgets('从回溯视图确认后，消息回到输入框且不会重新发送', (tester) async {
@@ -253,11 +264,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('回溯历史时刻'), findsOneWidget);
-    await tester.tap(find.text('要编辑的问题'));
-    await tester.pump();
+    await tester.tap(find.text('#2'));
+    // 列表项同时有双击确认，单击要等双击窗口结束才会选中。
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.textContaining('已选择第 #'), findsOneWidget);
     await tester.tap(find.text('回到此时刻'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('回溯历史时刻'), findsNothing);
     expect(viewModel.isChatStreaming, isFalse);
@@ -303,9 +316,10 @@ void main() {
     );
     await tester.pump();
 
-    await viewModel.rewindToMessage('edit_user');
+    await tester.runAsync(() => viewModel.rewindToMessage('edit_user'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(viewModel.isChatStreaming, isFalse);
     expect(viewModel.messages, isEmpty);

@@ -7,8 +7,9 @@ mixin _StudioSessionsMixin on _StudioCore {
   /// 刷新会话列表
   @override
   Future<void> refreshSessions() async {
-    if (!_sessionLog.isInitialized) return;
+    if (_disposed || !_sessionLog.isInitialized) return;
     _sessions = await _sessionLog.listSessions();
+    if (_disposed) return;
     notifyListeners();
   }
 
@@ -162,8 +163,9 @@ mixin _StudioSessionsMixin on _StudioCore {
         : (paramsRewound
               ? vmL10n.vmRewindChatAndParams
               : vmL10n.vmRewindChatOnly);
-    await refreshSessions();
+    // 先把截断结果交回界面，会话目录刷新放后台，避免确认回溯时停在回溯页。
     notifyListeners();
+    unawaited(refreshSessions());
   }
 
   void _publishComposerRestore(String text, List<AgentMessageImage> images) {

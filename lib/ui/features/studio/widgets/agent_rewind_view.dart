@@ -81,6 +81,9 @@ class _AgentRewindViewState extends State<AgentRewindView> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final checkpoints = _extractCheckpoints();
+    final selected = _selectedCheckpointIndex;
+    final hasSelection =
+        selected != null && selected >= 0 && selected < checkpoints.length;
 
     return Focus(
       focusNode: _focusNode,
@@ -341,9 +344,9 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                 children: [
                   Expanded(
                     child: Text(
-                      _selectedCheckpointIndex != null
+                      hasSelection
                           ? context.l10n.rewindSelectedTurn(
-                              checkpoints[_selectedCheckpointIndex!].index,
+                              checkpoints[selected!].index,
                             )
                           : context.l10n.rewindSelectPrompt,
                       style: TextStyle(
@@ -391,8 +394,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                           borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
-                      onPressed:
-                          _selectedCheckpointIndex != null && !_confirming
+                      onPressed: hasSelection && !_confirming
                           ? () => _confirmRewind(checkpoints)
                           : null,
                       child: Text(
