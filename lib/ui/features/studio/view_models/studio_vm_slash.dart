@@ -123,8 +123,8 @@ mixin _StudioSlashMixin on _StudioCore {
 
       case '/undo':
         {
-          // 撤销上一轮对话：回退到最后一条真实用户消息的前一条，
-          // 回复、工具结果与同期参数修改随回溯一并回滚 (轮数上限收尾提示不算)
+          // 撤回最后一条真实用户消息到输入框，不自动发送。
+          // 该条之后的回复、工具结果与同期参数修改一并回滚。
           final msgs = _harness.messages;
           var lastUserIdx = -1;
           for (var i = msgs.length - 1; i >= 0; i--) {
@@ -134,13 +134,12 @@ mixin _StudioSlashMixin on _StudioCore {
               break;
             }
           }
-          if (lastUserIdx <= 0) {
+          if (lastUserIdx < 0) {
             _harness.addInfoMessage(vmL10n.slashUndoNothing);
             notifyListeners();
             break;
           }
-          final target = msgs[lastUserIdx - 1];
-          await rewindToMessage(target.id);
+          await rewindToMessage(msgs[lastUserIdx].id);
         }
 
       case '/rename':

@@ -130,6 +130,9 @@ mixin _StudioCore on ChangeNotifier {
   bool get supportsRtxUpscale => _repository.supportsRtxUpscale;
   bool _isChatStreaming = false;
 
+  /// 宿主已 dispose。后台刷新会话列表时不得再 notifyListeners。
+  bool _disposed = false;
+
   /// 流式对话瞬态文本控制器：思考链/正文/重试提示增量只驱动对话气泡局部刷新
   final StreamingTextController _streamingText = StreamingTextController();
 
@@ -187,6 +190,11 @@ mixin _StudioCore on ChangeNotifier {
 
   /// Agent 对话草稿输入防抖保存计时器
   Timer? _chatDraftSaveTimer;
+
+  /// 回溯后待放回输入框的草稿。输入栏消费后清空，避免会话切换后重复套用。
+  ComposerRestore? _composerRestore;
+
+  int _composerRestoreEpoch = 0;
 
   /// 分割线宽度防抖落盘计时器 (拖动过程每帧回调，写盘必须节流)
   Timer? _splitWidthSaveTimer;
@@ -545,7 +553,10 @@ mixin _StudioCore on ChangeNotifier {
   /// 重命名指定会话
   Future<void> renameSession(String sessionId, String newTitle);
 
-  /// 回退/撤销到指定历史消息时刻
+  /// 回退到指定历史消息。
+  ///
+  /// 目标是用户消息时：截断该消息及之后的对话，把文本和图片放回输入框，不发送。
+  /// 其他角色则保留该消息，只丢弃其后的内容。
   Future<void> rewindToMessage(String messageId);
 
   /// 从剩余消息中重新聚合本会话各模型用量
@@ -877,7 +888,6 @@ class StudioViewModel extends ChangeNotifier
     }());
   }
 
-  bool _disposed = false;
   void _notifyHistoryThumbnails() {
     if (!_disposed) notifyListeners();
   }

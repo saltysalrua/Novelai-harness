@@ -71,10 +71,28 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 输入框实测宽度 (帧后回调中缓存，禁止在 build/layout 阶段读 size)
   double _fieldWidth = 320.0;
 
+  /// 已套用的回溯草稿代数，避免同一轮恢复被重复写进输入框。
+  int _appliedRestoreEpoch = 0;
+
+  /// 已排进帧后回调、尚未写入输入框的回溯代数。
+  int? _scheduledRestoreEpoch;
+
   @override
   void initState() {
     super.initState();
-    _inputController.text = widget.viewModel.chatDraft;
+    final restore = widget.viewModel.composerRestore;
+    if (restore != null) {
+      _appliedRestoreEpoch = restore.epoch;
+      _inputController.value = TextEditingValue(
+        text: restore.text,
+        selection: TextSelection.collapsed(offset: restore.text.length),
+      );
+      _pendingAttachments.addAll(_attachmentsFrom(restore.images));
+      widget.viewModel.acknowledgeComposerRestore(restore.epoch);
+      _scheduleComposerFocus();
+    } else {
+      _inputController.text = widget.viewModel.chatDraft;
+    }
     _inputController.addListener(_handleDraftChanged);
     _inputController.addListener(_updateSlashSuggestions);
     _inputFocusNode.addListener(_handleInputFocusChanged);
@@ -86,10 +104,58 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   @override
   void didUpdateWidget(covariant AgentChatInputBar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final restore = widget.viewModel.composerRestore;
+    if (restore != null && restore.epoch != _appliedRestoreEpoch) {
+      // 回溯发生在本栏已挂载时 (例如 /undo)：等本帧布局结束后再改控制器，
+      // 避免在 build 期间改文本触发补全 setState。
+      if (_scheduledRestoreEpoch != restore.epoch) {
+        final epoch = restore.epoch;
+        _scheduledRestoreEpoch = epoch;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _scheduledRestoreEpoch = null;
+          final current = widget.viewModel.composerRestore;
+          if (current == null || current.epoch != epoch) return;
+          _appliedRestoreEpoch = epoch;
+          _applyComposerRestore(current);
+        });
+      }
+      return;
+    }
     if (widget.viewModel.chatDraft != oldWidget.viewModel.chatDraft &&
         widget.viewModel.chatDraft != _inputController.text) {
       _inputController.text = widget.viewModel.chatDraft;
     }
+  }
+
+  void _applyComposerRestore(ComposerRestore restore) {
+    _inputController.value = TextEditingValue(
+      text: restore.text,
+      selection: TextSelection.collapsed(offset: restore.text.length),
+    );
+    setState(() {
+      _pendingAttachments
+        ..clear()
+        ..addAll(_attachmentsFrom(restore.images));
+    });
+    widget.viewModel.acknowledgeComposerRestore(restore.epoch);
+    _scheduleComposerFocus();
+  }
+
+  List<_PendingAttachment> _attachmentsFrom(List<AgentMessageImage> images) {
+    final result = <_PendingAttachment>[];
+    for (final image in images) {
+      if (image.base64.isEmpty) continue;
+      if (result.length >= kMaxChatImageAttachments) break;
+      result.add(_PendingAttachment(bytes: image.bytes, image: image));
+    }
+    return result;
+  }
+
+  void _scheduleComposerFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _inputFocusNode.requestFocus();
+    });
   }
 
   @override
@@ -134,6 +200,11 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     }
     if (keyboard.isShiftPressed) {
       _insertTextAtSelection('\n');
+      return KeyEventResult.handled;
+    }
+    // 生成中 Enter 仍表示发送，但不把草稿发出去，也不当成停止。
+    // 停止用原发送键位置上的停止按钮，或 Esc。
+    if (widget.viewModel.isChatStreaming) {
       return KeyEventResult.handled;
     }
     _handleSend();
@@ -592,23 +663,28 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       variant: AppIconButtonVariant.ghost,
       onPressed: _pickImageFiles,
     );
-    final Widget send = widget.compact && widget.viewModel.isChatStreaming
+    final size = widget.compact ? 48.0 : 28.0;
+    final iconSize = widget.compact ? 20.0 : 17.0;
+    // 生成中发送键原位变成停止键；空闲时恢复发送。顶栏不再另放一颗停止键。
+    final Widget send = widget.viewModel.isChatStreaming
         ? AppIconButton(
-            key: const ValueKey('chat_send_button'),
+            key: const ValueKey('chat_stop_button'),
             icon: Icons.stop_rounded,
-            size: 48,
-            iconSize: 20,
-            tooltip: l10n.chatStopOutputMobile,
+            size: size,
+            iconSize: iconSize,
+            tooltip: widget.compact
+                ? l10n.chatStopOutputMobile
+                : l10n.chatStopOutput,
             iconColor: colors.error,
             variant: AppIconButtonVariant.outlined,
             onPressed: widget.viewModel.abortChat,
           )
         : AppAsyncIconButton(
             key: const ValueKey('chat_send_button'),
-            isLoading: widget.viewModel.isChatStreaming,
+            isLoading: false,
             icon: Icons.send_rounded,
-            size: widget.compact ? 48 : 28,
-            iconSize: widget.compact ? 20 : 17,
+            size: size,
+            iconSize: iconSize,
             tooltip: l10n.chatSendTooltip,
             loadingTooltip: l10n.chatSendingTooltip,
             variant: AppIconButtonVariant.primary,

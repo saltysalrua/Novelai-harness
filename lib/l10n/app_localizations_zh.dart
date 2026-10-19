@@ -2501,7 +2501,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get rewindEscExit => 'ESC 退出';
 
   @override
-  String get rewindDescription => '选择要回退到的对话时刻。确认后将撤销此时刻之后的所有修改与对话记录。';
+  String get rewindDescription =>
+      '选择要回退的对话。确认后该条消息回到输入框，此时刻及之后的对话与修改都会撤回，不会自动发送。';
 
   @override
   String get rewindEmptyTitle => '当前会话暂无历史对话轮次可回溯';
@@ -2932,6 +2933,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get vmRewindChatOnly => '已回到历史时刻，后续对话与修改已撤回';
 
   @override
+  String get vmRewindToInput => '已回到该条消息，内容已放回输入框。后续对话已撤回，不会自动发送';
+
+  @override
+  String get vmRewindToInputWithParams =>
+      '已回到该条消息，内容已放回输入框。后续对话与参数修改已撤回，不会自动发送';
+
+  @override
   String get vmHistoryDeleted => '已从历史记录删除图片';
 
   @override
@@ -2988,7 +2996,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get slashDescNew => '新建一个空白会话 (可附带标题)';
 
   @override
-  String get slashDescUndo => '撤销上一轮对话 (回复与参数修改一并回滚)';
+  String get slashDescUndo => '撤回上一条用户消息到输入框 (不自动发送，回复与参数修改一并回滚)';
 
   @override
   String get slashDescRename => '重命名当前会话';
@@ -3068,7 +3076,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get slashUndoNothing => '没有可撤销的上一轮对话 (首轮之前的消息不存在)。';
+  String get slashUndoNothing => '没有可撤回的用户消息。';
 
   @override
   String get slashRenameUsage => '用法: /rename <新标题>';

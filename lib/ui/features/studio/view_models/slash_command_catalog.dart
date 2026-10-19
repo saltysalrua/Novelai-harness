@@ -53,7 +53,7 @@ const List<SlashCommandDef> kSlashCommands = [
   SlashCommandDef('/account', '', '查询账号等级与 V5 专属体力池'),
   SlashCommandDef('/compact', '', '手动压缩对话上下文 (摘要替换更早消息，原始消息仍保留)'),
   SlashCommandDef('/new', '<标题>', '新建一个空白会话 (可附带标题)'),
-  SlashCommandDef('/undo', '', '撤销上一轮对话 (回复与参数修改一并回滚)'),
+  SlashCommandDef('/undo', '', '撤回上一条用户消息到输入框 (不自动发送，回复与参数修改一并回滚)'),
   SlashCommandDef('/rename', '<标题>', '重命名当前会话'),
   SlashCommandDef('/sessions', '', '列出已保存的会话'),
   SlashCommandDef('/clear', '', '清空对话历史'),
