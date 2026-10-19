@@ -9,6 +9,13 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get settingsStreaming => 'Streaming';
+
+  @override
+  String get settingsStreamingSubtitle =>
+      'Show text as it is generated. Turn off to wait for the full response when the API does not support streaming.';
+
+  @override
   String get settingsPromptToolUse => 'Prompt-based tool calling';
 
   @override

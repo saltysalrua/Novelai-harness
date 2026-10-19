@@ -9,6 +9,12 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get settingsStreaming => '流式输出';
+
+  @override
+  String get settingsStreamingSubtitle => '开启后边生成边显示。关闭后一次返回完整结果，适合不支持流式的接口。';
+
+  @override
   String get settingsPromptToolUse => '提示词工具调用';
 
   @override

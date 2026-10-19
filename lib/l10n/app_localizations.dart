@@ -98,6 +98,18 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @settingsStreaming.
+  ///
+  /// In zh, this message translates to:
+  /// **'流式输出'**
+  String get settingsStreaming;
+
+  /// No description provided for @settingsStreamingSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后边生成边显示。关闭后一次返回完整结果，适合不支持流式的接口。'**
+  String get settingsStreamingSubtitle;
+
   /// No description provided for @settingsPromptToolUse.
   ///
   /// In zh, this message translates to:

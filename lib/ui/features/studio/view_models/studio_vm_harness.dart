@@ -323,6 +323,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         thinkingParamFormat: activeLlm.thinkingParamFormat.id,
         cacheConfig: activeModel.cacheConfig,
         promptToolUse: activeLlm.promptToolUse,
+        streaming: activeLlm.streaming,
       );
     } else {
       _harness.provider = null;
@@ -373,6 +374,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         thinkingParamFormat: summaryProvider.thinkingParamFormat.id,
         cacheConfig: summaryModel.cacheConfig,
         promptToolUse: summaryProvider.promptToolUse,
+        streaming: summaryProvider.streaming,
       );
       _harness.compactionModelWindowTokens = summaryModel.contextWindow;
     }

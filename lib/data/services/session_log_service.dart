@@ -245,6 +245,10 @@ class SessionLogService implements SessionRecorder {
         if (message.content.isNotEmpty) {
           parts.add({'type': 'text', 'text': message.content});
         }
+        for (final record in message.reasoningRecords) {
+          if (record.isEmpty) continue;
+          parts.add(record.toSessionJson());
+        }
         msg['role'] = 'assistant';
         msg['content'] = parts;
         msg['api'] = 'openai-chat';
@@ -961,6 +965,7 @@ class SessionLogService implements SessionRecorder {
         var content = '';
         TokenUsage? usage;
         final toolCalls = <ToolCall>[];
+        final reasoningRecords = <ReasoningRecord>[];
         final parts = msg['content'];
         if (parts is List) {
           for (final part in parts) {
@@ -974,6 +979,9 @@ class SessionLogService implements SessionRecorder {
                 }
               case 'text':
                 content += part['text'] as String? ?? '';
+              case 'reasoning':
+                final record = ReasoningRecord.fromSessionJson(part);
+                if (!record.isEmpty) reasoningRecords.add(record);
               case 'toolCall':
                 final args = part['arguments'];
                 final tcSig = part['thoughtSignature'] as String?;
@@ -1007,6 +1015,7 @@ class SessionLogService implements SessionRecorder {
           content: content,
           thoughts: thoughts,
           thoughtSignature: thoughtSignature,
+          reasoningRecords: reasoningRecords,
           toolCalls: toolCalls.isNotEmpty ? toolCalls : null,
           usage: usage,
           provider: msg['provider'] as String?,

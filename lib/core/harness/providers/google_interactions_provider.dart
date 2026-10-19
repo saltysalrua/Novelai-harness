@@ -33,6 +33,9 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
   /// 是否将工具调用编码为提示词文本
   final bool promptToolUse;
 
+  /// 关闭后请求非流式 Interaction，并解析完整 JSON。
+  final bool streaming;
+
   final LlmCacheConfig cacheConfig;
   final http.Client _client;
 
@@ -47,6 +50,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     this.reasoning = true,
     this.thinkingEffort = 'medium',
     this.promptToolUse = false,
+    this.streaming = true,
     this.cacheConfig = const LlmCacheConfig(),
     http.Client? client,
   }) : _client = client ?? http.Client();
@@ -96,7 +100,8 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
   }) {
     final lowerModel = normalizeModelId(modelId).toLowerCase();
     final supportsMinimal =
-        lowerModel.contains('flash') && !lowerModel.contains('gemini-3.8-flash');
+        lowerModel.contains('flash') &&
+        !lowerModel.contains('gemini-3.8-flash');
     if (!reasoning) {
       return supportsMinimal ? 'minimal' : 'low';
     }
@@ -136,6 +141,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
       reasoning: reasoning,
       thinkingEffort: thinkingEffort,
       promptToolUse: promptToolUse,
+      stream: streaming,
     );
 
     final cachePolicy = PromptCachePolicy(
@@ -146,7 +152,9 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
 
     final request = http.Request('POST', uri);
     request.headers['Content-Type'] = 'application/json';
-    request.headers['Accept'] = 'text/event-stream';
+    request.headers['Accept'] = streaming
+        ? 'text/event-stream'
+        : 'application/json';
     final trimmedKey = apiKey.trim();
     request.headers['x-goog-api-key'] = trimmedKey;
     if (!isOfficialGoogle) {
@@ -161,9 +169,9 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
           .timeout(_requestStartupTimeout);
 
       if (response.statusCode != 200) {
-        final errorBody = await response.stream
-            .bytesToString()
-            .timeout(_requestStartupTimeout);
+        final errorBody = await response.stream.bytesToString().timeout(
+          _requestStartupTimeout,
+        );
         final status = response.statusCode;
         final isTransient =
             status == 408 || status == 429 || (status >= 500 && status <= 599);
@@ -194,6 +202,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     required bool reasoning,
     required String thinkingEffort,
     required bool promptToolUse,
+    bool stream = true,
   }) {
     final normalizedMessages = normalizeToolCallIds(messages);
 
@@ -268,10 +277,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                     'mime_type': img.mimeType,
                   },
             ];
-            inputSteps.add({
-              'type': 'user_input',
-              'content': contentParts,
-            });
+            inputSteps.add({'type': 'user_input', 'content': contentParts});
 
           case AgentRole.assistant:
             final signature = _resolveAssistantThoughtSignature(msg);
@@ -297,13 +303,32 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
               });
             }
             if (msg.toolCalls != null && msg.toolCalls!.isNotEmpty) {
-              for (final tc in msg.toolCalls!) {
+              final calls = msg.toolCalls!;
+              final anyOwnSignature = calls.any(
+                (tc) =>
+                    tc.thoughtSignature != null &&
+                    tc.thoughtSignature!.isNotEmpty,
+              );
+              var usedFallback = false;
+              for (final tc in calls) {
                 toolNameByCallId[tc.id] = tc.name;
+                final own = tc.thoughtSignature;
+                var callSignature = own != null && own.isNotEmpty ? own : null;
+                // 调用本身没有签名时，只把消息级签名补到第一个函数调用上。
+                if (callSignature == null &&
+                    !anyOwnSignature &&
+                    !usedFallback &&
+                    signature != null &&
+                    signature.isNotEmpty) {
+                  callSignature = signature;
+                  usedFallback = true;
+                }
                 inputSteps.add({
                   'type': 'function_call',
                   'id': tc.id,
                   'name': tc.name,
                   'arguments': tc.arguments,
+                  'thought_signature': ?callSignature,
                 });
               }
             }
@@ -361,7 +386,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
             )
             .toList(),
       'generation_config': generationConfig,
-      'stream': true,
+      'stream': stream,
     };
   }
 
@@ -373,10 +398,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     final data = url.substring(commaIdx + 1);
     final semiIdx = header.indexOf(';');
     final mime = semiIdx >= 0 ? header.substring(0, semiIdx) : header;
-    return (
-      mimeType: mime.isEmpty ? 'image/png' : mime,
-      base64: data,
-    );
+    return (mimeType: mime.isEmpty ? 'image/png' : mime, base64: data);
   }
 
   static String? _resolveAssistantThoughtSignature(AgentMessage msg) {
@@ -690,22 +712,43 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                   _formatErrorObject(decoded['error']) ??
                       'Interactions API 请求失败',
                 );
-                return;
+              } else {
+                final interactionMap =
+                    _asMap(decoded['interaction']) ?? decoded;
+                final uMap = _asMap(interactionMap['usage']);
+                if (uMap != null) {
+                  latestUsage = parseInteractionsUsage(uMap);
+                }
+                final status = interactionMap['status']?.toString();
+                final failed =
+                    status == 'failed' ||
+                    status == 'cancelled' ||
+                    interactionMap['error'] is Map;
+                final incomplete = status == 'incomplete';
+                if (failed || incomplete) {
+                  final reason =
+                      interactionMap['incomplete_reason'] ??
+                      interactionMap['status_reason'] ??
+                      _formatErrorObject(interactionMap['error']);
+                  yield ErrorEvent(
+                    incomplete
+                        ? 'Interactions API 响应不完整: ${reason ?? status}'
+                        : (_formatErrorObject(interactionMap['error']) ??
+                              'Interactions API 请求失败: ${reason ?? status}'),
+                  );
+                } else {
+                  yield* _emitRemainingFromInteractionMap(
+                    interactionMap,
+                    stepStates: stepStates,
+                    emittedAnyContentOrThoughts: () =>
+                        emittedAnyContentOrThoughts,
+                    rawToolCalls: rawToolCalls,
+                    latestThoughtSignature: latestThoughtSignature,
+                    onSignature: (sig) => latestThoughtSignature = sig,
+                    emitContentText: emitContentText,
+                  );
+                }
               }
-              final interactionMap = _asMap(decoded['interaction']) ?? decoded;
-              final uMap = _asMap(interactionMap['usage']);
-              if (uMap != null) {
-                latestUsage = parseInteractionsUsage(uMap);
-              }
-              yield* _emitRemainingFromInteractionMap(
-                interactionMap,
-                stepStates: stepStates,
-                emittedAnyContentOrThoughts: () => emittedAnyContentOrThoughts,
-                rawToolCalls: rawToolCalls,
-                latestThoughtSignature: latestThoughtSignature,
-                onSignature: (sig) => latestThoughtSignature = sig,
-                emitContentText: emitContentText,
-              );
             }
           } catch (_) {}
         }
@@ -817,10 +860,9 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
           if ((existing == null || !existing.emittedToolCall) &&
               allowToolEmit &&
               !promptToolUse) {
-            final state =
-                _InteractionStepState(index: i, type: 'function_call')
-                  ..absorbFunctionCallMap(item)
-                  ..emittedToolCall = true;
+            final state = _InteractionStepState(index: i, type: 'function_call')
+              ..absorbFunctionCallMap(item)
+              ..emittedToolCall = true;
             stepStates[i] = state;
             if (state.name.isNotEmpty) {
               rawToolCalls.add(
@@ -834,8 +876,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
 
   /// 解析 Google Interactions API 的 `Usage` 对象并对齐本应用互斥 `TokenUsage` 口径
   static TokenUsage parseInteractionsUsage(Map<String, dynamic> usage) {
-    int count(Object? v) =>
-        v is num && v.isFinite && v > 0 ? v.toInt() : 0;
+    int count(Object? v) => v is num && v.isFinite && v > 0 ? v.toInt() : 0;
 
     final rawCached = usage['total_cached_tokens'] ?? usage['cached_tokens'];
     final cacheRead = count(rawCached);
@@ -900,8 +941,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
       final decoded = jsonDecode(trimmed);
       if (decoded is Map<String, dynamic>) {
         final msg =
-            _formatErrorObject(decoded['error']) ??
-            _formatErrorObject(decoded);
+            _formatErrorObject(decoded['error']) ?? _formatErrorObject(decoded);
         if (msg != null && msg.isNotEmpty) return msg;
       }
     } catch (_) {}
@@ -927,6 +967,7 @@ class _InteractionStepState {
   final int index;
   String type;
   String? signature;
+  String? callThoughtSignature;
   String id = '';
   String name = '';
   Map<String, dynamic>? parsedArguments;
@@ -940,6 +981,10 @@ class _InteractionStepState {
     if (rawId != null && rawId.isNotEmpty) id = rawId;
     final rawName = map['name'] as String?;
     if (rawName != null && rawName.isNotEmpty) name = rawName;
+    final rawSig = map['thought_signature'] ?? map['thoughtSignature'];
+    if (rawSig is String && rawSig.isNotEmpty) {
+      callThoughtSignature = rawSig;
+    }
     final args = map['arguments'];
     if (args is Map<String, dynamic>) {
       parsedArguments = Map<String, dynamic>.from(args);
@@ -972,7 +1017,7 @@ class _InteractionStepState {
       id: effectiveId,
       name: name,
       arguments: args,
-      thoughtSignature: signature ?? thoughtSignature,
+      thoughtSignature: callThoughtSignature ?? signature ?? thoughtSignature,
     );
   }
 }
