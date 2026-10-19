@@ -184,7 +184,7 @@ class _PromptsPageState extends State<PromptsPage> {
   }
 
   List<GrayTag> _negativeFooterTags(NaiGenerationParams params) {
-    if (viewModelIsComfyUi) return const [];
+    if (viewModelIsComfyUi || params.isMediumEffort) return const [];
     final ucPresetStr = NovelAiUndesiredContentHelper.getUndesiredContent(
       params.model,
       _ucPreset,
@@ -237,9 +237,10 @@ class _PromptsPageState extends State<PromptsPage> {
   }
 
   /// 负面提示词底部工具条：UC Preset 下拉 (胶囊全宽右对齐，超长标签自动省略)；
-  /// ComfyUI 模式下 UC 预设不生效，不渲染工具条
+  /// ComfyUI 模式下 UC 预设不生效，不渲染工具条。
+  /// 节约档固定 Heavy，不提供预设切换。
   Widget? _negativeToolbar(NaiGenerationParams params) {
-    if (viewModelIsComfyUi) return null;
+    if (viewModelIsComfyUi || params.isMediumEffort) return null;
     final presets = NovelAiUndesiredContentHelper.availablePresets;
     return Row(
       children: [
@@ -362,7 +363,8 @@ class _PromptsPageState extends State<PromptsPage> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (params.negativePrompt.trim().isNotEmpty)
+                if (!params.isMediumEffort &&
+                    params.negativePrompt.trim().isNotEmpty)
                   ClearTextLink(
                     onTap: () {
                       _negativeController.clear();
@@ -393,7 +395,10 @@ class _PromptsPageState extends State<PromptsPage> {
         PromptEditorCard(
           controller: _negativeController,
           onChanged: _updateNegative,
-          hintText: l10n.promptsCustomUndesiredHint,
+          readOnly: params.isMediumEffort,
+          hintText: params.isMediumEffort
+              ? l10n.promptsMediumUcLocked
+              : l10n.promptsCustomUndesiredHint,
           minLines: 3,
           maxLines: 8,
           initialHeight: viewModel.negativePromptHeightStacked,
@@ -448,7 +453,9 @@ class _PromptsPageState extends State<PromptsPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if ((isPromptTab && params.prompt.trim().isNotEmpty) ||
-                    (!isPromptTab && params.negativePrompt.trim().isNotEmpty))
+                    (!isPromptTab &&
+                        !params.isMediumEffort &&
+                        params.negativePrompt.trim().isNotEmpty))
                   ClearTextLink(
                     onTap: () {
                       if (isPromptTab) {
@@ -500,7 +507,10 @@ class _PromptsPageState extends State<PromptsPage> {
           PromptEditorCard(
             controller: _negativeController,
             onChanged: _updateNegative,
-            hintText: l10n.promptsTabbedUndesiredHint,
+            readOnly: params.isMediumEffort,
+            hintText: params.isMediumEffort
+                ? l10n.promptsMediumUcLocked
+                : l10n.promptsTabbedUndesiredHint,
             minLines: 8,
             maxLines: 16,
             initialHeight: viewModel.negativePromptHeightTabbed,

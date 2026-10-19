@@ -23,6 +23,9 @@ class AppNumberSlider extends StatefulWidget {
   /// 输入提交或滑块手势结束时回调；拖动预览仅更新组件内部状态。
   final ValueChanged<double> onChanged;
 
+  /// 为 false 时锁定输入和滑块，用于算力档位强制参数。
+  final bool enabled;
+
   const AppNumberSlider({
     super.key,
     this.title,
@@ -32,6 +35,7 @@ class AppNumberSlider extends StatefulWidget {
     this.fractionDigits = 0,
     this.step,
     this.unit,
+    this.enabled = true,
     required this.onChanged,
   });
 
@@ -44,6 +48,7 @@ class AppNumberSlider extends StatefulWidget {
     required int max,
     int step = 1,
     String? unit,
+    bool enabled = true,
     required ValueChanged<int> onChanged,
   }) {
     return AppNumberSlider(
@@ -55,6 +60,7 @@ class AppNumberSlider extends StatefulWidget {
       fractionDigits: 0,
       step: step.toDouble(),
       unit: unit,
+      enabled: enabled,
       onChanged: (v) => onChanged(v.round()),
     );
   }
@@ -118,6 +124,10 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
   }
 
   void _submit(String val) {
+    if (!widget.enabled) {
+      _controller.text = _format(widget.value);
+      return;
+    }
     final parsed = double.tryParse(val);
     if (parsed != null) {
       final snapped = _snapToStep(parsed);
@@ -195,6 +205,8 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
               child: TextField(
                 controller: _controller,
                 focusNode: _focusNode,
+                readOnly: !widget.enabled,
+                enabled: widget.enabled,
                 keyboardType: TextInputType.numberWithOptions(
                   decimal: widget.fractionDigits > 0,
                   signed: widget.min < 0,
@@ -245,22 +257,26 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
                   divisions: (divisions != null && divisions > 0)
                       ? divisions
                       : null,
-                  onChanged: (v) {
-                    final snapped = _snapToStep(v);
-                    final rounded = double.parse(
-                      snapped.toStringAsFixed(widget.fractionDigits),
-                    );
-                    if (_dragValue == rounded) return;
-                    setState(() => _dragValue = rounded);
-                    _controller.text = _format(rounded);
-                  },
-                  onChangeEnd: (_) {
-                    final value = _dragValue;
-                    setState(() => _dragValue = null);
-                    if (value != null && value != widget.value) {
-                      widget.onChanged(value);
-                    }
-                  },
+                  onChanged: widget.enabled
+                      ? (v) {
+                          final snapped = _snapToStep(v);
+                          final rounded = double.parse(
+                            snapped.toStringAsFixed(widget.fractionDigits),
+                          );
+                          if (_dragValue == rounded) return;
+                          setState(() => _dragValue = rounded);
+                          _controller.text = _format(rounded);
+                        }
+                      : null,
+                  onChangeEnd: widget.enabled
+                      ? (_) {
+                          final value = _dragValue;
+                          setState(() => _dragValue = null);
+                          if (value != null && value != widget.value) {
+                            widget.onChanged(value);
+                          }
+                        }
+                      : null,
                 ),
               ),
             ),

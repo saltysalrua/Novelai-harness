@@ -719,4 +719,154 @@ void main() {
       expect(restoredNormal.isImportedReference, isFalse);
     });
   });
+
+  group('V5 Full effort toggle', () {
+    const medium = NaiGenerationParams(
+      prompt: '1girl, -3::hat::',
+      negativePrompt: 'extra fingers',
+      model: NaiModel.v5Full,
+      effort: NaiEffort.medium,
+      width: 832,
+      height: 1216,
+      steps: 28,
+      scale: 6.5,
+      cfgRescale: 0.45,
+      sampler: NaiSampler.kEuler,
+      ucPresetKey: 'Light',
+      qualityToggle: false,
+      characterPrompts: [
+        NaiCharacterPrompt(
+          id: 'a',
+          name: 'A',
+          prompt: 'girl',
+          negativePrompt: 'hat',
+        ),
+      ],
+    );
+
+    test('medium request uses distilled model and locked parameters', () {
+      final payload = medium.toApiPayload();
+      final parameters = payload['parameters'] as Map<String, dynamic>;
+      final negative = parameters['negative_prompt'] as String;
+
+      expect(payload['model'], equals(NaiEffort.mediumModelId));
+      expect(payload.containsKey('effort'), isFalse);
+      expect(parameters.containsKey('effort'), isFalse);
+      expect(parameters['steps'], equals(14));
+      expect(parameters['sampler'], equals('k_euler_ancestral'));
+      expect(parameters['cfg_rescale'], equals(0));
+      expect(parameters['scale'], equals(6.5));
+      expect(parameters['ucPresetId'], equals('heavy'));
+      expect(parameters['tag_hint_uc_preset'], equals(2));
+      expect(parameters['prefer_brownian'], isTrue);
+      expect(payload['input'], contains('-3::hat::'));
+      expect(negative, isNot(contains('extra fingers')));
+      expect(negative, isNot(contains('bad hands')));
+      expect(negative, contains('lowres'));
+      final characters = parameters['characterPrompts'] as List;
+      expect(characters.single['prompt'], equals('girl'));
+      expect(characters.single['uc'], equals(''));
+
+      // 工作台仍保留切回通常档所需的自由设置。
+      expect(medium.steps, equals(28));
+      expect(medium.sampler, equals(NaiSampler.kEuler));
+      expect(medium.cfgRescale, equals(0.45));
+      expect(medium.negativePrompt, equals('extra fingers'));
+      expect(medium.ucPresetKey, equals('Light'));
+    });
+
+    test('high restores the stored free settings in the request', () {
+      final payload = medium.copyWith(effort: NaiEffort.high).toApiPayload();
+      final parameters = payload['parameters'] as Map<String, dynamic>;
+
+      expect(payload['model'], equals('nai-diffusion-5-full'));
+      expect(parameters['steps'], equals(28));
+      expect(parameters['sampler'], equals('k_euler'));
+      expect(parameters['cfg_rescale'], equals(0.45));
+      expect(parameters['scale'], equals(6.5));
+      expect(parameters['ucPresetId'], equals('light'));
+      expect(parameters['negative_prompt'], contains('extra fingers'));
+      final characters = parameters['characterPrompts'] as List;
+      expect(characters.single['uc'], equals('hat'));
+    });
+
+    test('medium inpainting uses the distilled inpaint model', () {
+      final payload = medium.toInfillApiPayload(
+        sourceBytes: Uint8List.fromList([1]),
+        maskBytes: Uint8List.fromList([2]),
+        requestWidth: 640,
+        requestHeight: 640,
+      );
+      final parameters = payload['parameters'] as Map<String, dynamic>;
+
+      expect(payload['model'], equals(NaiEffort.mediumInpaintModelId));
+      expect(payload['action'], equals('infill'));
+      expect(payload.containsKey('effort'), isFalse);
+      expect(parameters['steps'], equals(14));
+      expect(parameters['sampler'], equals('k_euler_ancestral'));
+      expect(parameters['cfg_rescale'], equals(0));
+      expect(parameters['negative_prompt'], isNot(contains('extra fingers')));
+    });
+
+    test('curated and older models ignore a stored medium effort', () {
+      const curated = NaiGenerationParams(
+        prompt: 'cat',
+        model: NaiModel.v5Curated,
+        effort: NaiEffort.medium,
+        steps: 23,
+        sampler: NaiSampler.kEuler,
+        cfgRescale: 0.4,
+        negativePrompt: 'blur',
+        qualityToggle: false,
+        ucPresetKey: 'None',
+      );
+
+      final payload = curated.toApiPayload();
+      final parameters = payload['parameters'] as Map<String, dynamic>;
+      expect(curated.isMediumEffort, isFalse);
+      expect(curated.supportsEffort, isFalse);
+      expect(payload['model'], equals('nai-diffusion-5-curated'));
+      expect(parameters['steps'], equals(23));
+      expect(parameters['sampler'], equals('k_euler'));
+      expect(parameters['cfg_rescale'], equals(0.4));
+      expect(parameters['negative_prompt'], equals('blur'));
+    });
+
+    test('missing effort in saved settings stays high', () {
+      final legacy = NaiGenerationParams.fromJson({
+        'prompt': 'old user',
+        'model': 'nai-diffusion-5-full',
+        'steps': 28,
+        'sampler': 'k_euler',
+      });
+      expect(legacy.effort, equals(NaiEffort.high));
+      expect(legacy.toApiPayload()['model'], equals('nai-diffusion-5-full'));
+
+      final roundTrip = NaiGenerationParams.fromJson(medium.toJson());
+      expect(roundTrip.effort, equals(NaiEffort.medium));
+      expect(roundTrip.toJson()['effort'], equals('medium'));
+      expect(NaiModel.fromId(NaiEffort.mediumModelId), equals(NaiModel.v5Full));
+      expect(
+        NaiEffort.fromModelId(NaiEffort.mediumModelId),
+        equals(NaiEffort.medium),
+      );
+      expect(
+        NaiEffort.fromModelId(NaiEffort.mediumInpaintModelId),
+        equals(NaiEffort.medium),
+      );
+      expect(
+        NaiEffort.fromModelId('nai-diffusion-5-curated'),
+        equals(NaiEffort.high),
+      );
+    });
+
+    test('metadata records the distilled model id and locked steps', () {
+      final comment = medium.toMetadataComment(seed: 7);
+      expect(comment['model'], equals(NaiEffort.mediumModelId));
+      expect(comment['steps'], equals(14));
+      expect(comment['sampler'], equals('k_euler_ancestral'));
+      expect(comment['cfg_rescale'], equals(0));
+      expect(comment['uc'], isNot(contains('extra fingers')));
+    });
+  });
 }

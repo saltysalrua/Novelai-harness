@@ -61,6 +61,9 @@ class PromptEditorCard extends StatelessWidget {
   /// 标签库与补全建议中是否显示中文释义 (设置项控制)
   final bool showTranslation;
 
+  /// 锁定输入。已有文本保留，不提供会改写文本的快捷操作。
+  final bool readOnly;
+
   const PromptEditorCard({
     super.key,
     required this.controller,
@@ -79,6 +82,7 @@ class PromptEditorCard extends StatelessWidget {
     this.tokenUsage,
     this.enableAutocomplete = true,
     this.showTranslation = true,
+    this.readOnly = false,
   });
 
   /// 按行数参考推导的默认输入区高度 (布局模式切换时变化)
@@ -108,6 +112,7 @@ class PromptEditorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
+    final actions = showQuickActions && !readOnly;
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -124,8 +129,9 @@ class PromptEditorCard extends StatelessWidget {
             minHeight: minHeight,
             maxHeight: maxHeight,
             resizeTooltip: l10n.promptsResizePromptTooltip,
-            enableAutocomplete: enableAutocomplete,
+            enableAutocomplete: enableAutocomplete && !readOnly,
             showTranslation: showTranslation,
+            readOnly: readOnly,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             style: TextStyle(
               fontSize: 14,
@@ -139,7 +145,7 @@ class PromptEditorCard extends StatelessWidget {
             ),
           ),
           if (footerTags.isNotEmpty) _TagPanel(tags: footerTags, atTop: false),
-          if (toolbar != null || showQuickActions)
+          if (toolbar != null || actions)
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
               child: Column(
@@ -148,9 +154,9 @@ class PromptEditorCard extends StatelessWidget {
                 children: [
                   if (toolbar != null) ...[
                     toolbar!,
-                    if (showQuickActions) const SizedBox(height: 4),
+                    if (actions) const SizedBox(height: 4),
                   ],
-                  if (showQuickActions)
+                  if (actions)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [

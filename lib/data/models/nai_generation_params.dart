@@ -12,6 +12,9 @@ class NaiGenerationParams {
   final String prompt;
   final String negativePrompt;
   final NaiModel model;
+
+  /// V5 Full 算力档位。其它模型忽略；缺省为通常，兼容旧存档。
+  final NaiEffort effort;
   final int width;
   final int height;
   final int steps;
@@ -42,6 +45,7 @@ class NaiGenerationParams {
     required this.prompt,
     this.negativePrompt = '',
     this.model = NaiModel.v5Full,
+    this.effort = NaiEffort.high,
     this.width = 832,
     this.height = 1216,
     this.steps = 28,
@@ -126,26 +130,62 @@ class NaiGenerationParams {
   /// 组合实际发送的负面词 (官方 UC 预设前缀 + 自定义排除词)。
   /// 官网把预设内容拼在用户负面提示词前面，并做 nsfw 双向处理：
   /// 正向词不含 nsfw 时在负面词最开头附加 nsfw 压制；含 nsfw 时反而移除以放开。
-  String get effectiveNegativePrompt {
+  String get effectiveNegativePrompt =>
+      _composeNegative(presetKey: ucPresetKey, userNegative: negativePrompt);
+
+  /// 节约档固定使用 Heavy 排除词，不拼接用户排除词。
+  String get requestNegativePrompt => isMediumEffort
+      ? _composeNegative(presetKey: 'Heavy', userNegative: '')
+      : effectiveNegativePrompt;
+
+  String _composeNegative({
+    required String presetKey,
+    required String userNegative,
+  }) {
     final ucText = NovelAiUndesiredContentHelper.getUndesiredContent(
       model,
-      ucPresetKey,
+      presetKey,
     );
     var effective = [
       ucText,
-      negativePrompt.trim(),
+      userNegative.trim(),
     ].where((s) => s.isNotEmpty).join(', ');
 
     if (NovelAiPromptText.containsNsfwTag(prompt)) {
       // 正向已有 nsfw：从负面词移除，避免自我冲突
       effective = NovelAiPromptText.removeNsfwTag(effective);
-    } else if (ucPresetKey != 'None') {
+    } else if (presetKey != 'None') {
       // 官方 UC 预设启用时在负面词最开头前置 nsfw 压制；
       // 用户词里已有 nsfw 也照加不误 (官网不去重)，None 时不前置
       effective = 'nsfw, $effective';
     }
     return effective;
   }
+
+  /// 算力开关只在 V5 Full 上生效。
+  bool get supportsEffort => model == NaiModel.v5Full;
+
+  NaiEffort get effectiveEffort => supportsEffort ? effort : NaiEffort.high;
+
+  bool get isMediumEffort => effectiveEffort == NaiEffort.medium;
+
+  /// 实际请求的模型 id。节约档换成蒸馏模型，不另发 effort 字段。
+  String get apiModelId => isMediumEffort ? NaiEffort.mediumModelId : model.id;
+
+  String get apiInpaintModelId =>
+      isMediumEffort ? NaiEffort.mediumInpaintModelId : model.inpaintModelId;
+
+  int get effectiveSteps => isMediumEffort ? NaiEffort.mediumSteps : steps;
+
+  NaiSampler get effectiveSampler =>
+      isMediumEffort ? NaiEffort.mediumSampler : sampler;
+
+  /// 节约档不支持提示词引导重缩放，请求里固定为 0。
+  double get effectiveCfgRescale => isMediumEffort ? 0 : cfgRescale;
+
+  String get requestUcPresetId => isMediumEffort ? 'heavy' : _ucPresetId;
+
+  int get requestUcPresetTagHint => isMediumEffort ? 2 : _ucPresetTagHint;
 
   /// 参与生成的角色列表 (启用且提示词非空)
   List<NaiCharacterPrompt> get enabledCharacterPrompts => characterPrompts
@@ -189,32 +229,34 @@ class NaiGenerationParams {
   };
 
   /// 判定是否符合 Opus 免点数条件 (像素数 <= 1048576 且 步数 <= 28 且 样本数 = 1)
+  /// 节约档按锁定的 14 步判断。
   bool get isOpusFree =>
-      width * height <= 1048576 && steps <= 28 && nSamples == 1;
+      width * height <= 1048576 && effectiveSteps <= 28 && nSamples == 1;
 
   /// 构建发送给 NovelAI 官方的 JSON 请求体
   /// [streaming] 为 true 时附带 stream=msgpack 参数，请求流式中间帧 (仅 V4+ 模型支持)
   Map<String, dynamic> toApiPayload({bool streaming = false}) {
     final apiPrompt = effectivePrompt;
-    final apiNegative = effectiveNegativePrompt;
+    final apiNegative = requestNegativePrompt;
     final isV4OrAbove = model.isV4OrAbove;
+    final requestSampler = effectiveSampler;
     // 官网对 Euler Ancestral + 非 Native 噪声调度固定开启布朗尼修正，保持一致
     final usesBrownianEulerAncestral =
-        sampler == NaiSampler.kEulerAncestral &&
+        requestSampler == NaiSampler.kEulerAncestral &&
         noiseSchedule != NoiseSchedule.native;
 
     final baseParameters = <String, dynamic>{
       'width': width,
       'height': height,
       'scale': scale,
-      'cfg_rescale': cfgRescale,
-      'sampler': sampler.id,
+      'cfg_rescale': effectiveCfgRescale,
+      'sampler': requestSampler.id,
       'noise_schedule': noiseSchedule.id,
-      'steps': steps,
+      'steps': effectiveSteps,
       'n_samples': nSamples,
-      'ucPresetId': _ucPresetId,
+      'ucPresetId': requestUcPresetId,
       'qualityPresetId': _qualityPresetId,
-      'tag_hint_uc_preset': _ucPresetTagHint,
+      'tag_hint_uc_preset': requestUcPresetTagHint,
       'tag_hint_qt': _qualityTagHint,
       'dynamic_thresholding': false,
       'controlnet_strength': 1,
@@ -243,7 +285,7 @@ class NaiGenerationParams {
 
       return {
         'input': apiPrompt,
-        'model': model.id,
+        'model': apiModelId,
         'action': 'generate',
         'parameters': {
           ...baseParameters,
@@ -274,7 +316,7 @@ class NaiGenerationParams {
     // v3 时代模型才下发 SMEA 开关
     return {
       'input': apiPrompt,
-      'model': model.id,
+      'model': apiModelId,
       'action': 'generate',
       'parameters': {...baseParameters, 'sm': false, 'sm_dyn': false},
     };
@@ -291,26 +333,27 @@ class NaiGenerationParams {
     bool streaming = false,
   }) {
     final apiPrompt = effectivePrompt;
-    final apiNegative = effectiveNegativePrompt;
-    final inpaintModel = model.inpaintModelId;
+    final apiNegative = requestNegativePrompt;
+    final inpaintModel = apiInpaintModelId;
     final isV4OrAbove = model.isV4OrAbove;
+    final requestSampler = effectiveSampler;
 
     final usesBrownianEulerAncestral =
-        sampler == NaiSampler.kEulerAncestral &&
+        requestSampler == NaiSampler.kEulerAncestral &&
         noiseSchedule != NoiseSchedule.native;
 
     final baseParameters = <String, dynamic>{
       'width': requestWidth,
       'height': requestHeight,
       'scale': scale,
-      'cfg_rescale': cfgRescale,
-      'sampler': sampler.id,
+      'cfg_rescale': effectiveCfgRescale,
+      'sampler': requestSampler.id,
       'noise_schedule': noiseSchedule.id,
-      'steps': steps,
+      'steps': effectiveSteps,
       'n_samples': nSamples,
-      'ucPresetId': _ucPresetId,
+      'ucPresetId': requestUcPresetId,
       'qualityPresetId': _qualityPresetId,
-      'tag_hint_uc_preset': _ucPresetTagHint,
+      'tag_hint_uc_preset': requestUcPresetTagHint,
       'tag_hint_qt': _qualityTagHint,
       'dynamic_thresholding': false,
       'controlnet_strength': 1,
@@ -377,6 +420,7 @@ class NaiGenerationParams {
     String? prompt,
     String? negativePrompt,
     NaiModel? model,
+    NaiEffort? effort,
     int? width,
     int? height,
     int? steps,
@@ -402,6 +446,7 @@ class NaiGenerationParams {
       prompt: prompt ?? this.prompt,
       negativePrompt: negativePrompt ?? this.negativePrompt,
       model: model ?? this.model,
+      effort: effort ?? this.effort,
       width: width ?? this.width,
       height: height ?? this.height,
       steps: steps ?? this.steps,
@@ -429,6 +474,7 @@ class NaiGenerationParams {
     'prompt': prompt,
     'negativePrompt': negativePrompt,
     'model': model.id,
+    'effort': effort.id,
     'width': width,
     'height': height,
     'steps': steps,
@@ -476,6 +522,7 @@ class NaiGenerationParams {
       model: json['model'] is String
           ? NaiModel.fromId(json['model'] as String)
           : NaiModel.v5Full,
+      effort: NaiEffort.fromId(json['effort'] as String?),
       width: parseInt('width', 832),
       height: parseInt('height', 1216),
       steps: parseInt('steps', 28),
@@ -534,12 +581,13 @@ class NaiGenerationParams {
         'centers': [
           {'x': center.x, 'y': center.y},
         ],
-        'char_caption': character.negativePrompt,
+        'char_caption': isMediumEffort ? '' : character.negativePrompt,
       });
+      final characterUc = isMediumEffort ? '' : character.negativePrompt;
       characterPromptEntries.add({
         'center': {'x': center.x, 'y': center.y},
         'prompt': character.prompt,
-        'uc': character.negativePrompt,
+        'uc': characterUc,
         'enabled': true,
       });
     }
@@ -559,29 +607,30 @@ class NaiGenerationParams {
   /// Aaalice 等) 可直接识别。读回时的反向剥离见 ImageMetadataService。
   Map<String, dynamic> toMetadataComment({required int seed}) {
     final apiPrompt = effectivePrompt;
-    final apiNegative = effectiveNegativePrompt;
+    final apiNegative = requestNegativePrompt;
     final isV4OrAbove = model.isV4OrAbove;
+    final requestSampler = effectiveSampler;
     // 官网对 Euler Ancestral + 非 Native 噪声调度固定开启布朗尼修正，保持一致
     final usesBrownianEulerAncestral =
-        sampler == NaiSampler.kEulerAncestral &&
+        requestSampler == NaiSampler.kEulerAncestral &&
         noiseSchedule != NoiseSchedule.native;
 
     final comment = <String, dynamic>{
       'prompt': apiPrompt,
       'uc': apiNegative,
-      'steps': steps,
+      'steps': effectiveSteps,
       'height': height,
       'width': width,
       'scale': scale,
       'uncond_scale': 0.0,
-      'cfg_rescale': cfgRescale,
+      'cfg_rescale': effectiveCfgRescale,
       'seed': seed,
       'n_samples': nSamples,
       'noise_schedule': noiseSchedule.id,
-      'sampler': sampler.id,
+      'sampler': requestSampler.id,
       'sm': false,
       'sm_dyn': false,
-      'model': model.id,
+      'model': apiModelId,
       'version': isV4OrAbove ? 1 : 'v3',
       'legacy_v3_extend': false,
       'legacy_uc': false,
@@ -589,9 +638,10 @@ class NaiGenerationParams {
       // tag_hint_* 为官网 V5 起随请求回显的数字提示 (qt: 0/1/3，uc: 0/2/3/4/5)
       'qualityToggle': qualityToggle,
       'qualityPreset': qualityPreset,
-      'ucPreset': ucPresetKey,
+      'ucPreset': isMediumEffort ? 'Heavy' : ucPresetKey,
+      'effort': effectiveEffort.id,
       'tag_hint_qt': _qualityTagHint,
-      'tag_hint_uc_preset': _ucPresetTagHint,
+      'tag_hint_uc_preset': requestUcPresetTagHint,
       if (transparentBg) 'tag_hint_transparent_background': true,
       if (usesBrownianEulerAncestral) ...{
         'deliberate_euler_ancestral_bug': false,

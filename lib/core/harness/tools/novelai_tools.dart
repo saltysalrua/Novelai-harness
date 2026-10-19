@@ -45,9 +45,9 @@ List<String> buildPaidGenerationReasons(NaiGenerationParams params) {
       '尺寸 ${params.width}x${params.height}（像素数超出 ${AnlasCalculator.opusFreeMaxPixels} 限制）',
     );
   }
-  if (params.steps > AnlasCalculator.opusFreeMaxSteps) {
+  if (params.effectiveSteps > AnlasCalculator.opusFreeMaxSteps) {
     reasons.add(
-      '采样步数 ${params.steps} 步（超出 ${AnlasCalculator.opusFreeMaxSteps} 步限制）',
+      '采样步数 ${params.effectiveSteps} 步（超出 ${AnlasCalculator.opusFreeMaxSteps} 步限制）',
     );
   }
   if (params.nSamples > 1) {
@@ -226,10 +226,13 @@ class NovelAiGenerateTool extends AgentTool {
       }
       resultBuffer.writeln('模型: ${params.model.label}');
       resultBuffer.writeln('尺寸: ${params.width}x${params.height}');
-      resultBuffer.writeln('步数: ${params.steps} 步');
+      resultBuffer.writeln('步数: ${params.effectiveSteps} 步');
       resultBuffer.writeln(
-        'CFG: ${params.scale} (Rescale: ${params.cfgRescale})',
+        'CFG: ${params.scale} (Rescale: ${params.effectiveCfgRescale})',
       );
+      if (params.supportsEffort) {
+        resultBuffer.writeln('算力: ${params.isMediumEffort ? '节约' : '通常'}');
+      }
       resultBuffer.writeln('随机种子: ${image.seed}');
       resultBuffer.writeln('点数状态: $costText');
 

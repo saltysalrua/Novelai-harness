@@ -76,7 +76,7 @@ class NovelAiService {
       } else {
         yield NaiStreamProgress.finalResult(
           finalImage: images.first,
-          totalSteps: params.steps,
+          totalSteps: params.effectiveSteps,
         );
       }
       return;
@@ -179,7 +179,7 @@ class NovelAiService {
             hasYieldedFinal = true;
             yield NaiStreamProgress.finalResult(
               finalImage: imageBytes,
-              totalSteps: params.steps,
+              totalSteps: params.effectiveSteps,
             );
           } else if (eventType == null ||
               eventType.isEmpty ||
@@ -189,7 +189,7 @@ class NovelAiService {
             yield NaiStreamProgress.intermediate(
               previewImage: imageBytes,
               currentStep: currentStep,
-              totalSteps: params.steps,
+              totalSteps: params.effectiveSteps,
             );
           }
         } catch (_) {
@@ -208,7 +208,7 @@ class NovelAiService {
             hasYieldedFinal = true;
             yield NaiStreamProgress.finalResult(
               finalImage: images.first,
-              totalSteps: params.steps,
+              totalSteps: params.effectiveSteps,
             );
             return;
           }
@@ -220,7 +220,7 @@ class NovelAiService {
         hasYieldedFinal = true;
         yield NaiStreamProgress.finalResult(
           finalImage: lastReceivedImage,
-          totalSteps: params.steps,
+          totalSteps: params.effectiveSteps,
         );
       }
     }
@@ -296,7 +296,7 @@ class NovelAiService {
       } else {
         yield NaiStreamProgress.finalResult(
           finalImage: images.first,
-          totalSteps: params.steps,
+          totalSteps: params.effectiveSteps,
         );
       }
       return;
@@ -393,7 +393,7 @@ class NovelAiService {
               hasYieldedFinal = true;
               yield NaiStreamProgress.finalResult(
                 finalImage: imageBytes,
-                totalSteps: params.steps,
+                totalSteps: params.effectiveSteps,
               );
             } else if (eventType == null ||
                 eventType.isEmpty ||
@@ -403,7 +403,7 @@ class NovelAiService {
               yield NaiStreamProgress.intermediate(
                 previewImage: imageBytes,
                 currentStep: currentStep,
-                totalSteps: params.steps,
+                totalSteps: params.effectiveSteps,
               );
             }
           } catch (_) {}
@@ -419,7 +419,7 @@ class NovelAiService {
               hasYieldedFinal = true;
               yield NaiStreamProgress.finalResult(
                 finalImage: images.first,
-                totalSteps: params.steps,
+                totalSteps: params.effectiveSteps,
               );
               return;
             }
@@ -429,7 +429,7 @@ class NovelAiService {
           hasYieldedFinal = true;
           yield NaiStreamProgress.finalResult(
             finalImage: lastReceivedImage,
-            totalSteps: params.steps,
+            totalSteps: params.effectiveSteps,
           );
         }
       }
