@@ -55,16 +55,25 @@ class _AgentRewindViewState extends State<AgentRewindView> {
     return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
   }
 
-  void _confirmRewind(List<ChatCheckpoint> checkpoints) {
-    if (_selectedCheckpointIndex == null ||
+  bool _confirming = false;
+
+  Future<void> _confirmRewind(List<ChatCheckpoint> checkpoints) async {
+    if (_confirming ||
+        _selectedCheckpointIndex == null ||
         _selectedCheckpointIndex! < 0 ||
         _selectedCheckpointIndex! >= checkpoints.length) {
       return;
     }
 
     final target = checkpoints[_selectedCheckpointIndex!];
-    // 回溯至目标用户消息处并撤销后续修改
-    widget.viewModel.rewindToMessage(target.userMessage.id);
+    setState(() => _confirming = true);
+    try {
+      // 截断到该条用户消息之前，内容放回输入框，不发送。
+      await widget.viewModel.rewindToMessage(target.userMessage.id);
+    } finally {
+      if (mounted) setState(() => _confirming = false);
+    }
+    if (!mounted) return;
     widget.onBack();
   }
 
@@ -303,7 +312,9 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                                     spacing: 4,
                                     children: cp.toolMessages.map((t) {
                                       return AppBadge(
-                                        label: t.toolName ?? context.l10n.toolFallbackName,
+                                        label:
+                                            t.toolName ??
+                                            context.l10n.toolFallbackName,
                                         variant: AppBadgeVariant.neutral,
                                         shape: AppBadgeShape.rounded,
                                         fontSize: 10,
@@ -380,7 +391,8 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                           borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
-                      onPressed: _selectedCheckpointIndex != null
+                      onPressed:
+                          _selectedCheckpointIndex != null && !_confirming
                           ? () => _confirmRewind(checkpoints)
                           : null,
                       child: Text(

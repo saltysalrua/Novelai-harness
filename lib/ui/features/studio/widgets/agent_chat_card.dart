@@ -796,14 +796,6 @@ class AgentChatCardState extends State<AgentChatCard> {
             ),
           ),
           const SizedBox(width: 6),
-          if (widget.viewModel.isChatStreaming)
-            AppIconButton(
-              icon: Icons.stop_rounded,
-              tooltip: context.l10n.chatStopOutput,
-              iconColor: colors.error,
-              variant: AppIconButtonVariant.ghost,
-              onPressed: widget.viewModel.abortChat,
-            ),
           AppIconButton(
             icon: Icons.add_comment_outlined,
             tooltip: context.l10n.sessionNew,

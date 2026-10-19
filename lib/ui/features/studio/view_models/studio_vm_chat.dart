@@ -1,5 +1,18 @@
 part of 'studio_view_model.dart';
 
+/// 回溯后放回输入框的一次草稿 (文本 + 图片附件)。
+class ComposerRestore {
+  final int epoch;
+  final String text;
+  final List<AgentMessageImage> images;
+
+  const ComposerRestore({
+    required this.epoch,
+    required this.text,
+    required this.images,
+  });
+}
+
 /// 只翻译应用内置错误；供应商返回的详情与协议原文保持不变。
 String localizeHarnessError(AppLocalizations l10n, ErrorEvent event) =>
     switch (event.code) {
@@ -23,6 +36,16 @@ mixin _StudioChatMixin on _StudioCore {
 
   /// 当前 Agent 对话草稿输入文本
   String get chatDraft => _chatDraft;
+
+  /// 回溯后待输入栏套用的草稿；没有待套用内容时为 null。
+  ComposerRestore? get composerRestore => _composerRestore;
+
+  /// 输入栏已把该次回溯草稿放进输入框后调用，避免重复套用。
+  void acknowledgeComposerRestore(int epoch) {
+    if (_composerRestore?.epoch == epoch) {
+      _composerRestore = null;
+    }
+  }
 
   /// 更新 Agent 对话草稿输入文本 (300ms 防抖落盘)
   void updateChatDraft(String draft) {

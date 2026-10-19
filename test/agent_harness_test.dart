@@ -419,6 +419,32 @@ void main() {
       },
     );
 
+    test('rewindBeforeMessage drops the target and everything after it', () {
+      harness = AgentHarness(tools: tools);
+      const image = AgentMessageImage(base64: 'abc', mimeType: 'image/png');
+      harness.restoreMessages([
+        AgentMessage(id: 'm1', role: AgentRole.user, content: 'Q1'),
+        AgentMessage(id: 'm2', role: AgentRole.assistant, content: 'A1'),
+        AgentMessage(
+          id: 'm3',
+          role: AgentRole.user,
+          content: 'Q2',
+          images: [image],
+        ),
+        AgentMessage(id: 'm4', role: AgentRole.assistant, content: 'A2'),
+      ]);
+
+      final removed = harness.rewindBeforeMessage('m3');
+      expect(removed?.content, 'Q2');
+      expect(removed?.images.single.base64, 'abc');
+      expect(harness.messages.map((m) => m.id), ['m1', 'm2']);
+      expect(harness.rewindBeforeMessage('missing'), isNull);
+
+      final first = harness.rewindBeforeMessage('m1');
+      expect(first?.content, 'Q1');
+      expect(harness.messages, isEmpty);
+    });
+
     test('setMessages replaces all messages', () {
       harness = AgentHarness(tools: tools);
       harness.restoreMessages([
