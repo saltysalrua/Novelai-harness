@@ -40,6 +40,7 @@ class ModelsSettingsDraft {
     protocol = active.protocol;
     thinkingParamFormat = active.thinkingParamFormat;
     promptToolUse = active.promptToolUse;
+    streaming = active.streaming;
     imageEditProviderId = config.imageEditProviderId;
     imageEditModelId = config.imageEditModelId;
     _validateImageEditSelection();
@@ -55,6 +56,7 @@ class ModelsSettingsDraft {
   /// 思考参数请求格式 (不同供应商用不同字段开关思维链)
   late ThinkingParamFormat thinkingParamFormat;
   late bool promptToolUse;
+  late bool streaming;
 
   /// AI 整图编辑：绘图模型供应商与模型 ID (独立于对话 LLM)
   late String imageEditProviderId;
@@ -83,6 +85,7 @@ class ModelsSettingsDraft {
         apiKey: apiKeyController.text.trim(),
         thinkingParamFormat: thinkingParamFormat,
         promptToolUse: promptToolUse,
+        streaming: streaming,
       );
     }
   }
@@ -96,6 +99,7 @@ class ModelsSettingsDraft {
     apiKeyController.text = provider.apiKey;
     thinkingParamFormat = provider.thinkingParamFormat;
     promptToolUse = provider.promptToolUse;
+    streaming = provider.streaming;
     fetchStatusMessage = null;
   }
 
@@ -567,6 +571,14 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
             onChanged: (val) =>
                 setState(() => _draft.thinkingParamFormat = val),
           ),
+        ),
+
+        AppSettingTile.switchTile(
+          key: const ValueKey('streaming_toggle'),
+          title: l10n.settingsStreaming,
+          subtitle: l10n.settingsStreamingSubtitle,
+          value: _draft.streaming,
+          onChanged: (value) => setState(() => _draft.streaming = value),
         ),
 
         AppSettingTile.switchTile(

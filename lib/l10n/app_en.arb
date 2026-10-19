@@ -1,5 +1,7 @@
 {
   "@@locale": "en",
+  "settingsStreaming": "Streaming",
+  "settingsStreamingSubtitle": "Show text as it is generated. Turn off to wait for the full response when the API does not support streaming.",
   "settingsPromptToolUse": "Prompt-based tool calling",
   "settingsPromptToolUseSubtitle": "Send tool definitions and results as chat text to bypass native tool protocol incompatibilities. Enable only when needed; reliability depends on the model following the format.",
   "chatStopOutput": "Stop output (Esc)",

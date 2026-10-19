@@ -251,6 +251,9 @@ class LlmProviderConfig {
   /// 将工具协议转换成提示词与聊天文本，绕过渠道原生工具协议。
   final bool promptToolUse;
 
+  /// 是否使用流式响应。关闭后等待完整结果，默认开启以保持现有行为。
+  final bool streaming;
+
   const LlmProviderConfig({
     required this.id,
     required this.name,
@@ -261,6 +264,7 @@ class LlmProviderConfig {
     this.activeModelId = '',
     this.thinkingParamFormat = ThinkingParamFormat.auto,
     this.promptToolUse = false,
+    this.streaming = true,
   });
 
   /// 获取当前激活的模型配置
@@ -314,6 +318,7 @@ class LlmProviderConfig {
     String? activeModelId,
     ThinkingParamFormat? thinkingParamFormat,
     bool? promptToolUse,
+    bool? streaming,
   }) {
     return LlmProviderConfig(
       id: id ?? this.id,
@@ -325,6 +330,7 @@ class LlmProviderConfig {
       activeModelId: activeModelId ?? this.activeModelId,
       thinkingParamFormat: thinkingParamFormat ?? this.thinkingParamFormat,
       promptToolUse: promptToolUse ?? this.promptToolUse,
+      streaming: streaming ?? this.streaming,
     );
   }
 
@@ -340,6 +346,7 @@ class LlmProviderConfig {
         : (models.isNotEmpty ? models.first.id : ''),
     'thinkingParamFormat': thinkingParamFormat.id,
     'promptToolUse': promptToolUse,
+    'streaming': streaming,
   };
 
   factory LlmProviderConfig.fromJson(Map<String, dynamic> json) {
@@ -410,6 +417,8 @@ class LlmProviderConfig {
         json['thinkingParamFormat'] as String?,
       ),
       promptToolUse: json['promptToolUse'] == true,
+      // 旧配置没有该字段时保持流式，避免升级后请求行为变化。
+      streaming: json['streaming'] is bool ? json['streaming'] as bool : true,
     )._migrateOfficialDeepSeekAliases()._migrateCanonicalChatBuiltins();
   }
 

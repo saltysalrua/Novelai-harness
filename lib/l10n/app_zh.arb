@@ -1,5 +1,7 @@
 {
   "@@locale": "zh",
+  "settingsStreaming": "流式输出",
+  "settingsStreamingSubtitle": "开启后边生成边显示。关闭后一次返回完整结果，适合不支持流式的接口。",
   "settingsPromptToolUse": "提示词工具调用",
   "settingsPromptToolUseSubtitle": "将工具定义与结果转成聊天文本，绕过渠道原生工具协议。仅在工具调用不兼容时开启；可靠性取决于模型遵循格式的能力。",
   "chatStopOutput": "停止输出 (Esc)",

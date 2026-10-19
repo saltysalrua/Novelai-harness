@@ -251,6 +251,7 @@ class AnthropicMessages {
     final reasoning = StringBuffer();
     final records = <ReasoningRecord>[];
     final calls = <ToolCall>[];
+    String? callError;
     if (content is List) {
       for (var index = 0; index < content.length; index++) {
         final block = content[index];
@@ -273,19 +274,63 @@ class AnthropicMessages {
             final value = item['text'];
             if (value is String) text.write(value);
           case 'tool_use':
-            final call = _toolCall(item, index);
-            if (call != null) calls.add(call);
+            final input = item['input'];
+            if (input is String && input.isNotEmpty && !_isJsonObject(input)) {
+              callError ??= '工具调用参数不是合法 JSON: ${item['name']}';
+            } else {
+              final call = _toolCall(item, index);
+              if (call != null) calls.add(call);
+            }
         }
       }
     }
     final usage = json['usage'];
+    final parsedUsage = usage is Map
+        ? parseUsage(Map<String, dynamic>.from(usage))
+        : null;
+    final visible = text.toString();
+    final stop = json['stop_reason']?.toString();
+    if (callError != null) {
+      return AnthropicMessagesCompletion(
+        text: visible,
+        reasoning: reasoning.toString(),
+        reasoningRecords: records,
+        error: callError,
+        usage: parsedUsage,
+      );
+    }
+    if (stop == 'refusal' && visible.isEmpty) {
+      return AnthropicMessagesCompletion(
+        reasoning: reasoning.toString(),
+        reasoningRecords: records,
+        error: '模型拒绝回答',
+        usage: parsedUsage,
+      );
+    }
+    if (stop == 'max_tokens' &&
+        visible.isEmpty &&
+        calls.isEmpty &&
+        records.isEmpty) {
+      return AnthropicMessagesCompletion(
+        error: 'Anthropic 响应不完整: max_tokens',
+        usage: parsedUsage,
+      );
+    }
     return AnthropicMessagesCompletion(
-      text: text.toString(),
+      text: visible,
       reasoning: reasoning.toString(),
       reasoningRecords: records,
       toolCalls: calls,
-      usage: usage is Map ? parseUsage(Map<String, dynamic>.from(usage)) : null,
+      usage: parsedUsage,
     );
+  }
+
+  static bool _isJsonObject(String raw) {
+    try {
+      return jsonDecode(raw) is Map;
+    } catch (_) {
+      return false;
+    }
   }
 
   static ReasoningRecord _thinkingRecord(Map<String, dynamic> block) {

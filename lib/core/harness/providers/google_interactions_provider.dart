@@ -33,6 +33,9 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
   /// 是否将工具调用编码为提示词文本
   final bool promptToolUse;
 
+  /// 关闭后请求非流式 Interaction，并解析完整 JSON。
+  final bool streaming;
+
   final LlmCacheConfig cacheConfig;
   final http.Client _client;
 
@@ -47,6 +50,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     this.reasoning = true,
     this.thinkingEffort = 'medium',
     this.promptToolUse = false,
+    this.streaming = true,
     this.cacheConfig = const LlmCacheConfig(),
     http.Client? client,
   }) : _client = client ?? http.Client();
@@ -137,6 +141,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
       reasoning: reasoning,
       thinkingEffort: thinkingEffort,
       promptToolUse: promptToolUse,
+      stream: streaming,
     );
 
     final cachePolicy = PromptCachePolicy(
@@ -147,7 +152,9 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
 
     final request = http.Request('POST', uri);
     request.headers['Content-Type'] = 'application/json';
-    request.headers['Accept'] = 'text/event-stream';
+    request.headers['Accept'] = streaming
+        ? 'text/event-stream'
+        : 'application/json';
     final trimmedKey = apiKey.trim();
     request.headers['x-goog-api-key'] = trimmedKey;
     if (!isOfficialGoogle) {
@@ -195,6 +202,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     required bool reasoning,
     required String thinkingEffort,
     required bool promptToolUse,
+    bool stream = true,
   }) {
     final normalizedMessages = normalizeToolCallIds(messages);
 
@@ -378,7 +386,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
             )
             .toList(),
       'generation_config': generationConfig,
-      'stream': true,
+      'stream': stream,
     };
   }
 
@@ -704,22 +712,43 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                   _formatErrorObject(decoded['error']) ??
                       'Interactions API 请求失败',
                 );
-                return;
+              } else {
+                final interactionMap =
+                    _asMap(decoded['interaction']) ?? decoded;
+                final uMap = _asMap(interactionMap['usage']);
+                if (uMap != null) {
+                  latestUsage = parseInteractionsUsage(uMap);
+                }
+                final status = interactionMap['status']?.toString();
+                final failed =
+                    status == 'failed' ||
+                    status == 'cancelled' ||
+                    interactionMap['error'] is Map;
+                final incomplete = status == 'incomplete';
+                if (failed || incomplete) {
+                  final reason =
+                      interactionMap['incomplete_reason'] ??
+                      interactionMap['status_reason'] ??
+                      _formatErrorObject(interactionMap['error']);
+                  yield ErrorEvent(
+                    incomplete
+                        ? 'Interactions API 响应不完整: ${reason ?? status}'
+                        : (_formatErrorObject(interactionMap['error']) ??
+                              'Interactions API 请求失败: ${reason ?? status}'),
+                  );
+                } else {
+                  yield* _emitRemainingFromInteractionMap(
+                    interactionMap,
+                    stepStates: stepStates,
+                    emittedAnyContentOrThoughts: () =>
+                        emittedAnyContentOrThoughts,
+                    rawToolCalls: rawToolCalls,
+                    latestThoughtSignature: latestThoughtSignature,
+                    onSignature: (sig) => latestThoughtSignature = sig,
+                    emitContentText: emitContentText,
+                  );
+                }
               }
-              final interactionMap = _asMap(decoded['interaction']) ?? decoded;
-              final uMap = _asMap(interactionMap['usage']);
-              if (uMap != null) {
-                latestUsage = parseInteractionsUsage(uMap);
-              }
-              yield* _emitRemainingFromInteractionMap(
-                interactionMap,
-                stepStates: stepStates,
-                emittedAnyContentOrThoughts: () => emittedAnyContentOrThoughts,
-                rawToolCalls: rawToolCalls,
-                latestThoughtSignature: latestThoughtSignature,
-                onSignature: (sig) => latestThoughtSignature = sig,
-                emitContentText: emitContentText,
-              );
             }
           } catch (_) {}
         }
