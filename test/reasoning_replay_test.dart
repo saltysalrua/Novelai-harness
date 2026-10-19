@@ -876,10 +876,9 @@ void main() {
   });
 
   test('上下文估算计入跨轮回放的推理项', () async {
-    final provider = _ScriptedProvider((messages) => [
-      ThoughtDeltaEvent('思考'),
-      ContentDeltaEvent('好'),
-    ]);
+    final provider = _ScriptedProvider(
+      (messages) => [ThoughtDeltaEvent('思考'), ContentDeltaEvent('好')],
+    );
     final harness = AgentHarness(
       tools: ToolRegistry(),
       provider: provider,
@@ -922,14 +921,9 @@ void main() {
         id: 'a_enc2',
         role: AgentRole.assistant,
         content: '',
-        reasoningRecords: [
-          ReasoningRecord(encryptedContent: longPayload),
-        ],
+        reasoningRecords: [ReasoningRecord(encryptedContent: longPayload)],
       ),
     ]);
-    expect(
-      harness.contextUsage.tokens - after,
-      greaterThanOrEqualTo(700),
-    );
+    expect(harness.contextUsage.tokens - after, greaterThanOrEqualTo(700));
   });
 }

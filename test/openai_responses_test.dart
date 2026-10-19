@@ -1470,7 +1470,9 @@ void main() {
       );
       final events = await provider
           .streamChat(
-            messages: [AgentMessage(id: 'u', role: AgentRole.user, content: 'Hi')],
+            messages: [
+              AgentMessage(id: 'u', role: AgentRole.user, content: 'Hi'),
+            ],
             tools: const [],
           )
           .toList();
@@ -1479,15 +1481,14 @@ void main() {
       expect(bodies, hasLength(2));
       expect(bodies.first['include'], ['reasoning.encrypted_content']);
       expect(bodies.last.containsKey('include'), isFalse);
-      expect(bodies.last['reasoning'], {
-        'effort': 'high',
-        'summary': 'auto',
-      });
+      expect(bodies.last['reasoning'], {'effort': 'high', 'summary': 'auto'});
 
       // 降级记录后：同一端点+模型的下一次请求直接不带 include。
       final events2 = await provider
           .streamChat(
-            messages: [AgentMessage(id: 'u', role: AgentRole.user, content: 'Hi')],
+            messages: [
+              AgentMessage(id: 'u', role: AgentRole.user, content: 'Hi'),
+            ],
             tools: const [],
           )
           .toList();

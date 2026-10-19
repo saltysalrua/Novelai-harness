@@ -792,7 +792,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         final include = requestBody['include'];
         if (include is List &&
             include.contains('reasoning.encrypted_content') &&
-            (lower.contains('include') || lower.contains('encrypted_content'))) {
+            (lower.contains('include') ||
+                lower.contains('encrypted_content'))) {
           _unsupportedEncryptedReasoning.add((endpoint, model.trim()));
           requestBody.remove('include');
           streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
