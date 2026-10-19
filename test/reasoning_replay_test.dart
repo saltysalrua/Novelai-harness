@@ -874,4 +874,62 @@ void main() {
     expect(restored.reasoningRecords.last.redactedData, 'redacted_saved');
     await dir.delete(recursive: true);
   });
+
+  test('上下文估算计入跨轮回放的推理项', () async {
+    final provider = _ScriptedProvider((messages) => [
+      ThoughtDeltaEvent('思考'),
+      ContentDeltaEvent('好'),
+    ]);
+    final harness = AgentHarness(
+      tools: ToolRegistry(),
+      provider: provider,
+      initialPreset: const AgentPreset(
+        id: 'estimate',
+        name: 'Estimate',
+        description: '',
+        systemPrompt: '',
+        enabledToolNames: [],
+      ),
+    )..compactionEnabled = false;
+
+    await harness.send('问').toList();
+    final baseline = harness.contextUsage.tokens;
+
+    // 直接注入一条带大体积加密推理项的历史消息，模拟旧会话恢复后的状态。
+    final injected = AgentMessage(
+      id: 'a_enc',
+      role: AgentRole.assistant,
+      content: '历史回复',
+      reasoningRecords: const [
+        ReasoningRecord(encryptedContent: 'QUJD'),
+        ReasoningRecord(
+          content: [
+            {'type': 'reasoning_text', 'text': '明文推理'},
+          ],
+        ),
+      ],
+    );
+    harness.restoreMessages([injected]);
+
+    final after = harness.contextUsage.tokens;
+    // 'QUJD' 4 字符 base64 → 3 字节 → 不足 1 token；明文 4 字符中文 → 1 token。
+    // 历史回复正文 4 字符也 → 1 token。宽松断言增量大于零且包含两项内容即可。
+    expect(after - baseline, greaterThan(0));
+    // 换成更长的加密载荷后估算必须继续上涨，证明 base64 载荷被计入。
+    final longPayload = 'A' * 4000;
+    harness.restoreMessages([
+      AgentMessage(
+        id: 'a_enc2',
+        role: AgentRole.assistant,
+        content: '',
+        reasoningRecords: [
+          ReasoningRecord(encryptedContent: longPayload),
+        ],
+      ),
+    ]);
+    expect(
+      harness.contextUsage.tokens - after,
+      greaterThanOrEqualTo(700),
+    );
+  });
 }

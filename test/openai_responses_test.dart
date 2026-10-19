@@ -1414,5 +1414,86 @@ void main() {
       expect(bodies.single.containsKey('prompt_cache_key'), isFalse);
       expect(bodies.single.containsKey('prompt_cache_retention'), isFalse);
     });
+
+    test('Responses 开启思考：400 拒绝 include 时去字段重发且后续不再附带', () async {
+      final bodies = <Map<String, dynamic>>[];
+      var call = 0;
+      final client = MockClient.streaming((request, body) async {
+        bodies.add(
+          jsonDecode(utf8.decode(await body.toBytes())) as Map<String, dynamic>,
+        );
+        call++;
+        if (call == 1) {
+          return http.StreamedResponse(
+            http.ByteStream.fromBytes(
+              utf8.encode(
+                jsonEncode({
+                  'error': {
+                    'message':
+                        'Unknown parameter: include with reasoning.encrypted_content',
+                  },
+                }),
+              ),
+            ),
+            400,
+          );
+        }
+        return http.StreamedResponse(
+          http.ByteStream.fromBytes(
+            utf8.encode(
+              'event: response.completed\n'
+              'data: ${jsonEncode({
+                'type': 'response.completed',
+                'response': {
+                  'output': [
+                    {
+                      'type': 'message',
+                      'content': [
+                        {'type': 'output_text', 'text': 'ok'},
+                      ],
+                    },
+                  ],
+                },
+              })}\n',
+            ),
+          ),
+          200,
+        );
+      });
+      final provider = OpenAiCompatibleProvider(
+        baseUrl: 'https://proxy.test/v1/responses',
+        apiKey: 'test-key',
+        model: 'gpt-5',
+        reasoning: true,
+        thinkingEffort: 'high',
+        client: client,
+      );
+      final events = await provider
+          .streamChat(
+            messages: [AgentMessage(id: 'u', role: AgentRole.user, content: 'Hi')],
+            tools: const [],
+          )
+          .toList();
+
+      expect(events.whereType<ErrorEvent>(), isEmpty);
+      expect(bodies, hasLength(2));
+      expect(bodies.first['include'], ['reasoning.encrypted_content']);
+      expect(bodies.last.containsKey('include'), isFalse);
+      expect(bodies.last['reasoning'], {
+        'effort': 'high',
+        'summary': 'auto',
+      });
+
+      // 降级记录后：同一端点+模型的下一次请求直接不带 include。
+      final events2 = await provider
+          .streamChat(
+            messages: [AgentMessage(id: 'u', role: AgentRole.user, content: 'Hi')],
+            tools: const [],
+          )
+          .toList();
+      expect(events2.whereType<ErrorEvent>(), isEmpty);
+      expect(bodies, hasLength(3));
+      expect(bodies.last.containsKey('include'), isFalse);
+    });
   });
 }

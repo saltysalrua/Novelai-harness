@@ -604,6 +604,16 @@ class AgentHarness {
 
   int _estimateMessageTokens(AgentMessage m) {
     var chars = m.content.length + m.thoughts.length;
+    // 跨轮回放的推理项也随请求原样重发，必须计入估算：
+    // 明文按 chars/4；加密载荷是 base64，先反推原始字节数再除 4。
+    for (final record in m.reasoningRecords) {
+      final encrypted = record.encryptedContent;
+      if (encrypted != null && encrypted.isNotEmpty) {
+        chars += (encrypted.length * 3 / 4).round();
+      } else {
+        chars += record.plaintext.length;
+      }
+    }
     if (m.hasVisionImages) {
       chars += _estimatedImageTokens * 4 * m.images.length;
       if (m.role == AgentRole.tool) chars += _estimatedImageTokens * 4;

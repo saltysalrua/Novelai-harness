@@ -17,6 +17,10 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
   /// 拒绝记录按端点、模型、字段隔离，不能让一个中转站关闭所有供应商的缓存键。
   static final Set<(String, String, String)> _unsupportedCacheFields = {};
 
+  /// 拒绝 `include: ["reasoning.encrypted_content"]` 的网关记录，
+  /// 首次 400 降级后同一端点+模型不再附带，推理回放退化为明文/已存项。
+  static final Set<(String, String)> _unsupportedEncryptedReasoning = {};
+
   static String? clampPromptCacheKey(String? key) =>
       PromptCachePolicy.clampKey(key);
 
@@ -173,13 +177,15 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         message.role == AgentRole.assistant &&
         json['tool_calls'] is List) {
       final toolCallsList = json['tool_calls'] as List<dynamic>;
-      if (toolCallsList.isNotEmpty && toolCallsList.first is Map<String, dynamic>) {
+      if (toolCallsList.isNotEmpty &&
+          toolCallsList.first is Map<String, dynamic>) {
         final hasSignature = toolCallsList.any(
           (tc) =>
               tc is Map &&
               tc['extra_content'] is Map &&
               (tc['extra_content'] as Map)['google'] is Map &&
-              ((tc['extra_content'] as Map)['google'] as Map)['thought_signature']
+              ((tc['extra_content'] as Map)['google']
+                      as Map)['thought_signature']
                   is String,
         );
         if (!hasSignature) {
@@ -780,6 +786,18 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         }
       }
       if (rejectedField == null) {
+        // 部分 newapi 风格网关不支持 include 参数：拒绝
+        // reasoning.encrypted_content 时去掉 include 重发一次，
+        // 并记住该端点+模型组合，后续请求不再附带。
+        final include = requestBody['include'];
+        if (include is List &&
+            include.contains('reasoning.encrypted_content') &&
+            (lower.contains('include') || lower.contains('encrypted_content'))) {
+          _unsupportedEncryptedReasoning.add((endpoint, model.trim()));
+          requestBody.remove('include');
+          streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
+          continue;
+        }
         return (streamedResponse, errBody);
       }
       _unsupportedCacheFields.add((endpoint, model.trim(), rejectedField));
@@ -1341,6 +1359,10 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       includeTemperature: !_shouldOmitResponsesTemperature(endpoint, effort),
       promptToolUse: promptToolUse,
     );
+    // 该端点+模型曾拒绝 include 参数时不再附带（推理回放退化为明文/已存项）。
+    if (_unsupportedEncryptedReasoning.contains((endpoint, model.trim()))) {
+      requestBody.remove('include');
+    }
 
     // 提示缓存：仅 openai 模式在 Responses 请求体上写 prompt_cache_key /
     // prompt_cache_retention；anthropic 模式的 apply 依赖 body['messages']，
