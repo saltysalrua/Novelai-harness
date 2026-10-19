@@ -91,6 +91,11 @@ class _InpaintPageState extends State<InpaintPage> {
         final geometry = vm.inpaintGeometry;
         final isFocus = inpaint.mode == InpaintMode.focus;
         final isAiEdit = inpaint.mode == InpaintMode.aiEdit;
+        final inpaintModel = inpaint.customModel ?? vm.params.model;
+        final ucLocked =
+            !isAiEdit &&
+            inpaintModel == NaiModel.v5Full &&
+            vm.params.isMediumEffort;
 
         if (_promptController.text != inpaint.customPrompt) {
           _promptController.text = inpaint.customPrompt;
@@ -357,7 +362,8 @@ class _InpaintPageState extends State<InpaintPage> {
                           ),
                         ),
                       ),
-                      if (_negativeController.text.trim().isNotEmpty)
+                      if (!ucLocked &&
+                          _negativeController.text.trim().isNotEmpty)
                         ClearTextLink(
                           onTap: () {
                             _negativeController.clear();
@@ -370,12 +376,16 @@ class _InpaintPageState extends State<InpaintPage> {
                   PromptEditorCard(
                     controller: _negativeController,
                     onChanged: vm.setInpaintCustomNegativePrompt,
-                    hintText: l10n.inpaintNegativePromptHint,
+                    readOnly: ucLocked,
+                    hintText: ucLocked
+                        ? l10n.promptsMediumUcLocked
+                        : l10n.inpaintNegativePromptHint,
                     minLines: 3,
                     maxLines: 8,
                     minHeight: 80.0,
-                    showQuickActions: true,
-                    enableAutocomplete: vm.config.enableTagAutocomplete,
+                    showQuickActions: !ucLocked,
+                    enableAutocomplete:
+                        !ucLocked && vm.config.enableTagAutocomplete,
                     showTranslation: vm.config.showTagTranslations,
                     tokenUsage: PromptTokenCounterService.instance
                         .countNegative(

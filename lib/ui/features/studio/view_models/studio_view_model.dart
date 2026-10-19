@@ -1081,6 +1081,13 @@ class StudioViewModel extends ChangeNotifier
     });
   }
 
+  /// 切换 V5 Full 算力档位。已保存的步数、采样器、重缩放和排除词保持不变，
+  /// 切回通常档后恢复；其它模型没有这个开关。
+  void setEffort(NaiEffort effort) {
+    if (!_params.supportsEffort || _params.effort == effort) return;
+    updateParams(_params.copyWith(effort: effort));
+  }
+
   /// 切换模型并跟随官方出厂默认值。
   ///
   /// CFG 与步数只在用户未手动调整 (仍停留在旧模型出厂默认) 时才跟随新模型默认，
@@ -1412,6 +1419,12 @@ class StudioViewModel extends ChangeNotifier
           ? metadata.negativePrompt
           : null,
       model: includes(MetadataImportField.model) ? resolvedModel : null,
+      effort:
+          includes(MetadataImportField.model) &&
+              metadata.model != null &&
+              metadata.model!.isNotEmpty
+          ? NaiEffort.fromModelId(metadata.model!)
+          : null,
       sampler: includes(MetadataImportField.sampler) ? resolvedSampler : null,
       noiseSchedule: includes(MetadataImportField.noiseSchedule)
           ? resolvedSchedule

@@ -2108,6 +2108,36 @@ abstract class AppLocalizations {
   /// **'模型'**
   String get paramsSectionModel;
 
+  /// No description provided for @paramsEffort.
+  ///
+  /// In zh, this message translates to:
+  /// **'算力'**
+  String get paramsEffort;
+
+  /// No description provided for @paramsEffortHigh.
+  ///
+  /// In zh, this message translates to:
+  /// **'通常'**
+  String get paramsEffortHigh;
+
+  /// No description provided for @paramsEffortMedium.
+  ///
+  /// In zh, this message translates to:
+  /// **'节约'**
+  String get paramsEffortMedium;
+
+  /// No description provided for @paramsEffortMediumHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'锁定 14 步和 Euler Ancestral，不能改提示词引导重缩放，也不能改排除词或预设。正向提示词里的负权重仍然可用。'**
+  String get paramsEffortMediumHint;
+
+  /// No description provided for @promptsMediumUcLocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'节约档使用固定排除词。这里的内容会保留，切回通常后恢复。'**
+  String get promptsMediumUcLocked;
+
   /// No description provided for @paramsSteps.
   ///
   /// In zh, this message translates to:

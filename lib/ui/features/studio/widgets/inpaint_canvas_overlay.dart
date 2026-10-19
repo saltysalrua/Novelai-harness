@@ -810,7 +810,12 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     }
 
     final geometry = vm.inpaintGeometry;
-    final steps = inpaint.customSteps ?? vm.params.steps;
+    final inpaintModel = inpaint.customModel ?? vm.params.model;
+    final mediumEffort =
+        inpaintModel == NaiModel.v5Full && vm.params.isMediumEffort;
+    final steps = mediumEffort
+        ? NaiEffort.mediumSteps
+        : (inpaint.customSteps ?? vm.params.steps);
     final isFree = geometry.isOpusFree && steps <= 28;
 
     Widget toolChip(InpaintTool tool, IconData icon, String label) {

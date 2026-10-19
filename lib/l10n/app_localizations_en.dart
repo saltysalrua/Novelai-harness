@@ -1188,6 +1188,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get paramsSectionModel => 'Model';
 
   @override
+  String get paramsEffort => 'Effort';
+
+  @override
+  String get paramsEffortHigh => 'High';
+
+  @override
+  String get paramsEffortMedium => 'Medium';
+
+  @override
+  String get paramsEffortMediumHint =>
+      'Locked to 14 steps and Euler Ancestral. Prompt Guidance Rescale and custom undesired content are unavailable. Negative emphasis in the prompt still works.';
+
+  @override
+  String get promptsMediumUcLocked =>
+      'Medium uses a fixed undesired content preset. This text is kept and returns on High.';
+
+  @override
   String get paramsSteps => 'Steps';
 
   @override

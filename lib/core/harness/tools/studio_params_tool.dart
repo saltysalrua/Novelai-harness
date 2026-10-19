@@ -51,7 +51,7 @@ StudioEffectivePrompts resolveStudioEffectivePrompts(
     : (
         backend: 'NovelAI',
         prompt: params.effectivePrompt,
-        negativePrompt: params.effectiveNegativePrompt,
+        negativePrompt: params.requestNegativePrompt,
       );
 
 /// 构建点数预估状态文本 (Opus 免费/精确预估，供报表与单键查询共用)
@@ -87,16 +87,19 @@ String buildStudioParamsReport(
     '• 原始负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
     '• 最终负向提示词: ${effective.negativePrompt.isEmpty ? '(空)' : effective.negativePrompt}',
     '• 实际生图后端: ${effective.backend}',
-    '• 绘图模型: ${params.model.label} (${params.model.id})',
+    '• 绘图模型: ${params.model.label} (${params.apiModelId})',
+    if (params.supportsEffort) '• 算力: ${params.isMediumEffort ? '节约' : '通常'}',
     '• 画面尺寸: ${params.width}x${params.height}',
-    '• 采样步数: ${params.steps} 步',
-    '• CFG 强度: ${params.scale} (Rescale: ${params.cfgRescale})',
-    '• 采样算法: ${params.sampler.label} (${params.sampler.id})',
+    '• 采样步数: ${params.effectiveSteps} 步',
+    '• CFG 强度: ${params.scale} (Rescale: ${params.effectiveCfgRescale})',
+    '• 采样算法: ${params.effectiveSampler.label} (${params.effectiveSampler.id})',
     '• 噪声调度: ${params.noiseSchedule.label} (${params.noiseSchedule.id})',
     '• 质量标签: ${params.qualityToggle ? params.qualityPreset : 'Off'}',
     '• 质量开关: ${params.qualityToggle ? '开启' : '关闭'} '
         '(quality_toggle: ${params.qualityToggle})',
-    '• UC 预设: ${params.ucPresetKey}',
+    params.isMediumEffort
+        ? '• UC 预设: Heavy（节约档固定）'
+        : '• UC 预设: ${params.ucPresetKey}',
     '• 角色位置模式: '
         '${params.characterAiPosition ? 'AI 自动布局' : '自定义定位'} '
         '(character_ai_position: ${params.characterAiPosition})',
@@ -211,7 +214,10 @@ class NovelAiGetStudioParamsTool extends AgentTool {
       lines.add('• 实际生图后端: ${effective.backend}');
     }
     if (requestedKeys.contains('model')) {
-      lines.add('• 绘图模型: ${params.model.label} (${params.model.id})');
+      lines.add('• 绘图模型: ${params.model.label} (${params.apiModelId})');
+      if (params.supportsEffort) {
+        lines.add('• 算力: ${params.isMediumEffort ? '节约' : '通常'}');
+      }
     }
     if (requestedKeys.contains('resolution')) {
       lines.add('• 画面尺寸: ${params.width}x${params.height}');
@@ -224,16 +230,18 @@ class NovelAiGetStudioParamsTool extends AgentTool {
       }
     }
     if (requestedKeys.contains('steps')) {
-      lines.add('• 采样步数: ${params.steps} 步');
+      lines.add('• 采样步数: ${params.effectiveSteps} 步');
     }
     if (requestedKeys.contains('scale')) {
       lines.add('• CFG 强度: ${params.scale}');
     }
     if (requestedKeys.contains('cfg_rescale')) {
-      lines.add('• CFG Rescale: ${params.cfgRescale}');
+      lines.add('• CFG Rescale: ${params.effectiveCfgRescale}');
     }
     if (requestedKeys.contains('sampler')) {
-      lines.add('• 采样算法: ${params.sampler.label} (${params.sampler.id})');
+      lines.add(
+        '• 采样算法: ${params.effectiveSampler.label} (${params.effectiveSampler.id})',
+      );
     }
     if (requestedKeys.contains('noise_schedule')) {
       lines.add(
@@ -252,7 +260,11 @@ class NovelAiGetStudioParamsTool extends AgentTool {
       );
     }
     if (requestedKeys.contains('uc_preset')) {
-      lines.add('• UC 预设: ${params.ucPresetKey}');
+      lines.add(
+        params.isMediumEffort
+            ? '• UC 预设: Heavy（节约档固定）'
+            : '• UC 预设: ${params.ucPresetKey}',
+      );
     }
     if (requestedKeys.contains('character_ai_position')) {
       lines.add(
@@ -430,7 +442,9 @@ class NovelAiUpdateParamsTool extends AgentTool {
 
     // 2. 负向提示词
     if (args.containsKey('negative_prompt')) {
-      if (isAllowed(PresetParamKeys.negativePrompt)) {
+      if (current.isMediumEffort && model == NaiModel.v5Full) {
+        blockedEntries.add('负向提示词（节约档锁定排除词）');
+      } else if (isAllowed(PresetParamKeys.negativePrompt)) {
         negativePrompt = args['negative_prompt'] as String? ?? '';
         updatedEntries.add('负向提示词: 已更新');
       } else {
@@ -493,7 +507,9 @@ class NovelAiUpdateParamsTool extends AgentTool {
 
     // 5. 步数
     if (args.containsKey('steps')) {
-      if (isAllowed(PresetParamKeys.steps)) {
+      if (current.isMediumEffort && model == NaiModel.v5Full) {
+        blockedEntries.add('采样步数（节约档锁定为 14）');
+      } else if (isAllowed(PresetParamKeys.steps)) {
         final s = (args['steps'] as num?)?.toInt();
         if (s != null) {
           steps = s.clamp(1, 50);
@@ -519,7 +535,9 @@ class NovelAiUpdateParamsTool extends AgentTool {
 
     // 7. CFG Rescale
     if (args.containsKey('cfg_rescale')) {
-      if (isAllowed(PresetParamKeys.cfgRescale)) {
+      if (current.isMediumEffort && model == NaiModel.v5Full) {
+        blockedEntries.add('CFG Rescale（节约档不可用）');
+      } else if (isAllowed(PresetParamKeys.cfgRescale)) {
         final cr = (args['cfg_rescale'] as num?)?.toDouble();
         if (cr != null) {
           cfgRescale = cr.clamp(0.0, 1.0);
@@ -532,7 +550,9 @@ class NovelAiUpdateParamsTool extends AgentTool {
 
     // 8. 采样器
     if (args.containsKey('sampler')) {
-      if (isAllowed(PresetParamKeys.sampler)) {
+      if (current.isMediumEffort && model == NaiModel.v5Full) {
+        blockedEntries.add('采样器（节约档锁定为 Euler Ancestral）');
+      } else if (isAllowed(PresetParamKeys.sampler)) {
         final samplerStr = args['sampler'] as String?;
         if (samplerStr != null) {
           sampler = NaiSampler.fromId(samplerStr);
@@ -589,10 +609,15 @@ class NovelAiUpdateParamsTool extends AgentTool {
 
     if (updatedEntries.isEmpty) {
       if (blockedEntries.isNotEmpty) {
+        final mediumOnly = blockedEntries.every(
+          (entry) => entry.contains('节约档'),
+        );
         return ToolResult(
           toolCallId: toolCallId,
-          content: '错误：权限受限，当前预设禁止修改以下生图参数：${blockedEntries.join(', ')}。',
-          isError: true,
+          content: mediumOnly
+              ? '未修改：V5 Full 节约档锁定了以下参数：${blockedEntries.join('，')}。'
+              : '错误：权限受限，当前预设禁止修改以下生图参数：${blockedEntries.join(', ')}。',
+          isError: !mediumOnly,
         );
       }
       return ToolResult(toolCallId: toolCallId, content: '未修改任何参数（传入参数为空）。');

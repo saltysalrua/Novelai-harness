@@ -1102,6 +1102,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get paramsSectionModel => '模型';
 
   @override
+  String get paramsEffort => '算力';
+
+  @override
+  String get paramsEffortHigh => '通常';
+
+  @override
+  String get paramsEffortMedium => '节约';
+
+  @override
+  String get paramsEffortMediumHint =>
+      '锁定 14 步和 Euler Ancestral，不能改提示词引导重缩放，也不能改排除词或预设。正向提示词里的负权重仍然可用。';
+
+  @override
+  String get promptsMediumUcLocked => '节约档使用固定排除词。这里的内容会保留，切回通常后恢复。';
+
+  @override
   String get paramsSteps => '步数';
 
   @override

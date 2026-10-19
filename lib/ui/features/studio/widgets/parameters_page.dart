@@ -134,6 +134,37 @@ class _ParametersPageState extends State<ParametersPage> {
                     m.isV5 ? AppBadge.pill(label: 'V5', fontSize: 10) : null,
                 onChanged: viewModel.selectModel,
               ),
+              if (params.supportsEffort) ...[
+                const SizedBox(height: 12),
+                SectionHeader(l10n.paramsEffort),
+                const SizedBox(height: 8),
+                AppSegmentedPillBar<NaiEffort>(
+                  items: [
+                    AppSegmentedItem(
+                      value: NaiEffort.high,
+                      label: l10n.paramsEffortHigh,
+                    ),
+                    AppSegmentedItem(
+                      value: NaiEffort.medium,
+                      label: l10n.paramsEffortMedium,
+                    ),
+                  ],
+                  selectedValue: params.effort,
+                  expand: true,
+                  onValueChanged: viewModel.setEffort,
+                ),
+                if (params.isMediumEffort) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.paramsEffortMediumHint,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: context.colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
             ],
             const SizedBox(height: 16),
 
@@ -151,9 +182,10 @@ class _ParametersPageState extends State<ParametersPage> {
             // 3. Steps
             AppNumberSlider.integer(
               title: l10n.paramsSteps,
-              value: params.steps,
+              value: params.effectiveSteps,
               min: 1,
               max: 50,
+              enabled: !params.isMediumEffort,
               onChanged: (v) =>
                   viewModel.updateParams(params.copyWith(steps: v)),
             ),
@@ -350,10 +382,11 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                 SectionHeader(l10n.paramsSectionSampler),
                 const SizedBox(height: 8),
                 AppDropdown<NaiSampler>.simple(
-                  value: params.sampler,
+                  value: params.effectiveSampler,
                   items: NaiSampler.values,
                   labelOf: (s) => s.label,
                   iconOf: (s) => Icons.tune_rounded,
+                  enabled: !params.isMediumEffort,
                   onChanged: (s) => widget.viewModel.updateParams(
                     params.copyWith(sampler: s),
                   ),
@@ -696,10 +729,11 @@ class _AdvancedSettingsSection extends StatelessWidget {
         children: [
           AppNumberSlider(
             title: l10n.paramsPromptGuidanceRescale,
-            value: params.cfgRescale,
+            value: params.effectiveCfgRescale,
             min: 0.0,
             max: 1.0,
             fractionDigits: 2,
+            enabled: !params.isMediumEffort,
             onChanged: (v) =>
                 viewModel.updateParams(params.copyWith(cfgRescale: v)),
           ),

@@ -167,6 +167,43 @@ enum NaiSampler {
   }
 }
 
+/// V5 Full 算力档位。只对 V5 Full 及其重绘生效，Curated 与更早模型忽略。
+///
+/// 通常档沿用完整模型。节约档切换到蒸馏模型：步数锁定 14、
+/// 采样器锁定 Euler Ancestral，不能改提示词引导重缩放，也不能改自定义排除词。
+/// 官方未公布独立的 effort 请求字段，档位体现在模型 id 上。
+enum NaiEffort {
+  high('high'),
+  medium('medium');
+
+  final String id;
+  const NaiEffort(this.id);
+
+  static const int mediumSteps = 14;
+  static const NaiSampler mediumSampler = NaiSampler.kEulerAncestral;
+
+  /// 与本仓库 `nai-diffusion-5-full` 同一命名风格的节约模型 id。
+  static const String mediumModelId = 'nai-diffusion-5-full-medium';
+  static const String mediumInpaintModelId =
+      'nai-diffusion-5-full-medium-inpainting';
+
+  static NaiEffort fromId(String? id) {
+    if (id == null || id.isEmpty) return NaiEffort.high;
+    final normalized = id.toLowerCase().trim();
+    for (final effort in NaiEffort.values) {
+      if (effort.id == normalized || effort.name == normalized) return effort;
+    }
+    return NaiEffort.high;
+  }
+
+  /// 从实际请求模型 id 识别档位。节约模型 id 含 `full-medium`。
+  static NaiEffort fromModelId(String modelId) {
+    final normalized = modelId.toLowerCase().replaceAll('_', '-');
+    if (normalized.contains('full-medium')) return NaiEffort.medium;
+    return NaiEffort.high;
+  }
+}
+
 /// 噪声计划
 enum NoiseSchedule {
   karras('karras', 'Karras'),

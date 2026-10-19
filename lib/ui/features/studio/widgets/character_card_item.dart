@@ -333,14 +333,19 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
               controller: _negativeController,
               onChanged: (value) =>
                   _update(character.copyWith(negativePrompt: value)),
-              hintText: l10n.charPromptNegativePromptHint,
+              readOnly: widget.viewModel.params.isMediumEffort,
+              hintText: widget.viewModel.params.isMediumEffort
+                  ? l10n.promptsMediumUcLocked
+                  : l10n.charPromptNegativePromptHint,
               defaultHeight: _defaultNegativeHeight,
               initialHeight: viewModel.characterNegativePromptHeight,
               onHeightChanged: viewModel.updateCharacterNegativePromptHeight,
               minHeight: 36,
               maxHeight: 300,
               resizeTooltip: l10n.charPromptResizeNegativeTooltip,
-              enableAutocomplete: viewModel.config.enableTagAutocomplete,
+              enableAutocomplete:
+                  !widget.viewModel.params.isMediumEffort &&
+                  viewModel.config.enableTagAutocomplete,
               showTranslation: viewModel.config.showTagTranslations,
               style: TextStyle(
                 fontSize: 13,

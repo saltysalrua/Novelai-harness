@@ -182,12 +182,12 @@ mixin _StudioGenerationMixin on _StudioCore {
     }
 
     _isGenerating = true;
-    _liveProgressController.begin(_params.steps, DateTime.now());
+    _liveProgressController.begin(_params.effectiveSteps, DateTime.now());
     _errorMessage = null;
     _statusMessage = vmL10n.vmGenRequesting(
       _params.width,
       _params.height,
-      _params.steps,
+      _params.effectiveSteps,
     );
     notifyListeners();
 

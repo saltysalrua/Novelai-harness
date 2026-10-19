@@ -58,7 +58,8 @@ class AnlasCalculator {
     return calculateFromValues(
       width: params.width,
       height: params.height,
-      steps: params.steps,
+      // 节约档实际只跑锁定的 14 步，仍走同一公式，不另设倍率。
+      steps: params.effectiveSteps,
       nSamples: params.nSamples,
       model: params.model,
       isOpus: isOpus,

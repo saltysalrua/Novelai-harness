@@ -82,6 +82,9 @@ class ResizableTextField extends StatefulWidget {
   /// 补全建议项中是否显示中文释义
   final bool showTranslation;
 
+  /// 锁定输入。已有文本保留，切回可编辑后继续使用。
+  final bool readOnly;
+
   const ResizableTextField({
     super.key,
     required this.controller,
@@ -99,6 +102,7 @@ class ResizableTextField extends StatefulWidget {
     this.focusNode,
     this.enableAutocomplete = true,
     this.showTranslation = true,
+    this.readOnly = false,
   });
 
   @override
@@ -203,40 +207,45 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
     Widget inputField = Padding(
       padding: widget.padding,
       child: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(
-            LogicalKeyboardKey.arrowUp,
-            control: true,
-          ): () => PromptEditActions.adjustWeight(
-            widget.controller,
-            widget.onChanged,
-            up: true,
-          ),
-          const SingleActivator(
-            LogicalKeyboardKey.arrowDown,
-            control: true,
-          ): () => PromptEditActions.adjustWeight(
-            widget.controller,
-            widget.onChanged,
-            up: false,
-          ),
-          const SingleActivator(LogicalKeyboardKey.slash, control: true): () =>
-              PromptEditActions.toggleDisabled(
-                widget.controller,
-                widget.onChanged,
-              ),
-          const SingleActivator(
-            LogicalKeyboardKey.keyF,
-            control: true,
-            shift: true,
-          ): () => PromptEditActions.formatPrompt(
-            widget.controller,
-            widget.onChanged,
-          ),
-        },
+        bindings: widget.readOnly
+            ? const <ShortcutActivator, VoidCallback>{}
+            : {
+                const SingleActivator(
+                  LogicalKeyboardKey.arrowUp,
+                  control: true,
+                ): () => PromptEditActions.adjustWeight(
+                  widget.controller,
+                  widget.onChanged,
+                  up: true,
+                ),
+                const SingleActivator(
+                  LogicalKeyboardKey.arrowDown,
+                  control: true,
+                ): () => PromptEditActions.adjustWeight(
+                  widget.controller,
+                  widget.onChanged,
+                  up: false,
+                ),
+                const SingleActivator(
+                  LogicalKeyboardKey.slash,
+                  control: true,
+                ): () => PromptEditActions.toggleDisabled(
+                  widget.controller,
+                  widget.onChanged,
+                ),
+                const SingleActivator(
+                  LogicalKeyboardKey.keyF,
+                  control: true,
+                  shift: true,
+                ): () => PromptEditActions.formatPrompt(
+                  widget.controller,
+                  widget.onChanged,
+                ),
+              },
         child: TextField(
           controller: widget.controller,
           focusNode: _focusNode,
+          readOnly: widget.readOnly,
           maxLines: null,
           expands: true,
           textAlignVertical: TextAlignVertical.top,

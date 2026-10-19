@@ -48,6 +48,7 @@ class AppDropdown<T> extends StatelessWidget {
   final T value;
   final List<AppDropdownItem<T>> items;
   final ValueChanged<T> onChanged;
+  final bool enabled;
   final AppDropdownVariant variant;
   final String? hintText;
   final double? width;
@@ -70,6 +71,7 @@ class AppDropdown<T> extends StatelessWidget {
     required this.value,
     required this.items,
     required this.onChanged,
+    this.enabled = true,
     this.variant = AppDropdownVariant.standard,
     this.hintText,
     this.width,
@@ -87,6 +89,7 @@ class AppDropdown<T> extends StatelessWidget {
     required List<T> items,
     required String Function(T item) labelOf,
     required ValueChanged<T> onChanged,
+    bool enabled = true,
     IconData Function(T item)? iconOf,
     Widget? Function(T item, bool isSelected)? trailingOf,
     AppDropdownVariant variant = AppDropdownVariant.standard,
@@ -107,6 +110,7 @@ class AppDropdown<T> extends StatelessWidget {
         );
       }).toList(),
       onChanged: onChanged,
+      enabled: enabled,
       variant: variant,
       width: width,
       isExpanded: isExpanded,
@@ -284,9 +288,11 @@ class AppDropdown<T> extends StatelessWidget {
               ),
             );
           }).toList(),
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
+          onChanged: enabled
+              ? (v) {
+                  if (v != null) onChanged(v);
+                }
+              : null,
         ),
       ),
     );
