@@ -875,10 +875,26 @@ class AgentHarness {
   bool rewindToMessage(String messageId) {
     final idx = _messages.indexWhere((m) => m.id == messageId);
     if (idx < 0) return false;
+    _truncateKeeping(idx + 1);
+    return true;
+  }
+
+  /// 回退到指定消息之前：丢弃该消息及其后的全部内容。
+  /// 成功时返回被丢弃的目标消息，供调用方放回输入框；找不到时返回 null。
+  AgentMessage? rewindBeforeMessage(String messageId) {
+    final idx = _messages.indexWhere((m) => m.id == messageId);
+    if (idx < 0) return null;
+    final target = _messages[idx];
+    _truncateKeeping(idx);
+    return target;
+  }
+
+  void _truncateKeeping(int keepCount) {
     _invalidateCompaction();
     final sequence = _replySequence;
-    final keepCount = idx + 1;
-    _messages.removeRange(keepCount, _messages.length);
+    if (keepCount < _messages.length) {
+      _messages.removeRange(keepCount, _messages.length);
+    }
     recorder?.rewindToMessageCount(keepCount);
     // 回溯点落在压缩窗口之外时，压缩状态已无意义，重置为完整上下文
     if (keepCount <= _contextStartIndex) {
@@ -887,7 +903,6 @@ class AgentHarness {
     _replySequence = sequence;
     _usageFloor = _messages.length;
     onContextChanged?.call();
-    return true;
   }
 
   /// 清空对话记录

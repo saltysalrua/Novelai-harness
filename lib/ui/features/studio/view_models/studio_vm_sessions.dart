@@ -7,8 +7,9 @@ mixin _StudioSessionsMixin on _StudioCore {
   /// 刷新会话列表
   @override
   Future<void> refreshSessions() async {
-    if (!_sessionLog.isInitialized) return;
+    if (_disposed || !_sessionLog.isInitialized) return;
     _sessions = await _sessionLog.listSessions();
+    if (_disposed) return;
     notifyListeners();
   }
 
@@ -50,6 +51,7 @@ mixin _StudioSessionsMixin on _StudioCore {
     }
     // 新时间线：以当前工作台参数为基线重新起算
     _paramJournal.reset(_params);
+    _composerRestore = null;
     await refreshSessions();
     notifyListeners();
   }
@@ -68,6 +70,7 @@ mixin _StudioSessionsMixin on _StudioCore {
     _harness.setMessages([]);
     _sessionModelUsage = {};
     _paramJournal.reset(_params);
+    _composerRestore = null;
     _statusMessage = vmL10n.vmSessionCreated;
     await refreshSessions();
     notifyListeners();
@@ -111,40 +114,69 @@ mixin _StudioSessionsMixin on _StudioCore {
 
   // ------------------------- 历史回溯 -------------------------
 
-  /// 回退/撤销到指定历史消息时刻 (按两次 ESC 触发选择)
+  /// 回退到指定历史消息。
+  ///
+  /// 用户消息：截断该条及之后的对话，文本和图片放回输入框，不发送。
+  /// 其他消息：保留该条，只丢弃其后的内容。
   @override
   Future<void> rewindToMessage(String messageId) async {
     if (_isChatStreaming) {
       await abortChat();
     }
 
-    // 截断前先取目标时刻，用于回滚工作台参数
-    DateTime? targetTime;
+    AgentMessage? target;
     for (final msg in _harness.messages) {
       if (msg.id == messageId) {
-        targetTime = msg.createdAt;
+        target = msg;
         break;
       }
     }
+    if (target == null) return;
 
-    final success = _harness.rewindToMessage(messageId);
-    if (success) {
-      // 将工作台参数一并回滚到目标时刻之前最近的状态
-      var paramsRewound = false;
-      final restored = targetTime == null
-          ? null
-          : _paramJournal.stateAt(targetTime);
-      if (restored != null) {
-        _paramJournal.truncateAfter(targetTime!);
-        updateParams(restored);
-        paramsRewound = true;
-      }
-      _recomputeSessionUsage();
-      _statusMessage = paramsRewound
-          ? vmL10n.vmRewindChatAndParams
-          : vmL10n.vmRewindChatOnly;
-      await refreshSessions();
-      notifyListeners();
+    final targetTime = target.createdAt;
+    final restoreToInput = target.role == AgentRole.user;
+    final removed = restoreToInput
+        ? _harness.rewindBeforeMessage(messageId)
+        : null;
+    final truncated = restoreToInput
+        ? removed != null
+        : _harness.rewindToMessage(messageId);
+    if (!truncated) return;
+
+    final restoredParams = _paramJournal.stateAt(targetTime);
+    if (restoredParams != null) {
+      _paramJournal.truncateAfter(targetTime);
     }
+    if (removed != null) {
+      _publishComposerRestore(removed.content, removed.images);
+    }
+    var paramsRewound = false;
+    if (restoredParams != null) {
+      updateParams(restoredParams);
+      paramsRewound = true;
+    }
+    _recomputeSessionUsage();
+    _statusMessage = restoreToInput
+        ? (paramsRewound
+              ? vmL10n.vmRewindToInputWithParams
+              : vmL10n.vmRewindToInput)
+        : (paramsRewound
+              ? vmL10n.vmRewindChatAndParams
+              : vmL10n.vmRewindChatOnly);
+    // 先把截断结果交回界面，会话目录刷新放后台，避免确认回溯时停在回溯页。
+    notifyListeners();
+    unawaited(refreshSessions());
+  }
+
+  void _publishComposerRestore(String text, List<AgentMessageImage> images) {
+    _composerRestoreEpoch++;
+    _composerRestore = ComposerRestore(
+      epoch: _composerRestoreEpoch,
+      text: text,
+      images: List<AgentMessageImage>.unmodifiable(images),
+    );
+    _chatDraft = text;
+    _chatDraftSaveTimer?.cancel();
+    unawaited(_configService.saveChatDraft(text));
   }
 }

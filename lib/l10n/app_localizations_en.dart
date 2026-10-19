@@ -2692,7 +2692,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get rewindDescription =>
-      'Select a chat checkpoint to restore. Restoring will discard all changes and chat messages after this checkpoint.';
+      'Select a turn to rewind. That message returns to the input for editing. This turn and everything after it are discarded. Nothing is sent until you send it.';
 
   @override
   String get rewindEmptyTitle =>
@@ -3150,6 +3150,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Rewound to a past moment. Later chat and edits were reverted.';
 
   @override
+  String get vmRewindToInput =>
+      'That message is back in the input. Later chat was discarded. Nothing was sent.';
+
+  @override
+  String get vmRewindToInputWithParams =>
+      'That message is back in the input. Later chat and parameter changes were discarded. Nothing was sent.';
+
+  @override
   String get vmHistoryDeleted => 'Image deleted from history';
 
   @override
@@ -3209,7 +3217,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get slashDescUndo =>
-      'Undo the last chat turn (replies and parameter changes rolled back together)';
+      'Move the last user message back to the input (nothing is sent; replies and parameter changes roll back)';
 
   @override
   String get slashDescRename => 'Rename the current session';
@@ -3293,8 +3301,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get slashUndoNothing =>
-      'No previous chat turn to undo (nothing before the first turn).';
+  String get slashUndoNothing => 'No user message to undo.';
 
   @override
   String get slashRenameUsage => 'Usage: /rename <new title>';

@@ -4685,7 +4685,7 @@ abstract class AppLocalizations {
   /// No description provided for @rewindDescription.
   ///
   /// In zh, this message translates to:
-  /// **'选择要回退到的对话时刻。确认后将撤销此时刻之后的所有修改与对话记录。'**
+  /// **'选择要回退的对话。确认后该条消息回到输入框，此时刻及之后的对话与修改都会撤回，不会自动发送。'**
   String get rewindDescription;
 
   /// No description provided for @rewindEmptyTitle.
@@ -5438,6 +5438,18 @@ abstract class AppLocalizations {
   /// **'已回到历史时刻，后续对话与修改已撤回'**
   String get vmRewindChatOnly;
 
+  /// No description provided for @vmRewindToInput.
+  ///
+  /// In zh, this message translates to:
+  /// **'已回到该条消息，内容已放回输入框。后续对话已撤回，不会自动发送'**
+  String get vmRewindToInput;
+
+  /// No description provided for @vmRewindToInputWithParams.
+  ///
+  /// In zh, this message translates to:
+  /// **'已回到该条消息，内容已放回输入框。后续对话与参数修改已撤回，不会自动发送'**
+  String get vmRewindToInputWithParams;
+
   /// No description provided for @vmHistoryDeleted.
   ///
   /// In zh, this message translates to:
@@ -5543,7 +5555,7 @@ abstract class AppLocalizations {
   /// No description provided for @slashDescUndo.
   ///
   /// In zh, this message translates to:
-  /// **'撤销上一轮对话 (回复与参数修改一并回滚)'**
+  /// **'撤回上一条用户消息到输入框 (不自动发送，回复与参数修改一并回滚)'**
   String get slashDescUndo;
 
   /// No description provided for @slashDescRename.
@@ -5675,7 +5687,7 @@ abstract class AppLocalizations {
   /// No description provided for @slashUndoNothing.
   ///
   /// In zh, this message translates to:
-  /// **'没有可撤销的上一轮对话 (首轮之前的消息不存在)。'**
+  /// **'没有可撤回的用户消息。'**
   String get slashUndoNothing;
 
   /// No description provided for @slashRenameUsage.
