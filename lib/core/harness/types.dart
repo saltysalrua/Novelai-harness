@@ -198,6 +198,166 @@ class AgentMessageImage {
   }
 }
 
+/// 必须跨轮原样回放的一段推理。
+///
+/// Responses 使用 [id] / [encryptedContent] / [summary] / [content]。
+/// 明文网关没有加密载荷时，[content] 为 `reasoning_text`。
+/// Anthropic 使用 [signature] 或 [redactedData]。未知 id 保持为空，回放时不补造。
+class ReasoningRecord {
+  final String? id;
+  final String? encryptedContent;
+  final List<Map<String, String>> summary;
+  final List<Map<String, String>> content;
+  final String? signature;
+  final String? redactedData;
+
+  const ReasoningRecord({
+    this.id,
+    this.encryptedContent,
+    this.summary = const [],
+    this.content = const [],
+    this.signature,
+    this.redactedData,
+  });
+
+  bool get isRedacted => redactedData != null && redactedData!.isNotEmpty;
+
+  bool get isEmpty =>
+      (id == null || id!.isEmpty) &&
+      (encryptedContent == null || encryptedContent!.isEmpty) &&
+      summary.isEmpty &&
+      content.isEmpty &&
+      (signature == null || signature!.isEmpty) &&
+      !isRedacted;
+
+  /// 可见推理文本：优先明文 content，否则用 summary。
+  String get plaintext {
+    final fromContent = _joinText(content);
+    if (fromContent.isNotEmpty) return fromContent;
+    return _joinText(summary);
+  }
+
+  static String _joinText(List<Map<String, String>> parts) {
+    final buffer = StringBuffer();
+    for (final part in parts) {
+      final text = part['text'];
+      if (text != null) buffer.write(text);
+    }
+    return buffer.toString();
+  }
+
+  /// Responses `input` 中的 reasoning 项。没有可发送字段时返回 null。
+  Map<String, dynamic>? toResponsesItem() {
+    final item = <String, dynamic>{'type': 'reasoning'};
+    if (id != null && id!.isNotEmpty) item['id'] = id;
+    if (encryptedContent != null && encryptedContent!.isNotEmpty) {
+      item['encrypted_content'] = encryptedContent;
+    }
+    if (summary.isNotEmpty) {
+      item['summary'] = [
+        for (final part in summary) Map<String, String>.from(part),
+      ];
+    }
+    if (content.isNotEmpty) {
+      item['content'] = [
+        for (final part in content) Map<String, String>.from(part),
+      ];
+    }
+    // 仅有 Anthropic 签名或 redacted 数据时，不能编造成 Responses 项。
+    if (item.length == 1) return null;
+    return item;
+  }
+
+  /// Anthropic Messages 的 thinking / redacted_thinking 块。
+  Map<String, dynamic>? toAnthropicBlock() {
+    if (isRedacted) {
+      return {'type': 'redacted_thinking', 'data': redactedData};
+    }
+    final text = plaintext;
+    final sig = signature;
+    if (text.isEmpty && (sig == null || sig.isEmpty)) return null;
+    return {
+      'type': 'thinking',
+      'thinking': text,
+      if (sig != null && sig.isNotEmpty) 'signature': sig,
+    };
+  }
+
+  factory ReasoningRecord.fromResponsesItem(Map<String, dynamic> item) {
+    final rawId = item['id'];
+    final encrypted = item['encrypted_content'];
+    return ReasoningRecord(
+      id: rawId is String && rawId.isNotEmpty ? rawId : null,
+      encryptedContent: encrypted is String && encrypted.isNotEmpty
+          ? encrypted
+          : null,
+      summary: textParts(item['summary'], 'summary_text', keepType: true),
+      content: textParts(item['content'], 'reasoning_text', keepType: false),
+    );
+  }
+
+  Map<String, dynamic> toSessionJson() => {
+    'type': 'reasoning',
+    if (id != null && id!.isNotEmpty) 'id': id,
+    if (encryptedContent != null && encryptedContent!.isNotEmpty)
+      'encrypted_content': encryptedContent,
+    if (summary.isNotEmpty) 'summary': summary,
+    if (content.isNotEmpty) 'content': content,
+    if (signature != null && signature!.isNotEmpty) 'signature': signature,
+    if (isRedacted) 'redacted_data': redactedData,
+  };
+
+  factory ReasoningRecord.fromSessionJson(Map<String, dynamic> json) {
+    final rawId = json['id'];
+    final encrypted = json['encrypted_content'];
+    final sig = json['signature'];
+    final redacted = json['redacted_data'];
+    return ReasoningRecord(
+      id: rawId is String && rawId.isNotEmpty ? rawId : null,
+      encryptedContent: encrypted is String && encrypted.isNotEmpty
+          ? encrypted
+          : null,
+      summary: textParts(json['summary'], 'summary_text', keepType: true),
+      content: textParts(json['content'], 'reasoning_text', keepType: false),
+      signature: sig is String && sig.isNotEmpty ? sig : null,
+      redactedData: redacted is String && redacted.isNotEmpty ? redacted : null,
+    );
+  }
+
+  /// 把摘要或 reasoning_text 内容收成稳定的字符串 map。
+  /// [keepType] 为 false 时统一写成 [defaultType]，避免回放未知 part type。
+  static List<Map<String, String>> textParts(
+    Object? raw,
+    String defaultType, {
+    required bool keepType,
+  }) {
+    if (raw is String) {
+      if (raw.isEmpty) return const [];
+      return [
+        {'type': defaultType, 'text': raw},
+      ];
+    }
+    if (raw is! List) return const [];
+    final parts = <Map<String, String>>[];
+    for (final part in raw) {
+      if (part is String) {
+        if (part.isEmpty) continue;
+        parts.add({'type': defaultType, 'text': part});
+        continue;
+      }
+      if (part is! Map) continue;
+      final text = part['text'];
+      if (text is! String || text.isEmpty) continue;
+      final rawType = part['type'];
+      final type = keepType && rawType is String && rawType.isNotEmpty
+          ? rawType
+          : defaultType;
+      parts.add({'type': type, 'text': text});
+    }
+    return parts;
+  }
+}
+
 /// 工具执行结果
 ///
 /// [imageBase64] / [imageMimeType] 为可选的多模态图片附件：
@@ -233,6 +393,9 @@ class AgentMessage {
   final int? replyNumber;
   final String thoughts; // 思考过程 (Reasoning / Thinking)
   final String? thoughtSignature; // 思考加密签名 (Gemini 3/4 多轮工具与推理连续性必需)
+
+  /// 按模型输出顺序保存的推理项，供下一轮原样回放。
+  final List<ReasoningRecord> reasoningRecords;
   final List<ToolCall>? toolCalls;
   final String? toolCallId;
   final String? toolName; // 工具结果消息对应的工具名 (仅 role == tool)
@@ -280,6 +443,7 @@ class AgentMessage {
     this.content = '',
     this.thoughts = '',
     this.thoughtSignature,
+    this.reasoningRecords = const [],
     this.replyNumber,
     this.toolCalls,
     this.toolCallId,
@@ -302,6 +466,7 @@ class AgentMessage {
     String? content,
     String? thoughts,
     String? thoughtSignature,
+    List<ReasoningRecord>? reasoningRecords,
     int? replyNumber,
     List<ToolCall>? toolCalls,
     String? toolCallId,
@@ -324,6 +489,7 @@ class AgentMessage {
       content: content ?? this.content,
       thoughts: thoughts ?? this.thoughts,
       thoughtSignature: thoughtSignature ?? this.thoughtSignature,
+      reasoningRecords: reasoningRecords ?? this.reasoningRecords,
       replyNumber: replyNumber ?? this.replyNumber,
       toolCalls: toolCalls ?? this.toolCalls,
       toolCallId: toolCallId ?? this.toolCallId,
@@ -362,6 +528,7 @@ class AgentMessage {
       content: content.isEmpty ? placeholder : '$content\n\n$placeholder',
       thoughts: thoughts,
       thoughtSignature: thoughtSignature,
+      reasoningRecords: reasoningRecords,
       replyNumber: replyNumber,
       toolCalls: toolCalls,
       toolCallId: toolCallId,
@@ -432,6 +599,12 @@ class ThoughtDeltaEvent extends HarnessEvent {
 class ThoughtSignatureEvent extends HarnessEvent {
   final String signature;
   const ThoughtSignatureEvent(this.signature);
+}
+
+/// 一轮助手响应里按输出顺序收集到的推理项。后到的快照覆盖先前的。
+class ReasoningSnapshotEvent extends HarnessEvent {
+  final List<ReasoningRecord> records;
+  const ReasoningSnapshotEvent(this.records);
 }
 
 class ContentDeltaEvent extends HarnessEvent {

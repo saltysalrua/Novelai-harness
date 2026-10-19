@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../tools/agent_tool.dart';
 import '../types.dart';
+import 'anthropic_messages.dart';
 import 'google_interactions_provider.dart';
 import 'llm_provider.dart';
 import 'openai_responses.dart';
@@ -398,6 +399,17 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       );
       return;
     }
+    if (endpoint.endsWith('/messages')) {
+      yield* _streamAnthropic(
+        endpoint: endpoint,
+        messages: normalizedMessages,
+        tools: tools,
+        temperature: temperature,
+        promptParser: promptParser,
+        promptCacheKey: promptCacheKey,
+      );
+      return;
+    }
     final replayDeepSeekReasoning =
         tools.isNotEmpty && resolvedThinkingFormat == 'deepseek';
     final requestBody = <String, dynamic>{
@@ -784,6 +796,240 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     return _client.send(request);
   }
 
+  /// `POST /v1/messages`：请求体与 SSE 按 Anthropic Messages，回放 thinking 块。
+  Stream<HarnessEvent> _streamAnthropic({
+    required String endpoint,
+    required List<AgentMessage> messages,
+    required List<AgentTool> tools,
+    required double temperature,
+    required PromptToolStreamParser? promptParser,
+    String? promptCacheKey,
+  }) async* {
+    final requestBody = AnthropicMessages.buildRequestBody(
+      model: model.trim(),
+      messages: messages,
+      tools: tools,
+      temperature: temperature,
+      reasoning: reasoning,
+      thinkingEffort: thinkingEffort,
+      promptToolUse: promptToolUse,
+    );
+    final cachePolicy = PromptCachePolicy(
+      config: cacheConfig,
+      endpoint: Uri.parse(endpoint),
+      model: model,
+    );
+    final cacheHeaders = cachePolicy.headers(promptCacheKey);
+    // 只套用 Anthropic cache_control。OpenAI 的 prompt_cache_key 不是 Messages 字段。
+    if (cachePolicy.mode == LlmCacheMode.anthropic &&
+        requestBody['messages'] is List) {
+      cachePolicy.apply(requestBody, promptCacheKey);
+    }
+
+    http.StreamedResponse streamedResponse;
+    try {
+      streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
+    } catch (e) {
+      yield ErrorEvent('网络请求异常: $e', transient: true);
+      return;
+    }
+
+    if (streamedResponse.statusCode != 200) {
+      final errBody = await streamedResponse.stream.bytesToString();
+      yield ErrorEvent(
+        'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
+        transient: isTransientStatus(streamedResponse.statusCode),
+      );
+      return;
+    }
+
+    FormatException? promptParseError;
+    var streamCompleted = false;
+    var failed = false;
+    final calls = <ToolCall>[];
+    TokenUsage? latestUsage;
+    final parser = AnthropicMessagesStreamParser();
+
+    List<ContentDeltaEvent> contentEvents(String text) {
+      if (text.isEmpty || promptParseError != null) return const [];
+      try {
+        return promptParser?.add(text) ?? [ContentDeltaEvent(text)];
+      } on FormatException catch (error) {
+        promptParseError = error;
+        return const [];
+      }
+    }
+
+    Iterable<HarnessEvent> absorb(List<HarnessEvent> events) sync* {
+      for (final event in events) {
+        if (event is ContentDeltaEvent) {
+          yield* contentEvents(event.delta);
+        } else if (event is ToolCallEvent) {
+          calls.add(event.toolCall);
+        } else if (event is ErrorEvent) {
+          failed = true;
+          yield event;
+        } else if (event is UsageEvent) {
+          latestUsage = event.usage;
+        } else {
+          yield event;
+        }
+      }
+    }
+
+    final prelude = StringBuffer();
+    var sawSse = false;
+    String? pendingEvent;
+
+    try {
+      final lineStream = streamedResponse.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
+
+      await for (final line in lineStream) {
+        final trimmed = line.trim();
+        if (!sawSse) {
+          if (trimmed.startsWith('data:') || trimmed.startsWith('event:')) {
+            sawSse = true;
+          } else {
+            prelude.writeln(line);
+            continue;
+          }
+        }
+        if (trimmed.isEmpty) {
+          pendingEvent = null;
+          continue;
+        }
+        if (trimmed.startsWith(':')) continue;
+        if (trimmed.startsWith('event:')) {
+          pendingEvent = trimmed.substring(6).trim();
+          continue;
+        }
+        if (!trimmed.startsWith('data:')) continue;
+
+        final data = trimmed.substring(5).trim();
+        if (data.isEmpty) continue;
+        if (data == '[DONE]') {
+          streamCompleted = true;
+          pendingEvent = null;
+          break;
+        }
+
+        Map<String, dynamic> json;
+        try {
+          final decoded = jsonDecode(data);
+          if (decoded is! Map) {
+            pendingEvent = null;
+            continue;
+          }
+          json = Map<String, dynamic>.from(decoded);
+        } catch (_) {
+          pendingEvent = null;
+          continue;
+        }
+
+        if (json['type'] == 'message_stop' || pendingEvent == 'message_stop') {
+          streamCompleted = true;
+        }
+        yield* Stream.fromIterable(
+          absorb(parser.add(json, eventType: pendingEvent)),
+        );
+        pendingEvent = null;
+      }
+    } catch (e) {
+      failed = true;
+      yield ErrorEvent('解析流式数据异常: $e', transient: true);
+    }
+
+    if (!sawSse) {
+      final raw = prelude.toString().trim();
+      if (raw.isEmpty) return;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map) {
+          yield const ErrorEvent('解析流式数据异常: 非 JSON 响应', transient: true);
+          return;
+        }
+        final completion = AnthropicMessages.parseResponse(
+          Map<String, dynamic>.from(decoded),
+        );
+        if (completion.error != null) {
+          failed = true;
+          yield ErrorEvent(
+            completion.error!,
+            transient: completion.transientError,
+          );
+        } else {
+          if (completion.reasoningRecords.isNotEmpty) {
+            yield ReasoningSnapshotEvent(completion.reasoningRecords);
+          }
+          if (completion.reasoning.isNotEmpty) {
+            yield ThoughtDeltaEvent(completion.reasoning);
+          }
+          for (final record in completion.reasoningRecords) {
+            final sig = record.signature;
+            if (sig != null && sig.isNotEmpty) {
+              yield ThoughtSignatureEvent(sig);
+            }
+          }
+          yield* Stream.fromIterable(contentEvents(completion.text));
+          calls.addAll(completion.toolCalls);
+          streamCompleted = true;
+        }
+        latestUsage = completion.usage;
+      } catch (e) {
+        yield ErrorEvent('解析流式数据异常: $e', transient: true);
+        return;
+      }
+    } else {
+      yield* Stream.fromIterable(absorb(parser.finish()));
+    }
+
+    if (promptParser != null && !failed) {
+      final parseError = promptParseError;
+      if (parseError != null) {
+        failed = true;
+        yield ErrorEvent('工具调用格式错误: ${parseError.message}');
+      } else if (!streamCompleted) {
+        failed = true;
+        yield const ErrorEvent('提示词工具调用响应流提前结束，未执行。');
+      } else {
+        try {
+          yield* Stream.fromIterable(promptParser.finish());
+        } on FormatException catch (e) {
+          failed = true;
+          yield ErrorEvent('工具调用格式错误: ${e.message}');
+        }
+      }
+    } else if (promptParser == null && !failed && !streamCompleted) {
+      failed = true;
+      yield const ErrorEvent('Anthropic 响应流提前结束，未执行工具调用。', transient: true);
+    }
+
+    final promptCalls =
+        !failed && promptParser != null && promptParseError == null
+        ? promptParser.calls
+        : const <ToolCall>[];
+    if (!failed && (calls.isNotEmpty || promptCalls.isNotEmpty)) {
+      final normalized = normalizeToolCallIds([
+        ...messages,
+        AgentMessage(
+          id: 'pending_tool_calls',
+          role: AgentRole.assistant,
+          toolCalls: [...calls, ...promptCalls],
+        ),
+      ]).last.toolCalls!;
+      for (final call in normalized) {
+        yield ToolCallEvent(call);
+      }
+    }
+
+    final usage = latestUsage;
+    if (usage != null && usage.total > 0) {
+      yield UsageEvent(usage);
+    }
+  }
+
   /// Responses API 的思考强度。只在开启思考时发送 `reasoning.effort`。
   String? _responsesReasoningEffort() {
     if (!reasoning) return null;
@@ -816,6 +1062,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       temperature: temperature,
       stream: true,
       reasoningEffort: effort,
+      includeEncryptedReasoning: reasoning,
       includeTemperature: !_shouldOmitResponsesTemperature(endpoint, effort),
       promptToolUse: promptToolUse,
     );
@@ -989,6 +1236,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
             transient: completion.transientError,
           );
         } else {
+          if (completion.reasoningRecords.isNotEmpty) {
+            yield ReasoningSnapshotEvent(completion.reasoningRecords);
+          }
           if (completion.reasoning.isNotEmpty) {
             yield ThoughtDeltaEvent(completion.reasoning);
           }

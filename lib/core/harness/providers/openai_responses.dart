@@ -64,6 +64,7 @@ class OpenAiResponses {
     Object? toolChoice,
     bool promptToolUse = false,
     bool includeTemperature = true,
+    bool includeEncryptedReasoning = false,
   }) {
     final encoded = promptToolUse
         ? encodeChatMessages(PromptToolCodec.serialize(messages, tools))
@@ -82,6 +83,8 @@ class OpenAiResponses {
       if (maxTokens != null && maxTokens > 0) 'max_output_tokens': maxTokens,
       if (effort != null && effort.isNotEmpty)
         'reasoning': {'effort': effort, 'summary': 'auto'},
+      if (includeEncryptedReasoning || (effort != null && effort.isNotEmpty))
+        'include': const ['reasoning.encrypted_content'],
       if (previous != null && previous.isNotEmpty)
         'previous_response_id': previous
       else
@@ -116,6 +119,7 @@ class OpenAiResponses {
             input.add({'role': 'user', 'content': content});
           }
         case AgentRole.assistant:
+          input.addAll(reasoningItemsFor(message));
           if (message.content.isNotEmpty) {
             input.add({
               'role': 'assistant',
@@ -190,6 +194,28 @@ class OpenAiResponses {
       }
     }
     return (instructions: instructionParts.join('\n\n'), input: input);
+  }
+
+  /// 助手消息前面的 reasoning 项，保持模型输出时的顺序。
+  ///
+  /// 已保存的结构化项优先。只有 Chat 风格的思考文本时，转成不带 id 的
+  /// `reasoning_text`，避免给官方 API 编造 `rs_...` id。
+  static List<Map<String, dynamic>> reasoningItemsFor(AgentMessage message) {
+    final items = <Map<String, dynamic>>[];
+    for (final record in message.reasoningRecords) {
+      final item = record.toResponsesItem();
+      if (item != null) items.add(item);
+    }
+    if (items.isNotEmpty) return items;
+    if (message.thoughts.isEmpty) return const [];
+    return [
+      {
+        'type': 'reasoning',
+        'content': [
+          {'type': 'reasoning_text', 'text': message.thoughts},
+        ],
+      },
+    ];
   }
 
   /// 把 Chat Completions 形状的消息（含 developer / 嵌套 tool_calls / image_url 对象）
@@ -345,6 +371,7 @@ class OpenAiResponses {
     return OpenAiResponsesCompletion(
       text: extracted.text,
       reasoning: extracted.reasoning,
+      reasoningRecords: extracted.records,
       toolCalls: extracted.calls,
       usage: usage,
     );
@@ -390,9 +417,10 @@ class OpenAiResponses {
     final reasoning = StringBuffer();
     final refusal = StringBuffer();
     final calls = <ToolCall>[];
+    final records = <ReasoningRecord>[];
     String? callError;
     if (output is! List) {
-      return _OutputPieces(text: '', reasoning: '', calls: const []);
+      return const _OutputPieces(text: '', reasoning: '', calls: []);
     }
     for (var index = 0; index < output.length; index++) {
       final item = output[index];
@@ -403,7 +431,14 @@ class OpenAiResponses {
           text.write(messageText(item['content']));
           refusal.write(refusalText(item['content']));
         case 'reasoning':
-          reasoning.write(reasoningText(item['summary']));
+          final record = ReasoningRecord.fromResponsesItem(
+            Map<String, dynamic>.from(item),
+          );
+          if (!record.isEmpty) records.add(record);
+          final summary = reasoningText(item['summary']);
+          reasoning.write(
+            summary.isNotEmpty ? summary : reasoningText(item['content']),
+          );
         case 'function_call':
           final call = toolCallFromItem(
             Map<String, dynamic>.from(item),
@@ -423,6 +458,7 @@ class OpenAiResponses {
       return _OutputPieces(
         text: text.toString(),
         reasoning: reasoning.toString(),
+        records: records,
         calls: const [],
         callError: callError,
       );
@@ -431,6 +467,7 @@ class OpenAiResponses {
       text: text.toString(),
       reasoning: reasoning.toString(),
       refusal: refusal.toString(),
+      records: records,
       calls: calls,
     );
   }
@@ -647,6 +684,7 @@ class _OutputPieces {
   final String text;
   final String reasoning;
   final String refusal;
+  final List<ReasoningRecord> records;
   final List<ToolCall> calls;
   final String? callError;
 
@@ -654,6 +692,7 @@ class _OutputPieces {
     required this.text,
     required this.reasoning,
     this.refusal = '',
+    this.records = const [],
     required this.calls,
     this.callError,
   });
@@ -663,6 +702,7 @@ class _OutputPieces {
 class OpenAiResponsesCompletion {
   final String text;
   final String reasoning;
+  final List<ReasoningRecord> reasoningRecords;
   final List<ToolCall> toolCalls;
   final TokenUsage? usage;
   final String? error;
@@ -671,6 +711,7 @@ class OpenAiResponsesCompletion {
   const OpenAiResponsesCompletion({
     this.text = '',
     this.reasoning = '',
+    this.reasoningRecords = const [],
     this.toolCalls = const [],
     this.usage,
     this.error,
@@ -692,6 +733,7 @@ class OpenAiResponsesStreamParser {
   final StringBuffer _refusalDelta = StringBuffer();
   String? _refusalDone;
   String? _refusalFromItem;
+  final List<_CapturedReasoning> _reasoningItems = [];
 
   /// 综合流事件与消息体得到最终拒答文本，只取一路避免重复。
   String get _refusal {
@@ -803,6 +845,13 @@ class OpenAiResponsesStreamParser {
   /// 冲刷尚未完成的工具调用，报告拒答，并提交唯一一次用量快照。
   List<HarnessEvent> finish() {
     final events = <HarnessEvent>[];
+    if (_reasoningItems.isNotEmpty) {
+      events.add(
+        ReasoningSnapshotEvent([
+          for (final item in _reasoningItems) item.record,
+        ]),
+      );
+    }
     final refusal = _refusal;
     if (refusal.isNotEmpty) {
       events.add(ErrorEvent('模型拒绝回答: $refusal'));
@@ -859,6 +908,44 @@ class OpenAiResponsesStreamParser {
       _reasoningIndexes.isNotEmpty &&
           (index == null || _reasoningIndexes.contains(index));
 
+  void _upsertReasoning(ReasoningRecord record, int? index) {
+    for (var i = 0; i < _reasoningItems.length; i++) {
+      final existing = _reasoningItems[i];
+      final sameIndex = index != null && existing.index == index;
+      final sameId =
+          record.id != null &&
+          record.id!.isNotEmpty &&
+          existing.record.id == record.id;
+      final bothLackId =
+          (record.id == null || record.id!.isEmpty) &&
+          (existing.record.id == null || existing.record.id!.isEmpty);
+      final indexMissing = index == null || existing.index == null;
+      if (sameIndex ||
+          sameId ||
+          (bothLackId &&
+              indexMissing &&
+              _sameReasoningPayload(existing.record, record))) {
+        _reasoningItems[i] = _CapturedReasoning(
+          index: index ?? existing.index,
+          record: record,
+        );
+        return;
+      }
+    }
+    _reasoningItems.add(_CapturedReasoning(index: index, record: record));
+  }
+
+  /// done 与 completed 可能都带上同一段推理，且都没有 id / output_index。
+  bool _sameReasoningPayload(ReasoningRecord a, ReasoningRecord b) {
+    if (a.encryptedContent != null &&
+        a.encryptedContent!.isNotEmpty &&
+        a.encryptedContent == b.encryptedContent) {
+      return true;
+    }
+    final aText = a.plaintext;
+    return aText.isNotEmpty && aText == b.plaintext;
+  }
+
   List<HarnessEvent> _eventsFromItem(
     Object? raw, {
     required int? index,
@@ -878,8 +965,13 @@ class OpenAiResponsesStreamParser {
         _markText(index);
         return [ContentDeltaEvent(text)];
       case 'reasoning':
+        final record = ReasoningRecord.fromResponsesItem(item);
+        if (!record.isEmpty) _upsertReasoning(record, index);
         if (onlyIfMissing && _reasoningSeen(index)) return const [];
-        final text = OpenAiResponses.reasoningText(item['summary']);
+        final summary = OpenAiResponses.reasoningText(item['summary']);
+        final text = summary.isNotEmpty
+            ? summary
+            : OpenAiResponses.reasoningText(item['content']);
         if (text.isEmpty) return const [];
         _markReasoning(index);
         return [ThoughtDeltaEvent(text)];
@@ -956,6 +1048,13 @@ class OpenAiResponsesStreamParser {
     if (call == null) return null;
     return ToolCallEvent(call);
   }
+}
+
+class _CapturedReasoning {
+  final int? index;
+  final ReasoningRecord record;
+
+  const _CapturedReasoning({required this.index, required this.record});
 }
 
 class _StreamCall {

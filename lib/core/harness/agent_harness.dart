@@ -256,6 +256,7 @@ class AgentHarness {
           String content = '';
           String thoughts = '';
           String? thoughtSignature;
+          List<ReasoningRecord> reasoningRecords = const [];
           // 流式增量里的回复标记过滤：UI 与入库正文都不会看到回显的标记
           final contentFilter = ReplyMarkerStreamFilter();
           final thoughtFilter = ReplyMarkerStreamFilter();
@@ -282,6 +283,10 @@ class AgentHarness {
             } else if (event is ThoughtSignatureEvent) {
               if (event.signature.isNotEmpty) {
                 thoughtSignature = event.signature;
+              }
+            } else if (event is ReasoningSnapshotEvent) {
+              if (event.records.isNotEmpty) {
+                reasoningRecords = event.records;
               }
             } else if (event is ContentDeltaEvent) {
               final chunk = contentFilter.add(event.delta);
@@ -322,7 +327,9 @@ class AgentHarness {
 
           if (run.isCancelled) {
             // 保存已显示的半截正文/思考，不把尚未执行的工具调用写入协议历史。
-            if (content.isNotEmpty || thoughts.isNotEmpty) {
+            if (content.isNotEmpty ||
+                thoughts.isNotEmpty ||
+                reasoningRecords.isNotEmpty) {
               final partial = AgentMessage(
                 id: assistantMsgId,
                 replyNumber: ++_replySequence,
@@ -330,6 +337,7 @@ class AgentHarness {
                 content: stripReplyMarkers(content),
                 thoughts: thoughts,
                 thoughtSignature: thoughtSignature,
+                reasoningRecords: reasoningRecords,
                 usage: usage,
                 provider: providerLabel,
                 model: provider?.modelId,
@@ -363,7 +371,10 @@ class AgentHarness {
           }
 
           // 空响应保护: 无正文无思考无工具调用视为异常响应，占用同一重试预算
-          if (content.isEmpty && thoughts.isEmpty && toolCalls.isEmpty) {
+          if (content.isEmpty &&
+              thoughts.isEmpty &&
+              toolCalls.isEmpty &&
+              reasoningRecords.isEmpty) {
             if (attempt < maxRetryAttempts) {
               const reason = '模型返回空响应';
               final delay = retryBaseDelay * (1 << (attempt - 1));
@@ -389,6 +400,7 @@ class AgentHarness {
             content: stripReplyMarkers(content),
             thoughts: thoughts,
             thoughtSignature: thoughtSignature,
+            reasoningRecords: reasoningRecords,
             toolCalls: toolCalls.isNotEmpty ? toolCalls : null,
             usage: usage,
             provider: providerLabel,
