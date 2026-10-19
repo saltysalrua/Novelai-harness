@@ -346,7 +346,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                     child: Text(
                       hasSelection
                           ? context.l10n.rewindSelectedTurn(
-                              checkpoints[selected!].index,
+                              checkpoints[selected].index,
                             )
                           : context.l10n.rewindSelectPrompt,
                       style: TextStyle(
