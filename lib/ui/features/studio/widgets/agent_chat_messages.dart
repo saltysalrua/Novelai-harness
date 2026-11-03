@@ -2,11 +2,15 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+// markdown 只作为 flutter_markdown_plus 的传递依赖出现，这里只用它的元素类型。
+// ignore: depend_on_referenced_packages
+import 'package:markdown/markdown.dart' as md;
 import '../../../../core/harness/reply_marker.dart';
 import '../../../../core/harness/types.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/stable_edge_selection.dart';
 import 'agent_chat_blocks.dart';
 import 'chat_image_attachment.dart';
 import 'image_lightbox.dart';
@@ -301,20 +305,14 @@ class ToolResultBlock extends StatelessWidget {
                 ),
               ],
             ),
-            bodyBuilder: (context) => Container(
-              width: double.infinity,
-              constraints: const BoxConstraints(maxHeight: 320),
-
-              child: SingleChildScrollView(
-                child: SelectableText(
-                  message.content,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: 'monospace',
-                    color: colors.textSecondary,
-                    height: 1.45,
-                  ),
-                ),
+            bodyBuilder: (context) => BoundedSelectableText(
+              text: message.content,
+              maxHeight: 320,
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                color: colors.textSecondary,
+                height: 1.45,
               ),
             ),
           ),
@@ -536,9 +534,73 @@ MarkdownStyleSheet buildAgentMarkdownStyleSheet(BuildContext context) {
   );
 }
 
+/// 代码块单独横向滚动。用 [SelectableText] 而不是外层 [SelectionArea] 的普通文本，
+/// 否则列表的边缘自动滚动会把又宽又矮的代码视口来回拽，行尾选不中。
+class _AgentCodeBlockBuilder extends MarkdownElementBuilder {
+  @override
+  bool isBlockElement() => true;
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    var text = element.textContent;
+    if (text.endsWith('\n')) {
+      text = text.substring(0, text.length - 1);
+    }
+    return _AgentCodeBlock(
+      text: text,
+      style:
+          preferredStyle ??
+          const TextStyle(fontSize: 13, fontFamily: 'monospace'),
+    );
+  }
+}
+
+class _AgentCodeBlock extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+
+  const _AgentCodeBlock({required this.text, required this.style});
+
+  @override
+  State<_AgentCodeBlock> createState() => _AgentCodeBlockState();
+}
+
+class _AgentCodeBlockState extends State<_AgentCodeBlock> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StableEdgeSelection(
+      controller: _controller,
+      axis: Axis.horizontal,
+      child: SingleChildScrollView(
+        controller: _controller,
+        scrollDirection: Axis.horizontal,
+        physics: const StableSelectionScrollPhysics(),
+        padding: const EdgeInsets.all(8),
+        child: SelectableText(
+          widget.text,
+          style: widget.style,
+          scrollPhysics: const StableSelectionScrollPhysics(),
+        ),
+      ),
+    );
+  }
+}
+
 /// 正文与思考增量分开缓存；仅正文或主题变化时重新创建 Markdown 子树。
+///
+/// 段落用普通文本，交给消息列表外层的 [SelectionArea] 一次划选。
+/// 思考块和工具输出仍用 [SelectableText]，避免展开时把尚未布局的段落塞进选区容器。
 class AgentMarkdownBody extends StatefulWidget {
   final String data;
+
   const AgentMarkdownBody({super.key, required this.data});
 
   @override
@@ -563,8 +625,9 @@ class _AgentMarkdownBodyState extends State<AgentMarkdownBody> {
   @override
   Widget build(BuildContext context) => _rendered ??= MarkdownBody(
     data: widget.data,
-    selectable: true,
+    selectable: false,
     softLineBreak: true,
+    builders: {'pre': _AgentCodeBlockBuilder()},
     styleSheet: buildAgentMarkdownStyleSheet(context),
   );
 }
