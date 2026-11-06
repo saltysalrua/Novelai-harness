@@ -203,7 +203,9 @@ mixin _StudioComfyMixin on _StudioCore {
         await service.setParams(
           paramsNodeId,
           ComfyUiParamsPatch(
-            negative: requestParams.negativePrompt.trim(),
+            negative: requestParams.textForRequest(
+              requestParams.negativePrompt.trim(),
+            ),
             steps: requestParams.steps,
             cfg: requestParams.scale,
             seed: seed,

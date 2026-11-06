@@ -137,7 +137,7 @@ class PromptTokenCounterService {
   /// 正向提示词计数 (主提示词 + 全部启用角色)。
   PromptTokenUsage countPositive(NaiGenerationParams params) {
     final model = params.model;
-    final characters = params.enabledCharacterPrompts;
+    final characters = params.requestCharacterPrompts;
     final mainText = params.effectivePrompt;
 
     final texts = <String>[
@@ -149,23 +149,23 @@ class PromptTokenCounterService {
     // 明细：固定词缀 / 质量词 (含透明背景) / 角色，基准差值折入提示词条目。
     final fixedAffixes = <String>[
       if (params.applyFixedPrompts) ...[
-        if (params.prefixPrompt?.trim().isNotEmpty ?? false)
-          params.prefixPrompt!.trim(),
-        if (params.suffixPrompt?.trim().isNotEmpty ?? false)
-          params.suffixPrompt!.trim(),
+        params.textForRequest(params.prefixPrompt?.trim() ?? ''),
+        params.textForRequest(params.suffixPrompt?.trim() ?? ''),
       ],
     ];
     final qualityParts = <String>[
       if (params.qualityToggle)
-        NovelAiQualityTagsHelper.getQualityTags(model, params.qualityPreset),
-      if (params.transparentBg) 'transparent background',
+        params.textForRequest(
+          NovelAiQualityTagsHelper.getQualityTags(model, params.qualityPreset),
+        ),
+      if (params.transparentBg) params.textForRequest('transparent background'),
     ];
     final characterTexts = [for (final c in characters) c.prompt];
 
     final breakdown = _buildBreakdown(
       model,
       base: PromptTokenBreakdownKind.prompt,
-      baseText: params.prompt,
+      baseText: params.textForRequest(params.prompt),
       groups: [
         (
           PromptTokenBreakdownKind.fixedAffixes,
@@ -195,7 +195,7 @@ class PromptTokenCounterService {
   /// 负面提示词计数 (生效负面词 + 角色负面)。
   PromptTokenUsage countNegative(NaiGenerationParams params) {
     final model = params.model;
-    final characters = params.enabledCharacterPrompts;
+    final characters = params.requestCharacterPrompts;
     final mainText = params.effectiveNegativePrompt;
 
     final characterNegatives = [
@@ -209,22 +209,25 @@ class PromptTokenCounterService {
     final used = _countTexts(model, texts);
 
     // 明细：UC 预设 (含 nsfw 前置时的标记) / 角色负面，差值折入负面词条目。
-    final ucText = NovelAiUndesiredContentHelper.getUndesiredContent(
-      model,
-      params.ucPresetKey,
+    final ucText = params.textForRequest(
+      NovelAiUndesiredContentHelper.getUndesiredContent(
+        model,
+        params.ucPresetKey,
+      ),
     );
     final nsfwPrepended =
         params.ucPresetKey != 'None' &&
         !NovelAiPromptText.containsNsfwTag(params.prompt);
+    final nsfwToken = params.textForRequest('nsfw');
     final ucParts = <String>[
-      if (nsfwPrepended) 'nsfw',
+      if (nsfwPrepended && nsfwToken.isNotEmpty) nsfwToken,
       if (ucText.trim().isNotEmpty) ucText,
     ];
 
     final breakdown = _buildBreakdown(
       model,
       base: PromptTokenBreakdownKind.negativePrompt,
-      baseText: params.negativePrompt,
+      baseText: params.textForRequest(params.negativePrompt),
       groups: [
         (
           PromptTokenBreakdownKind.ucPreset,
