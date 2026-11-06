@@ -114,7 +114,7 @@ class FixedAffixesCardContent extends StatelessWidget {
   }
 }
 
-/// 固定词缀页上的违禁词开关和词表。原文留在编辑框，只在组装请求时去掉。
+/// 固定词缀页上的违禁词开关和词表。只影响返回给 Agent 的文本。
 class _BannedWordsSection extends StatefulWidget {
   final StudioViewModel viewModel;
 
@@ -166,27 +166,13 @@ class _BannedWordsSectionState extends State<_BannedWordsSection> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.bannedWordsTitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      l10n.bannedWordsSubtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.35,
-                        color: colors.textMuted,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  l10n.bannedWordsTitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -226,7 +212,7 @@ class _BannedWordsSectionState extends State<_BannedWordsSection> {
                 height: 1.4,
                 color: colors.textPrimary,
               ),
-              decoration: InputDecoration(hintText: l10n.bannedWordsHint),
+              decoration: const InputDecoration(),
               onChanged: (val) => widget.viewModel.updateParams(
                 widget.viewModel.params.copyWith(bannedWords: val),
               ),

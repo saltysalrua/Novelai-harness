@@ -35,11 +35,12 @@ class NaiGenerationParams {
   final String? suffixPrompt;
   final bool applyFixedPrompts;
 
-  /// 生成前是否从送出的提示词参数里去掉 [bannedWords]。
-  /// 关闭时编辑框原文原样进入请求。
+  /// 是否从返回给 Agent 的参数文本里去掉 [bannedWords]。
+  /// 不改编辑框、存档，也不改送往 NovelAI / ComfyUI 的原文。
   final bool stripBannedWords;
 
-  /// 用户维护的违禁词，换行、逗号或分号分隔。仅在 [stripBannedWords] 开启时生效。
+  /// 用户维护的违禁词，换行、逗号或分号分隔。
+  /// 仅在 [stripBannedWords] 开启时，从 Agent 读到的参数文本里去掉。
   final String bannedWords;
 
   /// 多角色提示词列表 (仅 V4+ 模型生效，V5 最多 22 个、V4/V4.5 最多 6 个)
@@ -78,45 +79,34 @@ class NaiGenerationParams {
     this.characterAiPosition = true,
   });
 
-  /// 送出前按违禁词开关处理一段文本。关闭或列表为空时原样返回。
-  String textForRequest(String text) {
+  /// 返回给 Agent 前按违禁词开关处理一段文本。
+  /// 关闭或列表为空时原样返回。生成请求不使用此方法。
+  String textForAgent(String text) {
     if (!stripBannedWords || text.isEmpty || bannedWords.trim().isEmpty) {
       return text;
     }
     return BannedWordSanitizer.strip(text, bannedWords);
   }
 
-  /// 实际进入请求的角色列表。违禁词把整段角色提示词删空时，该角色不送出。
-  List<NaiCharacterPrompt> get requestCharacterPrompts {
-    final enabled = enabledCharacterPrompts;
-    if (!stripBannedWords || bannedWords.trim().isEmpty) return enabled;
-    final outgoing = <NaiCharacterPrompt>[];
-    for (final character in enabled) {
-      final prompt = textForRequest(character.prompt).trim();
-      if (prompt.isEmpty) continue;
-      outgoing.add(
-        character.copyWith(
-          prompt: prompt,
-          negativePrompt: textForRequest(character.negativePrompt).trim(),
-        ),
-      );
-    }
-    return outgoing;
-  }
-
   /// 组合最终正向词 (词缀 + 核心词 + 透明背景标签)
   String get finalPrompt {
     final parts = <String>[];
-    void add(String? raw) {
-      if (raw == null) return;
-      final text = textForRequest(raw.trim());
-      if (text.isNotEmpty) parts.add(text);
+    if (applyFixedPrompts &&
+        prefixPrompt != null &&
+        prefixPrompt!.trim().isNotEmpty) {
+      parts.add(prefixPrompt!.trim());
     }
-
-    if (applyFixedPrompts) add(prefixPrompt);
-    add(prompt);
-    if (applyFixedPrompts) add(suffixPrompt);
-    if (transparentBg) add('transparent background');
+    if (prompt.trim().isNotEmpty) {
+      parts.add(prompt.trim());
+    }
+    if (applyFixedPrompts &&
+        suffixPrompt != null &&
+        suffixPrompt!.trim().isNotEmpty) {
+      parts.add(suffixPrompt!.trim());
+    }
+    if (transparentBg) {
+      parts.add('transparent background');
+    }
     return parts.join(', ');
   }
 
@@ -126,9 +116,7 @@ class NaiGenerationParams {
   ///    (官网在质量词之后追加，因此质量词永远落在 teXt: 之前)。
   String get effectivePrompt {
     final qualityTags = qualityToggle
-        ? textForRequest(
-            NovelAiQualityTagsHelper.getQualityTags(model, qualityPreset),
-          )
+        ? NovelAiQualityTagsHelper.getQualityTags(model, qualityPreset)
         : '';
     final withQuality = qualityTags.trim().isEmpty
         ? finalPrompt
@@ -140,7 +128,7 @@ class NaiGenerationParams {
           );
 
     if (!model.isV5) return withQuality;
-    final enabled = requestCharacterPrompts;
+    final enabled = enabledCharacterPrompts;
     final characters = <NaiAutoTextCharacter>[
       for (var i = 0; i < enabled.length; i++)
         () {
@@ -191,7 +179,7 @@ class NaiGenerationParams {
       // 用户词里已有 nsfw 也照加不误 (官网不去重)，None 时不前置
       effective = 'nsfw, $effective';
     }
-    return textForRequest(effective);
+    return effective;
   }
 
   /// 算力开关只在 V5 Full 上生效。
@@ -227,7 +215,7 @@ class NaiGenerationParams {
   /// 是否下发自定义坐标：关闭全局 AI 自动布局且存在启用角色时才为 true。
   /// 官方 AI's Choice (characterAiPosition=true) 下不发任何位置参数，由模型自行安排。
   bool get useCoords =>
-      !characterAiPosition && requestCharacterPrompts.isNotEmpty;
+      !characterAiPosition && enabledCharacterPrompts.isNotEmpty;
 
   /// 官方质量预设字符串 ID (params_version 4 用字符串而非旧版布尔开关)
   String get _qualityPresetId {
@@ -594,7 +582,7 @@ class NaiGenerationParams {
   /// characterPrompts 条目)，toApiPayload 与 toMetadataComment 共用，
   /// 保证请求与嵌入 PNG 的元数据完全同构。
   _NaiCharacterPayloadParts _buildCharacterPayloadParts() {
-    final enabledCharacters = requestCharacterPrompts;
+    final enabledCharacters = enabledCharacterPrompts;
     final useCoords = this.useCoords;
     final quantize = model.isV5
         ? (double v) => v.clamp(0.0, 1.0)

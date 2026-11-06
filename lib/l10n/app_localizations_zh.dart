@@ -1493,13 +1493,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bannedWordsTitle => '排除违禁词';
 
   @override
-  String get bannedWordsSubtitle =>
-      '生成前从固定前后缀、提示词、负面词、质量词、UC 预设和角色提示词里去掉这些词。英文按完整词匹配，不区分大小写。';
-
-  @override
-  String get bannedWordsHint => '每行一个，或用逗号分隔';
-
-  @override
   String get annotHistoryTitle => '历史记录 ';
 
   @override

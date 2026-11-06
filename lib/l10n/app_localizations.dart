@@ -2846,18 +2846,6 @@ abstract class AppLocalizations {
   /// **'排除违禁词'**
   String get bannedWordsTitle;
 
-  /// No description provided for @bannedWordsSubtitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'生成前从固定前后缀、提示词、负面词、质量词、UC 预设和角色提示词里去掉这些词。英文按完整词匹配，不区分大小写。'**
-  String get bannedWordsSubtitle;
-
-  /// No description provided for @bannedWordsHint.
-  ///
-  /// In zh, this message translates to:
-  /// **'每行一个，或用逗号分隔'**
-  String get bannedWordsHint;
-
   /// No description provided for @annotHistoryTitle.
   ///
   /// In zh, this message translates to:

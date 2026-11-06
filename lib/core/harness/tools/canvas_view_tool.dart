@@ -195,7 +195,9 @@ Future<OverlayRenderResult> renderImageWithCharacterOverlay(
         cy = center.y * size.height;
       }
 
-      final display = resolveCharacterAnchorDisplay(character);
+      final display = resolveCharacterAnchorDisplay(
+        character.copyWith(prompt: params.textForAgent(character.prompt)),
+      );
 
       // 描边圆 + 填充圆
       canvas.drawCircle(

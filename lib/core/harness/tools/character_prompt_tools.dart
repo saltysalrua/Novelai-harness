@@ -16,13 +16,22 @@ typedef CharacterLimitGetter = int Function();
 typedef CharacterAiPositionGetter = bool Function();
 
 /// 构建角色提示词列表可读报表 (list 工具与参数报表共用)
+///
+/// [sanitizeText] 在开关打开时复用生成参数的 textForAgent。
+/// 不传则原样返回，存档里的角色提示词不受影响。
 String buildCharacterPromptsReport(
   List<NaiCharacterPrompt> characters, {
   bool aiPosition = true,
+  String Function(String text)? sanitizeText,
 }) {
   final positionMode = aiPosition
       ? 'AI 自动布局 (官方 AI\'s Choice，不发送位置参数)'
       : '自定义定位 (发送 use_coords 与各角色 center)';
+  String visible(String text) {
+    final shown = sanitizeText?.call(text) ?? text;
+    return shown.isEmpty ? '(空)' : shown;
+  }
+
   if (characters.isEmpty) {
     return '当前没有角色提示词 (单角色场景无需配置，主提示词即可)。'
         '位置模式: $positionMode。';
@@ -37,8 +46,8 @@ String buildCharacterPromptsReport(
       '[$index] ${c.name} (id: ${c.id})',
       '    状态: ${c.enabled ? '启用' : '停用'} | 定位: $position',
       '    坐标原值: position_x: ${c.positionX} | position_y: ${c.positionY}',
-      '    正向: ${c.prompt.isEmpty ? '(空)' : c.prompt}',
-      '    负面: ${c.negativePrompt.isEmpty ? '(空)' : c.negativePrompt}',
+      '    正向: ${visible(c.prompt)}',
+      '    负面: ${visible(c.negativePrompt)}',
     ].join('\n');
   });
   return '共 ${characters.length} 个角色提示词，位置模式: $positionMode。\n${lines.join('\n')}';
@@ -73,9 +82,13 @@ class NovelAiListCharacterPromptsTool extends AgentTool {
   final CharacterPromptsGetter getCharacterPrompts;
   final CharacterAiPositionGetter? getAiPosition;
 
+  /// 返回给 Agent 前处理正负提示词。工作台传入当前参数的 textForAgent。
+  final String Function(String text)? sanitizeText;
+
   NovelAiListCharacterPromptsTool({
     required this.getCharacterPrompts,
     this.getAiPosition,
+    this.sanitizeText,
   }) : super(
          name: 'list_character_prompts',
          label: '角色列表',
@@ -93,6 +106,7 @@ class NovelAiListCharacterPromptsTool extends AgentTool {
       content: buildCharacterPromptsReport(
         getCharacterPrompts(),
         aiPosition: getAiPosition?.call() ?? true,
+        sanitizeText: sanitizeText,
       ),
     );
   }
