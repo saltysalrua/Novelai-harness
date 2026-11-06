@@ -1,8 +1,7 @@
 /// 用户违禁词列表的解析与提示词剥离。
 ///
-/// 生成请求组装前调用：从固定前后缀、主提示词、负面词、质量词、
-/// UC 预设和角色提示词里去掉用户列出的词，避免这些词进入模型请求。
-/// 编辑框里的原文不改，关闭开关后原词仍会送出。
+/// 只用于返回给 Agent 的参数文本。编辑框、存档和 NovelAI / ComfyUI
+/// 请求保持原文。关闭开关后 Agent 再次读到原文。
 abstract final class BannedWordSanitizer {
   BannedWordSanitizer._();
 

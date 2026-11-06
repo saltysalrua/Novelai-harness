@@ -38,6 +38,12 @@ const _studioModelIds = <String>[
   'nai-diffusion-3',
 ];
 
+/// 写进 Agent 工具结果前处理一段参数文本。开关关闭时保留原文，包括空白。
+String _agentVisibleParamText(NaiGenerationParams params, String text) {
+  final shown = params.textForAgent(text);
+  return shown.isEmpty ? '(空)' : shown;
+}
+
 /// 按当前生图后端返回与请求路径一致的实际提示词。
 StudioEffectivePrompts resolveStudioEffectivePrompts(
   NaiGenerationParams params, {
@@ -46,7 +52,7 @@ StudioEffectivePrompts resolveStudioEffectivePrompts(
     ? (
         backend: 'ComfyUI',
         prompt: params.finalPrompt,
-        negativePrompt: params.textForRequest(params.negativePrompt.trim()),
+        negativePrompt: params.negativePrompt.trim(),
       )
     : (
         backend: 'NovelAI',
@@ -82,10 +88,10 @@ String buildStudioParamsReport(
       resolveStudioEffectivePrompts(params, isComfyUi: false);
   final costStatus = buildCostEstimateStatus(params);
   final lines = <String>[
-    '• 原始正向提示词: ${params.prompt.isEmpty ? '(空)' : params.prompt}',
-    '• 最终正向提示词: ${effective.prompt.isEmpty ? '(空)' : effective.prompt}',
-    '• 原始负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
-    '• 最终负向提示词: ${effective.negativePrompt.isEmpty ? '(空)' : effective.negativePrompt}',
+    '• 原始正向提示词: ${_agentVisibleParamText(params, params.prompt)}',
+    '• 最终正向提示词: ${_agentVisibleParamText(params, effective.prompt)}',
+    '• 原始负向提示词: ${_agentVisibleParamText(params, params.negativePrompt)}',
+    '• 最终负向提示词: ${_agentVisibleParamText(params, effective.negativePrompt)}',
     '• 实际生图后端: ${effective.backend}',
     '• 绘图模型: ${params.model.label} (${params.apiModelId})',
     if (params.supportsEffort) '• 算力: ${params.isMediumEffort ? '节约' : '通常'}',
@@ -106,10 +112,13 @@ String buildStudioParamsReport(
     '• 随机种子: ${params.seed == -1 ? '随机 (-1)' : params.seed}',
     '• 点数预估: $costStatus',
   ];
+  final characterReport = buildCharacterPromptsReport(
+    params.characterPrompts,
+    aiPosition: params.characterAiPosition,
+    sanitizeText: params.textForAgent,
+  );
   var report = '$title\n${lines.join('\n')}';
-  report +=
-      '\n\n角色提示词详情：\n'
-      '${buildCharacterPromptsReport(params.characterPrompts, aiPosition: params.characterAiPosition)}';
+  report += '\n\n角色提示词详情：\n$characterReport';
   return report;
 }
 
@@ -193,21 +202,21 @@ class NovelAiGetStudioParamsTool extends AgentTool {
     final lines = <String>[];
 
     if (requestedKeys.contains('prompt')) {
-      lines.add('• 原始正向提示词: ${params.prompt.isEmpty ? '(空)' : params.prompt}');
+      lines.add('• 原始正向提示词: ${_agentVisibleParamText(params, params.prompt)}');
     }
     if (requestedKeys.contains('negative_prompt')) {
       lines.add(
-        '• 原始负向提示词: ${params.negativePrompt.isEmpty ? '(空)' : params.negativePrompt}',
+        '• 原始负向提示词: ${_agentVisibleParamText(params, params.negativePrompt)}',
       );
     }
     if (requestedKeys.contains('effective_prompt')) {
       lines.add(
-        '• 最终正向提示词: ${effective.prompt.isEmpty ? '(空)' : effective.prompt}',
+        '• 最终正向提示词: ${_agentVisibleParamText(params, effective.prompt)}',
       );
     }
     if (requestedKeys.contains('effective_negative_prompt')) {
       lines.add(
-        '• 最终负向提示词: ${effective.negativePrompt.isEmpty ? '(空)' : effective.negativePrompt}',
+        '• 最终负向提示词: ${_agentVisibleParamText(params, effective.negativePrompt)}',
       );
     }
     if (requestedKeys.contains('generation_backend')) {

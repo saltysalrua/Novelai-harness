@@ -181,6 +181,7 @@ mixin _StudioHarnessMixin on _StudioCore {
       NovelAiListCharacterPromptsTool(
         getCharacterPrompts: () => _params.characterPrompts,
         getAiPosition: () => _params.characterAiPosition,
+        sanitizeText: (text) => _params.textForAgent(text),
       ),
     );
     _toolRegistry.register(

@@ -1607,13 +1607,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bannedWordsTitle => 'Strip banned words';
 
   @override
-  String get bannedWordsSubtitle =>
-      'Remove these words from fixed prefixes and suffixes, prompts, undesired content, quality tags, UC presets, and character prompts before generation. Latin words match whole words, ignoring case.';
-
-  @override
-  String get bannedWordsHint => 'One per line, or separate with commas';
-
-  @override
   String get annotHistoryTitle => 'History ';
 
   @override

@@ -52,7 +52,7 @@ void main() {
     });
   });
 
-  group('NaiGenerationParams banned-word request filter', () {
+  group('NaiGenerationParams banned-word switch', () {
     NaiGenerationParams sample({required bool enabled}) {
       return NaiGenerationParams(
         prompt: '1girl, banned',
@@ -91,33 +91,28 @@ void main() {
       expect(characters.first['prompt'], contains('banned'));
     });
 
-    test(
-      'on switch strips listed words from every text field in the request',
-      () {
-        final params = sample(enabled: true);
-        expect(params.prefixPrompt, contains('banned'));
-        expect(params.finalPrompt, isNot(contains('banned')));
-        expect(params.finalPrompt, isNot(contains('masterpiece')));
-        expect(params.finalPrompt, contains('1girl'));
-        expect(params.finalPrompt, contains('highres'));
-        expect(params.effectivePrompt, isNot(contains('banned')));
-        expect(params.effectivePrompt, isNot(contains('masterpiece')));
-        expect(params.requestNegativePrompt, isNot(contains('banned')));
-        expect(params.requestNegativePrompt, contains('blurry'));
+    test('on switch still sends the stored text to the image request', () {
+      final params = sample(enabled: true);
+      expect(params.prefixPrompt, contains('banned'));
+      expect(params.finalPrompt, contains('0.7::banned::'));
+      expect(params.finalPrompt, contains('banned, highres'));
+      expect(params.finalPrompt, contains('masterpiece'));
+      expect(params.effectivePrompt, contains('banned'));
+      expect(params.requestNegativePrompt, contains('banned'));
+      expect(params.textForAgent(params.prompt), '1girl');
+      final agentPrefix = params.textForAgent(params.prefixPrompt ?? '');
+      expect(agentPrefix, isNot(contains('banned')));
+      expect(agentPrefix, isNot(contains('masterpiece')));
 
-        final payload = params.toApiPayload();
-        expect(payload['input'], isNot(contains('banned')));
-        expect(
-          payload['parameters']['negative_prompt'],
-          isNot(contains('banned')),
-        );
-        final characters = (payload['parameters']['characterPrompts'] as List)
-            .cast<Map>();
-        expect(characters, hasLength(1));
-        expect(characters.single['prompt'], 'silver hair');
-        expect(characters.single['uc'], 'hat');
-      },
-    );
+      final payload = params.toApiPayload();
+      expect(payload['input'], contains('banned'));
+      expect(payload['parameters']['negative_prompt'], contains('banned'));
+      final characters = (payload['parameters']['characterPrompts'] as List)
+          .cast<Map>();
+      expect(characters, hasLength(2));
+      expect(characters.first['prompt'], contains('banned'));
+      expect(characters.last['prompt'], 'banned');
+    });
 
     test('empty word list does not change the outgoing prompt', () {
       const params = NaiGenerationParams(

@@ -269,4 +269,119 @@ void main() {
       expect(updated, isNull);
     });
   });
+
+  group('banned words stay out of agent parameter reads', () {
+    NaiGenerationParams hiddenParams() {
+      return const NaiGenerationParams(
+        prompt: '1girl, banned',
+        negativePrompt: 'lowres, banned',
+        prefixPrompt: 'banned, cinematic',
+        suffixPrompt: 'highres, banned',
+        qualityToggle: false,
+        ucPresetKey: 'None',
+        stripBannedWords: true,
+        bannedWords: 'banned',
+        characterPrompts: [
+          NaiCharacterPrompt(
+            id: 'abcd1234',
+            name: '角色',
+            prompt: 'silver hair, banned',
+            negativePrompt: 'hat, banned',
+          ),
+        ],
+      );
+    }
+
+    test(
+      'read tools return sanitized text and leave stored fields intact',
+      () async {
+        final params = hiddenParams();
+        final result = await NovelAiGetStudioParamsTool(
+          getCurrentParams: () => params,
+        ).execute('read-hidden', {});
+
+        expect(result.isError, isFalse);
+        expect(result.content, isNot(contains('banned')));
+        expect(result.content, contains('原始正向提示词: 1girl'));
+        expect(result.content, contains('原始负向提示词: lowres'));
+        expect(result.content, contains('cinematic'));
+        expect(result.content, contains('highres'));
+        expect(result.content, contains('silver hair'));
+        expect(result.content, contains('hat'));
+        expect(params.prompt, '1girl, banned');
+        expect(params.prefixPrompt, 'banned, cinematic');
+        expect(params.suffixPrompt, 'highres, banned');
+        expect(params.characterPrompts.single.prompt, 'silver hair, banned');
+      },
+    );
+
+    test('selective keys and a raw effective string are sanitized', () async {
+      final params = hiddenParams();
+      final tool = NovelAiGetStudioParamsTool(
+        getCurrentParams: () => params,
+        resolveEffectivePrompts: (current) => (
+          backend: 'NovelAI',
+          prompt: '${current.prefixPrompt}, ${current.prompt}',
+          negativePrompt: current.negativePrompt,
+        ),
+      );
+
+      final result = await tool.execute('read-hidden-keys', {
+        'keys': [
+          'prompt',
+          'negative_prompt',
+          'effective_prompt',
+          'effective_negative_prompt',
+        ],
+      });
+
+      expect(result.isError, isFalse);
+      expect(result.content, isNot(contains('banned')));
+      expect(result.content, contains('原始正向提示词: 1girl'));
+      expect(result.content, contains('最终正向提示词: cinematic, 1girl'));
+      expect(result.content, contains('最终负向提示词: lowres'));
+    });
+
+    test('switch off still returns the stored prompt text', () async {
+      const params = NaiGenerationParams(
+        prompt: '1girl, banned',
+        prefixPrompt: 'banned, cinematic',
+        negativePrompt: 'lowres, banned',
+        qualityToggle: false,
+        ucPresetKey: 'None',
+        bannedWords: 'banned',
+      );
+      final result =
+          await NovelAiGetStudioParamsTool(
+            getCurrentParams: () => params,
+          ).execute('read-visible', {
+            'keys': ['prompt', 'negative_prompt', 'effective_prompt'],
+          });
+
+      expect(result.content, contains('原始正向提示词: 1girl, banned'));
+      expect(result.content, contains('原始负向提示词: lowres, banned'));
+      expect(result.content, contains('banned, cinematic, 1girl, banned'));
+    });
+
+    test(
+      'character list uses the same sanitizer and does not edit storage',
+      () async {
+        final params = hiddenParams();
+        final characters = params.characterPrompts;
+        final tool = NovelAiListCharacterPromptsTool(
+          getCharacterPrompts: () => characters,
+          sanitizeText: params.textForAgent,
+        );
+
+        final result = await tool.execute('list-hidden', {});
+
+        expect(result.isError, isFalse);
+        expect(result.content, isNot(contains('banned')));
+        expect(result.content, contains('正向: silver hair'));
+        expect(result.content, contains('负面: hat'));
+        expect(characters.single.prompt, 'silver hair, banned');
+        expect(characters.single.negativePrompt, 'hat, banned');
+      },
+    );
+  });
 }

@@ -656,8 +656,6 @@
   "affixSuffixTitle": "Suffix (placed after main prompt)",
   "affixResizeSuffixTooltip": "Drag to resize suffix height (double-click to reset)",
   "bannedWordsTitle": "Strip banned words",
-  "bannedWordsSubtitle": "Remove these words from fixed prefixes and suffixes, prompts, undesired content, quality tags, UC presets, and character prompts before generation. Latin words match whole words, ignoring case.",
-  "bannedWordsHint": "One per line, or separate with commas",
   "annotHistoryTitle": "History ",
   "annotHistoryEmpty": "No images",
   "annotHistoryAddedAsReference": "Added history image to canvas as reference",

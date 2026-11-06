@@ -201,8 +201,12 @@ class AiEditImageTool extends AgentTool {
       final buffer = StringBuffer();
       buffer.writeln('AI 整图编辑完成：');
       buffer.writeln('• 绘图模型: ${provider.name} / ${config.imageEditModelId}');
+      final shownPrompt = (promptArg == null || promptArg.trim().isEmpty)
+          ? targetImage.params.textForAgent(prompt)
+          : prompt;
+      final shown = shownPrompt.isEmpty ? '(空)' : shownPrompt;
       buffer.writeln(
-        '• 修改指令: ${prompt.length > 60 ? '${prompt.substring(0, 60)}...' : prompt}',
+        '• 修改指令: ${shown.length > 60 ? '${shown.substring(0, 60)}...' : shown}',
       );
       if (aspectRatio.isNotEmpty) {
         buffer.writeln('• 生图比例: $aspectRatio');
