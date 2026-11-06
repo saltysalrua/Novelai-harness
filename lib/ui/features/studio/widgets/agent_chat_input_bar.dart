@@ -13,6 +13,7 @@ import '../../../core/widgets/app_async_icon_button.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/stable_edge_selection.dart';
 import 'chat_context_status.dart';
 import 'chat_image_attachment.dart';
 import 'slash_command_overlay.dart';
@@ -47,6 +48,7 @@ class _PendingAttachment {
 
 class _AgentChatInputBarState extends State<AgentChatInputBar> {
   final TextEditingController _inputController = TextEditingController();
+  final ScrollController _inputScrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
   final GlobalKey _inputFieldKey = GlobalKey();
   final LayerLink _layerLink = LayerLink();
@@ -164,6 +166,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     _inputController.removeListener(_updateSlashSuggestions);
     _inputFocusNode.removeListener(_handleInputFocusChanged);
     _inputController.dispose();
+    _inputScrollController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
   }
@@ -745,32 +748,38 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         // 焦点冒泡先处理补全，避免 Enter 被外层发送快捷键抢走。
         child: Focus(
           onKeyEvent: _handleSlashKey,
-          child: TextField(
-            key: _inputFieldKey,
-            controller: _inputController,
-            focusNode: _inputFocusNode,
-            minLines: 1,
-            maxLines: widget.compact ? 3 : 6,
-            style: TextStyle(
-              fontSize: widget.compact ? 15 : 14,
-              height: 1.5,
-              color: colors.textPrimary,
-            ),
-            decoration: InputDecoration(
-              hintText: context.l10n.chatInputHint,
-              hintMaxLines: widget.compact ? 2 : null,
-              hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
-              isDense: true,
-              filled: false,
-              contentPadding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.sm,
+          child: StableEdgeSelection(
+            controller: _inputScrollController,
+            child: TextField(
+              key: _inputFieldKey,
+              controller: _inputController,
+              focusNode: _inputFocusNode,
+              scrollController: _inputScrollController,
+              scrollPhysics: const StableSelectionScrollPhysics(),
+              scrollPadding: EdgeInsets.zero,
+              minLines: 1,
+              maxLines: widget.compact ? 3 : 6,
+              style: TextStyle(
+                fontSize: widget.compact ? 15 : 14,
+                height: 1.5,
+                color: colors.textPrimary,
               ),
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
+              decoration: InputDecoration(
+                hintText: context.l10n.chatInputHint,
+                hintMaxLines: widget.compact ? 2 : null,
+                hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+                isDense: true,
+                filled: false,
+                contentPadding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+              ),
             ),
           ),
         ),
