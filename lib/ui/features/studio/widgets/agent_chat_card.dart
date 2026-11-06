@@ -910,7 +910,9 @@ class AgentChatCardState extends State<AgentChatCard> {
       radius: theme.radius,
       child: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-        child: list,
+        // 包住列表后，拖出视口会由这个 Scrollable 匀速把选区续到屏外正文。
+        // 思考块仍用 SelectableText，展开时不会把尚未布局的段落塞进这个选区容器。
+        child: SelectionArea(child: list),
       ),
     );
   }
