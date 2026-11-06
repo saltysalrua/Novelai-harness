@@ -46,7 +46,7 @@ StudioEffectivePrompts resolveStudioEffectivePrompts(
     ? (
         backend: 'ComfyUI',
         prompt: params.finalPrompt,
-        negativePrompt: params.negativePrompt.trim(),
+        negativePrompt: params.textForRequest(params.negativePrompt.trim()),
       )
     : (
         backend: 'NovelAI',

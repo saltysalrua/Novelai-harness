@@ -12,6 +12,7 @@
 /// - [LlmProviderConfig] 等 LLM 配置: llm_models.dart
 library;
 
+export 'banned_word_sanitizer.dart';
 export 'nai_catalog.dart';
 export 'nai_character_prompt.dart';
 export 'nai_generation_params.dart';

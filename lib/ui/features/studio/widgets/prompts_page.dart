@@ -153,41 +153,46 @@ class _PromptsPageState extends State<PromptsPage> {
   bool get viewModelIsComfyUi => widget.viewModel.isComfyUiMode;
 
   List<GrayTag> _promptHeaderTags(NaiGenerationParams params) {
-    final hasPrefix =
-        params.applyFixedPrompts &&
-        (params.prefixPrompt?.trim().isNotEmpty ?? false);
+    final prefix = params.applyFixedPrompts
+        ? params.textForRequest(params.prefixPrompt?.trim() ?? '')
+        : '';
     return [
-      if (hasPrefix)
-        GrayTag(context.l10n.promptsPrefixBadge, params.prefixPrompt!.trim()),
+      if (prefix.isNotEmpty) GrayTag(context.l10n.promptsPrefixBadge, prefix),
     ];
   }
 
   List<GrayTag> _promptFooterTags(NaiGenerationParams params) {
-    final hasSuffix =
-        params.applyFixedPrompts &&
-        (params.suffixPrompt?.trim().isNotEmpty ?? false);
+    final suffix = params.applyFixedPrompts
+        ? params.textForRequest(params.suffixPrompt?.trim() ?? '')
+        : '';
     final qualityTags = viewModelIsComfyUi
         ? ''
-        : NovelAiQualityTagsHelper.getQualityTags(params.model, _qualityPreset);
+        : params.textForRequest(
+            NovelAiQualityTagsHelper.getQualityTags(
+              params.model,
+              _qualityPreset,
+            ),
+          );
+    // 透明背景为 NovelAI 专属标签，ComfyUI 模式不拼接也不展示
+    final transparent = params.transparentBg && !viewModelIsComfyUi
+        ? params.textForRequest('transparent background')
+        : '';
     return [
-      if (hasSuffix)
-        GrayTag(context.l10n.promptsSuffixBadge, params.suffixPrompt!.trim()),
+      if (suffix.isNotEmpty) GrayTag(context.l10n.promptsSuffixBadge, suffix),
       if (qualityTags.isNotEmpty)
         GrayTag(context.l10n.promptsQualityTags, qualityTags),
-      // 透明背景为 NovelAI 专属标签，ComfyUI 模式不拼接也不展示
-      if (params.transparentBg && !viewModelIsComfyUi)
-        GrayTag(
-          context.l10n.promptsTransparentBackground,
-          'transparent background',
-        ),
+      if (transparent.isNotEmpty)
+        GrayTag(context.l10n.promptsTransparentBackground, transparent),
     ];
   }
 
   List<GrayTag> _negativeFooterTags(NaiGenerationParams params) {
     if (viewModelIsComfyUi || params.isMediumEffort) return const [];
-    final ucPresetStr = NovelAiUndesiredContentHelper.getUndesiredContent(
-      params.model,
-      _ucPreset,
+    final ucPresetStr = params.textForRequest(
+      NovelAiUndesiredContentHelper.getUndesiredContent(
+        params.model,
+        _ucPreset,
+      ),
     );
     return [
       if (ucPresetStr.isNotEmpty)
