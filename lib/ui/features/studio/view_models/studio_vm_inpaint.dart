@@ -282,10 +282,20 @@ mixin _StudioInpaintMixin on _StudioCore {
     notifyListeners();
 
     try {
+      // 历史/画布快照会清空 bytes，像素在缓存或文件里。
+      // 缓存命中时 ensureImageLoaded 直接返回，不会写回 target.bytes。
+      // 这里固定使用调用开始时的 target，异步加载期间换图也不改这次要修的图。
+      final sourceBytes = await ensureImageLoaded(target);
+      if (sourceBytes == null || sourceBytes.isEmpty) {
+        _errorMessage = vmL10n.vmInpaintNoImage;
+        _statusMessage = null;
+        return;
+      }
+
       if (config.enableStreamPreview) {
         final stream = _repository.generateInpaintStream(
           apiKey: config.novelAiKey,
-          sourceImageBytes: target.bytes,
+          sourceImageBytes: sourceBytes,
           inpaintParams: _inpaintParams,
           generationParams: _params,
           saveDir: config.saveDirectory,
@@ -315,7 +325,7 @@ mixin _StudioInpaintMixin on _StudioCore {
       } else {
         final result = await _repository.generateInpaint(
           apiKey: config.novelAiKey,
-          sourceImageBytes: target.bytes,
+          sourceImageBytes: sourceBytes,
           inpaintParams: _inpaintParams,
           generationParams: _params,
           saveDir: config.saveDirectory,
