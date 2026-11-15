@@ -3,8 +3,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import '../../../../data/models/novelai_models.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_skeleton.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
@@ -169,8 +172,8 @@ class CanvasStreamController {
     _animateAnchor(
       scrollController.animateTo(
         0.0,
-        duration: const Duration(milliseconds: 380),
-        curve: Curves.easeOutCubic,
+        duration: AppMotionDurations.medium,
+        curve: AppMotionCurves.smoothOut,
       ),
     );
   }
@@ -192,8 +195,8 @@ class CanvasStreamController {
       scrollController
           .animateTo(
             clampedTarget,
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOutCubic,
+            duration: AppMotionDurations.medium,
+            curve: AppMotionCurves.smoothOut,
           )
           .whenComplete(() {
             if (_anchorEpoch != epoch) return;
@@ -238,8 +241,8 @@ class CanvasStreamController {
       _animateAnchor(
         _ensureItemVisible(
           itemContext,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOutCubic,
+          duration: AppMotionDurations.medium,
+          curve: AppMotionCurves.smoothOut,
           alignment: 0.5,
         ),
       );
@@ -255,8 +258,8 @@ class CanvasStreamController {
     scrollController
         .animateTo(
           fallbackOffset,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOutCubic,
+          duration: AppMotionDurations.medium,
+          curve: AppMotionCurves.smoothOut,
         )
         .whenComplete(() {
           if (_anchorEpoch != epoch) return;
@@ -267,8 +270,8 @@ class CanvasStreamController {
           }
           _ensureItemVisible(
             ctx,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
+            duration: AppMotionDurations.fast,
+            curve: AppMotionCurves.smoothOut,
             alignment: 0.5,
           ).whenComplete(() {
             if (_anchorEpoch == epoch) {
@@ -735,35 +738,41 @@ class CanvasGeneratingCard extends StatelessWidget {
                         cacheWidth: previewCacheWidth,
                       );
                     }
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                context.colors.primary,
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        const AppSkeletonBox(
+                          width: double.infinity,
+                          height: double.infinity,
+                          radius: 0,
+                        ),
+                        Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AppMatrixDotLoader(
+                                dotSize: 4.0,
+                                gap: 3.0,
+                                variant: AppMatrixDotVariant.orbit,
+                                activeColor: context.colors.primary,
                               ),
-                            ),
+                              if (viewModel.liveTotalSteps > 0 &&
+                                  viewModel.liveCurrentStep > 0) ...[
+                                const SizedBox(height: 10),
+                                Text(
+                                  '${viewModel.liveCurrentStep} / ${viewModel.liveTotalSteps}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: context.colors.textSecondary,
+                                    fontFamily: 'monospace',
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          if (viewModel.liveTotalSteps > 0 &&
-                              viewModel.liveCurrentStep > 0) ...[
-                            const SizedBox(height: 10),
-                            Text(
-                              '${viewModel.liveCurrentStep} / ${viewModel.liveTotalSteps}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: context.colors.textSecondary,
-                                fontFamily: 'monospace',
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -864,43 +873,51 @@ class CanvasImageCard extends StatelessWidget {
                       final fullBytes = item.bytes.isNotEmpty
                           ? item.bytes
                           : bytesMap[item.id];
-                      if (fullBytes != null && fullBytes.isNotEmpty) {
-                        return Image.memory(
-                          fullBytes,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                          cacheWidth: cacheWidth,
-                        );
-                      }
+                      final thumb = item.thumbnailBytes;
+                      final displayBytes =
+                          (fullBytes != null && fullBytes.isNotEmpty)
+                          ? fullBytes
+                          : ((thumb != null && thumb.isNotEmpty) ? thumb : null);
 
-                      if (isSelected) {
+                      if (isSelected &&
+                          (fullBytes == null || fullBytes.isEmpty)) {
                         viewModel.ensureImageLoaded(item);
                       }
 
-                      final thumb = item.thumbnailBytes;
-                      if (thumb != null && thumb.isNotEmpty) {
-                        return Image.memory(
-                          thumb,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                          cacheWidth: cacheWidth,
-                        );
-                      }
-
-                      return Container(
-                        color: context.colors.mutedBackground,
-                        child: Center(
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                context.colors.primary,
+                      final hasImage = displayBytes != null;
+                      return AppSkeletonReveal(
+                        isLoaded: hasImage,
+                        enableBlur: false,
+                        skeleton: SizedBox.expand(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              const AppSkeletonBox(
+                                width: double.infinity,
+                                height: double.infinity,
+                                radius: 0,
                               ),
-                            ),
+                              Center(
+                                child: AppMatrixDotLoader(
+                                  dotSize: 3.5,
+                                  gap: 2.5,
+                                  variant: AppMatrixDotVariant.pulse,
+                                  activeColor: context.colors.primary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                        child: hasImage
+                            ? SizedBox.expand(
+                                child: Image.memory(
+                                  displayBytes,
+                                  fit: BoxFit.contain,
+                                  gaplessPlayback: true,
+                                  cacheWidth: cacheWidth,
+                                ),
+                              )
+                            : const SizedBox.expand(),
                       );
                     },
                   ),

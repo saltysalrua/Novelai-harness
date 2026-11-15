@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
@@ -13,6 +14,8 @@ import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_image_detail_layout.dart';
 import '../../../core/widgets/app_section_header.dart';
+import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 词组合预设新建/编辑弹窗：完整大图与独立表单分区，操作不覆盖图片。
@@ -56,6 +59,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   String? _previewImagePath;
   Uint8List? _previewBytes;
   bool _isSaving = false;
+  int _titleShakeTrigger = 0;
+  int _promptShakeTrigger = 0;
 
   bool get _isEdit =>
       widget.initialEntry != null && widget.initialEntry!.id.trim().isNotEmpty;
@@ -128,11 +133,11 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.libraryEditPickImageFailed(e.toString())),
-          duration: const Duration(seconds: 2),
-        ),
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditPickImageFailed(e.toString()),
+        tone: AppToastTone.error,
+        duration: const Duration(seconds: 2),
       );
     }
   }
@@ -144,20 +149,18 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         _previewBytes = bytes;
         _previewImagePath = null; // 标记由内存字节保存
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.libraryEditAdoptedCanvasImage),
-          duration: const Duration(milliseconds: 900),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditAdoptedCanvasImage,
+        tone: AppToastTone.success,
+        duration: const Duration(milliseconds: 1200),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.libraryEditCanvasNoImage),
-          duration: const Duration(milliseconds: 1200),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditCanvasNoImage,
+        tone: AppToastTone.warning,
+        duration: const Duration(milliseconds: 1400),
       );
     }
   }
@@ -172,12 +175,11 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   void _fillFromCurrentWorkspacePrompt() {
     final current = widget.viewModel.params.prompt.trim();
     if (current.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.libraryEditWorkspacePromptEmpty),
-          duration: const Duration(milliseconds: 900),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditWorkspacePromptEmpty,
+        tone: AppToastTone.info,
+        duration: const Duration(milliseconds: 1200),
       );
       return;
     }
@@ -189,12 +191,11 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   void _fillFromCurrentWorkspaceNegative() {
     final current = widget.viewModel.params.negativePrompt.trim();
     if (current.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.libraryEditWorkspaceNegativeEmpty),
-          duration: const Duration(milliseconds: 900),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditWorkspaceNegativeEmpty,
+        tone: AppToastTone.info,
+        duration: const Duration(milliseconds: 1200),
       );
       return;
     }
@@ -208,23 +209,23 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     final prompt = _promptController.text.trim();
 
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.libraryEditTitleEmpty),
-          duration: const Duration(milliseconds: 1200),
-          behavior: SnackBarBehavior.floating,
-        ),
+      setState(() => _titleShakeTrigger++);
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditTitleEmpty,
+        tone: AppToastTone.warning,
+        duration: const Duration(milliseconds: 1400),
       );
       return;
     }
 
     if (prompt.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.libraryEditPromptEmpty),
-          duration: const Duration(milliseconds: 1200),
-          behavior: SnackBarBehavior.floating,
-        ),
+      setState(() => _promptShakeTrigger++);
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditPromptEmpty,
+        tone: AppToastTone.warning,
+        duration: const Duration(milliseconds: 1400),
       );
       return;
     }
@@ -293,26 +294,24 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       }
 
       if (!mounted) return;
+      final successMessage = _isEdit
+          ? context.l10n.libraryEditUpdatedSuccess(title)
+          : context.l10n.libraryEditCreatedSuccess(title);
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isEdit
-                ? context.l10n.libraryEditUpdatedSuccess(title)
-                : context.l10n.libraryEditCreatedSuccess(title),
-          ),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showAppToast(
+        context,
+        message: successMessage,
+        tone: AppToastTone.success,
+        duration: const Duration(seconds: 2),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.libraryEditSaveFailed(e.toString())),
-          duration: const Duration(seconds: 2),
-        ),
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditSaveFailed(e.toString()),
+        tone: AppToastTone.error,
+        duration: const Duration(seconds: 2),
       );
     }
   }
@@ -373,10 +372,10 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         ),
         const SizedBox(width: 8),
         if (_isSaving) ...[
-          const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
+          const AppMatrixDotLoader(
+            variant: AppMatrixDotVariant.pulse,
+            dotSize: 2.0,
+            gap: 2.0,
           ),
           const SizedBox(width: 8),
         ],
@@ -401,25 +400,35 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppSectionHeader(title: '${l10n.libraryEditFieldTitle} *'),
-          TextField(
-            controller: _titleController,
-            style: TextStyle(fontSize: 13, color: colors.textPrimary),
-            decoration: InputDecoration(
-              hintText: l10n.libraryEditFieldTitleHint,
+          AppErrorShake(
+            trigger: _titleShakeTrigger,
+            child: TextField(
+              controller: _titleController,
+              style: TextStyle(fontSize: 13, color: colors.textPrimary),
+              decoration: InputDecoration(
+                hintText: l10n.libraryEditFieldTitleHint,
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
           AppSectionHeader(title: '${l10n.libraryEditFieldCategory} *'),
           _buildCategoryDropdown(context),
-          if (_isCustomCategory) ...[
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: _customCategoryController,
-              decoration: InputDecoration(
-                hintText: l10n.libraryEditFieldCustomCategoryHint,
+          AppPanelReveal(
+            visible: _isCustomCategory,
+            openDuration: AppMotionDurations.fast,
+            closeDuration: AppMotionDurations.quick,
+            slideOffset: AppMotionDistances.base,
+            enableBlur: false,
+            child: Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: TextField(
+                controller: _customCategoryController,
+                decoration: InputDecoration(
+                  hintText: l10n.libraryEditFieldCustomCategoryHint,
+                ),
               ),
             ),
-          ],
+          ),
           const SizedBox(height: AppSpacing.lg),
           AppSectionHeader(
             title: '${l10n.libraryEditFieldPrompt} *',
@@ -429,46 +438,61 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
               onPressed: _fillFromCurrentWorkspacePrompt,
             ),
           ),
-          TextField(
-            controller: _promptController,
-            minLines: 6,
-            maxLines: 12,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: colors.textPrimary,
-            ),
-            decoration: InputDecoration(
-              hintText: l10n.libraryEditFieldPromptHint,
-              contentPadding: const EdgeInsets.all(12),
-            ),
-          ),
-          if (_isCharacterCategory) ...[
-            const SizedBox(height: AppSpacing.lg),
-            AppSectionHeader(
-              title: l10n.libraryEditFieldNegative,
-              subtitle: l10n.libraryEditCharacterOnlyBadge,
-              trailing: AppActionButton(
-                label: l10n.libraryEditFillFromNegative,
-                icon: Icons.input_rounded,
-                onPressed: _fillFromCurrentWorkspaceNegative,
-              ),
-            ),
-            TextField(
-              controller: _negativePromptController,
-              minLines: 3,
-              maxLines: 8,
+          AppErrorShake(
+            trigger: _promptShakeTrigger,
+            child: TextField(
+              controller: _promptController,
+              minLines: 6,
+              maxLines: 12,
               style: TextStyle(
                 fontSize: 13,
                 height: 1.5,
                 color: colors.textPrimary,
               ),
               decoration: InputDecoration(
-                hintText: l10n.libraryEditFieldNegativeHint,
+                hintText: l10n.libraryEditFieldPromptHint,
                 contentPadding: const EdgeInsets.all(12),
               ),
             ),
-          ],
+          ),
+          AppPanelReveal(
+            visible: _isCharacterCategory,
+            openDuration: AppMotionDurations.fast,
+            closeDuration: AppMotionDurations.quick,
+            slideOffset: AppMotionDistances.base,
+            enableBlur: false,
+            child: Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AppSectionHeader(
+                    title: l10n.libraryEditFieldNegative,
+                    subtitle: l10n.libraryEditCharacterOnlyBadge,
+                    trailing: AppActionButton(
+                      label: l10n.libraryEditFillFromNegative,
+                      icon: Icons.input_rounded,
+                      onPressed: _fillFromCurrentWorkspaceNegative,
+                    ),
+                  ),
+                  TextField(
+                    controller: _negativePromptController,
+                    minLines: 3,
+                    maxLines: 8,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: colors.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: l10n.libraryEditFieldNegativeHint,
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: AppSpacing.lg),
           AppSectionHeader(title: l10n.libraryEditFieldTags),
           TextField(

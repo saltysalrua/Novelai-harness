@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/tag_models.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_search_field.dart';
+import '../../../core/widgets/app_toast.dart';
 import 'tag_inspiration_presets.dart';
 import 'tag_suggestion_tile.dart';
 
@@ -82,14 +84,13 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
   void _addTag(String tag, [String? zh]) {
     widget.onTagSelected(tag);
     final l10n = context.l10n;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: zh == null
-            ? Text(l10n.tagBrowserAddedTag(tag))
-            : Text(l10n.tagBrowserAddedTagWithZh(tag, zh)),
-        duration: const Duration(milliseconds: 900),
-        behavior: SnackBarBehavior.floating,
-      ),
+    showAppToast(
+      context,
+      message: zh == null
+          ? l10n.tagBrowserAddedTag(tag)
+          : l10n.tagBrowserAddedTagWithZh(tag, zh),
+      tone: AppToastTone.success,
+      duration: const Duration(milliseconds: 1200),
     );
   }
 
@@ -123,9 +124,17 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
 
           // 主体内容
           Expanded(
-            child: _isSearching
-                ? _buildSearchResults(context)
-                : _buildPresetBrowser(context),
+            child: AnimatedSwitcher(
+              duration: AppMotion.resolveDuration(
+                context,
+                AppMotionDurations.quick,
+              ),
+              switchInCurve: AppMotionCurves.smoothOut,
+              switchOutCurve: AppMotionCurves.smoothOut,
+              child: _isSearching
+                  ? _buildSearchResults(context)
+                  : _buildPresetBrowser(context),
+            ),
           ),
         ],
       ),
@@ -277,7 +286,12 @@ class _TagChipItem extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.sm),
         hoverColor: colors.primaryTint.withValues(alpha: 0.6),
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.resolveDuration(
+            context,
+            AppMotionDurations.quick,
+          ),
+          curve: AppMotionCurves.smoothOut,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             border: Border.all(color: colors.borderDefault),

@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_colors_extension.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_floating_dock.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_tool_chip.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 
@@ -48,111 +52,182 @@ class CanvasParamBadges extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 尺寸徽章
-        Container(
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: canvasBadgeDecoration(context),
-          alignment: Alignment.center,
-          child: Text(
-            '${image.params.width}  ×  ${image.params.height}',
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: 'monospace',
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-
-        // 种子徽章 (点击可直接复制，非导入参考图时展示)
-        if (!image.isImportedReference) ...[
-          Tooltip(
-            message: l10n.canvasCopySeedTooltip,
-            child: InkWell(
-              onTap: () => copyTextWithSnackBar(
-                context,
-                '${image.seed}',
-                l10n.canvasCopiedSeed,
-              ),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              child: Container(
-                height: 38,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: canvasBadgeDecoration(context),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.eco_rounded, size: 16, color: colors.primary),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${image.seed}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontFamily: 'monospace',
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
+    return AppCardResize(
+      duration: AppMotionDurations.fast,
+      curve: AppMotionCurves.smoothOut,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 尺寸徽章
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: canvasBadgeDecoration(context),
+            alignment: Alignment.center,
+            child: Text(
+              '${image.params.width}  ×  ${image.params.height}',
+              style: TextStyle(
+                fontSize: 13,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
               ),
             ),
           ),
           const SizedBox(width: 8),
-        ],
 
-        // 批注快捷按键
-        if (viewModel != null)
-          Tooltip(
-            message: l10n.canvasEnterAnnotationTooltip,
-            child: InkWell(
-              onTap: () => viewModel!.board.setAnnotatingImage(
-                true,
-                targetImageId: image.id,
-              ),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              child: Container(
-                height: 38,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+          // 种子徽章 (点击可直接复制，非导入参考图时展示)
+          if (!image.isImportedReference) ...[
+            _SeedCopyBadge(seed: image.seed, compact: false),
+            const SizedBox(width: 8),
+          ],
+
+          // 批注快捷按键
+          if (viewModel != null)
+            Tooltip(
+              message: l10n.canvasEnterAnnotationTooltip,
+              child: InkWell(
+                onTap: () => viewModel!.board.setAnnotatingImage(
+                  true,
+                  targetImageId: image.id,
                 ),
-                decoration: canvasBadgeDecoration(context),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.edit_note_rounded,
-                      size: 17,
-                      color: colors.primary,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      image.annotations.isEmpty
-                          ? l10n.canvasAnnotate
-                          : l10n.canvasAnnotateWithCount(
-                              image.annotations.length,
-                            ),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                child: Container(
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: canvasBadgeDecoration(context),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.edit_note_rounded,
+                        size: 17,
+                        color: colors.primary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 5),
+                      AppTextSwap(
+                        text: image.annotations.isEmpty
+                            ? l10n.canvasAnnotate
+                            : l10n.canvasAnnotateWithCount(
+                                image.annotations.length,
+                              ),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 可复用种子复制徽章：点击复制后图标平滑切换为绿色勾 (`09` + `10`)
+class _SeedCopyBadge extends StatefulWidget {
+  final int seed;
+  final bool compact;
+
+  const _SeedCopyBadge({required this.seed, required this.compact});
+
+  @override
+  State<_SeedCopyBadge> createState() => _SeedCopyBadgeState();
+}
+
+class _SeedCopyBadgeState extends State<_SeedCopyBadge> {
+  bool _copied = false;
+  Timer? _resetTimer;
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleCopy() {
+    copyTextWithSnackBar(
+      context,
+      '${widget.seed}',
+      context.l10n.canvasCopiedSeed,
+    );
+    _resetTimer?.cancel();
+    if (!_copied) {
+      setState(() => _copied = true);
+    }
+    _resetTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        setState(() => _copied = false);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final iconSize = widget.compact ? 12.0 : 16.0;
+
+    return Tooltip(
+      message: l10n.canvasCopySeedTooltip,
+      child: InkWell(
+        onTap: _handleCopy,
+        borderRadius: BorderRadius.circular(
+          widget.compact ? AppRadius.sm : AppRadius.md,
+        ),
+        child: Container(
+          height: widget.compact ? null : 38,
+          padding: widget.compact
+              ? const EdgeInsets.symmetric(horizontal: 6, vertical: 3)
+              : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: widget.compact
+              ? BoxDecoration(
+                  color: colors.mutedBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                )
+              : canvasBadgeDecoration(context),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIconSwap(
+                swapKey: _copied,
+                child: _copied
+                    ? AppSuccessCheck(
+                        key: const ValueKey<String>('seed-copied'),
+                        size: iconSize,
+                        color: colors.success,
+                      )
+                    : Icon(
+                        Icons.eco_rounded,
+                        key: const ValueKey<String>('seed-icon'),
+                        size: iconSize,
+                        color: colors.primary,
+                      ),
+              ),
+              SizedBox(width: widget.compact ? 4 : 6),
+              Text(
+                '${widget.seed}',
+                style: TextStyle(
+                  fontSize: widget.compact ? 11 : 13,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w600,
+                  color: widget.compact
+                      ? colors.textSecondary
+                      : colors.textPrimary,
+                ),
+              ),
+            ],
           ),
-      ],
+        ),
+      ),
     );
   }
 }
@@ -348,51 +423,7 @@ class MobileCanvasActionBar extends StatelessWidget {
                             ),
                             if (!image.isImportedReference) ...[
                               const SizedBox(width: 8),
-                              Tooltip(
-                                message: l10n.canvasCopySeedTooltip,
-                                child: InkWell(
-                                  onTap: () => copyTextWithSnackBar(
-                                    context,
-                                    '${image.seed}',
-                                    l10n.canvasCopiedSeed,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadius.sm,
-                                  ),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: colors.mutedBackground,
-                                      borderRadius: BorderRadius.circular(
-                                        AppRadius.sm,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.eco_rounded,
-                                          size: 12,
-                                          color: colors.primary,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${image.seed}',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontFamily: 'monospace',
-                                            fontWeight: FontWeight.w600,
-                                            color: colors.textSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
+                              _SeedCopyBadge(seed: image.seed, compact: true),
                             ],
                           ],
                         ),

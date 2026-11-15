@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_transitions.dart';
 
 /// [AppActionButton] 的视觉变体
 enum AppActionButtonVariant {
@@ -26,7 +28,9 @@ enum AppActionButtonVariant {
 /// AppIconButton 是**纯图标方形小按钮** (24~38px)。
 ///
 /// 参数化驱动、无业务状态；取色一律 `context.colors` 语义色。
-class AppActionButton extends StatelessWidget {
+/// 支持图标/加载态切换动效 (`09-icon-swap`)、标签切换动效 (`04-text-states-swap`)
+/// 以及前进箭头悬停微移 (`24-learn-more-hover`)。
+class AppActionButton extends StatefulWidget {
   /// 按钮文案 (纯大白话，零营销词)
   final String label;
 
@@ -62,12 +66,40 @@ class AppActionButton extends StatelessWidget {
   });
 
   @override
+  State<AppActionButton> createState() => _AppActionButtonState();
+}
+
+class _AppActionButtonState extends State<AppActionButton> {
+  bool _isHovered = false;
+
+  bool _isDirectionalChevron(IconData? icon) {
+    return icon == Icons.chevron_right ||
+        icon == Icons.chevron_right_rounded ||
+        icon == Icons.arrow_forward ||
+        icon == Icons.arrow_forward_rounded ||
+        icon == Icons.arrow_forward_ios ||
+        icon == Icons.arrow_forward_ios_rounded ||
+        icon == Icons.navigate_next ||
+        icon == Icons.navigate_next_rounded ||
+        icon == Icons.east ||
+        icon == Icons.east_rounded;
+  }
+
+  bool _isDoneIcon(IconData? icon) {
+    return icon == Icons.check ||
+        icon == Icons.check_rounded ||
+        icon == Icons.done ||
+        icon == Icons.done_rounded;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final enabled = !isLoading && onPressed != null;
-    final visuallyActive = enabled || isLoading;
+    final reduceMotion = AppMotion.shouldReduceMotion(context);
+    final enabled = !widget.isLoading && widget.onPressed != null;
+    final visuallyActive = enabled || widget.isLoading;
 
-    final foreground = switch (variant) {
+    final foreground = switch (widget.variant) {
       AppActionButtonVariant.outlined =>
         visuallyActive ? colors.textPrimary : colors.textMuted,
       AppActionButtonVariant.primary =>
@@ -75,13 +107,13 @@ class AppActionButton extends StatelessWidget {
       AppActionButtonVariant.ghost =>
         visuallyActive ? colors.textSecondary : colors.textMuted,
     };
-    final background = switch (variant) {
+    final background = switch (widget.variant) {
       AppActionButtonVariant.outlined => colors.cardBackground,
       AppActionButtonVariant.primary =>
         visuallyActive ? colors.primary : colors.mutedBackground,
       AppActionButtonVariant.ghost => Colors.transparent,
     };
-    final borderColor = switch (variant) {
+    final borderColor = switch (widget.variant) {
       AppActionButtonVariant.outlined => colors.borderDefault,
       AppActionButtonVariant.primary => colors.primary.withValues(
         alpha: visuallyActive ? 1.0 : 0.5,
@@ -89,40 +121,85 @@ class AppActionButton extends StatelessWidget {
       AppActionButtonVariant.ghost => Colors.transparent,
     };
 
-    final text = Text(
-      label,
+    final text = AppTextSwap(
+      text: widget.label,
+      enableBlur: false,
       style: TextStyle(
         fontSize: 12,
-        fontWeight: variant == AppActionButtonVariant.primary
+        fontWeight: widget.variant == AppActionButtonVariant.primary
             ? FontWeight.w600
             : FontWeight.w500,
         color: foreground,
       ),
     );
 
-    final Widget? leading = isLoading
-        ? SizedBox(
-            width: iconSize,
-            height: iconSize,
-            child: CircularProgressIndicator(
-              strokeWidth: 1.8,
-              color: foreground,
+    Widget? leading;
+    if (widget.isLoading || widget.icon != null) {
+      final Widget rawIcon;
+      if (widget.isLoading) {
+        rawIcon = SizedBox(
+          key: const ValueKey('loading'),
+          width: widget.iconSize,
+          height: widget.iconSize,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.8,
+            color: foreground,
+          ),
+        );
+      } else if (_isDoneIcon(widget.icon)) {
+        rawIcon = AppSuccessCheck(
+          key: ValueKey<IconData>(widget.icon!),
+          size: widget.iconSize,
+          strokeWidth: 2.0,
+          color: foreground,
+          bobDistance: 3.0,
+        );
+      } else {
+        final iconWidget = Icon(
+          widget.icon,
+          key: ValueKey<IconData>(widget.icon!),
+          size: widget.iconSize,
+          color: foreground,
+        );
+        if (_isDirectionalChevron(widget.icon)) {
+          final shiftDx = (_isHovered && enabled && !reduceMotion) ? 2.0 : 0.0;
+          rawIcon = TweenAnimationBuilder<double>(
+            key: ValueKey<IconData>(widget.icon!),
+            tween: Tween<double>(end: shiftDx),
+            duration: AppMotion.resolveDuration(
+              context,
+              AppMotionDurations.quick,
             ),
-          )
-        : (icon != null ? Icon(icon, size: iconSize, color: foreground) : null);
+            curve: AppMotionCurves.smoothOut,
+            builder: (context, dx, child) {
+              return Transform.translate(offset: Offset(dx, 0), child: child);
+            },
+            child: iconWidget,
+          );
+        } else {
+          rawIcon = iconWidget;
+        }
+      }
 
-    return OutlinedButton(
-      onPressed: enabled ? onPressed : null,
+      leading = AppIconSwap(
+        swapKey: widget.isLoading ? 'loading' : widget.icon,
+        enableBlur: false,
+        child: rawIcon,
+      );
+    }
+
+    Widget button = OutlinedButton(
+      onPressed: enabled ? widget.onPressed : null,
       style: OutlinedButton.styleFrom(
         backgroundColor: background,
-        side: variant == AppActionButtonVariant.ghost
+        side: widget.variant == AppActionButtonVariant.ghost
             ? BorderSide.none
             : BorderSide(color: borderColor),
         padding:
-            padding ??
+            widget.padding ??
             const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radius),
+          borderRadius: BorderRadius.circular(widget.radius),
         ),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
@@ -137,5 +214,15 @@ class AppActionButton extends StatelessWidget {
             )
           : text,
     );
+
+    if (enabled && _isDirectionalChevron(widget.icon)) {
+      button = MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: button,
+      );
+    }
+
+    return button;
   }
 }

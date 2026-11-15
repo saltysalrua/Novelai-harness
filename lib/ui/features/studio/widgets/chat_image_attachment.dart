@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/harness/types.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_thumbnail_card.dart';
+import '../../../core/widgets/app_transitions.dart';
 
 /// 对话图片附件上传上限 (一次最多随消息发送的图片数)
 const int kMaxChatImageAttachments = 4;
@@ -202,34 +204,108 @@ class ChatImageThumbnail extends StatelessWidget {
     final remove = onRemove;
     if (remove == null) return thumb;
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        thumb,
-        Positioned(
-          top: -6,
-          right: -6,
-          child: Tooltip(
-            message: context.l10n.chatRemoveAttachmentTooltip,
-            child: GestureDetector(
-              onTap: remove,
-              child: Container(
-                width: 18,
-                height: 18,
-                decoration: const BoxDecoration(
-                  color: Colors.black87,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.close_rounded,
-                  size: 12,
-                  color: Colors.white,
+    return _PendingThumbAppear(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          thumb,
+          Positioned(
+            top: -6,
+            right: -6,
+            child: Tooltip(
+              message: context.l10n.chatRemoveAttachmentTooltip,
+              child: AppHoverLift(
+                lift: -1.5,
+                hoverScale: 1.08,
+                duration: AppMotionDurations.quick,
+                onTap: remove,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: const BoxDecoration(
+                    color: Colors.black87,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 12,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 待发送附件缩略图入场轻弹缩放+淡入；完成后自动卸载 Opacity/Transform。
+class _PendingThumbAppear extends StatefulWidget {
+  final Widget child;
+
+  const _PendingThumbAppear({required this.child});
+
+  @override
+  State<_PendingThumbAppear> createState() => _PendingThumbAppearState();
+}
+
+class _PendingThumbAppearState extends State<_PendingThumbAppear>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _curved;
+  bool _completed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.fast,
+    );
+    _curved = CurvedAnimation(
+      parent: _controller,
+      curve: AppMotionCurves.smoothOut,
+    );
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted && !_completed) {
+        setState(() => _completed = true);
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_completed) return;
+    if (AppMotion.shouldReduceMotion(context)) {
+      _controller.value = 1.0;
+      _completed = true;
+    } else if (!_controller.isAnimating && _controller.value == 0.0) {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_completed) return widget.child;
+    return AnimatedBuilder(
+      animation: _curved,
+      child: widget.child,
+      builder: (context, child) {
+        final t = _curved.value;
+        return Opacity(
+          opacity: t.clamp(0.0, 1.0),
+          child: Transform.scale(scale: 0.92 + 0.08 * t, child: child),
+        );
+      },
     );
   }
 }

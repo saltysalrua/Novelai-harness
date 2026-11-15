@@ -11,9 +11,11 @@ import 'package:flutter/services.dart';
 import '../../../core/context_l10n.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
 import '../../../../core/harness/types.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../../../core/widgets/stable_scrollbar.dart';
 import '../../../core/widgets/app_icon_button.dart';
@@ -64,6 +66,10 @@ class AgentChatCardState extends State<AgentChatCard> {
   /// 消息一旦定稿不可变，滚动回视口时复用同一 Widget 实例，
   /// 配合近期消息 Element 保活，避免 Markdown 离屏后重新解析。
   final Map<String, AgentChatMessageItem> _messageWidgetCache = {};
+
+  /// 已知消息 ID 集合：用于区分历史加载与运行期新到达消息（仅新消息执行轻量入场）
+  final Set<String> _knownMessageIds = {};
+  bool _initialMessagesCaptured = false;
 
   static const int _maxKeptAliveMessages = 120;
   String? _renderedSessionId;
@@ -604,29 +610,14 @@ class AgentChatCardState extends State<AgentChatCard> {
           _renderedSessionId = sessionId;
           _clearExtentFreeze();
           _messageWidgetCache.clear();
+          _knownMessageIds.clear();
+          _initialMessagesCaptured = false;
           _scrollToBottom(animate: false);
         }
         // 非对话视图 (会话抽屉/回溯) 期间不得持陈旧冻结快照
         if (_currentView != _AgentCardView.chat) {
           _clearExtentFreeze();
-        }
-        switch (_currentView) {
-          case _AgentCardView.sessions:
-            return AgentSessionListView(
-              viewModel: widget.viewModel,
-              onBack: () => _switchView(_AgentCardView.chat),
-            );
-          case _AgentCardView.rewind:
-            return AgentRewindView(
-              viewModel: widget.viewModel,
-              onBack: () => _switchView(_AgentCardView.chat),
-              compact: widget.compact,
-            );
-          case _AgentCardView.chat:
-            break;
-        }
-
-        if (_currentView == _AgentCardView.chat) {
+        } else {
           // 流式收尾瞬间：流式气泡被定稿消息替换 (Element 换型 + 进度条剥离)，
           // 末尾高度可能瞬态落差几到几十像素；未暂停跟随时静默贴底结算
           final streamingNow = widget.viewModel.isChatStreaming;
@@ -651,101 +642,133 @@ class AgentChatCardState extends State<AgentChatCard> {
           _syncScrollToBottomButton();
         }
 
-        return Focus(
-      focusNode: _cardFocusNode,
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.escape) {
-          (widget.onEscape ?? _handleEscKey)();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 顶部预设选择栏与会话/回溯管理按钮
-            _buildPresetHeaderBar(),
-
-            // 对话消息流展示区域 (列表 + 悬浮回到底部按钮)
-            Expanded(
-              child: Stack(
+        final Widget activeView = switch (_currentView) {
+          _AgentCardView.sessions => AgentSessionListView(
+            viewModel: widget.viewModel,
+            onBack: () => _switchView(_AgentCardView.chat),
+          ),
+          _AgentCardView.rewind => AgentRewindView(
+            viewModel: widget.viewModel,
+            onBack: () => _switchView(_AgentCardView.chat),
+            compact: widget.compact,
+          ),
+          _AgentCardView.chat => Focus(
+            focusNode: _cardFocusNode,
+            autofocus: true,
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.escape) {
+                (widget.onEscape ?? _handleEscKey)();
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: Card(
+              margin: EdgeInsets.zero,
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Positioned.fill(
-                    child: Listener(
-                      key: _messageListAreaKey,
-                      onPointerDown: (event) {
-                        _noteUserScrollIntent();
-                        _pressedPointers++;
-                        // 落在右侧滚动条握把热区：立即冻结渲染内容，
-                        // 冻结期内任何流式增长/收缩都不改内容高度，
-                        // 这里只隔离实时内容变化，懒加载估算变化由 StableScrollbar 处理
-                        if (_isScrollbarZonePress(event) && !_thumbHeld) {
-                          _thumbHeld = true;
-                          _engageExtentFreeze();
-                        }
-                      },
-                      onPointerUp: (_) {
-                        _pressedPointers = _pressedPointers > 0
-                            ? _pressedPointers - 1
-                            : 0;
-                        _thumbHeld = false;
-                        _maybeUnfreezeExtent();
-                        _resumeFollowingAtBottom();
-                      },
-                      onPointerCancel: (_) {
-                        _pressedPointers = _pressedPointers > 0
-                            ? _pressedPointers - 1
-                            : 0;
-                        _thumbHeld = false;
-                        _maybeUnfreezeExtent();
-                        _resumeFollowingAtBottom();
-                      },
-                      onPointerSignal: _onPointerSignal,
-                      child: NotificationListener<ScrollNotification>(
-                        onNotification: _onScrollNotification,
-                        child: _buildMessageList(),
-                      ),
+                  // 顶部预设选择栏与会话/回溯管理按钮
+                  _buildPresetHeaderBar(),
+
+                  // 对话消息流展示区域 (列表 + 悬浮回到底部按钮)
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Listener(
+                            key: _messageListAreaKey,
+                            onPointerDown: (event) {
+                              _noteUserScrollIntent();
+                              _pressedPointers++;
+                              // 落在右侧滚动条握把热区：立即冻结渲染内容，
+                              // 冻结期内任何流式增长/收缩都不改内容高度，
+                              // 这里只隔离实时内容变化，懒加载估算变化由 StableScrollbar 处理
+                              if (_isScrollbarZonePress(event) && !_thumbHeld) {
+                                _thumbHeld = true;
+                                _engageExtentFreeze();
+                              }
+                            },
+                            onPointerUp: (_) {
+                              _pressedPointers = _pressedPointers > 0
+                                  ? _pressedPointers - 1
+                                  : 0;
+                              _thumbHeld = false;
+                              _maybeUnfreezeExtent();
+                              _resumeFollowingAtBottom();
+                            },
+                            onPointerCancel: (_) {
+                              _pressedPointers = _pressedPointers > 0
+                                  ? _pressedPointers - 1
+                                  : 0;
+                              _thumbHeld = false;
+                              _maybeUnfreezeExtent();
+                              _resumeFollowingAtBottom();
+                            },
+                            onPointerSignal: _onPointerSignal,
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: _onScrollNotification,
+                              child: _buildMessageList(),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 14,
+                          bottom: 12,
+                          child: ValueListenableBuilder<bool>(
+                            valueListenable: _showScrollToBottom,
+                            builder: (context, visible, _) {
+                              return AppPanelReveal(
+                                visible: visible,
+                                openDuration: AppMotionDurations.fast,
+                                closeDuration: AppMotionDurations.quick,
+                                slideOffset: AppMotionDistances.medium,
+                                enableBlur: false,
+                                animateSize: false,
+                                alignment: Alignment.bottomRight,
+                                child: IgnorePointer(
+                                  ignoring: !visible,
+                                  child: AppIconButton(
+                                    key: const ValueKey(
+                                      'chat_scroll_to_bottom_button',
+                                    ),
+                                    icon: Icons.arrow_downward_rounded,
+                                    size: 32,
+                                    radius: AppRadius.pill,
+                                    variant: AppIconButtonVariant.elevated,
+                                    tooltip:
+                                        context
+                                            .maybeL10n
+                                            ?.chatScrollToBottomTooltip ??
+                                        '回到底部',
+                                    onPressed: () =>
+                                        _scrollToBottom(animate: true),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Positioned(
-                    right: 14,
-                    bottom: 12,
-                    child: ValueListenableBuilder<bool>(
-                      valueListenable: _showScrollToBottom,
-                      builder: (context, visible, _) {
-                        if (!visible) return const SizedBox.shrink();
-                        return AppIconButton(
-                          key: const ValueKey('chat_scroll_to_bottom_button'),
-                          icon: Icons.arrow_downward_rounded,
-                          size: 32,
-                          radius: AppRadius.pill,
-                          variant: AppIconButtonVariant.elevated,
-                          tooltip:
-                              context.maybeL10n?.chatScrollToBottomTooltip ??
-                              '回到底部',
-                          onPressed: () => _scrollToBottom(animate: true),
-                        );
-                      },
-                    ),
+
+                  // 底部控制与消息输入区：桌面与移动端统一结构。
+                  AgentChatInputBar(
+                    viewModel: widget.viewModel,
+                    compact: widget.compact,
+                    onSent: _scrollToBottom,
                   ),
                 ],
               ),
             ),
+          ),
+        };
 
-            // 底部控制与消息输入区：桌面与移动端统一结构。
-            AgentChatInputBar(
-              viewModel: widget.viewModel,
-              compact: widget.compact,
-              onSent: _scrollToBottom,
-            ),
-          ],
-        ),
-      ),
+        return _ViewSwitchEntrance(
+          viewIndex: _currentView.index,
+          child: activeView,
         );
       },
     );
@@ -931,6 +954,14 @@ class AgentChatCardState extends State<AgentChatCard> {
 
     final liveIds = messages.map((message) => message.id).toSet();
     _messageWidgetCache.removeWhere((id, _) => !liveIds.contains(id));
+    final diffIds = _initialMessagesCaptured
+        ? liveIds.difference(_knownMessageIds)
+        : const <String>{};
+    // 批量加载历史消息（超过 3 条）不触发逐条入场动效，仅对运行期实时新入列消息执行轻量淡入
+    final Set<String> newMessageIds =
+        diffIds.length <= 3 ? diffIds : const <String>{};
+    _knownMessageIds.addAll(liveIds);
+    _initialMessagesCaptured = true;
     final pairing = _computeToolPairing(messages);
 
     final list = ListView.builder(
@@ -975,6 +1006,10 @@ class AgentChatCardState extends State<AgentChatCard> {
 
         final message = messages[index];
         final keepAlive = index >= messages.length - _maxKeptAliveMessages;
+        final hasToolCalls =
+            message.toolCalls != null && message.toolCalls!.isNotEmpty;
+        final isActiveTool =
+            isStreaming && hasToolCalls && index == messages.length - 1;
         final pairedResults =
             pairing.pairedByAssistant[index] ?? const <AgentMessage?>[];
         final isMerged = pairing.mergedToolIndices.contains(index);
@@ -984,6 +1019,7 @@ class AgentChatCardState extends State<AgentChatCard> {
             cached.keepAlive == keepAlive &&
             cached.thinkingExpanded == thinkingExpanded &&
             cached.isMergedToolResult == isMerged &&
+            cached.isActiveTool == isActiveTool &&
             _sameToolResults(cached.pairedToolResults, pairedResults)) {
           return cached;
         }
@@ -995,6 +1031,8 @@ class AgentChatCardState extends State<AgentChatCard> {
           keepAlive: keepAlive,
           pairedToolResults: pairedResults,
           isMergedToolResult: isMerged,
+          animateEntry: newMessageIds.contains(message.id),
+          isActiveTool: isActiveTool,
           onRewind: _handleRewindMessage,
         );
         if (_messageWidgetCache.length >= _maxCachedMessages &&
@@ -1016,6 +1054,87 @@ class AgentChatCardState extends State<AgentChatCard> {
         // 包住列表后，拖出视口会由这个 Scrollable 匀速把选区续到屏外正文。
         // 思考块仍用 SelectableText，展开时不会把尚未布局的段落塞进这个选区容器。
         child: SelectionArea(child: list),
+      ),
+    );
+  }
+}
+
+/// 单实例方向感知切页动效 (`08-page-side-by-side` 轻量单树版):
+/// 每次仅保留当前激活视图，避免双树叠放导致 GlobalKey 冲突或控件重复；
+/// 切入时按方向滑入 8px 并淡入，静止后自动卸载透明/变换包裹。
+class _ViewSwitchEntrance extends StatefulWidget {
+  final int viewIndex;
+  final Widget child;
+
+  const _ViewSwitchEntrance({
+    required this.viewIndex,
+    required this.child,
+  });
+
+  @override
+  State<_ViewSwitchEntrance> createState() => _ViewSwitchEntranceState();
+}
+
+class _ViewSwitchEntranceState extends State<_ViewSwitchEntrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  double _direction = 1.0;
+  GlobalKey _childKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.fast,
+      value: 1.0,
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed && mounted) {
+          setState(() {});
+        }
+      });
+  }
+
+  @override
+  void didUpdateWidget(_ViewSwitchEntrance oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.viewIndex != widget.viewIndex) {
+      _childKey = GlobalKey();
+      _direction = widget.viewIndex > oldWidget.viewIndex ? 1.0 : -1.0;
+      if (AppMotion.shouldReduceMotion(context)) {
+        _controller.value = 1.0;
+      } else {
+        _controller.forward(from: 0.0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keyedChild = KeyedSubtree(key: _childKey, child: widget.child);
+    if (_controller.isCompleted) return keyedChild;
+    return ClipRect(
+      child: AnimatedBuilder(
+        animation: _controller,
+        child: keyedChild,
+        builder: (context, child) {
+          final t = AppMotionCurves.smoothOut
+              .transform(_controller.value)
+              .clamp(0.0, 1.0);
+          return Opacity(
+            opacity: 0.4 + 0.6 * t,
+            child: Transform.translate(
+              offset: Offset(_direction * AppMotionDistances.base * (1.0 - t), 0),
+              child: child,
+            ),
+          );
+        },
       ),
     );
   }

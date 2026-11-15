@@ -3,6 +3,7 @@ import '../../../../data/models/comfyui_models.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_async_icon_button.dart';
@@ -13,6 +14,7 @@ import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_number_slider.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/overlay_anchor.dart';
 import '../view_models/studio_view_model.dart';
 import 'resolution_pad_picker.dart';
@@ -151,17 +153,24 @@ class _ParametersPageState extends State<ParametersPage> {
                   expand: true,
                   onValueChanged: viewModel.setEffort,
                 ),
-                if (params.isMediumEffort) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.paramsEffortMediumHint,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: context.colors.textSecondary,
+                AppPanelReveal(
+                  visible: params.isMediumEffort,
+                  openDuration: AppMotionDurations.fast,
+                  closeDuration: AppMotionDurations.quick,
+                  slideOffset: AppMotionDistances.base,
+                  enableBlur: false,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      l10n.paramsEffortMediumHint,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: context.colors.textSecondary,
+                      ),
                     ),
                   ),
-                ],
+                ),
               ],
             ],
             const SizedBox(height: 16),
@@ -344,7 +353,12 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                           _buttonKey,
                         ),
                         borderRadius: BorderRadius.circular(AppRadius.sm),
-                        child: Container(
+                        child: AnimatedContainer(
+                          duration: AppMotion.resolveDuration(
+                            context,
+                            AppMotionDurations.quick,
+                          ),
+                          curve: AppMotionCurves.smoothOut,
                           width: 30,
                           height: 30,
                           alignment: Alignment.center,
@@ -354,12 +368,16 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                                 : colors.primaryTint,
                             borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
-                          child: Icon(
-                            _modeIcon(params.seedMode),
-                            size: 16,
-                            color: params.seedMode == NaiSeedMode.fixed
-                                ? colors.textSecondary
-                                : colors.primary,
+                          child: AppIconSwap(
+                            swapKey: params.seedMode,
+                            enableBlur: false,
+                            child: Icon(
+                              _modeIcon(params.seedMode),
+                              size: 16,
+                              color: params.seedMode == NaiSeedMode.fixed
+                                  ? colors.textSecondary
+                                  : colors.primary,
+                            ),
                           ),
                         ),
                       ),
@@ -636,24 +654,38 @@ class _AdvancedSettingsSection extends StatelessWidget {
           ),
 
           // 水印 2D 调节面板 (开启时展开)
-          if (viewModel.enableWatermark) ...[
-            const SizedBox(height: 10),
-            WatermarkPadPicker(
-              config: viewModel.watermarkConfig,
-              onChanged: (newCfg) => viewModel.updateWatermarkConfig(newCfg),
-              viewModel: viewModel,
+          AppPanelReveal(
+            visible: viewModel.enableWatermark,
+            openDuration: AppMotionDurations.fast,
+            closeDuration: AppMotionDurations.quick,
+            slideOffset: AppMotionDistances.base,
+            enableBlur: false,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: WatermarkPadPicker(
+                config: viewModel.watermarkConfig,
+                onChanged: (newCfg) => viewModel.updateWatermarkConfig(newCfg),
+                viewModel: viewModel,
+              ),
             ),
-          ],
+          ),
 
           // 3. 保持原图像开关 (当开启删除元数据或添加水印之一时展示)
-          if (showKeepOriginal) ...[
-            const SizedBox(height: 10),
-            AppSettingTile.switchTile(
-              title: l10n.paramsKeepOriginalImage,
-              value: viewModel.keepOriginalImage,
-              onChanged: (val) => viewModel.setKeepOriginalImage(val),
+          AppPanelReveal(
+            visible: showKeepOriginal,
+            openDuration: AppMotionDurations.fast,
+            closeDuration: AppMotionDurations.quick,
+            slideOffset: AppMotionDistances.base,
+            enableBlur: false,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: AppSettingTile.switchTile(
+                title: l10n.paramsKeepOriginalImage,
+                value: viewModel.keepOriginalImage,
+                onChanged: (val) => viewModel.setKeepOriginalImage(val),
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -687,78 +719,87 @@ class _ComfyConnectionCard extends StatelessWidget {
       ComfyUiConnectionStatus.disconnected => l10n.comfyStatusDisconnected,
     };
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: colors.borderDefault),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  statusText,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
+    return AppCardResize(
+      alignment: Alignment.topLeft,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.cardBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: colors.borderDefault),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                AnimatedContainer(
+                  duration: AppMotion.resolveDuration(
+                    context,
+                    AppMotionDurations.quick,
+                  ),
+                  curve: AppMotionCurves.smoothOut,
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
                   ),
                 ),
-              ),
-              AppAsyncIconButton(
-                isLoading: status == ComfyUiConnectionStatus.connecting,
-                icon: Icons.refresh_rounded,
-                size: 26,
-                iconSize: 16,
-                variant: AppIconButtonVariant.ghost,
-                tooltip: l10n.dockRefreshTooltip,
-                onPressed: viewModel.refreshComfyUiStatus,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            viewModel.config.comfyUiBaseUrl,
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: 'monospace',
-              color: colors.textSecondary,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: AppTextSwap(
+                    text: statusText,
+                    enableBlur: false,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                AppAsyncIconButton(
+                  isLoading: status == ComfyUiConnectionStatus.connecting,
+                  icon: Icons.refresh_rounded,
+                  size: 26,
+                  iconSize: 16,
+                  variant: AppIconButtonVariant.ghost,
+                  tooltip: l10n.dockRefreshTooltip,
+                  onPressed: viewModel.refreshComfyUiStatus,
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 8),
-          if (status == ComfyUiConnectionStatus.connected && state != null)
+            const SizedBox(height: 8),
             Text(
-              state.canDrive
-                  ? l10n.comfyBridgeNodeSummary(
-                      state.promptNodeIds.length,
-                      state.resolutionNodeIds.length,
-                      state.paramsNodeIds.length,
-                    )
-                  : l10n.comfyBridgeNoPanelHint,
+              viewModel.config.comfyUiBaseUrl,
               style: TextStyle(
                 fontSize: 12,
-                color: state.canDrive ? colors.textSecondary : colors.warning,
+                fontFamily: 'monospace',
+                color: colors.textSecondary,
               ),
-            )
-          else if (viewModel.comfyLastError != null)
-            Text(
-              viewModel.comfyLastError!,
-              style: TextStyle(fontSize: 12, color: colors.error),
             ),
-        ],
+            const SizedBox(height: 8),
+            if (status == ComfyUiConnectionStatus.connected && state != null)
+              Text(
+                state.canDrive
+                    ? l10n.comfyBridgeNodeSummary(
+                        state.promptNodeIds.length,
+                        state.resolutionNodeIds.length,
+                        state.paramsNodeIds.length,
+                      )
+                    : l10n.comfyBridgeNoPanelHint,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: state.canDrive ? colors.textSecondary : colors.warning,
+                ),
+              )
+            else if (viewModel.comfyLastError != null)
+              Text(
+                viewModel.comfyLastError!,
+                style: TextStyle(fontSize: 12, color: colors.error),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
-/// 统一手风琴式可折叠面板 (Collapsible Section / Accordion)
+/// 统一手风琴式可折叠面板 (Collapsible Section / Accordion, `21-accordion`)
 ///
 /// 代码证据出处：
 /// - `parameters_page.dart:705-784` (高级生成参数折叠，原采用 ExpansionTile 并临时 hack 清空分割线)
@@ -11,8 +12,8 @@ import '../theme/theme_context_extensions.dart';
 /// - `metadata_reader_dialog.dart:211-230` (原始 JSON 元数据折叠查看)
 ///
 /// 核心职责：
-/// 统一折叠展开动画曲线 (150ms)、旋转箭头微动效、标题栏对齐及边框规范，
-/// 支持受控与非受控双模式，替代原生粗糙的 `ExpansionTile`。
+/// 统一折叠展开动画曲线 (250ms `smoothOut`)、纵向翻转箭头微动效、主体淡入淡出、
+/// 标题栏对齐及边框规范，支持受控与非受控双模式与系统减弱动画降级。
 class AppCollapsibleSection extends StatefulWidget {
   /// 标题文字 (若提供了 [headerWidget] 则以自定义组件优先)
   final String? title;
@@ -84,8 +85,8 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
     with SingleTickerProviderStateMixin {
   late bool _expanded;
   late final AnimationController _controller;
-  late final Animation<double> _iconTurns;
-  late final Animation<double> _heightFactor;
+  late final Animation<double> _curved;
+  bool _reduceMotion = false;
 
   bool get _isEffectiveExpanded => widget.isExpanded ?? _expanded;
 
@@ -94,19 +95,22 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
     super.initState();
     _expanded = widget.isExpanded ?? widget.initiallyExpanded;
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 180),
+      duration: AppMotionDurations.fast,
       vsync: this,
     );
-    _iconTurns = _controller.drive(
-      Tween<double>(
-        begin: 0.0,
-        end: 0.5,
-      ).chain(CurveTween(curve: Curves.easeInOut)),
-    );
-    _heightFactor = _controller.drive(CurveTween(curve: Curves.easeInOut));
+    _curved = _controller.drive(CurveTween(curve: AppMotionCurves.smoothOut));
 
     if (_isEffectiveExpanded) {
       _controller.value = 1.0;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = AppMotion.shouldReduceMotion(context);
+    if (_reduceMotion) {
+      _controller.value = _isEffectiveExpanded ? 1.0 : 0.0;
     }
   }
 
@@ -115,7 +119,9 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
     super.didUpdateWidget(oldWidget);
     if (widget.isExpanded != null &&
         widget.isExpanded != oldWidget.isExpanded) {
-      if (widget.isExpanded!) {
+      if (_reduceMotion) {
+        _controller.value = widget.isExpanded! ? 1.0 : 0.0;
+      } else if (widget.isExpanded!) {
         _controller.forward();
       } else {
         _controller.reverse();
@@ -134,7 +140,9 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
     if (widget.isExpanded == null) {
       setState(() {
         _expanded = nextState;
-        if (_expanded) {
+        if (_reduceMotion) {
+          _controller.value = _expanded ? 1.0 : 0.0;
+        } else if (_expanded) {
           _controller.forward();
         } else {
           _controller.reverse();
@@ -186,8 +194,16 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
               widget.trailing!,
             ],
             const SizedBox(width: AppSpacing.xs),
-            RotationTransition(
-              turns: _iconTurns,
+            AnimatedBuilder(
+              animation: _curved,
+              builder: (context, child) {
+                final scaleY = 1.0 - 2.0 * _curved.value;
+                return Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.diagonal3Values(1.0, scaleY, 1.0),
+                  child: child,
+                );
+              },
               child: Icon(
                 Icons.expand_more_rounded,
                 size: 18,
@@ -201,12 +217,19 @@ class _AppCollapsibleSectionState extends State<AppCollapsibleSection>
 
     Widget body = ClipRect(
       child: AnimatedBuilder(
-        animation: _controller.view,
+        animation: _curved,
         builder: (context, child) {
-          return Align(
-            alignment: Alignment.topLeft,
-            heightFactor: _heightFactor.value,
-            child: child,
+          if (_controller.isDismissed && !_isEffectiveExpanded) {
+            return const SizedBox.shrink();
+          }
+          final t = _curved.value.clamp(0.0, 1.0);
+          return ExcludeFocus(
+            excluding: !_isEffectiveExpanded,
+            child: Align(
+              alignment: Alignment.topLeft,
+              heightFactor: t,
+              child: Opacity(opacity: t, child: child),
+            ),
           );
         },
         child: Padding(padding: widget.contentPadding, child: widget.child),

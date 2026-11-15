@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../../data/services/session_log_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -10,6 +13,9 @@ import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_prompt_dialog.dart';
 import '../../../core/widgets/app_search_field.dart';
+import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 
 /// Agent 会话管理列表全卡片视图
@@ -35,6 +41,8 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
   bool _selecting = false;
   bool _busy = false;
   final Set<String> _selectedIds = {};
+  bool _initialRevealDone = false;
+  Timer? _revealTimer;
 
   void _toggleSelected(String id) => setState(() {
     if (!_selectedIds.add(id)) _selectedIds.remove(id);
@@ -47,9 +55,12 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
       await action();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        showAppToast(
           context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+          message: '$error',
+          tone: AppToastTone.error,
+          enableBlur: false,
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -84,10 +95,14 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
     });
     // 打开时刷新最新列表
     widget.viewModel.refreshSessions();
+    _revealTimer = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) setState(() => _initialRevealDone = true);
+    });
   }
 
   @override
   void dispose() {
+    _revealTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -247,21 +262,25 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
             child: Row(
               children: [
                 if (_selecting) ...[
-                  Checkbox(
-                    value:
-                        filtered.isNotEmpty &&
-                        filtered.every((s) => _selectedIds.contains(s.id)),
-                    onChanged: _busy || filtered.isEmpty
-                        ? null
-                        : (value) => setState(() {
-                            final ids = filtered.map((s) => s.id);
-                            if (value == true) {
-                              _selectedIds.addAll(ids);
-                            } else {
-                              _selectedIds.removeAll(ids);
-                            }
-                          }),
-                    semanticLabel: context.l10n.sessionSelectAll,
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: AppCheckbox(
+                      value:
+                          filtered.isNotEmpty &&
+                          filtered.every((s) => _selectedIds.contains(s.id)),
+                      size: 16.0,
+                      onChanged: _busy || filtered.isEmpty
+                          ? null
+                          : (value) => setState(() {
+                              final ids = filtered.map((s) => s.id);
+                              if (value) {
+                                _selectedIds.addAll(ids);
+                              } else {
+                                _selectedIds.removeAll(ids);
+                              }
+                            }),
+                      semanticLabel: context.l10n.sessionSelectAll,
+                    ),
                   ),
                   Expanded(
                     child: Text(
@@ -320,7 +339,17 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                     itemBuilder: (context, index) {
                       final item = filtered[index];
                       final isCurrent = item.id == currentId;
-                      return _buildSessionCard(item, isCurrent);
+                      final card = _buildSessionCard(item, isCurrent);
+                      if (_initialRevealDone || index >= 8) return card;
+                      return AppStaggerReveal(
+                        key: ValueKey('session_reveal_${item.id}'),
+                        index: index,
+                        maxStaggerIndex: 8,
+                        distance: AppMotionDistances.base,
+                        duration: AppMotionDurations.fast,
+                        enableBlur: false,
+                        child: card,
+                      );
                     },
                   ),
           ),
@@ -331,7 +360,8 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
 
   Widget _buildSessionCard(SessionInfo session, bool isCurrent) {
     final colors = context.colors;
-    return InkWell(
+    return _SessionCardSurface(
+      isCurrent: isCurrent,
       onTap: _busy
           ? null
           : () {
@@ -346,35 +376,24 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                 if (mounted) widget.onBack();
               });
             },
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isCurrent
-              ? colors.primaryTint.withValues(alpha: 0.5)
-              : colors.cardBackground,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(
-            color: isCurrent
-                ? colors.primary.withValues(alpha: 0.7)
-                : colors.borderDefault,
-            width: isCurrent ? 1.5 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 头部：标题 + 当前会话标签 + 操作菜单
-            Row(
-              children: [
-                if (_selecting)
-                  Checkbox(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 头部：标题 + 当前会话标签 + 操作菜单
+          Row(
+            children: [
+              if (_selecting)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: AppCheckbox(
                     value: _selectedIds.contains(session.id),
+                    size: 16.0,
                     onChanged: _busy
                         ? null
                         : (_) => _toggleSelected(session.id),
                     semanticLabel: session.title,
                   ),
+                ),
                 if (isCurrent) ...[
                   AppBadge.pill(
                     label: context.l10n.sessionCurrentBadge,
@@ -521,6 +540,60 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
               ],
             ),
           ],
+        ),
+      );
+  }
+}
+
+/// 会话卡片外框：悬停平滑边框高亮 (遵循 AppMotion 时长与降动效设置)
+class _SessionCardSurface extends StatefulWidget {
+  final bool isCurrent;
+  final VoidCallback? onTap;
+  final Widget child;
+
+  const _SessionCardSurface({
+    required this.isCurrent,
+    required this.onTap,
+    required this.child,
+  });
+
+  @override
+  State<_SessionCardSurface> createState() => _SessionCardSurfaceState();
+}
+
+class _SessionCardSurfaceState extends State<_SessionCardSurface> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final bgColor = widget.isCurrent
+        ? colors.primaryTint.withValues(alpha: 0.5)
+        : colors.cardBackground;
+    final borderColor = widget.isCurrent
+        ? colors.primary.withValues(alpha: _hovered ? 0.9 : 0.7)
+        : (_hovered
+            ? colors.primary.withValues(alpha: 0.45)
+            : colors.borderDefault);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: AnimatedContainer(
+          duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+          curve: AppMotionCurves.smoothOut,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: borderColor,
+              width: widget.isCurrent ? 1.5 : 1,
+            ),
+          ),
+          child: widget.child,
         ),
       ),
     );

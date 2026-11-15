@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 import 'context_menu.dart';
@@ -63,6 +64,11 @@ class _AppThumbnailCardState extends State<AppThumbnailCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final reduceMotion = AppMotion.shouldReduceMotion(context);
+    final hoverDuration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.quick,
+    );
     final isSelected = widget.isSelected;
     final clampedRatio = widget.aspectRatio.clamp(0.5, 2.0);
     final badgeOnLeft =
@@ -77,7 +83,14 @@ class _AppThumbnailCardState extends State<AppThumbnailCard> {
         child: GestureDetector(
           onTap: widget.onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+            duration: hoverDuration,
+            curve: AppMotionCurves.smoothOut,
+            transform: Matrix4.translationValues(
+              0,
+              (_isHovered && !reduceMotion) ? -2.0 : 0.0,
+              0,
+            ),
+            transformAlignment: Alignment.center,
             decoration: BoxDecoration(
               color: colors.mutedBackground,
               borderRadius: BorderRadius.circular(widget.radius),
@@ -160,7 +173,8 @@ class _AppThumbnailCardState extends State<AppThumbnailCard> {
                       child: IgnorePointer(
                         ignoring: !_isHovered,
                         child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 120),
+                          duration: hoverDuration,
+                          curve: AppMotionCurves.smoothOut,
                           opacity: _isHovered ? 1.0 : 0.0,
                           child: widget.hoverActions,
                         ),

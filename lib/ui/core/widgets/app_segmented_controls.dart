@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/app_colors_extension.dart';
 import '../theme/theme_context_extensions.dart';
@@ -50,16 +51,16 @@ enum AppPillVariant {
   underline,
 }
 
-/// 统一水平胶囊分段单选条 (AppSegmentedPillBar)
+/// 统一水平胶囊分段单选条 (`AppSegmentedPillBar`, `16-tabs-sliding`)
 ///
 /// 代码证据出处：
 /// - `bill_settings_tab.dart:43-78` (账单周期切换全部/月/周/日胶囊组)
 /// - `resolution_pad_picker.dart:178-215` (横屏/竖屏/正方形切换三连键)
 ///
 /// 核心职责：
-/// 提供轻量统一的水平药丸分段选择控件，消除手动拼装的 `Row + InkWell + Container + Border`，
-/// 统一 Notion 药丸圆角、选中蓝底或柔和蓝底、边框过渡与平滑 Hover 动效。
-class AppSegmentedPillBar<T> extends StatelessWidget {
+/// 提供轻量统一的水平药丸分段选择控件，选中激活胶囊在轨道间平滑滑动 (`250ms smoothOut`)，
+/// 支持实心/柔和/下划线三种变体、自动适配减弱动画。
+class AppSegmentedPillBar<T> extends StatefulWidget {
   /// 分段项列表
   final List<AppSegmentedItem<T>> items;
 
@@ -105,62 +106,297 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
   });
 
   @override
+  State<AppSegmentedPillBar<T>> createState() => _AppSegmentedPillBarState<T>();
+}
+
+class _AppSegmentedPillBarState<T> extends State<AppSegmentedPillBar<T>>
+    with SingleTickerProviderStateMixin {
+  final GlobalKey _stackKey = GlobalKey();
+  late List<GlobalKey> _itemKeys;
+  late final AnimationController _slideController;
+  late final CurvedAnimation _curvedAnimation;
+
+  List<Rect> _itemRects = const [];
+  Rect? _fromRect;
+  Rect? _toRect;
+  bool _measureScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _itemKeys = List.generate(widget.items.length, (_) => GlobalKey());
+    _slideController = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.fast,
+    );
+    _curvedAnimation = CurvedAnimation(
+      parent: _slideController,
+      curve: AppMotionCurves.smoothOut,
+    );
+    _scheduleMeasure(animate: false);
+  }
+
+  @override
+  void didUpdateWidget(covariant AppSegmentedPillBar<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.items.length != _itemKeys.length) {
+      _itemKeys = List.generate(widget.items.length, (_) => GlobalKey());
+      _itemRects = const [];
+    }
+
+    if (widget.selectedValue != oldWidget.selectedValue) {
+      final currentVisualRect = _currentVisualRect();
+      _scheduleMeasure(animate: true, fromOverride: currentVisualRect);
+    } else if (widget.items.length != oldWidget.items.length ||
+        widget.expand != oldWidget.expand ||
+        widget.spacing != oldWidget.spacing ||
+        widget.variant != oldWidget.variant) {
+      _scheduleMeasure(animate: false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _curvedAnimation.dispose();
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  Rect? _currentVisualRect() {
+    if (_fromRect != null && _toRect != null && _slideController.isAnimating) {
+      return Rect.lerp(_fromRect, _toRect, _curvedAnimation.value);
+    }
+    return _toRect;
+  }
+
+  void _scheduleMeasure({required bool animate, Rect? fromOverride}) {
+    if (_measureScheduled && !animate) return;
+    _measureScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureScheduled = false;
+      if (!mounted) return;
+      _syncIndicator(animate: animate, fromOverride: fromOverride);
+    });
+  }
+
+  void _syncIndicator({required bool animate, Rect? fromOverride}) {
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null || !stackBox.hasSize) return;
+
+    final measuredRects = <Rect>[];
+    for (final key in _itemKeys) {
+      final box = key.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) {
+        measuredRects.clear();
+        break;
+      }
+      final topLeft = box.localToGlobal(Offset.zero, ancestor: stackBox);
+      measuredRects.add(topLeft & box.size);
+    }
+
+    final selectedIndex = widget.items.indexWhere(
+      (item) => item.value == widget.selectedValue,
+    );
+    final Rect? targetRect =
+        (selectedIndex >= 0 && selectedIndex < measuredRects.length)
+        ? measuredRects[selectedIndex]
+        : null;
+
+    if (targetRect == null) {
+      if (_toRect != null || _fromRect != null || _itemRects.isNotEmpty) {
+        setState(() {
+          _itemRects = measuredRects;
+          _fromRect = null;
+          _toRect = null;
+        });
+      }
+      return;
+    }
+
+    final disableAnimations = AppMotion.shouldReduceMotion(context);
+    final startRect = fromOverride ?? _toRect;
+
+    if (!animate || disableAnimations || startRect == null) {
+      _slideController.stop();
+      setState(() {
+        _itemRects = measuredRects;
+        _fromRect = targetRect;
+        _toRect = targetRect;
+      });
+      _slideController.value = 1.0;
+      return;
+    }
+
+    if (startRect == targetRect) {
+      if (measuredRects.length != _itemRects.length) {
+        setState(() => _itemRects = measuredRects);
+      }
+      return;
+    }
+
+    setState(() {
+      _itemRects = measuredRects;
+      _fromRect = startRect;
+      _toRect = targetRect;
+    });
+    _slideController.forward(from: 0.0);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final disableAnimations = AppMotion.shouldReduceMotion(context);
+    final hasMeasured =
+        _itemRects.length == widget.items.length && _toRect != null;
+
+    final selectedIndex = widget.items.indexWhere(
+      (item) => item.value == widget.selectedValue,
+    );
+    final selectedItem = selectedIndex >= 0
+        ? widget.items[selectedIndex]
+        : null;
+    final accent = selectedItem?.activeColor ?? colors.primary;
+    final activeBackground = selectedItem?.activeColor == null
+        ? colors.primaryTint
+        : accent.withValues(alpha: 0.12);
+
+    final (Color activeBg, Color activeBorder) = switch (widget.variant) {
+      AppPillVariant.solid => (accent, accent),
+      AppPillVariant.soft => (activeBackground, accent.withValues(alpha: 0.35)),
+      AppPillVariant.underline => (Colors.transparent, accent),
+    };
 
     final children = <Widget>[
-      for (int i = 0; i < items.length; i++) ...[
-        if (i > 0) SizedBox(width: spacing),
+      for (int i = 0; i < widget.items.length; i++) ...[
+        if (i > 0) SizedBox(width: widget.spacing),
         _wrapExpanded(
           context,
           colors,
-          items[i],
-          index: i,
-          isLast: i == items.length - 1,
+          disableAnimations,
+          hasMeasured,
+          widget.items[i],
+          _itemKeys[i],
         ),
       ],
     ];
 
-    if (scrollable) {
+    final Widget stack = NotificationListener<SizeChangedLayoutNotification>(
+      onNotification: (_) {
+        _scheduleMeasure(animate: false);
+        return false;
+      },
+      child: SizeChangedLayoutNotifier(
+        child: Stack(
+          key: _stackKey,
+          children: [
+            if (hasMeasured && widget.variant != AppPillVariant.underline)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _PillSlotsBackgroundPainter(
+                      rects: _itemRects,
+                      radius: widget.radius,
+                      fillColor: colors.cardBackground,
+                      borderColor: colors.borderDefault,
+                    ),
+                  ),
+                ),
+              ),
+            if (hasMeasured)
+              AnimatedBuilder(
+                animation: _curvedAnimation,
+                builder: (context, _) {
+                  final rect = (_fromRect != null && _toRect != null)
+                      ? Rect.lerp(_fromRect, _toRect, _curvedAnimation.value)
+                      : _toRect;
+                  if (rect == null) return const SizedBox.shrink();
+
+                  if (widget.variant == AppPillVariant.underline) {
+                    return Positioned(
+                      left: rect.left,
+                      top: (rect.bottom - 2).clamp(0.0, double.infinity),
+                      width: rect.width.clamp(0.0, double.infinity),
+                      height: 2,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(color: activeBorder),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Positioned(
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width.clamp(0.0, double.infinity),
+                    height: rect.height.clamp(0.0, double.infinity),
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: activeBg,
+                          borderRadius: BorderRadius.circular(widget.radius),
+                          border: Border.all(color: activeBorder),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            Row(
+              mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
+              children: children,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (widget.scrollable) {
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: Row(mainAxisSize: MainAxisSize.min, children: children),
+        child: stack,
       );
     }
 
-    return Row(mainAxisSize: MainAxisSize.min, children: children);
+    return stack;
   }
 
-  /// expand 模式下用 Expanded 均分；间距项只插在非末尾项后
+  /// expand 模式下用 Expanded 均分
   Widget _wrapExpanded(
     BuildContext context,
     AppColorsExtension colors,
-    AppSegmentedItem<T> item, {
-    required int index,
-    required bool isLast,
-  }) {
-    final pill = _buildPillItem(context, colors, item);
-    if (!expand) return pill;
-    return Expanded(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [Expanded(child: pill)],
-      ),
+    bool disableAnimations,
+    bool hasMeasured,
+    AppSegmentedItem<T> item,
+    GlobalKey itemKey,
+  ) {
+    final pill = _buildPillItem(
+      context,
+      colors,
+      disableAnimations,
+      hasMeasured,
+      item,
+      itemKey,
     );
+    if (!widget.expand) return pill;
+    return Expanded(child: pill);
   }
 
   Widget _buildPillItem(
     BuildContext context,
     AppColorsExtension colors,
+    bool disableAnimations,
+    bool hasMeasured,
     AppSegmentedItem<T> item,
+    GlobalKey itemKey,
   ) {
-    final isSelected = item.value == selectedValue;
+    final isSelected = item.value == widget.selectedValue;
     final accent = item.activeColor ?? colors.primary;
     final activeBackground = item.activeColor == null
         ? colors.primaryTint
         : accent.withValues(alpha: 0.12);
 
-    final (Color bg, Color border, Color fg) = switch (variant) {
+    final (Color bg, Color border, Color fg) = switch (widget.variant) {
       AppPillVariant.solid => (
         isSelected ? accent : colors.cardBackground,
         isSelected ? accent : colors.borderDefault,
@@ -178,25 +414,35 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
       ),
     };
 
+    final effectiveDuration = disableAnimations
+        ? Duration.zero
+        : AppMotionDurations.fast;
+
     Widget pill = InkWell(
       key: Key('segmented_pill_${item.value}'),
-      onTap: () => onValueChanged?.call(item.value),
-      borderRadius: BorderRadius.circular(radius),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        constraints: BoxConstraints(minHeight: minHeight),
-        padding: itemPadding,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: variant == AppPillVariant.underline
-              ? null
-              : BorderRadius.circular(radius),
-          border: variant == AppPillVariant.underline
-              ? Border(bottom: BorderSide(color: border, width: 2))
-              : Border.all(color: border),
-        ),
+      onTap: () => widget.onValueChanged?.call(item.value),
+      borderRadius: BorderRadius.circular(widget.radius),
+      hoverColor: widget.variant == AppPillVariant.underline
+          ? colors.textPrimary.withValues(alpha: 0.04)
+          : Colors.transparent,
+      splashColor: Colors.transparent,
+      child: Container(
+        key: itemKey,
+        constraints: BoxConstraints(minHeight: widget.minHeight),
+        padding: widget.itemPadding,
+        decoration: hasMeasured
+            ? null
+            : BoxDecoration(
+                color: bg,
+                borderRadius: widget.variant == AppPillVariant.underline
+                    ? null
+                    : BorderRadius.circular(widget.radius),
+                border: widget.variant == AppPillVariant.underline
+                    ? Border(bottom: BorderSide(color: border, width: 2))
+                    : Border.all(color: border),
+              ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (item.icon != null) ...[
@@ -205,16 +451,22 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
             ],
             if (item.label.isNotEmpty)
               Flexible(
-                child: Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: variant == AppPillVariant.underline ? 14 : 12,
+                child: AnimatedDefaultTextStyle(
+                  duration: effectiveDuration,
+                  curve: AppMotionCurves.smoothOut,
+                  style: DefaultTextStyle.of(context).style.copyWith(
+                    fontSize: widget.variant == AppPillVariant.underline
+                        ? 14
+                        : 12,
                     fontWeight: isSelected
                         ? FontWeight.w600
                         : FontWeight.normal,
                     color: fg,
+                  ),
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -256,11 +508,56 @@ class AppSegmentedPillBar<T> extends StatelessWidget {
   }
 }
 
+class _PillSlotsBackgroundPainter extends CustomPainter {
+  final List<Rect> rects;
+  final double radius;
+  final Color fillColor;
+  final Color borderColor;
+
+  const _PillSlotsBackgroundPainter({
+    required this.rects,
+    required this.radius,
+    required this.fillColor,
+    required this.borderColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fillPaint = Paint()
+      ..color = fillColor
+      ..style = PaintingStyle.fill;
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    for (final rect in rects) {
+      final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+      canvas.drawRRect(rrect, fillPaint);
+      canvas.drawRRect(rrect.deflate(0.5), borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PillSlotsBackgroundPainter oldDelegate) {
+    if (oldDelegate.radius != radius ||
+        oldDelegate.fillColor != fillColor ||
+        oldDelegate.borderColor != borderColor ||
+        oldDelegate.rects.length != rects.length) {
+      return true;
+    }
+    for (var i = 0; i < rects.length; i++) {
+      if (oldDelegate.rects[i] != rects[i]) return true;
+    }
+    return false;
+  }
+}
+
 /// 统一水平圆角矩形分段单选条 (AppSegmentedCardBar)
 ///
 /// 核心职责：
 /// 覆盖横向选项切换、模式选择与标签页切换场景，外层以柔和灰底圆角矩形 (`AppRadius.md`)
-/// 作为轨道容器包裹所有选项，选中项指示器在轨道内以弹性滑动 (`Cubic(0.34, 1.36, 0.64, 1)`)
+/// 作为轨道容器包裹所有选项，选中项指示器在轨道内以弹性滑动 (`AppMotionCurves.bounce`)
 /// 跟随切换，未选中项透明融入灰底轨道。
 class AppSegmentedCardBar<T> extends StatefulWidget {
   /// 分段项列表
@@ -313,10 +610,6 @@ class AppSegmentedCardBar<T> extends StatefulWidget {
 
 class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
     with SingleTickerProviderStateMixin {
-  static const Duration _slideDuration = Duration(milliseconds: 280);
-  static const Curve _elasticCurve = Cubic(0.34, 1.36, 0.64, 1);
-  static const Curve _smoothCurve = Cubic(0.22, 1, 0.36, 1);
-
   final GlobalKey _stackKey = GlobalKey();
   late List<GlobalKey> _itemKeys;
   late final AnimationController _slideController;
@@ -332,11 +625,11 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
     _itemKeys = List.generate(widget.items.length, (_) => GlobalKey());
     _slideController = AnimationController(
       vsync: this,
-      duration: _slideDuration,
+      duration: AppMotionDurations.fast,
     );
     _curvedAnimation = CurvedAnimation(
       parent: _slideController,
-      curve: _elasticCurve,
+      curve: AppMotionCurves.bounce,
     );
     _scheduleMeasure(animate: false);
   }
@@ -417,7 +710,7 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
       return;
     }
 
-    final disableAnimations = MediaQuery.disableAnimationsOf(context);
+    final disableAnimations = AppMotion.shouldReduceMotion(context);
     final startRect = fromOverride ?? _toRect;
 
     if (!animate || disableAnimations || startRect == null) {
@@ -444,7 +737,7 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
     final colors = context.colors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final innerRadius = (widget.radius - 2).clamp(2.0, widget.radius);
-    final disableAnimations = MediaQuery.disableAnimationsOf(context);
+    final disableAnimations = AppMotion.shouldReduceMotion(context);
 
     final selectedIndex = widget.items.indexWhere(
       (item) => item.value == widget.selectedValue,
@@ -584,7 +877,7 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
         : colors.textSecondary;
     final colorDuration = disableAnimations
         ? Duration.zero
-        : const Duration(milliseconds: 220);
+        : AppMotionDurations.fast;
 
     Widget card = InkWell(
       key: Key('segmented_card_${item.value}'),
@@ -608,7 +901,7 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
               Flexible(
                 child: AnimatedDefaultTextStyle(
                   duration: colorDuration,
-                  curve: _smoothCurve,
+                  curve: AppMotionCurves.smoothOut,
                   style: DefaultTextStyle.of(context).style.copyWith(
                     fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -663,8 +956,9 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
 /// - `inpaint_page.dart:109-141 & 450-493` (_buildModeOption 原图/生成背景/纯透明模式选择卡片)
 ///
 /// 核心职责：
-/// 统一标题+副标题双行布局的选项卡片，规范选中微蓝底 (10% tint)、蓝细边框与未选平滑过渡。
-class AppOptionCard<T> extends StatelessWidget {
+/// 统一标题+副标题双行布局的选项卡片，规范选中微蓝底 (10% tint)、蓝细边框、
+/// 悬停高亮与平滑过渡，同时尊重系统减弱动画设置。
+class AppOptionCard<T> extends StatefulWidget {
   /// 选项值
   final T value;
 
@@ -706,72 +1000,103 @@ class AppOptionCard<T> extends StatelessWidget {
   });
 
   @override
+  State<AppOptionCard<T>> createState() => _AppOptionCardState<T>();
+}
+
+class _AppOptionCardState<T> extends State<AppOptionCard<T>> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final reduceMotion = AppMotion.shouldReduceMotion(context);
+    final duration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.quick,
+    );
 
-    final bgColor = isSelected ? colors.primaryTint : colors.cardBackground;
-    final borderColor = isSelected
+    final bgColor = widget.isSelected
+        ? colors.primaryTint
+        : colors.cardBackground;
+    final borderColor = widget.isSelected
         ? colors.primary.withValues(alpha: 0.6)
-        : colors.borderDefault;
-    final borderWidth = isSelected ? 1.5 : 1.0;
-    final titleColor = isSelected ? colors.primary : colors.textPrimary;
-    final subtitleColor = isSelected
+        : (_isHovered ? colors.borderHover : colors.borderDefault);
+    final borderWidth = widget.isSelected ? 1.5 : 1.0;
+    final titleColor = widget.isSelected ? colors.primary : colors.textPrimary;
+    final subtitleColor = widget.isSelected
         ? colors.primary.withValues(alpha: 0.75)
         : colors.textSecondary;
 
-    return InkWell(
-      onTap: () {
-        onTap?.call();
-        onSelected?.call(value);
-      },
-      borderRadius: BorderRadius.circular(radius),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: padding,
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(radius),
-          border: Border.all(color: borderColor, width: borderWidth),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 18, color: titleColor),
-              const SizedBox(width: 8),
-            ],
-            // Flexible 防溢出：字体回退 (测试环境 Ahem 等宽字形) 或超长文案时
-            // 允许文本列收缩换行，而不是把 Row 撑爆
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w600,
-                      color: titleColor,
-                    ),
-                  ),
-                  if (subtitle != null && subtitle!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: InkWell(
+        onTap: () {
+          widget.onTap?.call();
+          widget.onSelected?.call(widget.value);
+        },
+        borderRadius: BorderRadius.circular(widget.radius),
+        hoverColor: Colors.transparent,
+        child: AnimatedContainer(
+          duration: duration,
+          curve: AppMotionCurves.smoothOut,
+          transform: Matrix4.translationValues(
+            0,
+            (_isHovered && !widget.isSelected && !reduceMotion) ? -1.5 : 0.0,
+            0,
+          ),
+          transformAlignment: Alignment.center,
+          padding: widget.padding,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(widget.radius),
+            border: Border.all(color: borderColor, width: borderWidth),
+            boxShadow: _isHovered && !widget.isSelected
+                ? context.shadowSubtle
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (widget.icon != null) ...[
+                Icon(widget.icon, size: 18, color: titleColor),
+                const SizedBox(width: 8),
+              ],
+              // Flexible 防溢出：字体回退 (测试环境 Ahem 等宽字形) 或超长文案时
+              // 允许文本列收缩换行，而不是把 Row 撑爆
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      subtitle!,
+                      widget.title,
                       overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                      style: TextStyle(fontSize: 11, color: subtitleColor),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: widget.isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                        color: titleColor,
+                      ),
                     ),
+                    if (widget.subtitle != null &&
+                        widget.subtitle!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.subtitle!,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                        style: TextStyle(fontSize: 11, color: subtitleColor),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

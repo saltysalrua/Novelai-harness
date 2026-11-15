@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../context_l10n.dart';
 import 'package:flutter/services.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_transitions.dart';
 
 /// 统一只读内容展示容器 (AppCopyableBox)
 ///
@@ -215,7 +217,11 @@ class _AppCopyableBoxState extends State<AppCopyableBox> {
                 onTap: _handleCopy,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
+                  duration: AppMotion.resolveDuration(
+                    context,
+                    AppMotionDurations.quick,
+                  ),
+                  curve: AppMotionCurves.smoothOut,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 7,
                     vertical: 3,
@@ -229,18 +235,32 @@ class _AppCopyableBoxState extends State<AppCopyableBox> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        _isCopied ? Icons.check_rounded : Icons.copy_rounded,
-                        size: 12,
-                        color: _isCopied ? colors.success : colors.primary,
+                      AppIconSwap(
+                        swapKey: _isCopied,
+                        enableBlur: false,
+                        child: _isCopied
+                            ? AppSuccessCheck(
+                                key: const ValueKey('copied'),
+                                size: 12,
+                                strokeWidth: 1.8,
+                                color: colors.success,
+                                bobDistance: 3.0,
+                              )
+                            : Icon(
+                                Icons.copy_rounded,
+                                key: const ValueKey('copy'),
+                                size: 12,
+                                color: colors.primary,
+                              ),
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        _isCopied
+                      AppTextSwap(
+                        text: _isCopied
                             ? (context.maybeL10n?.commonCopied ?? '已复制')
                             : (widget.copyLabel ??
                                   context.maybeL10n?.copy ??
                                   '复制'),
+                        enableBlur: false,
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,

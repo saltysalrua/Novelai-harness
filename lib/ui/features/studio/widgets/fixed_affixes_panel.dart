@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_resize_handle.dart';
 
@@ -40,7 +43,12 @@ class FixedAffixesCardContent extends StatelessWidget {
         children: [
           _BannedWordsSection(viewModel: viewModel),
           Divider(height: 1, thickness: 1, color: colors.borderSubtle),
-          Opacity(
+          AnimatedOpacity(
+            duration: AppMotion.resolveDuration(
+              context,
+              AppMotionDurations.quick,
+            ),
+            curve: AppMotionCurves.smoothOut,
             opacity: isEnabled ? 1.0 : 0.55,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -179,42 +187,38 @@ class _BannedWordsSectionState extends State<_BannedWordsSection> {
                 ),
               ),
               const SizedBox(width: 6),
-              SizedBox(
-                height: 22,
-                width: 38,
-                child: FittedBox(
-                  fit: BoxFit.fill,
-                  child: Switch(
-                    value: enabled,
-                    activeTrackColor: colors.primary,
-                    activeThumbColor: Colors.white,
-                    inactiveTrackColor: colors.mutedBackground,
-                    inactiveThumbColor: colors.textMuted,
-                    onChanged: (val) => widget.viewModel.updateParams(
-                      params.copyWith(stripBannedWords: val),
-                    ),
-                  ),
+              AppSwitch(
+                value: enabled,
+                onChanged: (val) => widget.viewModel.updateParams(
+                  params.copyWith(stripBannedWords: val),
                 ),
               ),
             ],
           ),
-          if (enabled) ...[
-            const SizedBox(height: 8),
-            TextField(
-              controller: _controller,
-              minLines: 2,
-              maxLines: 4,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: colors.textPrimary,
-              ),
-              decoration: const InputDecoration(),
-              onChanged: (val) => widget.viewModel.updateParams(
-                widget.viewModel.params.copyWith(bannedWords: val),
+          AppPanelReveal(
+            visible: enabled,
+            openDuration: AppMotionDurations.fast,
+            closeDuration: AppMotionDurations.quick,
+            slideOffset: AppMotionDistances.base,
+            enableBlur: false,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: TextField(
+                controller: _controller,
+                minLines: 2,
+                maxLines: 4,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: colors.textPrimary,
+                ),
+                decoration: const InputDecoration(),
+                onChanged: (val) => widget.viewModel.updateParams(
+                  widget.viewModel.params.copyWith(bannedWords: val),
+                ),
               ),
             ),
-          ],
+          ),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_transitions.dart';
 
 /// 带可见性切换的密钥输入框 (NovelAI Key / LLM Key 复用)
 ///
@@ -43,10 +44,15 @@ class _SettingsKeyFieldState extends State<SettingsKeyField> {
               vertical: 8,
             ),
             suffixIcon: IconButton(
-              icon: Icon(
-                _obscure ? Icons.visibility_off : Icons.visibility,
-                size: 15,
-                color: colors.textMuted,
+              icon: AppIconSwap(
+                swapKey: _obscure,
+                enableBlur: false,
+                child: Icon(
+                  _obscure ? Icons.visibility_off : Icons.visibility,
+                  key: ValueKey<bool>(_obscure),
+                  size: 15,
+                  color: colors.textMuted,
+                ),
               ),
               onPressed: () => setState(() => _obscure = !_obscure),
             ),

@@ -5,6 +5,7 @@ import '../../../../data/services/llm_model_fetcher.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_control_flow.dart';
@@ -14,7 +15,9 @@ import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_search_field.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/app_skeleton.dart';
 import '../../../core/widgets/app_tool_chip.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import 'model_card.dart';
 import 'model_profile_dialog.dart';
@@ -278,6 +281,9 @@ class ModelsSettingsTab extends StatefulWidget {
 class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
   ModelsSettingsDraft get _draft => widget.draft;
   final LlmModelFetcher _modelFetcher = LlmModelFetcher();
+  int _fetchErrorShakeTrigger = 0;
+  String _cachedFetchStatus = '';
+  bool _cachedFetchSuccess = false;
 
   /// 编辑单个模型档案
   Future<void> _editModel(LlmModelConfig model) async {
@@ -330,6 +336,9 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
       setState(() {
         _draft.isFetchSuccess = false;
         _draft.fetchStatusMessage = l10n.settingsFetchModelsEnterBaseUrl;
+        _cachedFetchSuccess = false;
+        _cachedFetchStatus = _draft.fetchStatusMessage!;
+        _fetchErrorShakeTrigger++;
       });
       return;
     }
@@ -359,15 +368,18 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
       );
 
       if (!mounted) return;
+      final statusMsg = result.enrichedCount > 0
+          ? l10n.settingsFetchModelsSuccessWithEnriched(
+              result.models.length,
+              result.enrichedCount,
+            )
+          : l10n.settingsFetchModelsSuccess(result.models.length);
       setState(() {
         _draft.isFetchingModels = false;
         _draft.isFetchSuccess = true;
-        _draft.fetchStatusMessage = result.enrichedCount > 0
-            ? l10n.settingsFetchModelsSuccessWithEnriched(
-                result.models.length,
-                result.enrichedCount,
-              )
-            : l10n.settingsFetchModelsSuccess(result.models.length);
+        _draft.fetchStatusMessage = statusMsg;
+        _cachedFetchSuccess = true;
+        _cachedFetchStatus = statusMsg;
       });
     } catch (e) {
       if (!mounted) return;
@@ -375,6 +387,9 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         _draft.isFetchingModels = false;
         _draft.isFetchSuccess = false;
         _draft.fetchStatusMessage = '$e';
+        _cachedFetchSuccess = false;
+        _cachedFetchStatus = _draft.fetchStatusMessage!;
+        _fetchErrorShakeTrigger++;
       });
     }
   }
@@ -398,6 +413,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
   /// 头部：供应商选择 / 端点表单 / 拉取操作区 (不含模型网格)
   Widget _buildHeaderSections(AppLocalizations l10n) {
     final colors = context.colors;
+    if (_draft.fetchStatusMessage != null) {
+      _cachedFetchStatus = _draft.fetchStatusMessage!;
+      _cachedFetchSuccess = _draft.isFetchSuccess;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,46 +617,69 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
             ],
           ),
         ),
-        if (_draft.fetchStatusMessage != null)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 6,
-            ),
-            decoration: BoxDecoration(
-              color: _draft.isFetchSuccess
-                  ? colors.success.withValues(alpha: 0.1)
-                  : colors.error.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  _draft.isFetchSuccess
-                      ? Icons.check_circle_outline_rounded
-                      : Icons.error_outline_rounded,
-                  size: 14,
-                  color: _draft.isFetchSuccess
-                      ? colors.success
-                      : colors.error,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    _draft.fetchStatusMessage!,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _draft.isFetchSuccess
-                          ? colors.success
-                          : colors.error,
+        AppPanelReveal(
+          visible: _draft.isFetchingModels || _draft.fetchStatusMessage != null,
+          enableBlur: false,
+          child: AppErrorShake(
+            trigger: _fetchErrorShakeTrigger,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _draft.isFetchingModels
+                    ? colors.primaryTint
+                    : (_cachedFetchSuccess
+                          ? colors.success.withValues(alpha: 0.1)
+                          : colors.error.withValues(alpha: 0.08)),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Row(
+                children: [
+                  if (_draft.isFetchingModels) ...[
+                    const AppMatrixDotLoader(
+                      dotSize: 2.0,
+                      gap: 1.5,
+                      variant: AppMatrixDotVariant.scan,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: AppShimmerText(
+                        text: l10n.settingsFetchingModels,
+                        style: TextStyle(fontSize: 12, color: colors.primary),
+                      ),
+                    ),
+                  ] else ...[
+                    if (_cachedFetchSuccess)
+                      AppSuccessCheck(
+                        key: ValueKey<String>('ok_$_cachedFetchStatus'),
+                        size: 14,
+                        color: colors.success,
+                      )
+                    else
+                      Icon(
+                        Icons.error_outline_rounded,
+                        size: 14,
+                        color: colors.error,
+                      ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _cachedFetchStatus,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _cachedFetchSuccess
+                              ? colors.success
+                              : colors.error,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
+        ),
         const SizedBox(height: 12),
         // 4. AI 整图编辑绘图模型 (独立于对话 LLM 的供应商与模型选择)
         AppSectionHeader(title: l10n.settingsSectionImageEdit),
@@ -712,6 +754,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
           padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
           sliver: _ModelGridSection(
             provider: _draft.currentProvider,
+            isFetching: _draft.isFetchingModels,
             onSelect: (m) => setState(() => _draft.setActiveModel(m.id)),
             onEdit: _editModel,
             onDelete: _deleteModel,
@@ -728,12 +771,14 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
 /// 输入搜索词时只有本区 setState，头部表单完全不受影响。
 class _ModelGridSection extends StatefulWidget {
   final LlmProviderConfig provider;
+  final bool isFetching;
   final ValueChanged<LlmModelConfig> onSelect;
   final ValueChanged<LlmModelConfig> onEdit;
   final ValueChanged<String> onDelete;
 
   const _ModelGridSection({
     required this.provider,
+    required this.isFetching,
     required this.onSelect,
     required this.onEdit,
     required this.onDelete,
@@ -884,6 +929,29 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
     final models = widget.provider.models;
 
     // 供应商没有任何模型
+    if (models.isEmpty && widget.isFetching) {
+      return SliverLayoutBuilder(
+        builder: (context, constraints) {
+          final crossAxisCount = (constraints.crossAxisExtent / 288)
+              .floor()
+              .clamp(1, 8);
+          return SliverGrid.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 2.6,
+            ),
+            itemCount: 3,
+            itemBuilder: (context, _) => const AppSkeletonBox(
+              height: 92,
+              radius: AppRadius.md,
+            ),
+          );
+        },
+      );
+    }
+
     if (models.isEmpty) {
       return SliverToBoxAdapter(
         child: AppEmptyState(

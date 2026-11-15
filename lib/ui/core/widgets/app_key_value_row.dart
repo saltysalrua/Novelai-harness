@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../context_l10n.dart';
 import 'package:flutter/services.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_transitions.dart';
 
 /// 统一两端对齐键值参数行 (AppKeyValueRow)
 ///
@@ -139,26 +141,39 @@ class _AppKeyValueRowState extends State<AppKeyValueRow> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Flexible(
-                  child: Text(
-                    widget.value,
+                  child: AnimatedDefaultTextStyle(
+                    duration: AppMotion.resolveDuration(
+                      context,
+                      AppMotionDurations.quick,
+                    ),
+                    curve: AppMotionCurves.smoothOut,
                     style: valueStyle,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
+                    child: Text(
+                      widget.value,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                    ),
                   ),
                 ),
-                if (_isCopied) ...[
+                if (widget.copyable || _isCopied) ...[
                   const SizedBox(width: 4),
-                  Icon(
-                    Icons.check_rounded,
-                    size: widget.fontSize,
-                    color: colors.success,
-                  ),
-                ] else if (widget.copyable) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.copy_rounded,
-                    size: widget.fontSize - 1,
-                    color: colors.textMuted.withValues(alpha: 0.6),
+                  AppIconSwap(
+                    swapKey: _isCopied,
+                    enableBlur: false,
+                    child: _isCopied
+                        ? AppSuccessCheck(
+                            key: const ValueKey('copied'),
+                            size: widget.fontSize,
+                            strokeWidth: 1.8,
+                            color: colors.success,
+                            bobDistance: 3.0,
+                          )
+                        : Icon(
+                            Icons.copy_rounded,
+                            key: const ValueKey('copy'),
+                            size: widget.fontSize - 1,
+                            color: colors.textMuted.withValues(alpha: 0.6),
+                          ),
                   ),
                 ],
                 if (widget.trailing != null) ...[

@@ -8,12 +8,15 @@ import '../../../../data/services/config_service.dart'
 import '../../../../data/services/palette_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_accent_controller.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/md3_accent.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_color_picker_dialog.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_skeleton.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 
@@ -105,47 +108,85 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
     return AppDialogScaffold(
       title: l10n.paletteDialogTitle,
       width: 560,
-      body: _loading
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          : _error != null
+      body: _error != null
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Text(_error!, style: context.typography.bodySmall),
               ),
             )
-          : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xl),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSwatchGrid(context),
-                    const SizedBox(height: AppSpacing.lg),
-                    AppActionButton(
-                      label: l10n.paletteCustomColor,
-                      icon: Icons.colorize,
-                      onPressed: () async {
-                        final picked = await AppColorPickerDialog.show(
-                          context,
-                          initialColor: Color(_palette?.seed ?? 0xFF0075DE),
-                        );
-                        if (picked == null) return;
-                        _applySeed(picked.toARGB32());
-                      },
+          : AppSkeletonReveal(
+              isLoaded: !_loading && _palette != null,
+              enableBlur: false,
+              skeleton: _buildLoadingSkeleton(context),
+              child: _palette == null
+                  ? const SizedBox.shrink()
+                  : SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.xl),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSwatchGrid(context),
+                            const SizedBox(height: AppSpacing.lg),
+                            AppActionButton(
+                              label: l10n.paletteCustomColor,
+                              icon: Icons.colorize,
+                              onPressed: () async {
+                                final picked = await AppColorPickerDialog.show(
+                                  context,
+                                  initialColor: Color(
+                                    _palette?.seed ?? 0xFF0075DE,
+                                  ),
+                                );
+                                if (picked == null) return;
+                                _applySeed(picked.toARGB32());
+                              },
+                            ),
+                            const SizedBox(height: AppSpacing.xl),
+                            _buildM3Preview(
+                              context,
+                              _palette!,
+                              accentState.variant,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.xl),
-                    if (_palette != null)
-                      _buildM3Preview(context, _palette!, accentState.variant),
-                  ],
-                ),
+            ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.md,
+            children: List.generate(
+              5,
+              (_) => const AppSkeletonBox(
+                width: 92,
+                height: 82,
+                radius: AppRadius.md,
               ),
             ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          Center(
+            child: AppMatrixDotLoader(
+              dotSize: 3.5,
+              gap: 3.0,
+              variant: AppMatrixDotVariant.orbit,
+              activeColor: context.colors.primary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -206,7 +247,7 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
 }
 
 /// 单个主色色块 (点击设为主题强调色，右键复制色值)
-class _PaletteSwatchTile extends StatelessWidget {
+class _PaletteSwatchTile extends StatefulWidget {
   final PaletteColor color;
   final VoidCallback onTap;
   final VoidCallback onSecondaryTap;
@@ -218,53 +259,77 @@ class _PaletteSwatchTile extends StatelessWidget {
   });
 
   @override
+  State<_PaletteSwatchTile> createState() => _PaletteSwatchTileState();
+}
+
+class _PaletteSwatchTileState extends State<_PaletteSwatchTile> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return GestureDetector(
-      onTap: onTap,
-      onSecondaryTap: onSecondaryTap,
-      onLongPress: onSecondaryTap,
-      child: Container(
-        width: 92,
-        decoration: BoxDecoration(
-          color: colors.mutedBackground,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: colors.borderDefault),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 44,
-              decoration: BoxDecoration(color: Color(color.argb)),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.xs,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    seedColorText(color.argb) ?? '',
-                    style: context.typography.bodySmall?.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    '${(color.share * 100).toStringAsFixed(1)}%',
-                    style: context.typography.bodySmall?.copyWith(
-                      color: colors.textMuted,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
+    final reduceMotion = AppMotion.shouldReduceMotion(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onSecondaryTap: widget.onSecondaryTap,
+        onLongPress: widget.onSecondaryTap,
+        child: AppHoverLift(
+          lift: -2.0,
+          hoverScale: 1.0,
+          duration: AppMotionDurations.quick,
+          child: AnimatedContainer(
+            duration: reduceMotion ? Duration.zero : AppMotionDurations.quick,
+            curve: AppMotionCurves.smoothOut,
+            width: 92,
+            decoration: BoxDecoration(
+              color: colors.mutedBackground,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: _hovered
+                    ? colors.primary.withValues(alpha: 0.55)
+                    : colors.borderDefault,
               ),
             ),
-          ],
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 44,
+                  decoration: BoxDecoration(color: Color(widget.color.argb)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        seedColorText(widget.color.argb) ?? '',
+                        style: context.typography.bodySmall?.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        '${(widget.color.share * 100).toStringAsFixed(1)}%',
+                        style: context.typography.bodySmall?.copyWith(
+                          color: colors.textMuted,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

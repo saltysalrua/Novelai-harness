@@ -273,8 +273,13 @@ void main() {
       await tester.tap(find.text('弹菜单'));
       await tester.pumpAndSettle();
 
-      // 菜单本体最外层是 AnimatedScale (缩放动画对齐 topLeft，结算后即菜单左上角)
-      final menuFinder = find.byType(AnimatedScale);
+      // 菜单本体卡片 Container (缩放动画结算后即菜单左上角)
+      final menuFinder = find.ancestor(
+        of: find.byType(SingleChildScrollView),
+        matching: find.byWidgetPredicate(
+          (w) => w is Container && w.decoration is BoxDecoration,
+        ),
+      );
       expect(menuFinder, findsOneWidget);
 
       // 换算后菜单应精确出现在窗口全局坐标 (300, 200)——修复前会偏移到 (450, 300)
@@ -309,7 +314,12 @@ void main() {
       await tester.tap(find.text('弹菜单'));
       await tester.pumpAndSettle();
 
-      final menuFinder = find.byType(AnimatedScale);
+      final menuFinder = find.ancestor(
+        of: find.byType(SingleChildScrollView),
+        matching: find.byWidgetPredicate(
+          (w) => w is Container && w.decoration is BoxDecoration,
+        ),
+      );
       expect(menuFinder, findsOneWidget);
 
       // 修复前会偏移到 (240, 160)

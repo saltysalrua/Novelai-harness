@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../context_l10n.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_transitions.dart';
 
 /// 统一搜索与过滤输入框组件 (Search Field)
 ///
@@ -13,7 +16,8 @@ import '../theme/theme_context_extensions.dart';
 /// - `agent_session_list_view.dart:25-50` (历史对话列表检索框)
 ///
 /// 核心职责：
-/// 统一高度 (34px)、放大镜搜索前缀、内容非空时自动出现的一键清空叉号按钮，
+/// 统一高度 (34px)、放大镜搜索前缀、内容非空时通过 [AppIconSwap] (`09-icon-swap`)
+/// 切出的一键清空叉号按钮与清零溶散动效 (`13-input-clear-dissolve`)，
 /// 内置防抖机制 (Debounce)，消灭业务层重复配置 `TextField + InputDecoration + Timer`。
 class AppSearchField extends StatefulWidget {
   /// 外部绑定的控制器；若为空则在内部管理
@@ -68,10 +72,18 @@ class AppSearchField extends StatefulWidget {
   State<AppSearchField> createState() => _AppSearchFieldState();
 }
 
-class _AppSearchFieldState extends State<AppSearchField> {
+class _AppSearchFieldState extends State<AppSearchField>
+    with SingleTickerProviderStateMixin {
+  static const Duration _dissolveTotal = Duration(milliseconds: 700);
+
   late TextEditingController _controller;
+  late final AnimationController _clearController;
   Timer? _debounceTimer;
   bool _hasText = false;
+  bool _reduceMotion = false;
+  String _clearingText = '';
+
+  bool get _isDissolving => _clearController.isAnimating;
 
   @override
   void initState() {
@@ -79,6 +91,24 @@ class _AppSearchFieldState extends State<AppSearchField> {
     _controller = widget.controller ?? TextEditingController();
     _hasText = _controller.text.isNotEmpty;
     _controller.addListener(_handleTextChange);
+    _clearController =
+        AnimationController(vsync: this, duration: _dissolveTotal)
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed && mounted) {
+              setState(() => _clearingText = '');
+            }
+          });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = AppMotion.shouldReduceMotion(context);
+    if (_reduceMotion && _clearController.isAnimating) {
+      _clearController.stop();
+      _clearController.value = 0.0;
+      _clearingText = '';
+    }
   }
 
   @override
@@ -101,6 +131,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _clearController.dispose();
     _controller.removeListener(_handleTextChange);
     if (widget.controller == null) {
       _controller.dispose();
@@ -110,6 +141,11 @@ class _AppSearchFieldState extends State<AppSearchField> {
 
   void _handleTextChange() {
     final nowHasText = _controller.text.isNotEmpty;
+    if (nowHasText && _clearingText.isNotEmpty) {
+      _clearController.stop();
+      _clearController.value = 0.0;
+      _clearingText = '';
+    }
     if (_hasText != nowHasText) {
       setState(() {
         _hasText = nowHasText;
@@ -131,8 +167,13 @@ class _AppSearchFieldState extends State<AppSearchField> {
   }
 
   void _handleClear() {
+    final previousText = _controller.text;
     _debounceTimer?.cancel();
     _controller.clear();
+    if (!_reduceMotion && previousText.isNotEmpty) {
+      setState(() => _clearingText = previousText);
+      _clearController.forward(from: 0.0);
+    }
     widget.onClear?.call();
     widget.onChanged?.call('');
   }
@@ -140,44 +181,50 @@ class _AppSearchFieldState extends State<AppSearchField> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final effectiveHint =
+        widget.hintText ?? context.maybeL10n?.commonSearchHint ?? '搜索…';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final showDissolveOverlay =
+        !_reduceMotion && _clearingText.isNotEmpty && _isDissolving;
 
-    return SizedBox(
-      height: widget.height,
-      child: TextField(
-        controller: _controller,
-        autofocus: widget.autofocus,
-        focusNode: widget.focusNode,
-        style: TextStyle(fontSize: widget.fontSize, color: colors.textPrimary),
-        textAlignVertical: TextAlignVertical.center,
-        decoration: InputDecoration(
-          hintText:
-              widget.hintText ?? context.maybeL10n?.commonSearchHint ?? '搜索…',
-          hintStyle: TextStyle(
-            fontSize: widget.fontSize,
-            color: colors.textMuted,
-          ),
-          filled: true,
-          fillColor: colors.cardBackground,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 0,
-          ),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 32,
-            minHeight: 34,
-          ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            size: 16,
-            color: colors.textMuted,
-          ),
-          suffixIconConstraints: const BoxConstraints(
-            minWidth: 28,
-            minHeight: 34,
-          ),
-          suffixIcon: _hasText
+    final field = TextField(
+      controller: _controller,
+      autofocus: widget.autofocus,
+      focusNode: widget.focusNode,
+      style: TextStyle(fontSize: widget.fontSize, color: colors.textPrimary),
+      textAlignVertical: TextAlignVertical.center,
+      decoration: InputDecoration(
+        hintText: showDissolveOverlay ? null : effectiveHint,
+        hintStyle: TextStyle(
+          fontSize: widget.fontSize,
+          color: colors.textMuted,
+        ),
+        filled: true,
+        fillColor: colors.cardBackground,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 0,
+        ),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 32,
+          minHeight: 34,
+        ),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          size: 16,
+          color: colors.textMuted,
+        ),
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 28,
+          minHeight: 34,
+        ),
+        suffixIcon: AppIconSwap(
+          swapKey: _hasText,
+          enableBlur: false,
+          child: _hasText
               ? IconButton(
+                  key: const ValueKey('clear_btn'),
                   icon: const Icon(Icons.close_rounded, size: 14),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
@@ -189,24 +236,171 @@ class _AppSearchFieldState extends State<AppSearchField> {
                   tooltip: context.maybeL10n?.commonClearInput ?? '清空输入',
                   onPressed: _handleClear,
                 )
-              : null,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(widget.radius),
-            borderSide: BorderSide(color: colors.borderDefault),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(widget.radius),
-            borderSide: BorderSide(color: colors.borderDefault),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(widget.radius),
-            borderSide: BorderSide(color: colors.primary, width: 1.5),
-          ),
+              : const SizedBox.square(
+                  key: ValueKey('clear_empty'),
+                  dimension: 24,
+                ),
         ),
-        onSubmitted: (val) {
-          _debounceTimer?.cancel();
-          widget.onSubmitted?.call(val);
-        },
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(widget.radius),
+          borderSide: BorderSide(color: colors.borderDefault),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(widget.radius),
+          borderSide: BorderSide(color: colors.borderDefault),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(widget.radius),
+          borderSide: BorderSide(color: colors.primary, width: 1.5),
+        ),
+      ),
+      onSubmitted: (val) {
+        _debounceTimer?.cancel();
+        widget.onSubmitted?.call(val);
+      },
+    );
+
+    if (!showDissolveOverlay) {
+      return SizedBox(height: widget.height, child: field);
+    }
+
+    return SizedBox(
+      height: widget.height,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          field,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(widget.radius),
+                child: AnimatedBuilder(
+                  animation: _clearController,
+                  builder: (context, _) {
+                    final elapsedMs =
+                        _clearController.value * _dissolveTotal.inMilliseconds;
+                    final textRaw = (elapsedMs / 400.0).clamp(0.0, 1.0);
+                    final easeT = AppMotionCurves.smoothOut
+                        .transform(textRaw)
+                        .clamp(0.0, 1.0);
+
+                    final outDy = AppMotionDistances.medium * easeT;
+                    final outOpacity = (1.0 - easeT).clamp(0.0, 1.0);
+                    final outSigma = AppMotionBlurs.small * easeT;
+
+                    final inDy = -AppMotionDistances.medium * (1.0 - easeT);
+                    final inOpacity = (0.55 + 0.45 * easeT).clamp(0.0, 1.0);
+                    final inSigma = AppMotionBlurs.small * (1.0 - easeT);
+
+                    // 底部光晕扫掠包络 (50ms 延迟 -> 15% 处达到峰值 -> 柔和消退)
+                    double glowOpacity = 0.0;
+                    if (elapsedMs > 50.0) {
+                      final gp = ((elapsedMs - 50.0) / 650.0).clamp(0.0, 1.0);
+                      const peakAt = 0.15;
+                      final env = gp < peakAt
+                          ? gp / peakAt
+                          : 1.0 - (gp - peakAt) / (1.0 - peakAt);
+                      glowOpacity = (env * (isDark ? 0.35 : 0.22)).clamp(
+                        0.0,
+                        1.0,
+                      );
+                    }
+
+                    Widget clearedTextWidget = Text(
+                      _clearingText,
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      style: TextStyle(
+                        fontSize: widget.fontSize,
+                        color: colors.textPrimary,
+                      ),
+                    );
+                    if (outSigma > 0.05) {
+                      clearedTextWidget = ImageFiltered(
+                        imageFilter: ImageFilter.blur(
+                          sigmaX: outSigma,
+                          sigmaY: outSigma,
+                        ),
+                        child: clearedTextWidget,
+                      );
+                    }
+
+                    Widget placeholderWidget = Text(
+                      effectiveHint,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: widget.fontSize,
+                        color: colors.textMuted,
+                      ),
+                    );
+                    if (inSigma > 0.05) {
+                      placeholderWidget = ImageFiltered(
+                        imageFilter: ImageFilter.blur(
+                          sigmaX: inSigma,
+                          sigmaY: inSigma,
+                        ),
+                        child: placeholderWidget,
+                      );
+                    }
+
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (glowOpacity > 0.005)
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Container(
+                              height: 10,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    colors.primary.withValues(
+                                      alpha: glowOpacity,
+                                    ),
+                                    colors.primary.withValues(alpha: 0.0),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 34, right: 30),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Opacity(
+                              opacity: inOpacity,
+                              child: Transform.translate(
+                                offset: Offset(0, inDy),
+                                child: placeholderWidget,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (outOpacity > 0.005)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 34, right: 30),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Opacity(
+                                opacity: outOpacity,
+                                child: Transform.translate(
+                                  offset: Offset(0, outDy),
+                                  child: clearedTextWidget,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

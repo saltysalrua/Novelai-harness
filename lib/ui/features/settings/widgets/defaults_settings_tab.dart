@@ -7,6 +7,7 @@ import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_number_slider.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/app_transitions.dart';
 
 /// Defaults 页草稿状态 (父级 SettingsDialog 持有，保存时统一聚合)
 class DefaultsSettingsDraft {
@@ -165,8 +166,10 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               }),
             ),
           ),
-          if (summaryProvider != null)
-            AppSettingTile(
+          AppPanelReveal(
+            visible: summaryProvider != null,
+            enableBlur: false,
+            child: AppSettingTile(
               title: l10n.settingsCompactionModel,
               control: AppDropdown.simple(
                 value: models.any((m) => m.id == _draft.compactionModelId)
@@ -181,6 +184,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
                     setState(() => _draft.compactionModelId = id),
               ),
             ),
+          ),
           const SizedBox(height: AppSpacing.lg),
           AppSectionHeader(title: l10n.settingsSectionAgentLoop),
           AppSettingTile(

@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_number_slider.dart';
 import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 水印设置面板 (Notion 极简风格：侧栏仅展示水印图像、位置胶囊与属性微调，画板联动 2D 交互定位)
@@ -43,10 +47,10 @@ class WatermarkPadPicker extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.l10n.watermarkPickImageFailed(e.toString())),
-          ),
+        showAppToast(
+          context,
+          message: context.l10n.watermarkPickImageFailed(e.toString()),
+          tone: AppToastTone.error,
         );
       }
     }
@@ -240,50 +244,65 @@ class WatermarkPadPicker extends StatelessWidget {
                 style: TextStyle(fontSize: 12, color: colors.textPrimary),
               ),
               const Spacer(),
-              Switch(
+              AppSwitch(
                 value: config.blindEnabled,
-                activeTrackColor: colors.primary,
-                activeThumbColor: Colors.white,
-                inactiveTrackColor: colors.mutedBackground,
-                inactiveThumbColor: colors.textMuted,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 onChanged: (v) => onChanged(config.copyWith(blindEnabled: v)),
               ),
             ],
           ),
-          if (config.blindEnabled) ...[
-            const SizedBox(height: 4),
-            TextFormField(
-              initialValue: config.blindText,
-              style: TextStyle(fontSize: 12, color: colors.textPrimary),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: l10n.watermarkBlindTextHint,
-                hintStyle: TextStyle(fontSize: 11, color: colors.textSecondary),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 7,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: const BorderRadius.all(Radius.circular(6)),
-                  borderSide: BorderSide(color: colors.borderDefault),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: const BorderRadius.all(Radius.circular(6)),
-                  borderSide: BorderSide(color: colors.primary),
-                ),
+          AppPanelReveal(
+            visible: config.blindEnabled,
+            openDuration: AppMotionDurations.fast,
+            closeDuration: AppMotionDurations.quick,
+            slideOffset: AppMotionDistances.base,
+            enableBlur: false,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    initialValue: config.blindText,
+                    style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: l10n.watermarkBlindTextHint,
+                      hintStyle: TextStyle(
+                        fontSize: 11,
+                        color: colors.textSecondary,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 7,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(6),
+                        ),
+                        borderSide: BorderSide(color: colors.borderDefault),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(6),
+                        ),
+                        borderSide: BorderSide(color: colors.primary),
+                      ),
+                    ),
+                    onChanged: (v) => onChanged(config.copyWith(blindText: v)),
+                  ),
+                  const SizedBox(height: 8),
+                  AppNumberSlider.integer(
+                    title: l10n.watermarkBlindStrength,
+                    value: config.blindStrength,
+                    min: 1,
+                    max: 5,
+                    onChanged: (v) =>
+                        onChanged(config.copyWith(blindStrength: v)),
+                  ),
+                ],
               ),
-              onChanged: (v) => onChanged(config.copyWith(blindText: v)),
             ),
-            const SizedBox(height: 8),
-            AppNumberSlider.integer(
-              title: l10n.watermarkBlindStrength,
-              value: config.blindStrength,
-              min: 1,
-              max: 5,
-              onChanged: (v) => onChanged(config.copyWith(blindStrength: v)),
-            ),
-          ],
+          ),
         ],
       ),
     );
@@ -387,12 +406,11 @@ class WatermarkPadPicker extends StatelessWidget {
 
 /// 水印面板轻提示
 void showWatermarkSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      duration: const Duration(seconds: 2),
-      behavior: SnackBarBehavior.floating,
-    ),
+  showAppToast(
+    context,
+    message: message,
+    tone: AppToastTone.info,
+    duration: const Duration(seconds: 2),
   );
 }
 
@@ -417,7 +435,11 @@ class _WatermarkPositionPill extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.pill),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
+          duration: AppMotion.resolveDuration(
+            context,
+            AppMotionDurations.quick,
+          ),
+          curve: AppMotionCurves.smoothOut,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: isSelected ? colors.primary : colors.mutedBackground,

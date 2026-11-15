@@ -3,10 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_page_stack.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'generate_dock.dart';
 import 'inpaint_canvas_overlay.dart';
@@ -172,7 +174,12 @@ class _MobileUnifiedInpaintWorkspaceState
             InkWell(
               key: const Key('mobile_inpaint_params_toggle'),
               onTap: () => setState(() => _paramsExpanded = !_paramsExpanded),
-              child: Container(
+              child: AnimatedContainer(
+                duration: AppMotion.resolveDuration(
+                  context,
+                  AppMotionDurations.quick,
+                ),
+                curve: AppMotionCurves.smoothOut,
                 height: 36,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
@@ -207,21 +214,34 @@ class _MobileUnifiedInpaintWorkspaceState
                         ),
                       ),
                     ),
-                    Icon(
-                      _paramsExpanded
-                          ? Icons.keyboard_arrow_down_rounded
-                          : Icons.keyboard_arrow_up_rounded,
-                      size: 18,
-                      color: colors.textSecondary,
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(end: _paramsExpanded ? 1.0 : -1.0),
+                      duration: AppMotion.resolveDuration(
+                        context,
+                        AppMotionDurations.fast,
+                      ),
+                      curve: AppMotionCurves.smoothOut,
+                      builder: (context, scaleY, child) {
+                        return Transform.scale(scaleY: scaleY, child: child);
+                      },
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: colors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
 
-            // 3. 修复参数面板 (保持状态保活，收起时不占高度)
-            Visibility(
+            // 3. 修复参数面板 (保持状态保活，匹配 studio_page_retention_test 不断电契约)
+            AppPanelReveal(
               visible: _paramsExpanded,
+              openDuration: AppMotionDurations.fast,
+              closeDuration: AppMotionDurations.quick,
+              slideOffset: AppMotionDistances.base,
+              enableBlur: false,
               maintainState: true,
               child: SizedBox(
                 height: maxDrawerHeight,

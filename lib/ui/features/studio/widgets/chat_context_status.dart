@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../../core/harness/context_memory.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_section_header.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/overlay_anchor.dart';
 
 /// 请求上下文用量环形胶囊；桌面悬停看摘要，桌面/手机点按均可弹出完整用量面板。
@@ -121,18 +123,38 @@ class ChatContextStatus extends StatelessWidget {
                   SizedBox(
                     width: 12,
                     height: 12,
-                    child: CircularProgressIndicator(
-                      value: usage.compacting
-                          ? null
-                          : usage.fraction.clamp(0.0, 1.0),
-                      strokeWidth: 2.0,
-                      backgroundColor: colors.borderDefault,
-                      color: progressColor,
+                    child: AppIconSwap(
+                      swapKey: usage.compacting,
+                      enableBlur: false,
+                      duration: AppMotionDurations.quick,
+                      child: usage.compacting
+                          ? Center(
+                              key: const ValueKey(true),
+                              child: AppMatrixDotLoader(
+                                variant: AppMatrixDotVariant.orbit,
+                                rounded: true,
+                                dotSize: 1.8,
+                                gap: 1.2,
+                                baseColor: progressColor.withValues(
+                                  alpha: 0.25,
+                                ),
+                                activeColor: progressColor,
+                              ),
+                            )
+                          : CircularProgressIndicator(
+                              key: const ValueKey(false),
+                              value: usage.fraction.clamp(0.0, 1.0),
+                              strokeWidth: 2.0,
+                              backgroundColor: colors.borderDefault,
+                              color: progressColor,
+                            ),
                     ),
                   ),
                   const SizedBox(width: 5),
-                  Text(
-                    percentText,
+                  AppNumberPopIn(
+                    value: percentText,
+                    enableBlur: false,
+                    distance: AppMotionDistances.micro,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,

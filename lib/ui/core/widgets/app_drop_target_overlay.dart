@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import '../context_l10n.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
-/// 统一全屏/全区域拖拽吸附覆层指示器 (AppDropTargetOverlay)
+/// 统一全屏/全区域拖拽吸附覆层指示器 (AppDropTargetOverlay, `07-panel-reveal`)
 ///
 /// 代码证据出处：
 /// - `freeform_annotation_board.dart:413-468` (画板外部/内部图片拖入高亮指示器)
 /// - `image_canvas_card.dart:190-234` (主画布图片文件拖入高亮指示器)
 ///
 /// 核心职责：
-/// 极简参数化驱动组件 `(isDragging, icon, title, subtitle)`，彻底消灭画布与自由画板中
-/// 完全相同的 40+ 行 `Positioned.fill + 10%蓝底 + 3px蓝边框 + 居中下载卡片` 重复代码。
-class AppDropTargetOverlay extends StatelessWidget {
+/// 极简参数化驱动组件 `(isDragging, icon, title, subtitle)`，拖入悬停时以平滑淡入 +
+/// `0.97 -> 1.0` 缩放揭示，离开时平滑收起，并安全适配系统减弱动画设置。
+class AppDropTargetOverlay extends StatefulWidget {
   /// 是否正处于拖拽悬停吸附态
   final bool isDragging;
 
@@ -50,68 +51,136 @@ class AppDropTargetOverlay extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    if (!isDragging) {
-      return const SizedBox.shrink();
-    }
+  State<AppDropTargetOverlay> createState() => _AppDropTargetOverlayState();
+}
 
+class _AppDropTargetOverlayState extends State<AppDropTargetOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _curved;
+  bool _reduceMotion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.fast,
+      reverseDuration: AppMotionDurations.quick,
+      value: widget.isDragging ? 1.0 : 0.0,
+    );
+    _curved = _controller.drive(CurveTween(curve: AppMotionCurves.smoothOut));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = AppMotion.shouldReduceMotion(context);
+    if (_reduceMotion) {
+      _controller.value = widget.isDragging ? 1.0 : 0.0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AppDropTargetOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isDragging != widget.isDragging) {
+      if (_reduceMotion) {
+        _controller.value = widget.isDragging ? 1.0 : 0.0;
+      } else if (widget.isDragging) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
     final effectiveBg =
-        backgroundColor ?? colors.primary.withValues(alpha: 0.10);
-    final effectiveBorder = borderColor ?? colors.primary;
+        widget.backgroundColor ?? colors.primary.withValues(alpha: 0.10);
+    final effectiveBorder = widget.borderColor ?? colors.primary;
 
-    Widget overlay = IgnorePointer(
-      child: Container(
-        decoration: BoxDecoration(
-          color: effectiveBg,
-          border: Border.all(color: effectiveBorder, width: borderWidth),
-        ),
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            decoration: BoxDecoration(
-              color: colors.cardBackground,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              boxShadow: context.shadowElevated,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 22, color: effectiveBorder),
-                const SizedBox(width: 8),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title ?? context.maybeL10n?.commonDropImage ?? '松开鼠标导入图片',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    if (subtitle != null && subtitle!.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ],
+    final card = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: context.shadowElevated,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(widget.icon, size: 22, color: effectiveBorder),
+          const SizedBox(width: 8),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.title ?? context.maybeL10n?.commonDropImage ?? '松开鼠标导入图片',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
+                ),
+              ),
+              if (widget.subtitle != null && widget.subtitle!.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  widget.subtitle!,
+                  style: TextStyle(fontSize: 11, color: colors.textSecondary),
                 ),
               ],
-            ),
+            ],
           ),
-        ),
+        ],
       ),
     );
 
-    if (usePositionedFill) {
-      overlay = Positioned.fill(child: overlay);
+    final Widget overlay = IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _curved,
+        builder: (context, child) {
+          if (_controller.isDismissed && !widget.isDragging) {
+            return const SizedBox.shrink();
+          }
+
+          final t = _reduceMotion
+              ? (widget.isDragging ? 1.0 : 0.0)
+              : _curved.value.clamp(0.0, 1.0);
+          final scale =
+              AppMotionScales.dropdown + (1.0 - AppMotionScales.dropdown) * t;
+
+          return Opacity(
+            opacity: t,
+            child: Container(
+              decoration: BoxDecoration(
+                color: effectiveBg,
+                border: Border.all(
+                  color: effectiveBorder,
+                  width: widget.borderWidth,
+                ),
+              ),
+              child: Center(
+                child: Transform.scale(scale: scale, child: child),
+              ),
+            ),
+          );
+        },
+        child: card,
+      ),
+    );
+
+    if (widget.usePositionedFill) {
+      return Positioned.fill(child: overlay);
     }
 
     return overlay;

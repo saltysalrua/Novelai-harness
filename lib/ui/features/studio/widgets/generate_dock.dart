@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/comfyui_models.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_async_icon_button.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_progress_bar.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 左侧面板底部常驻操作坞：统一状态条 (账号等级/点数/V5 体力 或 ComfyUI 状态) + 主操作按钮
@@ -139,33 +141,65 @@ class GenerateDock extends StatelessWidget {
                     : (viewModel.isGenerating
                           ? () => viewModel.abortGeneration()
                           : () => viewModel.generateImage()),
-                icon: isInpaintTab
-                    ? (isAiEditMode
-                          ? const Icon(Icons.auto_awesome, size: 16)
-                          : const Icon(Icons.auto_fix_high_outlined, size: 16))
-                    : (viewModel.isGenerating
-                          ? const Icon(Icons.stop_circle_outlined, size: 16)
-                          : const Icon(Icons.auto_awesome, size: 16)),
+                icon: AppIconSwap(
+                  swapKey: (isInpaintTab, isAiEditMode, viewModel.isGenerating),
+                  enableBlur: false,
+                  child: Icon(
+                    isInpaintTab
+                        ? (isAiEditMode
+                              ? Icons.auto_awesome
+                              : Icons.auto_fix_high_outlined)
+                        : (viewModel.isGenerating
+                              ? Icons.stop_circle_outlined
+                              : Icons.auto_awesome),
+                    size: 16,
+                  ),
+                ),
                 label: isInpaintTab
-                    ? Text(
-                        isAiEditMode
-                            ? (isRepairing
+                    ? (isRepairing
+                          ? AppShimmerText(
+                              text: isAiEditMode
                                   ? context.l10n.dockAiEditing
-                                  : context.l10n.startAiEdit)
-                            : (isRepairing
-                                  ? context.l10n.dockInpainting
-                                  : context.l10n.startInpaint),
-                        textAlign: TextAlign.center,
-                        style: labelStyle,
-                      )
+                                  : context.l10n.dockInpainting,
+                              style: labelStyle,
+                              baseColor: colors.textMuted,
+                              highlightColor: colors.textPrimary,
+                              textAlign: TextAlign.center,
+                            )
+                          : AppTextSwap(
+                              text: isAiEditMode
+                                  ? context.l10n.startAiEdit
+                                  : context.l10n.startInpaint,
+                              style: labelStyle,
+                              textAlign: TextAlign.center,
+                              alignment: Alignment.center,
+                              enableBlur: false,
+                            ))
                     : ListenableBuilder(
                         // 生成中的步数文案仅随实时进度控制器局部刷新
                         listenable: viewModel.liveProgressController,
-                        builder: (context, _) => Text(
-                          _buildButtonLabel(context, estimatedCost),
-                          textAlign: TextAlign.center,
-                          style: labelStyle,
-                        ),
+                        builder: (context, _) {
+                          final label = _buildButtonLabel(
+                            context,
+                            estimatedCost,
+                          );
+                          if (viewModel.isGenerating) {
+                            return AppShimmerText(
+                              text: label,
+                              style: labelStyle,
+                              baseColor: Colors.white.withValues(alpha: 0.78),
+                              highlightColor: Colors.white,
+                              textAlign: TextAlign.center,
+                            );
+                          }
+                          return AppTextSwap(
+                            text: label,
+                            style: labelStyle,
+                            textAlign: TextAlign.center,
+                            alignment: Alignment.center,
+                            enableBlur: false,
+                          );
+                        },
                       ),
               ),
             ],
@@ -264,14 +298,29 @@ class _AccountStatusStrip extends StatelessWidget {
                     fontSize: 10.5,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    '${info.totalAnlas} Anlas',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppNumberPopIn(
+                        value: '${info.totalAnlas}',
+                        enableBlur: false,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        ' Anlas',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -377,7 +426,9 @@ class _ComfyStatusRow extends StatelessWidget {
 
     return Row(
       children: [
-        Container(
+        AnimatedContainer(
+          duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+          curve: AppMotionCurves.smoothOut,
           width: 7,
           height: 7,
           decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
@@ -389,8 +440,9 @@ class _ComfyStatusRow extends StatelessWidget {
             runSpacing: AppSpacing.xs,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(
-                statusText,
+              AppTextSwap(
+                text: statusText,
+                enableBlur: false,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

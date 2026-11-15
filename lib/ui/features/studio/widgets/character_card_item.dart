@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -162,7 +163,13 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
         viewModel.isEditingCharacterPositions &&
         viewModel.selectedCharacterId == character.id;
 
-    final card = Container(
+    final animDuration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.quick,
+    );
+    final card = AnimatedContainer(
+      duration: animDuration,
+      curve: AppMotionCurves.smoothOut,
       decoration: BoxDecoration(
         color: colors.cardBackground,
         borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -176,13 +183,17 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
         ),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Opacity(
+      child: AnimatedOpacity(
+        duration: animDuration,
+        curve: AppMotionCurves.smoothOut,
         opacity: character.enabled ? 1.0 : 0.55,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 头部：序号 + 名称 (弹性自适应占满) + 删除，下层为启停 + 位置胶囊 (流式防溢出)
-            Container(
+            AnimatedContainer(
+              duration: animDuration,
+              curve: AppMotionCurves.smoothOut,
               color: isSelectedInCanvas
                   ? colors.primaryTint.withValues(alpha: 0.45)
                   : colors.elevatedBackground,
@@ -395,7 +406,12 @@ class _PositionPill extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.resolveDuration(
+            context,
+            AppMotionDurations.quick,
+          ),
+          curve: AppMotionCurves.smoothOut,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
           decoration: BoxDecoration(
             color: isSelected

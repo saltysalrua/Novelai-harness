@@ -4,7 +4,9 @@ import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_skeleton.dart';
 import '../../../core/widgets/app_thumbnail_card.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 import 'image_stream_view.dart';
@@ -154,7 +156,11 @@ class _ImageHistoryThumb extends StatelessWidget {
       aspectRatio: imageAspectRatioOf(item.params),
       imageBytes: thumb,
       imageWidget: thumb == null
-          ? Container(color: context.colors.mutedBackground)
+          ? const AppSkeletonBox(
+              width: double.infinity,
+              height: double.infinity,
+              radius: 0,
+            )
           : null,
       cacheWidth: 240,
       badgeLabel: historyBadgeLabelOf(context.l10n, item.provenance),
@@ -209,15 +215,11 @@ class _GeneratingHistoryThumb extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.0,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            context.colors.primary,
-                          ),
-                        ),
+                      AppMatrixDotLoader(
+                        dotSize: 2.5,
+                        gap: 2.0,
+                        variant: AppMatrixDotVariant.pulse,
+                        activeColor: context.colors.primary,
                       ),
                       if (viewModel.liveTotalSteps > 0 &&
                           viewModel.liveCurrentStep > 0) ...[

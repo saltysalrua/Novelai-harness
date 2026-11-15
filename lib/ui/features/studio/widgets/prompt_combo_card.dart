@@ -1,14 +1,18 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/context_menu.dart';
 
 /// 词库单条词组合画廊卡片。
@@ -38,12 +42,11 @@ class PromptComboCard extends StatelessWidget {
         ? 'Prompt: ${combo.prompt}\nNegative: ${combo.negativePrompt}'
         : combo.prompt;
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(context.l10n.libraryCardCopiedPrompt(combo.title)),
-        duration: const Duration(milliseconds: 900),
-        behavior: SnackBarBehavior.floating,
-      ),
+    showAppToast(
+      context,
+      message: context.l10n.libraryCardCopiedPrompt(combo.title),
+      tone: AppToastTone.success,
+      duration: const Duration(milliseconds: 1200),
     );
   }
 
@@ -280,14 +283,9 @@ class PromptComboCard extends StatelessWidget {
           const SizedBox(width: 6),
 
           // 复制按钮
-          AppIconButton(
-            icon: Icons.copy_outlined,
+          _ComboCopyButton(
             tooltip: l10n.libraryMenuCopyPrompt,
-            size: 28,
-            iconSize: 15,
-            iconColor: colors.textPrimary,
-            variant: AppIconButtonVariant.outlined,
-            onPressed: () => _copyToClipboard(context),
+            onCopy: () => _copyToClipboard(context),
           ),
           const SizedBox(width: 4),
 
@@ -343,6 +341,80 @@ class PromptComboCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ComboCopyButton extends StatefulWidget {
+  final String tooltip;
+  final VoidCallback onCopy;
+
+  const _ComboCopyButton({required this.tooltip, required this.onCopy});
+
+  @override
+  State<_ComboCopyButton> createState() => _ComboCopyButtonState();
+}
+
+class _ComboCopyButtonState extends State<_ComboCopyButton> {
+  bool _copied = false;
+  Timer? _resetTimer;
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    widget.onCopy();
+    _resetTimer?.cancel();
+    setState(() => _copied = true);
+    _resetTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Tooltip(
+      message: widget.tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _handleTap,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          child: AnimatedContainer(
+            duration: AppMotion.resolveDuration(
+              context,
+              AppMotionDurations.quick,
+            ),
+            curve: AppMotionCurves.smoothOut,
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: _copied
+                    ? colors.success.withValues(alpha: 0.45)
+                    : colors.borderDefault,
+              ),
+            ),
+            child: AppIconSwap(
+              swapKey: _copied,
+              enableBlur: false,
+              child: _copied
+                  ? AppSuccessCheck(size: 15, color: colors.success)
+                  : Icon(
+                      Icons.copy_outlined,
+                      size: 15,
+                      color: colors.textPrimary,
+                    ),
+            ),
+          ),
         ),
       ),
     );

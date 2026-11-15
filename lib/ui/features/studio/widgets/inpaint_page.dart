@@ -10,6 +10,8 @@ import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_key_value_row.dart';
 import '../../../core/widgets/app_number_slider.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_editor_card.dart';
 import 'rich_prompt_text_controller.dart';
@@ -146,16 +148,22 @@ class _InpaintPageState extends State<InpaintPage> {
               const SizedBox(height: AppSpacing.lg),
 
               // 2. 焦点几何信息卡 (AppCollapsibleSection + AppBadge + AppKeyValueRow)
-              if (isFocus) ...[
-                _buildGeometryCard(context, geometry),
-                const SizedBox(height: AppSpacing.lg),
-              ],
-
-              // 2b. AI 整图编辑绘图模型信息卡
-              if (isAiEdit) ...[
-                _buildAiEditCard(context, vm.imageEditModelInfo),
-                const SizedBox(height: AppSpacing.lg),
-              ],
+              AppCardResize(
+                alignment: Alignment.topLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isFocus) ...[
+                      _buildGeometryCard(context, geometry),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                    if (isAiEdit) ...[
+                      _buildAiEditCard(context, vm.imageEditModelInfo),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                  ],
+                ),
+              ),
 
               // 2c. AI 整图编辑生成设置
               if (isAiEdit) ...[
@@ -550,14 +558,9 @@ class _InpaintPageState extends State<InpaintPage> {
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            Switch(
+            AppSwitch(
               value: value,
               onChanged: onChanged,
-              activeTrackColor: colors.primary,
-              activeThumbColor: Colors.white,
-              inactiveTrackColor: colors.mutedBackground,
-              inactiveThumbColor: colors.textMuted,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ],
         ),

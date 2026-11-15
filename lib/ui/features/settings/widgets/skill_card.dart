@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../../core/harness/skills/skills.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/context_l10n.dart';
 
 /// 预设配置中的单个 Skill 小卡片 (对齐 ModelCard 设计)
@@ -49,7 +51,12 @@ class SkillCard extends StatelessWidget {
             Row(
               children: [
                 // 勾选启用状态
-                Container(
+                AnimatedContainer(
+                  duration: AppMotion.resolveDuration(
+                    context,
+                    AppMotionDurations.quick,
+                  ),
+                  curve: AppMotionCurves.smoothOut,
                   width: 15,
                   height: 15,
                   decoration: BoxDecoration(
@@ -60,9 +67,18 @@ class SkillCard extends StatelessWidget {
                     ),
                     color: isEnabled ? colors.primary : Colors.transparent,
                   ),
-                  child: isEnabled
-                      ? const Icon(Icons.check, size: 11, color: Colors.white)
-                      : null,
+                  child: AppIconSwap(
+                    swapKey: isEnabled,
+                    enableBlur: false,
+                    child: isEnabled
+                        ? const Icon(
+                            Icons.check,
+                            key: ValueKey<bool>(true),
+                            size: 11,
+                            color: Colors.white,
+                          )
+                        : const SizedBox.shrink(key: ValueKey<bool>(false)),
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.xs * 2),
                 Expanded(

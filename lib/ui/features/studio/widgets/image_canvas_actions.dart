@@ -12,6 +12,7 @@ import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_confirm_dialog.dart';
+import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_lightbox.dart';
@@ -24,16 +25,23 @@ double imageAspectRatioOf(NaiGenerationParams params) =>
     : 1.0;
 
 /// 画板统一的 1 秒轻提示
-void showCanvasSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message), duration: kCanvasSnackBarDuration),
+void showCanvasSnackBar(
+  BuildContext context,
+  String message, {
+  AppToastTone tone = AppToastTone.info,
+}) {
+  showAppToast(
+    context,
+    message: message,
+    tone: tone,
+    duration: kCanvasSnackBarDuration,
   );
 }
 
 /// 复制文本到剪贴板并弹 1 秒轻提示
 void copyTextWithSnackBar(BuildContext context, String text, String message) {
   Clipboard.setData(ClipboardData(text: text));
-  showCanvasSnackBar(context, message);
+  showCanvasSnackBar(context, message, tone: AppToastTone.success);
 }
 
 const Duration kCanvasSnackBarDuration = Duration(seconds: 1);
@@ -75,7 +83,11 @@ Future<void> copyImageToClipboard(
   if (!context.mounted) return;
   final l10n = context.l10n;
   final label = raw ? l10n.canvasCopiedRawImage : l10n.canvasCopiedImage;
-  showCanvasSnackBar(context, success ? label : l10n.canvasCopyImageFailed);
+  showCanvasSnackBar(
+    context,
+    success ? label : l10n.canvasCopyImageFailed,
+    tone: success ? AppToastTone.success : AppToastTone.error,
+  );
 }
 
 /// 弹出文件选择器导入外部参考图到大画布 (画板、批注画布、批注历史条共用)

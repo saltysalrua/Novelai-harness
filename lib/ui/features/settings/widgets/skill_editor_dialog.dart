@@ -1,11 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/harness/skills/skills.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_collapsible_section.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/skill_error_l10n.dart';
@@ -38,6 +43,9 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
 
   bool _disableInvocation = false;
   bool _saving = false;
+  bool _copiedSkillMd = false;
+  int _errorShakeTrigger = 0;
+  Timer? _copyResetTimer;
   Map<String, Object?> _extraFrontmatter = const {};
   _SkillEditorViewMode _viewMode = _SkillEditorViewMode.structured;
 
@@ -62,6 +70,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
 
   @override
   void dispose() {
+    _copyResetTimer?.cancel();
     _idController.dispose();
     _nameController.dispose();
     _descController.dispose();
@@ -94,8 +103,28 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
   }
 
   void _showError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(skillErrorText(context.l10n, error))),
+    setState(() => _errorShakeTrigger++);
+    showAppToast(
+      context,
+      message: skillErrorText(context.l10n, error),
+      tone: AppToastTone.error,
+    );
+  }
+
+  void _copySkillMd(AppLocalizations l10n) {
+    if (_viewMode == _SkillEditorViewMode.structured) {
+      _syncToRaw();
+    }
+    Clipboard.setData(ClipboardData(text: _rawMdController.text));
+    _copyResetTimer?.cancel();
+    setState(() => _copiedSkillMd = true);
+    _copyResetTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _copiedSkillMd = false);
+    });
+    showAppToast(
+      context,
+      message: l10n.skillCopySuccess,
+      tone: AppToastTone.success,
     );
   }
 
@@ -195,9 +224,30 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
 
             // 正文区
             Expanded(
-              child: _viewMode == _SkillEditorViewMode.raw
-                  ? _buildRawEditor(l10n)
-                  : _buildStructuredEditor(isBuiltin, l10n),
+              child: AppErrorShake(
+                trigger: _errorShakeTrigger,
+                child: AnimatedSwitcher(
+                  duration: AppMotion.resolveDuration(
+                    context,
+                    AppMotionDurations.quick,
+                  ),
+                  switchInCurve: AppMotionCurves.smoothOut,
+                  switchOutCurve: AppMotionCurves.smoothOut,
+                  child: _viewMode == _SkillEditorViewMode.raw
+                      ? KeyedSubtree(
+                          key: const ValueKey<_SkillEditorViewMode>(
+                            _SkillEditorViewMode.raw,
+                          ),
+                          child: _buildRawEditor(l10n),
+                        )
+                      : KeyedSubtree(
+                          key: const ValueKey<_SkillEditorViewMode>(
+                            _SkillEditorViewMode.structured,
+                          ),
+                          child: _buildStructuredEditor(isBuiltin, l10n),
+                        ),
+                ),
+              ),
             ),
           ],
         ),
@@ -208,19 +258,10 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
             children: [
               AppActionButton(
                 label: l10n.skillCopySkillMd,
-                icon: Icons.copy_rounded,
-                onPressed: () {
-                  if (_viewMode == _SkillEditorViewMode.structured) {
-                    _syncToRaw();
-                  }
-                  Clipboard.setData(ClipboardData(text: _rawMdController.text));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.skillCopySuccess),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
+                icon: _copiedSkillMd
+                    ? Icons.check_rounded
+                    : Icons.copy_rounded,
+                onPressed: () => _copySkillMd(l10n),
               ),
               const Spacer(),
               AppActionButton(
@@ -344,11 +385,13 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                     SizedBox(
                       width: 22,
                       height: 22,
-                      child: Checkbox(
-                        value: _disableInvocation,
-                        visualDensity: VisualDensity.compact,
-                        onChanged: (v) =>
-                            setState(() => _disableInvocation = v ?? false),
+                      child: Center(
+                        child: AppCheckbox(
+                          value: _disableInvocation,
+                          size: 16,
+                          onChanged: (v) =>
+                              setState(() => _disableInvocation = v),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -448,9 +491,12 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     final id = _idController.text.trim();
     final name = _nameController.text.trim();
     if (id.isEmpty) {
-      ScaffoldMessenger.of(
+      setState(() => _errorShakeTrigger++);
+      showAppToast(
         context,
-      ).showSnackBar(SnackBar(content: Text(context.l10n.skillIdEmptyError)));
+        message: context.l10n.skillIdEmptyError,
+        tone: AppToastTone.error,
+      );
       return;
     }
 

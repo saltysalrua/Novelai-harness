@@ -7,6 +7,7 @@ import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_async_icon_button.dart';
@@ -14,6 +15,8 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_search_field.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/overlay_anchor.dart';
 import '../../../core/widgets/stable_edge_selection.dart';
 import 'chat_context_status.dart';
@@ -73,9 +76,13 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 图片归一化进行中 (缩略图栏显示处理指示)
   bool _processingImage = false;
 
-  /// 当前展示的斜杠指令补全建议
+  /// 当前展示的斜杠指令补全建议与面板开关态（支持关闭退场动效）
   List<SlashSuggestion> _suggestions = const [];
+  bool _suggestionsVisible = false;
   int _selectedIndex = 0;
+
+  /// 模型与思考档位浮层是否打开（用于驱动触发器箭头翻转）
+  bool _pickerOpen = false;
 
   /// 按 Esc 后记录当前输入，避免同类补全立即重新弹出
   String _dismissedToken = '';
@@ -255,20 +262,13 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       widget.viewModel.config.activeLlmProvider.activeModel.isMultimodal;
 
   void _showNotice(String message) {
-    final colors = context.colors;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            message,
-            style: TextStyle(fontSize: 13, color: colors.cardBackground),
-          ),
-          backgroundColor: colors.textPrimary,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    showAppToast(
+      context,
+      message: message,
+      tone: AppToastTone.warning,
+      duration: const Duration(seconds: 2),
+      enableBlur: false,
+    );
   }
 
   // ------------------ 图片附件 (粘贴 / 选择文件) ------------------
@@ -356,46 +356,56 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     }
   }
 
-  /// 待发送附件缩略图栏 (输入框内部顶部，有附件或处理中才显示)
+  /// 待发送附件缩略图栏 (输入框内部顶部，有附件或处理中时平滑展开)
   Widget _buildAttachmentPreview() {
-    if (_pendingAttachments.isEmpty && !_processingImage) {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.sm,
-        AppSpacing.md,
-        AppSpacing.xs,
-      ),
-      child: SizedBox(
-        height: 72,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: [
-            for (final attachment in _pendingAttachments)
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: ChatImageThumbnail(
-                  bytes: attachment.bytes,
-                  onRemove: () {
-                    setState(() => _pendingAttachments.remove(attachment));
-                  },
-                ),
-              ),
-            if (_processingImage)
-              const SizedBox(
-                width: 64,
-                height: 64,
-                child: Center(
-                  child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+    final colors = context.colors;
+    final hasContent = _pendingAttachments.isNotEmpty || _processingImage;
+    return AppPanelReveal(
+      visible: hasContent,
+      openDuration: AppMotionDurations.fast,
+      closeDuration: AppMotionDurations.quick,
+      slideOffset: AppMotionDistances.base,
+      enableBlur: false,
+      animateSize: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.sm,
+          AppSpacing.md,
+          AppSpacing.xs,
+        ),
+        child: SizedBox(
+          height: 72,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final attachment in _pendingAttachments)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: ChatImageThumbnail(
+                    bytes: attachment.bytes,
+                    onRemove: () {
+                      setState(() => _pendingAttachments.remove(attachment));
+                    },
                   ),
                 ),
-              ),
-          ],
+              if (_processingImage)
+                SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: Center(
+                    child: AppMatrixDotLoader(
+                      variant: AppMatrixDotVariant.pulse,
+                      rounded: true,
+                      dotSize: 2.5,
+                      gap: 2.0,
+                      baseColor: colors.primary.withValues(alpha: 0.25),
+                      activeColor: colors.primary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -427,6 +437,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     final width = _inputFieldKey.currentContext?.size?.width;
     setState(() {
       _suggestions = suggestions;
+      _suggestionsVisible = true;
       if (width != null && width > 0) {
         _fieldWidth = width;
       }
@@ -449,12 +460,30 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
 
   void _hideSuggestions() {
     if (!mounted) return;
+    if (!_suggestionsVisible && !_overlayController.isShowing) return;
+    if (AppMotion.shouldReduceMotion(context) || !_overlayController.isShowing) {
+      if (_overlayController.isShowing) _overlayController.hide();
+      if (_suggestions.isNotEmpty || _suggestionsVisible) {
+        setState(() {
+          _suggestions = const [];
+          _suggestionsVisible = false;
+          _selectedIndex = 0;
+        });
+      }
+      return;
+    }
+    setState(() => _suggestionsVisible = false);
+  }
+
+  void _handleSlashOverlayDismissed() {
+    if (!mounted || _suggestionsVisible) return;
     if (_overlayController.isShowing) _overlayController.hide();
-    if (_suggestions.isEmpty) return;
-    setState(() {
-      _suggestions = const [];
-      _selectedIndex = 0;
-    });
+    if (_suggestions.isNotEmpty) {
+      setState(() {
+        _suggestions = const [];
+        _selectedIndex = 0;
+      });
+    }
   }
 
   /// 补全面板打开时拦截方向键/Tab/Enter/Esc
@@ -524,15 +553,19 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         showWhenUnlinked: false,
         child: SizedBox(
           width: _fieldWidth,
-          child: SlashSuggestionPanel(
-            suggestions: _suggestions,
-            selectedIndex: _selectedIndex,
-            onSelected: (index) => _applySuggestion(_suggestions[index]),
-            onHovered: (index) {
-              if (index != _selectedIndex) {
-                setState(() => _selectedIndex = index);
-              }
-            },
+          child: SlashCommandOverlayShell(
+            visible: _suggestionsVisible,
+            onDismissComplete: _handleSlashOverlayDismissed,
+            child: SlashSuggestionPanel(
+              suggestions: _suggestions,
+              selectedIndex: _selectedIndex,
+              onSelected: (index) => _applySuggestion(_suggestions[index]),
+              onHovered: (index) {
+                if (index != _selectedIndex) {
+                  setState(() => _selectedIndex = index);
+                }
+              },
+            ),
           ),
         ),
       ),
@@ -584,39 +617,44 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     final colors = context.colors;
     final l10n = context.l10n;
     final field = _buildMessageField();
-    final attachment = AppIconButton(
+    final attachment = AppAsyncIconButton(
+      isLoading: _processingImage,
       icon: Icons.attach_file_rounded,
       size: 28,
       iconSize: 16,
       tooltip: l10n.chatAddAttachmentTooltip,
+      loadingTooltip: l10n.chatAddAttachmentTooltip,
       variant: AppIconButtonVariant.ghost,
       onPressed: _pickImageFiles,
     );
-    // 生成中发送键原位变成停止键；空闲时恢复发送。
-    final Widget send = widget.viewModel.isChatStreaming
-        ? AppIconButton(
-            key: const ValueKey('chat_stop_button'),
-            icon: Icons.stop_rounded,
-            size: 28,
-            iconSize: 15,
-            tooltip: widget.compact
-                ? l10n.chatStopOutputMobile
-                : l10n.chatStopOutput,
-            iconColor: colors.error,
-            variant: AppIconButtonVariant.outlined,
-            onPressed: widget.viewModel.abortChat,
-          )
-        : AppAsyncIconButton(
-            key: const ValueKey('chat_send_button'),
-            isLoading: false,
-            icon: Icons.send_rounded,
-            size: 28,
-            iconSize: 15,
-            tooltip: l10n.chatSendTooltip,
-            loadingTooltip: l10n.chatSendingTooltip,
-            variant: AppIconButtonVariant.primary,
-            onPressed: _handleSend,
-          );
+    // 生成中发送键原位变成停止键；仅保留单个激活按钮实例并在状态切换时形变弹入。
+    final Widget send = _ComposerActionMorph(
+      isStreaming: widget.viewModel.isChatStreaming,
+      child: widget.viewModel.isChatStreaming
+          ? AppIconButton(
+              key: const ValueKey('chat_stop_button'),
+              icon: Icons.stop_rounded,
+              size: 28,
+              iconSize: 15,
+              tooltip: widget.compact
+                  ? l10n.chatStopOutputMobile
+                  : l10n.chatStopOutput,
+              iconColor: colors.error,
+              variant: AppIconButtonVariant.outlined,
+              onPressed: widget.viewModel.abortChat,
+            )
+          : AppAsyncIconButton(
+              key: const ValueKey('chat_send_button'),
+              isLoading: false,
+              icon: Icons.send_rounded,
+              size: 28,
+              iconSize: 15,
+              tooltip: l10n.chatSendTooltip,
+              loadingTooltip: l10n.chatSendingTooltip,
+              variant: AppIconButtonVariant.primary,
+              onPressed: _handleSend,
+            ),
+    );
 
     return ListenableBuilder(
       listenable: _inputFocusNode,
@@ -729,10 +767,12 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Flexible(
-                    child: Text(
-                      activeModel.name,
+                    child: AppTextSwap(
+                      text: activeModel.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      enableBlur: false,
+                      duration: AppMotionDurations.quick,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -748,8 +788,11 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                       color: thinkingColor,
                     ),
                     const SizedBox(width: 2),
-                    Text(
-                      _localizedEffortLabel(l10n, currentEffort),
+                    AppTextSwap(
+                      text: _localizedEffortLabel(l10n, currentEffort),
+                      maxLines: 1,
+                      enableBlur: false,
+                      duration: AppMotionDurations.quick,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -758,10 +801,23 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
                     ),
                   ],
                   const SizedBox(width: 2),
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: 15,
-                    color: colors.textMuted,
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(end: _pickerOpen ? -1.0 : 1.0),
+                    duration: AppMotion.resolveDuration(
+                      context,
+                      AppMotionDurations.fast,
+                    ),
+                    curve: AppMotionCurves.smoothOut,
+                    builder: (context, scaleY, child) => Transform.scale(
+                      scaleX: 1.0,
+                      scaleY: scaleY,
+                      child: child,
+                    ),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 15,
+                      color: colors.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -772,14 +828,22 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     );
   }
 
-  void _openModelThinkingPicker(BuildContext anchorContext) {
-    showAnchoredPopover<void>(
-      context: anchorContext,
-      preferAbove: true,
-      maxWidth: 340,
-      maxHeight: 420,
-      builder: (_) => _ModelThinkingPickerSheet(viewModel: widget.viewModel),
-    );
+  Future<void> _openModelThinkingPicker(BuildContext anchorContext) async {
+    if (!mounted) return;
+    setState(() => _pickerOpen = true);
+    try {
+      await showAnchoredPopover<void>(
+        context: anchorContext,
+        preferAbove: true,
+        maxWidth: 340,
+        maxHeight: 420,
+        builder: (_) => _ModelThinkingPickerSheet(viewModel: widget.viewModel),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _pickerOpen = false);
+      }
+    }
   }
 
   /// 悬停模型选择器时展示的当前会话用量摘要
@@ -960,7 +1024,12 @@ class _ModelThinkingPickerSheetState extends State<_ModelThinkingPickerSheet> {
                             onTap: () =>
                                 widget.viewModel.switchActiveModel(model.id),
                             borderRadius: BorderRadius.circular(AppRadius.md),
-                            child: Container(
+                            child: AnimatedContainer(
+                              duration: AppMotion.resolveDuration(
+                                context,
+                                AppMotionDurations.quick,
+                              ),
+                              curve: AppMotionCurves.smoothOut,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
                                 vertical: 9,
@@ -972,7 +1041,12 @@ class _ModelThinkingPickerSheetState extends State<_ModelThinkingPickerSheet> {
                                         AppRadius.md,
                                       ),
                                     )
-                                  : null,
+                                  : BoxDecoration(
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadius.md,
+                                      ),
+                                    ),
                               child: Row(
                                 children: [
                                   Expanded(
@@ -1007,14 +1081,24 @@ class _ModelThinkingPickerSheetState extends State<_ModelThinkingPickerSheet> {
                                       color: colors.primary,
                                     ),
                                   ],
-                                  if (isSelected) ...[
-                                    const SizedBox(width: 8),
-                                    Icon(
-                                      Icons.check_rounded,
-                                      size: 16,
-                                      color: colors.primary,
-                                    ),
-                                  ],
+                                  const SizedBox(width: 8),
+                                  AppIconSwap(
+                                    swapKey: isSelected,
+                                    enableBlur: false,
+                                    duration: AppMotionDurations.quick,
+                                    child: isSelected
+                                        ? Icon(
+                                            Icons.check_rounded,
+                                            key: const ValueKey(true),
+                                            size: 16,
+                                            color: colors.primary,
+                                          )
+                                        : const SizedBox(
+                                            key: ValueKey(false),
+                                            width: 16,
+                                            height: 16,
+                                          ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -1026,6 +1110,77 @@ class _ModelThinkingPickerSheetState extends State<_ModelThinkingPickerSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+/// 发送/停止主按钮单实例形变容器：状态切换时触发微缩放弹入，
+/// 全程不共存两个按钮 Key，保证测试与辅助功能语义即时一致。
+class _ComposerActionMorph extends StatefulWidget {
+  final bool isStreaming;
+  final Widget child;
+
+  const _ComposerActionMorph({
+    required this.isStreaming,
+    required this.child,
+  });
+
+  @override
+  State<_ComposerActionMorph> createState() => _ComposerActionMorphState();
+}
+
+class _ComposerActionMorphState extends State<_ComposerActionMorph>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _turns;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.quick,
+      value: 1.0,
+    );
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: AppMotionCurves.bounce,
+    );
+    _scale = Tween<double>(begin: 0.78, end: 1.0).animate(curved);
+    _turns = Tween<double>(begin: -0.05, end: 0.0).animate(
+      CurvedAnimation(parent: _controller, curve: AppMotionCurves.smoothOut),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_ComposerActionMorph oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isStreaming != widget.isStreaming) {
+      if (AppMotion.shouldReduceMotion(context)) {
+        _controller.value = 1.0;
+      } else {
+        _controller.forward(from: 0.0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller.isCompleted) return widget.child;
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) => Transform.rotate(
+        angle: _turns.value * 6.283185307179586,
+        child: Transform.scale(scale: _scale.value, child: child),
+      ),
     );
   }
 }

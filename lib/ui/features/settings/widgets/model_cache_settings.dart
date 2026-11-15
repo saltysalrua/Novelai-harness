@@ -3,6 +3,7 @@ import '../../../../data/models/llm_cache_config.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/app_transitions.dart';
 
 /// 模型缓存表单；无业务状态，复用统一设置卡片与下拉组件。
 class ModelCacheSettings extends StatelessWidget {
@@ -37,39 +38,46 @@ class ModelCacheSettings extends StatelessWidget {
             onChanged: (mode) => onChanged(value.copyWith(mode: mode)),
           ),
         ),
-        if (value.mode != LlmCacheMode.off) ...[
-          AppSettingTile(
-            title: l10n.settingsCacheRetention,
-            control: AppDropdown<LlmCacheRetention>.simple(
-              value: value.retention,
-              items: LlmCacheRetention.values,
-              width: 160,
-              isExpanded: true,
-              labelOf: (retention) => switch (retention) {
-                LlmCacheRetention.short => l10n.settingsCacheRetentionShort,
-                LlmCacheRetention.long => l10n.settingsCacheRetentionLong,
-              },
-              onChanged: (retention) =>
-                  onChanged(value.copyWith(retention: retention)),
-            ),
+        AppPanelReveal(
+          visible: value.mode != LlmCacheMode.off,
+          enableBlur: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppSettingTile(
+                title: l10n.settingsCacheRetention,
+                control: AppDropdown<LlmCacheRetention>.simple(
+                  value: value.retention,
+                  items: LlmCacheRetention.values,
+                  width: 160,
+                  isExpanded: true,
+                  labelOf: (retention) => switch (retention) {
+                    LlmCacheRetention.short => l10n.settingsCacheRetentionShort,
+                    LlmCacheRetention.long => l10n.settingsCacheRetentionLong,
+                  },
+                  onChanged: (retention) =>
+                      onChanged(value.copyWith(retention: retention)),
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsCacheAffinity,
+                control: AppDropdown<LlmCacheAffinity>.simple(
+                  value: value.affinity,
+                  items: LlmCacheAffinity.values,
+                  width: 160,
+                  isExpanded: true,
+                  labelOf: (affinity) => switch (affinity) {
+                    LlmCacheAffinity.off => l10n.settingsCacheAffinityOff,
+                    LlmCacheAffinity.openai => 'OpenAI',
+                    LlmCacheAffinity.openrouter => 'OpenRouter',
+                  },
+                  onChanged: (affinity) =>
+                      onChanged(value.copyWith(affinity: affinity)),
+                ),
+              ),
+            ],
           ),
-          AppSettingTile(
-            title: l10n.settingsCacheAffinity,
-            control: AppDropdown<LlmCacheAffinity>.simple(
-              value: value.affinity,
-              items: LlmCacheAffinity.values,
-              width: 160,
-              isExpanded: true,
-              labelOf: (affinity) => switch (affinity) {
-                LlmCacheAffinity.off => l10n.settingsCacheAffinityOff,
-                LlmCacheAffinity.openai => 'OpenAI',
-                LlmCacheAffinity.openrouter => 'OpenRouter',
-              },
-              onChanged: (affinity) =>
-                  onChanged(value.copyWith(affinity: affinity)),
-            ),
-          ),
-        ],
+        ),
       ],
     );
   }

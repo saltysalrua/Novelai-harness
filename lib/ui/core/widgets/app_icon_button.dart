@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_transitions.dart';
 
 /// [AppIconButton] 的视觉变体
 enum AppIconButtonVariant {
@@ -163,7 +165,9 @@ class _AppIconButtonState extends State<AppIconButton> {
       splashColor: isInteractive
           ? colors.primaryTint.withValues(alpha: 0.3)
           : Colors.transparent,
-      child: Container(
+      child: AnimatedContainer(
+        duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+        curve: AppMotionCurves.smoothOut,
         width: widget.size,
         height: widget.size,
         decoration: BoxDecoration(
@@ -175,7 +179,16 @@ class _AppIconButtonState extends State<AppIconButton> {
           boxShadow: shadow,
         ),
         alignment: Alignment.center,
-        child: Icon(widget.icon, size: effectiveIconSize, color: effectiveFg),
+        child: AppIconSwap(
+          swapKey: widget.icon,
+          enableBlur: false,
+          child: Icon(
+            widget.icon,
+            key: ValueKey<IconData>(widget.icon),
+            size: effectiveIconSize,
+            color: effectiveFg,
+          ),
+        ),
       ),
     );
 

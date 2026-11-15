@@ -1,11 +1,14 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderEditable;
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
@@ -67,7 +70,6 @@ class PromptExtensionDeck extends StatefulWidget {
 
 class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
   int _activeTabIndex = 0; // 0: Character Prompts, 1: Fixed Affixes
-  int _slideDirection = 1; // 1: 从右向左滑动 (切换至右侧页), -1: 从左向右滑动
   double _horizontalDragAccumulated = 0;
 
   @override
@@ -87,7 +89,6 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
   void _switchTab(int index) {
     if (_activeTabIndex == index) return;
     setState(() {
-      _slideDirection = index > _activeTabIndex ? 1 : -1;
       _activeTabIndex = index;
     });
     widget.viewModel.setDeckActiveTab(index);
@@ -173,7 +174,12 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
 
           // 2. 二级动态操作栏 (流式防溢出布局)
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
+            duration: AppMotion.resolveDuration(
+              context,
+              AppMotionDurations.quick,
+            ),
+            switchInCurve: AppMotionCurves.smoothOut,
+            switchOutCurve: AppMotionCurves.smoothOut,
             child: _activeTabIndex == 0
                 ? _buildCharacterPromptsToolbar(
                     viewModel: viewModel,
@@ -193,23 +199,12 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
           const SizedBox(height: 10),
 
           // 3. 左右滑动切换的内容区 (平滑过渡动效)
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) {
-              final isTarget = child.key == ValueKey<int>(_activeTabIndex);
-              final startOffset = isTarget
-                  ? Offset(_slideDirection * 0.25, 0.0)
-                  : Offset(-_slideDirection * 0.25, 0.0);
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: startOffset,
-                  end: Offset.zero,
-                ).animate(animation),
-                child: FadeTransition(opacity: animation, child: child),
-              );
-            },
+          AppPageSideBySide(
+            index: _activeTabIndex,
+            duration: AppMotionDurations.fast,
+            curve: AppMotionCurves.smoothOut,
+            slideDistance: AppMotionDistances.base,
+            enableBlur: false,
             child: KeyedSubtree(
               key: ValueKey<int>(_activeTabIndex),
               child: _activeTabIndex == 0
@@ -404,7 +399,11 @@ class _CanvasEditDeckButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.pill),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
+          duration: AppMotion.resolveDuration(
+            context,
+            AppMotionDurations.quick,
+          ),
+          curve: AppMotionCurves.smoothOut,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: isCanvasEditing ? colors.primary : colors.mutedBackground,
@@ -563,21 +562,7 @@ class _AffixToggleSwitch extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        SizedBox(
-          height: 22,
-          width: 38,
-          child: FittedBox(
-            fit: BoxFit.fill,
-            child: Switch(
-              value: isEnabled,
-              activeTrackColor: colors.primary,
-              activeThumbColor: Colors.white,
-              inactiveTrackColor: colors.mutedBackground,
-              inactiveThumbColor: colors.textMuted,
-              onChanged: onChanged,
-            ),
-          ),
-        ),
+        AppSwitch(value: isEnabled, onChanged: onChanged),
       ],
     );
   }

@@ -15,7 +15,9 @@ import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_collapsible_section.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_key_value_row.dart';
+import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_tool_chip.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 拖入图片元数据读取与查看弹窗 (Notion 极简纯净风格)
@@ -147,12 +149,11 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
 
   void _copyText(String text, String successMsg) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(successMsg),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
+    showAppToast(
+      context,
+      message: successMsg,
+      tone: AppToastTone.success,
+      duration: const Duration(seconds: 2),
     );
   }
 
@@ -250,7 +251,11 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
           ],
 
           // 盲水印提取结果
-          _buildBlindWatermarkSection(context),
+          AppPanelReveal(
+            visible: _blindResult != null,
+            enableBlur: false,
+            child: _buildBlindWatermarkSection(context),
+          ),
         ],
       ),
     );
@@ -499,10 +504,11 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (_blindExtracting)
-          const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
+          AppMatrixDotLoader(
+            dotSize: 2.2,
+            gap: 1.8,
+            variant: AppMatrixDotVariant.pulse,
+            activeColor: context.colors.primary,
           ),
         AppActionButton(
           icon: Icons.visibility_off_outlined,
@@ -517,10 +523,12 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
               widget.imageBytes!,
               fileName: widget.fileName,
             );
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.metadataImportedReference)),
+            showAppToast(
+              context,
+              message: l10n.metadataImportedReference,
+              tone: AppToastTone.success,
             );
+            Navigator.of(context).pop();
           },
         ),
       ],

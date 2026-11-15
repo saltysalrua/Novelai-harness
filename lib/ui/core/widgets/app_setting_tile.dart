@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_toggle_controls.dart';
 
 /// 统一设置项/开关卡片组件 (用于设置弹窗与参数高级选项)
 ///
 /// 统一设置项卡片，支持开关、按钮、自定义尾部控件
 /// 以及下方可折叠/常驻扩展内容。
-class AppSettingTile extends StatelessWidget {
+class AppSettingTile extends StatefulWidget {
   final String title;
   final String? subtitle;
   final Widget control;
@@ -34,7 +36,7 @@ class AppSettingTile extends StatelessWidget {
     this.isSwitch = false,
   });
 
-  /// Switch 开关便捷工厂 (整行可点击切换)
+  /// Switch 开关便捷工厂 (整行可点击切换，内部使用 [AppSwitch] 弹簧开关)
   factory AppSettingTile.switchTile({
     Key? key,
     required String title,
@@ -52,20 +54,7 @@ class AppSettingTile extends StatelessWidget {
       margin: margin,
       isSwitch: true,
       onTap: onChanged == null ? null : () => onChanged(!value),
-      control: Builder(
-        builder: (context) {
-          final colors = context.colors;
-          return Switch(
-            value: value,
-            activeTrackColor: colors.primary,
-            activeThumbColor: Colors.white,
-            inactiveTrackColor: colors.mutedBackground,
-            inactiveThumbColor: colors.textMuted,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onChanged: onChanged,
-          );
-        },
-      ),
+      control: AppSwitch(value: value, onChanged: onChanged),
     );
   }
 
@@ -114,13 +103,27 @@ class AppSettingTile extends StatelessWidget {
   }
 
   @override
+  State<AppSettingTile> createState() => _AppSettingTileState();
+}
+
+class _AppSettingTileState extends State<AppSettingTile> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final interactive = widget.onTap != null;
+    final hoverDuration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.quick,
+    );
 
-    final Widget card = Container(
-      margin: margin ?? const EdgeInsets.only(bottom: AppSpacing.sm),
+    final Widget card = AnimatedContainer(
+      duration: hoverDuration,
+      curve: AppMotionCurves.smoothOut,
+      margin: widget.margin ?? const EdgeInsets.only(bottom: AppSpacing.sm),
       padding:
-          padding ??
+          widget.padding ??
           const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,
             vertical: AppSpacing.md,
@@ -128,32 +131,37 @@ class AppSettingTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.cardBackground,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: colors.borderDefault),
+        border: Border.all(
+          color: (interactive && _hovered)
+              ? colors.borderHover
+              : colors.borderDefault,
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 420;
           // 开关行保持横向紧凑排版 (不折行)：显式 flag 优先，未标注时按控件类型兜底。
-          // 注意 [AppSettingTile.switchTile] 把 Switch 包在 Builder 里取主题色，
-          // 类型碊底拿不到它，因此工厂自身必须传 isSwitch: true。
-          final isSwitchRow = isSwitch || control is Switch;
+          final isSwitchRow =
+              widget.isSwitch ||
+              widget.control is Switch ||
+              widget.control is AppSwitch;
 
           final titleColumn = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                title,
+                widget.title,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
               ),
-              if (subtitle != null && subtitle!.isNotEmpty) ...[
+              if (widget.subtitle != null && widget.subtitle!.isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(
-                  subtitle!,
+                  widget.subtitle!,
                   style: TextStyle(fontSize: 12, color: colors.textSecondary),
                 ),
               ],
@@ -166,19 +174,19 @@ class AppSettingTile extends StatelessWidget {
               if (isNarrow && !isSwitchRow) ...[
                 titleColumn,
                 const SizedBox(height: AppSpacing.sm),
-                Align(alignment: Alignment.centerLeft, child: control),
+                Align(alignment: Alignment.centerLeft, child: widget.control),
               ] else
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(child: titleColumn),
                     const SizedBox(width: AppSpacing.md),
-                    control,
+                    widget.control,
                   ],
                 ),
-              if (bottomChild != null) ...[
+              if (widget.bottomChild != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                bottomChild!,
+                widget.bottomChild!,
               ],
             ],
           );
@@ -188,12 +196,14 @@ class AppSettingTile extends StatelessWidget {
 
     // 整行可点击 (如开关行整行切换)；控件自身命中时由内部手势优先接管，
     // 不会与外层点击形成双触发
-    if (onTap == null) return card;
+    if (!interactive) return card;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onTap,
+        onTap: widget.onTap,
         child: card,
       ),
     );

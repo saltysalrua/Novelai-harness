@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/services/image_metadata_service.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_drop_target_overlay.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'canvas_history_sidebar.dart';
 import 'canvas_overlays.dart';
@@ -174,7 +176,9 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                     //     修复页签下隐藏——修复画板底图不与历史侧栏联动，
                     //     换底图走图片右键「发送到修复」)
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
+                      duration: AppMotion.shouldReduceMotion(context)
+                          ? Duration.zero
+                          : AppMotionDurations.fast,
                       width:
                           (_isHistoryOpen &&
                               !isEditingPositions &&
@@ -182,7 +186,7 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                               !isInpaintTab)
                           ? 120
                           : 0,
-                      curve: Curves.easeInOut,
+                      curve: AppMotionCurves.smoothOut,
                       clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
                         color: context.colors.cardBackground,
@@ -248,12 +252,20 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                       viewModel: viewModel,
                     ),
                   ),
-                  if (selectedImage.isUnsaved)
-                    Positioned(
-                      bottom: 18,
-                      right: 18,
-                      child: CanvasSaveButton(viewModel: viewModel),
+                  Positioned(
+                    bottom: 18,
+                    right: 18,
+                    child: IgnorePointer(
+                      ignoring: !selectedImage.isUnsaved,
+                      child: AppPanelReveal(
+                        visible: selectedImage.isUnsaved,
+                        animateSize: false,
+                        enableBlur: false,
+                        slideOffset: AppMotionDistances.base,
+                        child: CanvasSaveButton(viewModel: viewModel),
+                      ),
                     ),
+                  ),
                 ],
 
               // 5.1 左上角浮动侧栏展开按键 (仅桌面端左侧栏完全收起时显示，与右上角 History 按钮对称)
@@ -273,37 +285,64 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                 ),
 
               // 5.2 右上角浮动 History 展开按键 (仅在收回状态且非编辑/非批注/非修复页签时显示)
-              if (!_isHistoryOpen &&
-                  !isEditingPositions &&
-                  !isAnnotating &&
-                  !isInpaintTab)
-                Positioned(
-                  top: 14,
-                  right: 14,
-                  child: HistoryToggleButton(
-                    onTap: () {
-                      setState(() => _isHistoryOpen = true);
-                      viewModel.setCanvasHistoryOpen(true);
-                    },
-                  ),
-                ),
-
-              // 6. 顶部浮动：新图片生成提示气泡
-              if (viewModel.hasUnseenLatest &&
-                  gallery.isNotEmpty &&
-                  !isEditingPositions &&
-                  !isAnnotating)
-                Positioned(
-                  top: 14,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: UnseenLatestBanner(
-                      onViewLatest: _viewLatest,
-                      onDismiss: viewModel.dismissUnseenBanner,
+              Positioned(
+                top: 14,
+                right: 14,
+                child: IgnorePointer(
+                  ignoring:
+                      _isHistoryOpen ||
+                      isEditingPositions ||
+                      isAnnotating ||
+                      isInpaintTab,
+                  child: AppPanelReveal(
+                    visible:
+                        !_isHistoryOpen &&
+                        !isEditingPositions &&
+                        !isAnnotating &&
+                        !isInpaintTab,
+                    animateSize: false,
+                    enableBlur: false,
+                    axis: Axis.horizontal,
+                    slideOffset: AppMotionDistances.base,
+                    child: HistoryToggleButton(
+                      onTap: () {
+                        setState(() => _isHistoryOpen = true);
+                        viewModel.setCanvasHistoryOpen(true);
+                      },
                     ),
                   ),
                 ),
+              ),
+
+              // 6. 顶部浮动：新图片生成提示气泡
+              Positioned(
+                top: 14,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  ignoring:
+                      !viewModel.hasUnseenLatest ||
+                      gallery.isEmpty ||
+                      isEditingPositions ||
+                      isAnnotating,
+                  child: Center(
+                    child: AppPanelReveal(
+                      visible:
+                          viewModel.hasUnseenLatest &&
+                          gallery.isNotEmpty &&
+                          !isEditingPositions &&
+                          !isAnnotating,
+                      animateSize: false,
+                      enableBlur: false,
+                      slideOffset: -AppMotionDistances.base,
+                      child: UnseenLatestBanner(
+                        onViewLatest: _viewLatest,
+                        onDismiss: viewModel.dismissUnseenBanner,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

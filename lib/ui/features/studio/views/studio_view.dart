@@ -5,6 +5,7 @@ import '../../../../data/services/image_metadata_service.dart';
 import '../../../../data/services/window_state_service.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -12,6 +13,7 @@ import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_keep_alive_page.dart';
 import '../../../core/widgets/app_nav_tile.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
 import '../../../core/widgets/window_controls.dart';
@@ -411,15 +413,24 @@ class _StudioViewState extends State<StudioView> {
           const CustomTitleBar(),
 
         // 全局错误提示微胶囊
-        if (_viewModel.errorMessage != null) _buildErrorMessage(context),
+        _StudioErrorBanner(
+          errorMessage: _viewModel.errorMessage,
+          onDismiss: _viewModel.clearError,
+        ),
 
         // 主体区域：最左侧导航栏 + 主工作台/全屏词库覆盖视图
         Expanded(
           child: Row(
             children: [
               // 1. 最左侧 Notion 极简侧边栏 (可完全收起，保持子树状态)
-              Visibility(
+              AppPanelReveal(
                 visible: !isLeftCollapsed,
+                axis: Axis.horizontal,
+                alignment: Alignment.centerLeft,
+                openDuration: AppMotionDurations.fast,
+                closeDuration: AppMotionDurations.quick,
+                slideOffset: AppMotionDistances.base,
+                enableBlur: false,
                 maintainState: true,
                 child: StudioSidebar(
                   viewModel: _viewModel,
@@ -547,7 +558,10 @@ class _StudioViewState extends State<StudioView> {
           ),
 
           // 全局错误提示微胶囊 (直接置于顶部栏正下方)
-          if (_viewModel.errorMessage != null) _buildErrorMessage(context),
+          _StudioErrorBanner(
+            errorMessage: _viewModel.errorMessage,
+            onDismiss: _viewModel.clearError,
+          ),
 
           // 中间核心区域：三卡片 PageView 始终保活，词库以覆盖层形式叠在其上。
           Expanded(
@@ -602,13 +616,23 @@ class _StudioViewState extends State<StudioView> {
                     ],
                   ),
                 ),
-                if (isLibraryTab)
-                  PromptLibraryView(
-                    viewModel: _viewModel,
-                    onClose: () {
-                      _viewModel.setActiveSidebarTab(_previousSidebarTab);
-                    },
+                IgnorePointer(
+                  ignoring: !isLibraryTab,
+                  child: AppPanelReveal(
+                    visible: isLibraryTab,
+                    animateSize: false,
+                    openDuration: AppMotionDurations.fast,
+                    closeDuration: AppMotionDurations.quick,
+                    slideOffset: AppMotionDistances.medium,
+                    enableBlur: false,
+                    child: PromptLibraryView(
+                      viewModel: _viewModel,
+                      onClose: () {
+                        _viewModel.setActiveSidebarTab(_previousSidebarTab);
+                      },
+                    ),
                   ),
+                ),
               ],
             ),
           ),
@@ -696,10 +720,14 @@ class _StudioViewState extends State<StudioView> {
     if (_mobilePageController.hasClients) {
       final current = _mobilePageController.page?.round();
       if (current == index) return;
+      if (AppMotion.shouldReduceMotion(context)) {
+        _mobilePageController.jumpToPage(index);
+        return;
+      }
       _mobilePageController.animateToPage(
         index,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
+        duration: AppMotionDurations.fast,
+        curve: AppMotionCurves.smoothOut,
       );
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -772,47 +800,6 @@ class _StudioViewState extends State<StudioView> {
     if (isNarrow && _mobilePageIndex != 0) {
       _setMobilePage(0);
     }
-  }
-
-  /// 全局错误提示微胶囊
-  Widget _buildErrorMessage(BuildContext context) {
-    final colors = context.colors;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.errorSurface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: colors.error.withValues(alpha: 0.3),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, size: 16, color: colors.error),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _viewModel.errorMessage!,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.close, size: 14, color: colors.textSecondary),
-            tooltip: context.l10n.close,
-            onPressed: () => _viewModel.clearError(),
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
-      ),
-    );
   }
 
   /// 移动端方案 A 一级底部主导航栏：生图 / 画板 / 助手 / 词库
@@ -902,15 +889,210 @@ class _StudioViewState extends State<StudioView> {
     required VoidCallback onTap,
   }) {
     return Expanded(
-      child: AppNavTile(
-        key: key,
-        title: label,
-        icon: icon,
-        badgeText: badgeText,
-        isSelected: isSelected,
-        onTap: onTap,
-        axis: Axis.vertical,
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: AppNavTile(
+              key: key,
+              title: label,
+              icon: icon,
+              isSelected: isSelected,
+              onTap: onTap,
+              axis: Axis.vertical,
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            ),
+          ),
+          if (badgeText != null)
+            Positioned(
+              top: 4,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                child: ExcludeSemantics(
+                  child: Center(
+                    child: Transform.translate(
+                      offset: const Offset(11, 0),
+                      child: const _BottomBarPopDot(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 移动端底栏状态指示点 (`03-notification-badge`)
+class _BottomBarPopDot extends StatefulWidget {
+  const _BottomBarPopDot();
+
+  @override
+  State<_BottomBarPopDot> createState() => _BottomBarPopDotState();
+}
+
+class _BottomBarPopDotState extends State<_BottomBarPopDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _reduceMotion = false;
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.verySlow,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = AppMotion.shouldReduceMotion(context);
+    if (_reduceMotion) {
+      _controller.value = 1.0;
+      _initialized = true;
+    } else if (!_initialized) {
+      _initialized = true;
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final dot = Container(
+      width: 7,
+      height: 7,
+      decoration: BoxDecoration(
+        color: colors.primary,
+        shape: BoxShape.circle,
+        border: Border.all(color: colors.cardBackground, width: 1),
+      ),
+    );
+    if (_reduceMotion) return dot;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final v = _controller.value;
+        if (v >= 1.0) return child!;
+        final slideT = AppMotionCurves.smoothOut
+            .transform((v / 0.52).clamp(0.0, 1.0))
+            .clamp(0.0, 1.0);
+        final popT = AppMotionCurves.bounce.transform(v);
+        final fadeT = AppMotionCurves.smoothOut
+            .transform((v / 0.80).clamp(0.0, 1.0))
+            .clamp(0.0, 1.0);
+        return Opacity(
+          opacity: fadeT,
+          child: Transform.translate(
+            offset: Offset(-4.0 * (1.0 - slideT), 6.0 * (1.0 - slideT)),
+            child: Transform.scale(scale: popT, child: child),
+          ),
+        );
+      },
+      child: dot,
+    );
+  }
+}
+
+/// 全局错误提示微胶囊 (`07-panel-reveal` + `12-error-state-shake`)
+class _StudioErrorBanner extends StatefulWidget {
+  final String? errorMessage;
+  final VoidCallback onDismiss;
+
+  const _StudioErrorBanner({
+    required this.errorMessage,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_StudioErrorBanner> createState() => _StudioErrorBannerState();
+}
+
+class _StudioErrorBannerState extends State<_StudioErrorBanner> {
+  String _cachedMessage = '';
+  int _shakeTrigger = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.errorMessage != null) {
+      _cachedMessage = widget.errorMessage!;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _StudioErrorBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final next = widget.errorMessage;
+    if (next != null && next != oldWidget.errorMessage) {
+      _cachedMessage = next;
+      _shakeTrigger++;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final visible = widget.errorMessage != null;
+    if (widget.errorMessage != null) {
+      _cachedMessage = widget.errorMessage!;
+    }
+
+    return AppPanelReveal(
+      visible: visible,
+      openDuration: AppMotionDurations.fast,
+      closeDuration: AppMotionDurations.quick,
+      slideOffset: AppMotionDistances.base,
+      enableBlur: false,
+      child: AppErrorShake(
+        trigger: _shakeTrigger,
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: colors.errorSurface,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: colors.error.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.error_outline, size: 16, color: colors.error),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _cachedMessage,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close, size: 14, color: colors.textSecondary),
+                tooltip: context.l10n.close,
+                onPressed: widget.onDismiss,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1174,7 +1356,9 @@ class _MobileStudioSubTab extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.md - 2),
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+          curve: AppMotionCurves.smoothOut,
           alignment: Alignment.center,
           padding: EdgeInsets.symmetric(horizontal: 6, vertical: compact ? 2 : 4),
           decoration: BoxDecoration(

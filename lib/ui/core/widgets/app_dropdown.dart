@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../context_l10n.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 import 'app_search_field.dart';
@@ -49,7 +50,7 @@ class AppDropdownItem<T> {
 /// 1. **防悬挂兜底**：当 [value] 不在 [items] 中时（动态列表被外部刷新/删除），
 ///    自动在菜单头部追加一个「未识别」占位项，确保当前值可见；
 /// 2. **菜单宽度保护**：胶囊与紧凑变体默认展开宽度扩展至安全最小值，避免选项被截断。
-class AppDropdown<T> extends StatelessWidget {
+class AppDropdown<T> extends StatefulWidget {
   final T value;
   final List<AppDropdownItem<T>> items;
   final ValueChanged<T> onChanged;
@@ -129,6 +130,13 @@ class AppDropdown<T> extends StatelessWidget {
     );
   }
 
+  @override
+  State<AppDropdown<T>> createState() => _AppDropdownState<T>();
+}
+
+class _AppDropdownState<T> extends State<AppDropdown<T>> {
+  bool _isOpen = false;
+
   Future<void> _openPopover(
     BuildContext triggerContext,
     List<AppDropdownItem<T>> effectiveItems,
@@ -138,28 +146,41 @@ class AppDropdown<T> extends StatelessWidget {
     final triggerWidth = (renderBox != null && renderBox.hasSize)
         ? renderBox.size.width
         : 160.0;
-    final defaultMin = variant == AppDropdownVariant.pill ? 220.0 : 160.0;
-    final defaultMax = variant == AppDropdownVariant.pill ? 240.0 : 320.0;
-    final effectiveMinWidth = menuWidth ?? math.max(triggerWidth, defaultMin);
-    final effectiveMaxWidth = menuWidth ?? math.max(triggerWidth, defaultMax);
+    final defaultMin = widget.variant == AppDropdownVariant.pill
+        ? 220.0
+        : 160.0;
+    final defaultMax = widget.variant == AppDropdownVariant.pill
+        ? 240.0
+        : 320.0;
+    final effectiveMinWidth =
+        widget.menuWidth ?? math.max(triggerWidth, defaultMin);
+    final effectiveMaxWidth =
+        widget.menuWidth ?? math.max(triggerWidth, defaultMax);
 
-    final result = await showAnchoredPopover<({T value})>(
-      context: triggerContext,
-      preferAbove: false,
-      gap: 4,
-      minWidth: effectiveMinWidth,
-      maxWidth: effectiveMaxWidth,
-      maxHeight: 380,
-      builder: (_) => _AppDropdownPopoverSheet<T>(
-        items: effectiveItems,
-        selectedValue: value,
-        fontSize: fontSize,
-        multilineMenu: multilineMenu,
-        showSearch: searchable ?? (effectiveItems.length >= 8),
-      ),
-    );
-    if (result != null) {
-      onChanged(result.value);
+    setState(() => _isOpen = true);
+    try {
+      final result = await showAnchoredPopover<({T value})>(
+        context: triggerContext,
+        preferAbove: false,
+        gap: 4,
+        minWidth: effectiveMinWidth,
+        maxWidth: effectiveMaxWidth,
+        maxHeight: 380,
+        builder: (_) => _AppDropdownPopoverSheet<T>(
+          items: effectiveItems,
+          selectedValue: widget.value,
+          fontSize: fontSize,
+          multilineMenu: widget.multilineMenu,
+          showSearch: widget.searchable ?? (effectiveItems.length >= 8),
+        ),
+      );
+      if (result != null) {
+        widget.onChanged(result.value);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isOpen = false);
+      }
     }
   }
 
@@ -168,23 +189,25 @@ class AppDropdown<T> extends StatelessWidget {
     final colors = context.colors;
 
     // 防悬挂兜底：value 不在 items 时追加占位项，保留选中可见性
-    final bool valueExists = items.any((item) => item.value == value);
+    final bool valueExists = widget.items.any(
+      (item) => item.value == widget.value,
+    );
     final List<AppDropdownItem<T>> effectiveItems = valueExists
-        ? items
+        ? widget.items
         : [
             AppDropdownItem<T>(
-              value: value,
+              value: widget.value,
               label:
-                  danglingLabel ??
+                  widget.danglingLabel ??
                   context.maybeL10n?.commonUnrecognizedOption ??
                   '未识别',
               icon: Icons.help_outline_rounded,
             ),
-            ...items,
+            ...widget.items,
           ];
 
     final currentItem = effectiveItems.firstWhere(
-      (item) => item.value == value,
+      (item) => item.value == widget.value,
       orElse: () => effectiveItems.first,
     );
 
@@ -193,7 +216,7 @@ class AppDropdown<T> extends StatelessWidget {
       double radius,
       double fontSize,
       EdgeInsets padding,
-    ) = switch (variant) {
+    ) = switch (widget.variant) {
       AppDropdownVariant.standard => (
         38.0,
         AppRadius.md,
@@ -227,42 +250,56 @@ class AppDropdown<T> extends StatelessWidget {
       style: TextStyle(
         fontSize: fontSize,
         fontWeight: FontWeight.w500,
-        color: enabled ? colors.textPrimary : colors.textMuted,
+        color: widget.enabled ? colors.textPrimary : colors.textMuted,
       ),
     );
 
+    final chevronDuration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.dropdownOpen,
+    );
+    final chevronIcon = Icon(
+      Icons.keyboard_arrow_down_rounded,
+      size: 16,
+      color: widget.enabled
+          ? colors.textMuted
+          : colors.textMuted.withValues(alpha: 0.45),
+    );
+
     final triggerContent = Material(
-      color: variant == AppDropdownVariant.inline
+      color: widget.variant == AppDropdownVariant.inline
           ? Colors.transparent
           : colors.cardBackground,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),
-        side: variant == AppDropdownVariant.inline
+        side: widget.variant == AppDropdownVariant.inline
             ? BorderSide.none
             : BorderSide(color: colors.borderDefault),
       ),
       clipBehavior: Clip.antiAlias,
       child: Builder(
         builder: (triggerContext) => InkWell(
-          onTap: enabled
+          onTap: widget.enabled
               ? () => _openPopover(triggerContext, effectiveItems, fontSize)
               : null,
           borderRadius: BorderRadius.circular(radius),
           child: Container(
-            height: minHeight == 0 ? height : null,
+            height: widget.minHeight == 0 ? height : null,
             constraints: BoxConstraints(
-              minHeight: minHeight > height ? minHeight : height,
+              minHeight: widget.minHeight > height ? widget.minHeight : height,
             ),
             padding: padding,
             alignment: Alignment.centerLeft,
             child: Row(
-              mainAxisSize: isExpanded ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisSize: widget.isExpanded
+                  ? MainAxisSize.max
+                  : MainAxisSize.min,
               children: [
                 if (currentItem.icon != null) ...[
                   Icon(currentItem.icon, size: 14, color: colors.textMuted),
                   const SizedBox(width: 6),
                 ],
-                if (isExpanded)
+                if (widget.isExpanded)
                   Expanded(child: labelWidget)
                 else
                   Flexible(child: labelWidget),
@@ -271,12 +308,18 @@ class AppDropdown<T> extends StatelessWidget {
                   currentItem.trailing!,
                 ],
                 const SizedBox(width: 4),
-                Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  size: 16,
-                  color: enabled
-                      ? colors.textMuted
-                      : colors.textMuted.withValues(alpha: 0.45),
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(end: _isOpen ? -1.0 : 1.0),
+                  duration: chevronDuration,
+                  curve: AppMotionCurves.smoothOut,
+                  builder: (context, scaleY, child) {
+                    return Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.diagonal3Values(1.0, scaleY, 1.0),
+                      child: child,
+                    );
+                  },
+                  child: chevronIcon,
                 ),
               ],
             ),
@@ -285,8 +328,8 @@ class AppDropdown<T> extends StatelessWidget {
       ),
     );
 
-    if (width != null) {
-      return SizedBox(width: width, child: triggerContent);
+    if (widget.width != null) {
+      return SizedBox(width: widget.width, child: triggerContent);
     }
     return triggerContent;
   }
@@ -362,7 +405,7 @@ class _AppDropdownPopoverSheetState<T>
                       final isSelected = item.value == widget.selectedValue;
                       return Tooltip(
                         message: item.tooltip ?? item.label,
-                        waitDuration: const Duration(milliseconds: 500),
+                        waitDuration: AppMotionDurations.verySlow,
                         child: Material(
                           color: isSelected
                               ? colors.primaryTint

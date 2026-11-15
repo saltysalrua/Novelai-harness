@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
+import 'package:novelai_harness/ui/core/widgets/app_toggle_controls.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_session_list_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -66,7 +67,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('批量管理'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(Checkbox).first);
+    await tester.tap(find.byType(AppCheckbox).first);
     await tester.pumpAndSettle();
     expect(find.text('已选 2 项'), findsOneWidget);
     await tester.tap(find.byTooltip('删除'));

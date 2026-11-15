@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/chat_checkpoints.dart';
 import '../view_models/studio_view_model.dart';
 
@@ -32,6 +36,8 @@ class AgentRewindView extends StatefulWidget {
 class _AgentRewindViewState extends State<AgentRewindView> {
   int? _selectedCheckpointIndex;
   final FocusNode _focusNode = FocusNode();
+  bool _initialRevealDone = false;
+  Timer? _revealTimer;
 
   @override
   void initState() {
@@ -39,10 +45,14 @@ class _AgentRewindViewState extends State<AgentRewindView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
+    _revealTimer = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) setState(() => _initialRevealDone = true);
+    });
   }
 
   @override
   void dispose() {
+    _revealTimer?.cancel();
     _focusNode.dispose();
     super.dispose();
   }
@@ -169,136 +179,138 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                         final isSelected = _selectedCheckpointIndex == index;
                         final isLastTurn = index == checkpoints.length - 1;
 
-                        return InkWell(
+                        final card = _CheckpointCard(
+                          isSelected: isSelected,
                           onTap: () =>
                               setState(() => _selectedCheckpointIndex = index),
                           onDoubleTap: () {
                             setState(() => _selectedCheckpointIndex = index);
                             _confirmRewind(checkpoints);
                           },
-                          borderRadius: BorderRadius.circular(AppRadius.lg),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? colors.primaryTint.withValues(alpha: 0.5)
-                                  : colors.cardBackground,
-                              borderRadius: BorderRadius.circular(AppRadius.lg),
-                              border: Border.all(
-                                color: isSelected
-                                    ? colors.primary
-                                    : colors.borderDefault,
-                                width: isSelected ? 1.5 : 1,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    AppBadge.pill(
-                                      label: '#${cp.index}',
-                                      variant: isSelected
-                                          ? AppBadgeVariant.primary
-                                          : AppBadgeVariant.neutral,
-                                      customBackgroundColor: isSelected
-                                          ? colors.primary
-                                          : null,
-                                      customForegroundColor: isSelected
-                                          ? Colors.white
-                                          : null,
-                                      fontSize: 11,
-                                    ),
-                                    if (isLastTurn) ...[
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        context.l10n.rewindLatestBadge,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: colors.success,
-                                        ),
-                                      ),
-                                    ],
-                                    const Spacer(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  AppBadge.pill(
+                                    label: '#${cp.index}',
+                                    variant: isSelected
+                                        ? AppBadgeVariant.primary
+                                        : AppBadgeVariant.neutral,
+                                    customBackgroundColor: isSelected
+                                        ? colors.primary
+                                        : null,
+                                    customForegroundColor: isSelected
+                                        ? Colors.white
+                                        : null,
+                                    fontSize: 11,
+                                  ),
+                                  if (isLastTurn) ...[
+                                    const SizedBox(width: 6),
                                     Text(
-                                      _formatTime(cp.userMessage.createdAt),
+                                      context.l10n.rewindLatestBadge,
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: colors.textMuted,
+                                        fontWeight: FontWeight.w600,
+                                        color: colors.success,
                                       ),
                                     ),
                                   ],
-                                ),
-                                const SizedBox(height: 6),
-
-                                // 用户 Prompt 预览
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 1.5),
-                                      child: Icon(
-                                        Icons.keyboard_arrow_right,
-                                        size: 13,
-                                        color: colors.primary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 3),
-                                    Expanded(
-                                      child: Text(
-                                        cp.userMessage.content,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: colors.textPrimary,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-
-                                // 助手回复摘要
-                                if (cp.assistantMessage != null &&
-                                    cp
-                                        .assistantMessage!
-                                        .content
-                                        .isNotEmpty) ...[
-                                  const SizedBox(height: 4),
+                                  const Spacer(),
                                   Text(
-                                    cp.assistantMessage!.content,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    _formatTime(cp.userMessage.createdAt),
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: colors.textSecondary,
+                                      color: colors.textMuted,
                                     ),
                                   ),
                                 ],
+                              ),
+                              const SizedBox(height: 6),
 
-                                // 工具调用胶囊
-                                if (cp.toolMessages.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Wrap(
-                                    spacing: 4,
-                                    children: cp.toolMessages.map((t) {
-                                      return AppBadge(
-                                        label:
-                                            t.toolName ??
-                                            context.l10n.toolFallbackName,
-                                        variant: AppBadgeVariant.neutral,
-                                        shape: AppBadgeShape.rounded,
-                                        fontSize: 10,
-                                      );
-                                    }).toList(),
+                              // 用户 Prompt 预览
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 1.5),
+                                    child: Icon(
+                                      Icons.keyboard_arrow_right,
+                                      size: 13,
+                                      color: colors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Expanded(
+                                    child: Text(
+                                      cp.userMessage.content,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: colors.textPrimary,
+                                      ),
+                                    ),
                                   ),
                                 ],
+                              ),
+
+                              // 助手回复摘要
+                              if (cp.assistantMessage != null &&
+                                  cp
+                                      .assistantMessage!
+                                      .content
+                                      .isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  cp.assistantMessage!.content,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
                               ],
-                            ),
+
+                              // 工具调用胶囊
+                              if (cp.toolMessages.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 4,
+                                  children: cp.toolMessages.map((t) {
+                                    return AppBadge(
+                                      label:
+                                          t.toolName ??
+                                          context.l10n.toolFallbackName,
+                                      variant: AppBadgeVariant.neutral,
+                                      shape: AppBadgeShape.rounded,
+                                      fontSize: 10,
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ],
                           ),
                         );
+
+                        if (index < 8) {
+                          return AppStaggerReveal(
+                            key: ValueKey('rewind_stagger_${cp.index}'),
+                            index: index,
+                            duration: _initialRevealDone
+                                ? Duration.zero
+                                : AppMotionDurations.fast,
+                            staggerDelay: _initialRevealDone
+                                ? Duration.zero
+                                : AppMotionDurations.stagger,
+                            distance: AppMotionDistances.base,
+                            maxStaggerIndex: 8,
+                            child: card,
+                          );
+                        }
+                        return card;
                       },
                     ),
             ),
@@ -310,47 +322,132 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                 color: colors.canvasBackground,
                 border: Border(top: BorderSide(color: colors.borderDefault)),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: hasSelection
-                        ? Text(
-                            context.l10n.rewindSelectedTurn(
-                              checkpoints[selected].index,
-                            ),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                  AppActionButton(
-                    label: context.l10n.rewindCancelButton,
-                    variant: AppActionButtonVariant.outlined,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+              child: SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  alignment: hasSelection
+                      ? WrapAlignment.spaceBetween
+                      : WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (hasSelection)
+                      AppTextSwap(
+                        text: context.l10n.rewindSelectedTurn(
+                          checkpoints[selected].index,
+                        ),
+                        enableBlur: false,
+                        duration: AppMotionDurations.quick,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        AppActionButton(
+                          label: context.l10n.rewindCancelButton,
+                          variant: AppActionButtonVariant.outlined,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          onPressed: widget.onBack,
+                        ),
+                        AppActionButton(
+                          label: context.l10n.rewindConfirmButton,
+                          variant: AppActionButtonVariant.primary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          onPressed: hasSelection && !_confirming
+                              ? () => _confirmRewind(checkpoints)
+                              : null,
+                        ),
+                      ],
                     ),
-                    onPressed: widget.onBack,
-                  ),
-                  const SizedBox(width: 8),
-                  AppActionButton(
-                    label: context.l10n.rewindConfirmButton,
-                    variant: AppActionButtonVariant.primary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    onPressed: hasSelection && !_confirming
-                        ? () => _confirmRewind(checkpoints)
-                        : null,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 回溯时刻卡片：悬停柔和边框高亮 + 微抬升 (1.5px)，选中平滑过渡。
+class _CheckpointCard extends StatefulWidget {
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onDoubleTap;
+  final Widget child;
+
+  const _CheckpointCard({
+    required this.isSelected,
+    required this.onTap,
+    required this.onDoubleTap,
+    required this.child,
+  });
+
+  @override
+  State<_CheckpointCard> createState() => _CheckpointCardState();
+}
+
+class _CheckpointCardState extends State<_CheckpointCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final reduce = AppMotion.shouldReduceMotion(context);
+    final duration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.quick,
+    );
+    final borderColor = widget.isSelected
+        ? colors.primary
+        : (_hovered
+            ? colors.primary.withValues(alpha: 0.45)
+            : colors.borderDefault);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(end: _hovered && !reduce ? -1.5 : 0.0),
+        duration: duration,
+        curve: AppMotionCurves.smoothOut,
+        builder: (context, dy, child) =>
+            Transform.translate(offset: Offset(0, dy), child: child),
+        child: InkWell(
+          onTap: widget.onTap,
+          onDoubleTap: widget.onDoubleTap,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          child: AnimatedContainer(
+            duration: duration,
+            curve: AppMotionCurves.smoothOut,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: widget.isSelected
+                  ? colors.primaryTint.withValues(alpha: 0.5)
+                  : colors.cardBackground,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(
+                color: borderColor,
+                width: widget.isSelected ? 1.5 : 1,
+              ),
+            ),
+            child: widget.child,
+          ),
         ),
       ),
     );

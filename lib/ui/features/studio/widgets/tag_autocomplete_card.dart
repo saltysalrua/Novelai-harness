@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/tag_models.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import 'tag_suggestion_tile.dart';
@@ -97,8 +98,11 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
         if (keyContext != null) {
           Scrollable.ensureVisible(
             keyContext,
-            duration: const Duration(milliseconds: 60),
-            curve: Curves.easeOut,
+            duration: AppMotion.resolveDuration(
+              context,
+              AppMotionDurations.micro,
+            ),
+            curve: AppMotionCurves.out,
           );
         }
       }
@@ -161,7 +165,12 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                         // 立即在 pointer down 时执行精准上屏
                         widget.onSelect(item);
                       },
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: AppMotion.resolveDuration(
+                          context,
+                          AppMotionDurations.micro,
+                        ),
+                        curve: AppMotionCurves.smoothOut,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 6,

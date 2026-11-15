@@ -11,9 +11,11 @@ import 'package:markdown/markdown.dart' as md;
 import '../../../../core/harness/reply_marker.dart';
 import '../../../../core/harness/types.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/stable_edge_selection.dart';
 import 'agent_chat_blocks.dart';
 import 'chat_image_attachment.dart';
@@ -39,6 +41,12 @@ class AgentChatMessageItem extends StatefulWidget {
   /// 回溯/编辑该消息的回调
   final ValueChanged<String>? onRewind;
 
+  /// 是否播放新消息入场动效 (仅实时新入列消息开启，历史与滚动复用保持静止)
+  final bool animateEntry;
+
+  /// 当前消息中的未配对工具调用是否处于实时执行中
+  final bool isActiveTool;
+
   const AgentChatMessageItem({
     super.key,
     required this.message,
@@ -47,6 +55,8 @@ class AgentChatMessageItem extends StatefulWidget {
     this.pairedToolResults = const [],
     this.isMergedToolResult = false,
     this.onRewind,
+    this.animateEntry = false,
+    this.isActiveTool = false,
   });
 
   @override
@@ -54,9 +64,48 @@ class AgentChatMessageItem extends StatefulWidget {
 }
 
 class _AgentChatMessageItemState extends State<AgentChatMessageItem>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
+  AnimationController? _entryController;
+  CurvedAnimation? _entryCurve;
+  Animation<double>? _entryOpacity;
+  Animation<Offset>? _entryOffset;
+
   @override
   bool get wantKeepAlive => widget.keepAlive;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.animateEntry) {
+      final controller = AnimationController(
+        vsync: this,
+        duration: AppMotionDurations.fast,
+      );
+      final curved = CurvedAnimation(
+        parent: controller,
+        curve: AppMotionCurves.smoothOut,
+      );
+      _entryController = controller;
+      _entryCurve = curved;
+      _entryOpacity = Tween<double>(begin: 0.25, end: 1.0).animate(curved);
+      _entryOffset = Tween<Offset>(
+        begin: const Offset(0, 0.08),
+        end: Offset.zero,
+      ).animate(curved);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = _entryController;
+    if (controller == null || controller.isCompleted) return;
+    if (AppMotion.shouldReduceMotion(context)) {
+      controller.value = 1.0;
+    } else if (!controller.isAnimating && controller.value == 0.0) {
+      controller.forward(from: 0.0);
+    }
+  }
 
   @override
   void didUpdateWidget(AgentChatMessageItem oldWidget) {
@@ -65,25 +114,40 @@ class _AgentChatMessageItemState extends State<AgentChatMessageItem>
   }
 
   @override
+  void dispose() {
+    _entryCurve?.dispose();
+    _entryController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     super.build(context);
     final message = widget.message;
+    final Widget content;
     switch (message.role) {
       case AgentRole.system:
         return const SizedBox.shrink();
       case AgentRole.user:
-        return UserMessageRow(message: message, onRewind: widget.onRewind);
+        content = UserMessageRow(message: message, onRewind: widget.onRewind);
       case AgentRole.tool:
         if (widget.isMergedToolResult) return const SizedBox.shrink();
-        return ToolResultBlock(message: message);
+        content = ToolResultBlock(message: message);
       case AgentRole.assistant:
-        return AssistantMessageItem(
+        content = AssistantMessageItem(
           message: message,
           thinkingExpanded: widget.thinkingExpanded,
           pairedToolResults: widget.pairedToolResults,
           onRewind: widget.onRewind,
+          isActiveTool: widget.isActiveTool,
         );
     }
+    if (_entryController == null) return content;
+    // FadeTransition 在 opacity == 1.0 时底层跳过 OpacityLayer，无需拆树即可实现零常驻 saveLayer。
+    return FadeTransition(
+      opacity: _entryOpacity!,
+      child: SlideTransition(position: _entryOffset!, child: content),
+    );
   }
 }
 
@@ -162,7 +226,8 @@ class _MessageActionBar extends StatelessWidget {
         final colors = context.colors;
         return TweenAnimationBuilder<double>(
           tween: Tween<double>(end: hovered ? 0.9 : 0.35),
-          duration: const Duration(milliseconds: 120),
+          duration: AppMotion.resolveDuration(context, AppMotionDurations.micro),
+          curve: AppMotionCurves.smoothOut,
           builder: (context, alpha, _) {
             final mutedColor = colors.textMuted.withValues(alpha: alpha);
             return SizedBox(
@@ -241,14 +306,47 @@ class _MessageCopyButtonState extends State<_MessageCopyButton> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return AppIconButton(
-      icon: _copied ? Icons.check_rounded : Icons.content_copy_rounded,
-      size: 20,
-      iconSize: 12,
-      iconColor: _copied ? colors.success : widget.iconColor,
-      tooltip: _copied ? widget.copiedTooltip : widget.copyTooltip,
-      variant: AppIconButtonVariant.ghost,
-      onPressed: _copy,
+    final tooltip = _copied ? widget.copiedTooltip : widget.copyTooltip;
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            onTap: _copy,
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: Center(
+                child: AppIconSwap(
+                  swapKey: _copied,
+                  enableBlur: false,
+                  duration: AppMotionDurations.quick,
+                  child: _copied
+                      ? AppSuccessCheck(
+                          key: const ValueKey(true),
+                          visible: true,
+                          size: 13,
+                          strokeWidth: 1.8,
+                          color: colors.success,
+                          bobDistance: 3.0,
+                        )
+                      : Icon(
+                          Icons.content_copy_rounded,
+                          key: const ValueKey(false),
+                          size: 12,
+                          color: widget.iconColor,
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -347,12 +445,16 @@ class AssistantMessageItem extends StatelessWidget {
   /// 回退到此回复的回调
   final ValueChanged<String>? onRewind;
 
+  /// 是否正在进行本轮流式执行（未配对的工具调用将显示激活态动画）
+  final bool isActiveTool;
+
   const AssistantMessageItem({
     super.key,
     required this.message,
     this.thinkingExpanded = false,
     this.pairedToolResults = const [],
     this.onRewind,
+    this.isActiveTool = false,
   });
 
   @override
@@ -393,6 +495,10 @@ class AssistantMessageItem extends StatelessWidget {
                     result: index < pairedToolResults.length
                         ? pairedToolResults[index]
                         : null,
+                    isActive:
+                        isActiveTool &&
+                        (index >= pairedToolResults.length ||
+                            pairedToolResults[index] == null),
                   ),
                 ),
             if (content.isNotEmpty)
@@ -426,13 +532,20 @@ class AssistantMessageItem extends StatelessWidget {
 class ToolCallBlock extends StatelessWidget {
   final ToolCall call;
   final AgentMessage? result;
+  final bool isActive;
 
-  const ToolCallBlock({super.key, required this.call, this.result});
+  const ToolCallBlock({
+    super.key,
+    required this.call,
+    this.result,
+    this.isActive = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final pairedResult = result;
+    final running = pairedResult == null && isActive;
     final statusColor = pairedResult == null
         ? colors.primary
         : (pairedResult.isError ? colors.error : colors.success);
@@ -450,6 +563,44 @@ class ToolCallBlock extends StatelessWidget {
         ? resultSummary
         : summarizeToolArguments(call.arguments);
 
+    final leadingIndicator = AppIconSwap(
+      swapKey: running
+          ? 'running'
+          : (pairedResult == null ? 'pending' : pairedResult.isError),
+      enableBlur: false,
+      duration: AppMotionDurations.quick,
+      child: running
+          ? SizedBox(
+              key: const ValueKey('running'),
+              width: 14,
+              height: 14,
+              child: Center(
+                child: AppMatrixDotLoader(
+                  variant: AppMatrixDotVariant.orbit,
+                  rounded: true,
+                  dotSize: 2.0,
+                  gap: 1.5,
+                  baseColor: colors.primary.withValues(alpha: 0.25),
+                  activeColor: colors.primary,
+                ),
+              ),
+            )
+          : Icon(
+              statusIcon,
+              key: ValueKey(
+                pairedResult == null ? 'pending' : pairedResult.isError,
+              ),
+              size: 14,
+              color: statusColor,
+            ),
+    );
+
+    final nameStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+      color: colors.textPrimary,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -464,18 +615,25 @@ class ToolCallBlock extends StatelessWidget {
           ),
           header: Row(
             children: [
-              Icon(statusIcon, size: 14, color: statusColor),
+              leadingIndicator,
               const SizedBox(width: 6),
               Flexible(
-                child: Text(
-                  call.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: colors.textPrimary,
-                  ),
+                child: SelectionContainer.disabled(
+                  child: running
+                      ? AppShimmerText(
+                          text: call.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          baseColor: colors.textPrimary,
+                          highlightColor: colors.primary,
+                          style: nameStyle,
+                        )
+                      : Text(
+                          call.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: nameStyle,
+                        ),
                 ),
               ),
               if (summary.isNotEmpty) ...[
@@ -667,7 +825,7 @@ class _ToolOutputImagePreview extends StatelessWidget {
   }
 }
 
-/// 流式输出占位: 角色头 + 实时思考块 + 正文 Markdown + 紧凑进度指示
+/// 流式输出占位: 角色头 + 实时思考块 + 推理预览 + 正文 Markdown + 矩阵点进度指示
 class StreamingMessageBubble extends StatelessWidget {
   final String thoughts;
   final String content;
@@ -689,30 +847,156 @@ class StreamingMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.maybeL10n;
     // 展示层兜底：流式气泡里的标记与残渣不上 UI
     final visibleContent = ReplyMarker.strip(content);
+    final hasNotice = notice != null && notice!.isNotEmpty;
+    final isThinkingActive =
+        thoughts.isNotEmpty && visibleContent.isEmpty && !hasNotice;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (notice != null && notice!.isNotEmpty)
+          if (hasNotice)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(notice!, style: TextStyle(color: colors.textMuted)),
+              child: SelectionContainer.disabled(
+                child: AppThinkingStatus(
+                  status: notice!,
+                  enableBlur: false,
+                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  baseColor: colors.textMuted,
+                  highlightColor: colors.textPrimary,
+                ),
+              ),
             ),
           if (thoughts.isNotEmpty)
-            ThinkingBlock(thoughts: thoughts, forceExpanded: thinkingExpanded),
-          if (visibleContent.isNotEmpty)
-            AgentMarkdownBody(data: visibleContent),
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: SizedBox(
-              width: 24,
-              child: LinearProgressIndicator(minHeight: 2),
+            ThinkingBlock(
+              thoughts: thoughts,
+              forceExpanded: thinkingExpanded,
+              isThinking: isThinkingActive,
             ),
+          if (isThinkingActive && !thinkingExpanded)
+            SelectionContainer.disabled(
+              child: _ReasoningStreamPreview(
+                thoughts: ReplyMarker.strip(thoughts),
+              ),
+            ),
+          if (visibleContent.isNotEmpty)
+            AgentMarkdownBody(data: visibleContent, isStreaming: true),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: visibleContent.isEmpty && !hasNotice
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppMatrixDotLoader(
+                        variant: AppMatrixDotVariant.scan,
+                        rounded: true,
+                        dotSize: 2.2,
+                        gap: 1.8,
+                        baseColor: colors.primary.withValues(alpha: 0.25),
+                        activeColor: colors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: SelectionContainer.disabled(
+                          child: AppThinkingStatus(
+                            status: isThinkingActive
+                                ? (l10n?.chatThinkingProgress ?? '正在思考...')
+                                : (l10n?.chatConceiving ?? '构思中...'),
+                            enableBlur: false,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textMuted,
+                            ),
+                            baseColor: colors.textMuted,
+                            highlightColor: colors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : AppMatrixDotLoader(
+                    variant: AppMatrixDotVariant.scan,
+                    rounded: true,
+                    dotSize: 2.2,
+                    gap: 1.8,
+                    baseColor: colors.primary.withValues(alpha: 0.25),
+                    activeColor: colors.primary,
+                  ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 折叠流式推理的 2 行实时尾段预览：随推理增量平滑上滑切换（禁用 blur/saveLayer）
+class _ReasoningStreamPreview extends StatelessWidget {
+  final String thoughts;
+
+  const _ReasoningStreamPreview({required this.thoughts});
+
+  static String _tailSnippet(String raw) {
+    final lines = raw
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.length <= 1) return '';
+    final tail = lines.length >= 2
+        ? lines.sublist(lines.length - 2).join('\n')
+        : lines.last;
+    return tail;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final snippet = _tailSnippet(thoughts);
+    if (snippet.isEmpty) return const SizedBox.shrink();
+    final colors = context.colors;
+    final duration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.quick,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(left: 10, top: 2, bottom: 4),
+      child: ClipRect(
+        child: AnimatedSwitcher(
+          duration: duration,
+          switchInCurve: AppMotionCurves.smoothOut,
+          switchOutCurve: AppMotionCurves.smoothOut,
+          layoutBuilder: (currentChild, previousChildren) => Stack(
+            alignment: Alignment.topLeft,
+            children: [
+              ...previousChildren,
+              ?currentChild,
+            ],
+          ),
+          transitionBuilder: (child, animation) {
+            final offset = Tween<Offset>(
+              begin: const Offset(0, 0.25),
+              end: Offset.zero,
+            ).animate(animation);
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(position: offset, child: child),
+            );
+          },
+          child: Text(
+            snippet,
+            key: ValueKey(snippet),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.4,
+              color: colors.textMuted.withValues(alpha: 0.85),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -884,8 +1168,13 @@ class _AgentCodeBlockState extends State<_AgentCodeBlock> {
 /// 思考块和工具输出仍用 [SelectableText]，避免展开时把尚未布局的段落塞进选区容器。
 class AgentMarkdownBody extends StatefulWidget {
   final String data;
+  final bool isStreaming;
 
-  const AgentMarkdownBody({super.key, required this.data});
+  const AgentMarkdownBody({
+    super.key,
+    required this.data,
+    this.isStreaming = false,
+  });
 
   @override
   State<AgentMarkdownBody> createState() => _AgentMarkdownBodyState();
@@ -893,25 +1182,158 @@ class AgentMarkdownBody extends StatefulWidget {
 
 class _AgentMarkdownBodyState extends State<AgentMarkdownBody> {
   Widget? _rendered;
+  String _stablePrefix = '';
+  Widget? _stableRendered;
+  int _tailBlockIndex = 0;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _rendered = null;
+    _stableRendered = null;
   }
 
   @override
   void didUpdateWidget(AgentMarkdownBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.data != widget.data) _rendered = null;
+    if (oldWidget.data != widget.data ||
+        oldWidget.isStreaming != widget.isStreaming) {
+      _rendered = null;
+      if (!widget.isStreaming) {
+        _stablePrefix = '';
+        _stableRendered = null;
+        _tailBlockIndex = 0;
+      }
+    }
+  }
+
+  /// 在闭合围栏代码块之外切分最后一个空行分隔点，保证已稳定段落不重复解析，
+  /// 仅对新开启的尾部段落执行轻量淡入（禁止逐词 blur/saveLayer）。
+  static (String stable, String tail) _splitStreamingBlocks(String source) {
+    final lines = source.split('\n');
+    String? fenceMarker;
+    var lastSplitLine = -1;
+    for (var i = 0; i < lines.length; i++) {
+      final trimmed = lines[i].trimLeft();
+      if (fenceMarker == null) {
+        if (trimmed.startsWith('```')) {
+          fenceMarker = '```';
+        } else if (trimmed.startsWith('~~~')) {
+          fenceMarker = '~~~';
+        } else if (trimmed.isEmpty && i > 0 && i < lines.length - 1) {
+          lastSplitLine = i;
+        }
+      } else if (trimmed.startsWith(fenceMarker)) {
+        fenceMarker = null;
+      }
+    }
+    if (lastSplitLine <= 0) return ('', source);
+    final stable = lines.sublist(0, lastSplitLine).join('\n');
+    final tail = lines.sublist(lastSplitLine + 1).join('\n');
+    return (stable, tail);
+  }
+
+  MarkdownBody _buildMarkdown(BuildContext context, String text) =>
+      MarkdownBody(
+        data: text,
+        selectable: false,
+        softLineBreak: true,
+        builders: {'pre': _AgentCodeBlockBuilder()},
+        styleSheet: buildAgentMarkdownStyleSheet(context),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.isStreaming) {
+      return _rendered ??= _buildMarkdown(context, widget.data);
+    }
+
+    final (stable, tail) = _splitStreamingBlocks(widget.data);
+    if (stable != _stablePrefix) {
+      if (stable.length > _stablePrefix.length) {
+        _tailBlockIndex++;
+      } else if (stable.isEmpty) {
+        _tailBlockIndex = 0;
+      }
+      _stablePrefix = stable;
+      _stableRendered = stable.isEmpty ? null : _buildMarkdown(context, stable);
+    }
+    final stableWidget =
+        _stableRendered ??= (stable.isEmpty
+            ? null
+            : _buildMarkdown(context, stable));
+
+    if (stableWidget == null) {
+      return _buildMarkdown(context, tail);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        RepaintBoundary(child: stableWidget),
+        if (tail.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _StreamingBlockFade(
+            key: ValueKey(_tailBlockIndex),
+            child: _buildMarkdown(context, tail),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// 新流式段落出现时的轻量淡入；完成后自动卸载 Opacity 避免长列表常驻 saveLayer。
+class _StreamingBlockFade extends StatefulWidget {
+  final Widget child;
+
+  const _StreamingBlockFade({super.key, required this.child});
+
+  @override
+  State<_StreamingBlockFade> createState() => _StreamingBlockFadeState();
+}
+
+class _StreamingBlockFadeState extends State<_StreamingBlockFade>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final CurvedAnimation _curved;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.quick,
+    );
+    _curved = CurvedAnimation(
+      parent: _controller,
+      curve: AppMotionCurves.smoothOut,
+    );
+    _opacity = Tween<double>(begin: 0.35, end: 1.0).animate(_curved);
   }
 
   @override
-  Widget build(BuildContext context) => _rendered ??= MarkdownBody(
-    data: widget.data,
-    selectable: false,
-    softLineBreak: true,
-    builders: {'pre': _AgentCodeBlockBuilder()},
-    styleSheet: buildAgentMarkdownStyleSheet(context),
-  );
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_controller.isCompleted) return;
+    if (AppMotion.shouldReduceMotion(context)) {
+      _controller.value = 1.0;
+    } else if (!_controller.isAnimating && _controller.value == 0.0) {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _curved.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(opacity: _opacity, child: widget.child);
+  }
 }

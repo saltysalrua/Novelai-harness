@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -69,16 +70,46 @@ class AppAutocompletePanel<T> extends StatefulWidget {
       _AppAutocompletePanelState<T>();
 }
 
-class _AppAutocompletePanelState<T> extends State<AppAutocompletePanel<T>> {
+class _AppAutocompletePanelState<T> extends State<AppAutocompletePanel<T>>
+    with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   final List<GlobalKey> _itemKeys = [];
+  late final AnimationController _entryController;
+  late final Animation<double> _entryCurved;
   Offset? _lastPointerPos;
   DateTime? _lastKeyboardNavTime;
+  bool _reduceMotion = false;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
     _updateKeys();
+    _entryController = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.quick,
+      value: 0.0,
+    );
+    _entryCurved = _entryController.drive(
+      CurveTween(curve: AppMotionCurves.smoothOut),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = AppMotion.shouldReduceMotion(context);
+    if (_reduceMotion) {
+      _entryController.value = 1.0;
+      _initialized = true;
+    } else if (!_initialized) {
+      _initialized = true;
+      if (widget.items.isNotEmpty || widget.emptyBuilder != null) {
+        _entryController.forward(from: 0.0);
+      } else {
+        _entryController.value = 1.0;
+      }
+    }
   }
 
   @override
@@ -86,6 +117,13 @@ class _AppAutocompletePanelState<T> extends State<AppAutocompletePanel<T>> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.items.length != widget.items.length) {
       _updateKeys();
+    }
+    if (oldWidget.items.isEmpty && widget.items.isNotEmpty) {
+      if (_reduceMotion) {
+        _entryController.value = 1.0;
+      } else {
+        _entryController.forward(from: 0.0);
+      }
     }
     // 仅在键盘导航状态下选中下标变更时平滑滚动入视野，防止鼠标滑动冲突
     if (oldWidget.selectedIndex != widget.selectedIndex &&
@@ -110,8 +148,11 @@ class _AppAutocompletePanelState<T> extends State<AppAutocompletePanel<T>> {
         if (keyContext != null) {
           Scrollable.ensureVisible(
             keyContext,
-            duration: const Duration(milliseconds: 60),
-            curve: Curves.easeOut,
+            duration: AppMotion.resolveDuration(
+              context,
+              AppMotionDurations.micro,
+            ),
+            curve: AppMotionCurves.out,
           );
         }
       }
@@ -140,6 +181,7 @@ class _AppAutocompletePanelState<T> extends State<AppAutocompletePanel<T>> {
 
   @override
   void dispose() {
+    _entryController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -155,7 +197,7 @@ class _AppAutocompletePanelState<T> extends State<AppAutocompletePanel<T>> {
       return const SizedBox.shrink();
     }
 
-    Widget list = ListView.builder(
+    final Widget list = ListView.builder(
       controller: _scrollController,
       shrinkWrap: true,
       padding: widget.padding,
@@ -176,7 +218,7 @@ class _AppAutocompletePanelState<T> extends State<AppAutocompletePanel<T>> {
       },
     );
 
-    return Material(
+    final panel = Material(
       color: Colors.transparent,
       child: Container(
         width: widget.width,
@@ -190,6 +232,29 @@ class _AppAutocompletePanelState<T> extends State<AppAutocompletePanel<T>> {
         clipBehavior: Clip.antiAlias,
         child: list,
       ),
+    );
+
+    if (_reduceMotion) {
+      return panel;
+    }
+
+    return AnimatedBuilder(
+      animation: _entryCurved,
+      builder: (context, child) {
+        final t = _entryCurved.value.clamp(0.0, 1.0);
+        if (t >= 1.0) return child!;
+        final scale =
+            AppMotionScales.dropdown + (1.0 - AppMotionScales.dropdown) * t;
+        return Opacity(
+          opacity: t,
+          child: Transform.scale(
+            scale: scale,
+            alignment: Alignment.topCenter,
+            child: child,
+          ),
+        );
+      },
+      child: panel,
     );
   }
 }

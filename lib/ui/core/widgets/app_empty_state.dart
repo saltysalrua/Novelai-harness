@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_transitions.dart';
 
 /// 统一空状态占位展示组件 (Empty State)
 ///
@@ -92,6 +93,8 @@ class AppEmptyState extends StatelessWidget {
       );
     }
 
+    var staggerIndex = 0;
+
     return Center(
       child: Padding(
         padding: effectivePadding,
@@ -99,36 +102,45 @@ class AppEmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: effectiveIconSize,
-              color: colors.textMuted.withValues(alpha: 0.5),
+            AppStaggerReveal(
+              index: staggerIndex++,
+              child: Icon(
+                icon,
+                size: effectiveIconSize,
+                color: colors.textMuted.withValues(alpha: 0.5),
+              ),
             ),
             SizedBox(height: isCompact ? AppSpacing.sm : AppSpacing.md),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: isCompact ? 13 : 15,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
+            AppStaggerReveal(
+              index: staggerIndex++,
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: isCompact ? 13 : 15,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
               ),
             ),
             if (description != null && description!.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(
-                description!,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: isCompact ? 11.0 : 12.0,
-                  color: colors.textSecondary,
-                  height: 1.4,
+              AppStaggerReveal(
+                index: staggerIndex++,
+                child: Text(
+                  description!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: isCompact ? 11.0 : 12.0,
+                    color: colors.textSecondary,
+                    height: 1.4,
+                  ),
                 ),
               ),
             ],
             if (actionWidget != null) ...[
               SizedBox(height: isCompact ? AppSpacing.md : AppSpacing.lg),
-              actionWidget,
+              AppStaggerReveal(index: staggerIndex++, child: actionWidget),
             ],
           ],
         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -32,7 +33,7 @@ enum AppBadgeShape {
   pill,
 }
 
-/// 统一状态徽章与胶囊组件 (AppBadge)
+/// 统一状态徽章与胶囊组件 (`AppBadge`, `03-notification-badge`)
 ///
 /// 代码证据出处：
 /// - `inpaint_canvas_overlay.dart:800` & `inpaint_page.dart:524` (Opus 免费/需消耗点数胶囊)
@@ -49,8 +50,9 @@ enum AppBadgeShape {
 /// - `model_card.dart:181` (_CapabilityChip 思考/多模态能力胶囊)
 ///
 /// 核心职责：
-/// 统一全应用 12+ 处手写的状态胶囊与标签外观，收拢背景透明度、字号 (9.5~11.5px)、边框及圆角规范。
-class AppBadge extends StatelessWidget {
+/// 统一全应用 12+ 处手写的状态胶囊与标签外观，收拢背景透明度、字号 (9.5~11.5px)、边框及圆角规范；
+/// 在初次出现或标签数值变化时呈现轻巧的对角滑入与回弹弹出 (`03-notification-badge`)，并安全适配减弱动画。
+class AppBadge extends StatefulWidget {
   /// 徽标显示文本
   final String label;
 
@@ -126,10 +128,65 @@ class AppBadge extends StatelessWidget {
   }
 
   @override
+  State<AppBadge> createState() => _AppBadgeState();
+}
+
+class _AppBadgeState extends State<AppBadge>
+    with SingleTickerProviderStateMixin {
+  static const Offset _appearOffset = Offset(-4.0, 6.0);
+
+  late final AnimationController _controller;
+  bool _reduceMotion = false;
+  bool _initialized = false;
+  bool _isCountUpdate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.verySlow,
+      value: 0.0,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = AppMotion.shouldReduceMotion(context);
+    if (_reduceMotion) {
+      _controller.value = 1.0;
+      _initialized = true;
+    } else if (!_initialized) {
+      _initialized = true;
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AppBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.label != widget.label) {
+      _isCountUpdate = true;
+      if (_reduceMotion) {
+        _controller.value = 1.0;
+      } else {
+        _controller.forward(from: 0.0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    final (Color bg, Color fg, Color? border) = switch (variant) {
+    final (Color bg, Color fg, Color? border) = switch (widget.variant) {
       AppBadgeVariant.primary => (
         colors.primaryTint,
         colors.primary,
@@ -162,22 +219,24 @@ class AppBadge extends StatelessWidget {
       ),
     };
 
-    final effectiveBg = customBackgroundColor ?? bg;
-    final effectiveFg = customForegroundColor ?? fg;
-    final effectiveBorder = customBorderColor ?? border;
+    final effectiveBg = widget.customBackgroundColor ?? bg;
+    final effectiveFg = widget.customForegroundColor ?? fg;
+    final effectiveBorder = widget.customBorderColor ?? border;
 
-    final double borderRadiusVal = switch (shape) {
+    final double borderRadiusVal = switch (widget.shape) {
       AppBadgeShape.rounded => AppRadius.sm,
       AppBadgeShape.pill => AppRadius.pill,
     };
 
     final effectivePadding =
-        padding ??
-        (shape == AppBadgeShape.pill
+        widget.padding ??
+        (widget.shape == AppBadgeShape.pill
             ? const EdgeInsets.symmetric(horizontal: 7.5, vertical: 2.5)
             : const EdgeInsets.symmetric(horizontal: 5.5, vertical: 2.0));
 
-    return Container(
+    final badgeBody = AnimatedContainer(
+      duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+      curve: AppMotionCurves.smoothOut,
       padding: effectivePadding,
       decoration: BoxDecoration(
         color: effectiveBg,
@@ -190,22 +249,73 @@ class AppBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: iconSize, color: effectiveFg),
+          if (widget.icon != null) ...[
+            Icon(widget.icon, size: widget.iconSize, color: effectiveFg),
             const SizedBox(width: 3.5),
           ],
           Text(
-            label,
+            widget.label,
             style: TextStyle(
-              fontSize: fontSize,
+              fontSize: widget.fontSize,
               fontWeight: FontWeight.w700,
               color: effectiveFg,
               height: 1.15,
             ),
           ),
-          if (trailing != null) ...[const SizedBox(width: 3.5), trailing!],
+          if (widget.trailing != null) ...[
+            const SizedBox(width: 3.5),
+            widget.trailing!,
+          ],
         ],
       ),
+    );
+
+    if (_reduceMotion) {
+      return badgeBody;
+    }
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final v = _controller.value;
+        if (v >= 1.0) return child!;
+
+        // 03-notification-badge: 250ms 位移、500ms 弹性缩放 (仅空间变换)、400ms 安全淡入
+        final slideFrac = (v / 0.52).clamp(0.0, 1.0);
+        final fadeFrac = (v / 0.80).clamp(0.0, 1.0);
+        final slideT = AppMotionCurves.smoothOut
+            .transform(slideFrac)
+            .clamp(0.0, 1.0);
+        final popT = AppMotionCurves.bounce.transform(v);
+        final fadeT = AppMotionCurves.smoothOut
+            .transform(fadeFrac)
+            .clamp(0.0, 1.0);
+
+        final startScale = _isCountUpdate ? 0.72 : 0.0;
+        final startOffset = _isCountUpdate
+            ? const Offset(-2.0, 3.0)
+            : _appearOffset;
+        final startOpacity = _isCountUpdate ? 0.5 : 0.0;
+
+        final scale = startScale + (1.0 - startScale) * popT;
+        final offset = Offset(
+          startOffset.dx * (1.0 - slideT),
+          startOffset.dy * (1.0 - slideT),
+        );
+        final opacity = (startOpacity + (1.0 - startOpacity) * fadeT).clamp(
+          0.0,
+          1.0,
+        );
+
+        return Opacity(
+          opacity: opacity,
+          child: Transform.translate(
+            offset: offset,
+            child: Transform.scale(scale: scale, child: child),
+          ),
+        );
+      },
+      child: badgeBody,
     );
   }
 }

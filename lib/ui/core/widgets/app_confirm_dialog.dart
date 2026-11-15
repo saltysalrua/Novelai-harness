@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_transitions.dart';
 
 /// 统一操作确认弹窗与破坏性警告对话框 (AppConfirmDialog)
 ///
@@ -128,7 +129,7 @@ Future<bool?> showAppConfirmDialog(
   bool isDestructive = false,
   bool barrierDismissible = true,
 }) {
-  return showDialog<bool>(
+  return showAppModalDialog<bool>(
     context: context,
     barrierDismissible: barrierDismissible,
     builder: (ctx) => AppConfirmDialog(

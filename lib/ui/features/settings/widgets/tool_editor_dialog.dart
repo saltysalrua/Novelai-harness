@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +6,8 @@ import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../core/context_l10n.dart';
 
 /// Tool 查看 Schema / 编辑 / 新建自定义工具对话框 (Pi 风格工具构建器)
@@ -28,6 +31,9 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
   late final TextEditingController _descController;
   late final TextEditingController _schemaController;
   late final TextEditingController _templateController;
+  bool _copiedSchema = false;
+  int _errorShakeTrigger = 0;
+  Timer? _copyResetTimer;
 
   @override
   void initState() {
@@ -60,12 +66,27 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
 
   @override
   void dispose() {
+    _copyResetTimer?.cancel();
     _nameController.dispose();
     _labelController.dispose();
     _descController.dispose();
     _schemaController.dispose();
     _templateController.dispose();
     super.dispose();
+  }
+
+  void _copySchema() {
+    Clipboard.setData(ClipboardData(text: _schemaController.text));
+    _copyResetTimer?.cancel();
+    setState(() => _copiedSchema = true);
+    _copyResetTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _copiedSchema = false);
+    });
+    showAppToast(
+      context,
+      message: context.l10n.toolCopySchemaSuccess,
+      tone: AppToastTone.success,
+    );
   }
 
   @override
@@ -88,8 +109,10 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
       height: 600,
       body: Padding(
         padding: const EdgeInsets.all(24),
-        child: SingleChildScrollView(
-          child: Column(
+        child: AppErrorShake(
+          trigger: _errorShakeTrigger,
+          child: SingleChildScrollView(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
@@ -184,17 +207,8 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                   ),
                   const Spacer(),
                   InkWell(
-                    onTap: () {
-                      Clipboard.setData(
-                        ClipboardData(text: _schemaController.text),
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(l10n.toolCopySchemaSuccess),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
+                    onTap: _copySchema,
+                    borderRadius: BorderRadius.circular(4),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
@@ -202,17 +216,30 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.copy_rounded,
-                            size: 13,
-                            color: colors.primary,
+                          AppIconSwap(
+                            swapKey: _copiedSchema,
+                            enableBlur: false,
+                            child: _copiedSchema
+                                ? AppSuccessCheck(
+                                    key: const ValueKey<bool>(true),
+                                    size: 13,
+                                    color: colors.success,
+                                  )
+                                : Icon(
+                                    Icons.copy_rounded,
+                                    key: const ValueKey<bool>(false),
+                                    size: 13,
+                                    color: colors.primary,
+                                  ),
                           ),
                           const SizedBox(width: 4),
                           Text(
                             l10n.toolCopySchema,
                             style: TextStyle(
                               fontSize: 11,
-                              color: colors.primary,
+                              color: _copiedSchema
+                                  ? colors.success
+                                  : colors.primary,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -256,6 +283,7 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
               ],
             ],
           ),
+        ),
         ),
       ),
       actions: [
@@ -306,9 +334,12 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
     final name = _nameController.text.trim();
     final label = _labelController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(
+      setState(() => _errorShakeTrigger++);
+      showAppToast(
         context,
-      ).showSnackBar(SnackBar(content: Text(context.l10n.toolNameEmptyError)));
+        message: context.l10n.toolNameEmptyError,
+        tone: AppToastTone.error,
+      );
       return;
     }
 
@@ -322,8 +353,11 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
         parsedParams = decoded;
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.l10n.toolSchemaParseError('$e'))),
+      setState(() => _errorShakeTrigger++);
+      showAppToast(
+        context,
+        message: context.l10n.toolSchemaParseError('$e'),
+        tone: AppToastTone.error,
       );
       return;
     }

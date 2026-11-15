@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 
 /// 内嵌于 Agent 对话流中的交互提问卡片
 class InlineAgentQuestionCard extends StatefulWidget {
@@ -99,10 +102,12 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
         ),
         boxShadow: context.shadowSubtle,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      child: AppCardResize(
+        alignment: Alignment.topCenter,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
           // 头部标题条
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -196,6 +201,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
             ),
           ],
         ],
+        ),
       ),
     );
   }
@@ -314,7 +320,9 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Container(
+      child: AnimatedContainer(
+        duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+        curve: AppMotionCurves.smoothOut,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isPrimary
@@ -352,6 +360,22 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
     );
   }
 
+  void _toggleOption(int qIndex, int optIdx, bool multiSelect) {
+    setState(() {
+      if (multiSelect) {
+        if (_selectedIndices[qIndex].contains(optIdx)) {
+          _selectedIndices[qIndex].remove(optIdx);
+        } else {
+          _selectedIndices[qIndex].add(optIdx);
+        }
+      } else {
+        _selectedIndices[qIndex] = {optIdx};
+      }
+      // 若选择了预设项，清空自定义输入
+      _customControllers[qIndex].clear();
+    });
+  }
+
   Widget _buildOptionTile(
     int qIndex,
     int optIdx,
@@ -362,23 +386,11 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
     final isSelected = _selectedIndices[qIndex].contains(optIdx);
 
     return InkWell(
-      onTap: () {
-        setState(() {
-          if (multiSelect) {
-            if (isSelected) {
-              _selectedIndices[qIndex].remove(optIdx);
-            } else {
-              _selectedIndices[qIndex].add(optIdx);
-            }
-          } else {
-            _selectedIndices[qIndex] = {optIdx};
-          }
-          // 若选择了预设项，清空自定义输入
-          _customControllers[qIndex].clear();
-        });
-      },
+      onTap: () => _toggleOption(qIndex, optIdx, multiSelect),
       borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Container(
+      child: AnimatedContainer(
+        duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+        curve: AppMotionCurves.smoothOut,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
@@ -392,17 +404,26 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
         ),
         child: Row(
           children: [
-            Icon(
-              multiSelect
-                  ? (isSelected
-                        ? Icons.check_box_rounded
-                        : Icons.check_box_outline_blank_rounded)
-                  : (isSelected
-                        ? Icons.radio_button_checked_rounded
-                        : Icons.radio_button_off_rounded),
-              size: 16,
-              color: isSelected ? colors.primary : colors.textMuted,
-            ),
+            if (multiSelect)
+              AppCheckbox(
+                value: isSelected,
+                size: 16.0,
+                onChanged: (_) => _toggleOption(qIndex, optIdx, true),
+              )
+            else
+              AppIconSwap(
+                swapKey: isSelected,
+                enableBlur: false,
+                duration: AppMotionDurations.quick,
+                child: Icon(
+                  isSelected
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_off_rounded,
+                  key: ValueKey(isSelected),
+                  size: 16,
+                  color: isSelected ? colors.primary : colors.textMuted,
+                ),
+              ),
             const SizedBox(width: 8),
             Expanded(
               child: Column(

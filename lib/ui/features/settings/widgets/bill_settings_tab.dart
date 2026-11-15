@@ -3,12 +3,14 @@ import '../../../../core/harness/types.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_control_flow.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../studio/view_models/studio_view_model.dart';
 
 /// Bill 页：按周期统计各模型的 Token 用量账单 (只读)
@@ -80,11 +82,13 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
                     onValueChanged: (period) =>
                         setState(() => _billPeriod = period),
                   ),
-                  Text(
-                    l10n.billSummaryRequestsAndTokens(
+                  AppTextSwap(
+                    text: l10n.billSummaryRequestsAndTokens(
                       summary.requests,
                       UsageLedgerService.formatTokens(summary.usage.total),
                     ),
+                    distance: AppMotionDistances.micro,
+                    enableBlur: false,
                     style: TextStyle(fontSize: 12, color: colors.textMuted),
                   ),
                 ],
@@ -93,14 +97,27 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
           ),
 
           // 账单表格
-          if (summary.models.isEmpty)
-            AppEmptyState(
-              icon: Icons.receipt_long_rounded,
-              title: l10n.billEmptyRecords,
-              isCompact: true,
-            )
-          else
-            _buildBillTable(summary),
+          AnimatedSwitcher(
+            duration: AppMotion.resolveDuration(
+              context,
+              AppMotionDurations.quick,
+            ),
+            switchInCurve: AppMotionCurves.smoothOut,
+            switchOutCurve: AppMotionCurves.smoothOut,
+            child: summary.models.isEmpty
+                ? KeyedSubtree(
+                    key: ValueKey<String>('empty_${_billPeriod.name}'),
+                    child: AppEmptyState(
+                      icon: Icons.receipt_long_rounded,
+                      title: l10n.billEmptyRecords,
+                      isCompact: true,
+                    ),
+                  )
+                : KeyedSubtree(
+                    key: ValueKey<String>('table_${_billPeriod.name}'),
+                    child: _buildBillTable(summary),
+                  ),
+          ),
         ],
       ),
     );

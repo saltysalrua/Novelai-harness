@@ -6,6 +6,7 @@ import '../../../../data/models/tag_models.dart';
 import '../../../../data/services/danbooru_search_service.dart';
 import '../../../../data/services/prompt_ast_engine.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/widgets/overlay_anchor.dart';
 import 'tag_autocomplete_card.dart';
 
@@ -349,20 +350,44 @@ class _TagAutocompleteAnchorState extends State<TagAutocompleteAnchor> {
             followerAnchor: Alignment.topLeft,
             offset: placeOnRight ? Offset(12, caretY) : Offset(0, caretY + 24),
             child: RepaintBoundary(
-              child: TagAutocompleteCard(
-                suggestions: _suggestions,
-                selectedIndex: _selectedIndex,
-                query: _activeQuery,
-                showTranslation: widget.showTranslation,
-                isKeyboardNavigated: _isKeyboardNavigating,
-                onSelect: _applySuggestion,
-                onHover: (idx) {
-                  if (_selectedIndex != idx) {
-                    _selectedIndex = idx;
-                    _isKeyboardNavigating = false;
-                    _overlayEntry?.markNeedsBuild();
-                  }
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.0, end: 1.0),
+                duration: AppMotion.resolveDuration(
+                  context,
+                  AppMotionDurations.quick,
+                ),
+                curve: AppMotionCurves.smoothOut,
+                builder: (context, t, child) {
+                  if (t >= 1.0) return child!;
+                  final scale =
+                      AppMotionScales.dropdown +
+                      (1.0 - AppMotionScales.dropdown) * t;
+                  return Opacity(
+                    opacity: t.clamp(0.0, 1.0),
+                    child: Transform.scale(
+                      scale: scale,
+                      alignment: placeOnRight
+                          ? Alignment.topLeft
+                          : Alignment.topCenter,
+                      child: child,
+                    ),
+                  );
                 },
+                child: TagAutocompleteCard(
+                  suggestions: _suggestions,
+                  selectedIndex: _selectedIndex,
+                  query: _activeQuery,
+                  showTranslation: widget.showTranslation,
+                  isKeyboardNavigated: _isKeyboardNavigating,
+                  onSelect: _applySuggestion,
+                  onHover: (idx) {
+                    if (_selectedIndex != idx) {
+                      _selectedIndex = idx;
+                      _isKeyboardNavigating = false;
+                      _overlayEntry?.markNeedsBuild();
+                    }
+                  },
+                ),
               ),
             ),
           ),

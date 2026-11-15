@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/tag_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 
@@ -49,7 +50,9 @@ class TagCategoryPill extends StatelessWidget {
               .primary // 词组合标识随主题主色
         : context.tagCategoryColor(category);
 
-    return Container(
+    return AnimatedContainer(
+      duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+      curve: AppMotionCurves.smoothOut,
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),

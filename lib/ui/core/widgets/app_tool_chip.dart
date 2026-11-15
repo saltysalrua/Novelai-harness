@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -105,7 +106,17 @@ class _AppToolChipState extends State<AppToolChip> {
             : (isEnabled ? colors.textPrimary : colors.textMuted),
     };
 
-    Widget content = Container(
+    final reduceMotion = AppMotion.shouldReduceMotion(context);
+
+    Widget content = AnimatedContainer(
+      duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+      curve: AppMotionCurves.smoothOut,
+      transform: Matrix4.translationValues(
+        0,
+        (_isHovered && isEnabled && !reduceMotion) ? -1.0 : 0.0,
+        0,
+      ),
+      transformAlignment: Alignment.center,
       padding: widget.padding,
       decoration: BoxDecoration(
         color: bgColor,
@@ -148,7 +159,7 @@ class _AppToolChipState extends State<AppToolChip> {
     if (widget.tooltip != null && widget.tooltip!.isNotEmpty) {
       content = Tooltip(
         message: widget.tooltip!,
-        waitDuration: const Duration(milliseconds: 500),
+        waitDuration: AppMotionDurations.verySlow,
         child: content,
       );
     }

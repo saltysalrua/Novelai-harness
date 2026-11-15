@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 import 'context_menu.dart';
@@ -118,6 +119,7 @@ class _AppCardState extends State<AppCard> {
       shadows = context.shadowSubtle;
     }
 
+    final reduceMotion = AppMotion.shouldReduceMotion(context);
     final borderRadius = BorderRadius.circular(widget.radius);
     Widget inner = widget.padding != null
         ? Padding(padding: widget.padding!, child: widget.child)
@@ -131,7 +133,15 @@ class _AppCardState extends State<AppCard> {
       );
     }
 
-    Widget content = DecoratedBox(
+    Widget content = AnimatedContainer(
+      duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+      curve: AppMotionCurves.smoothOut,
+      transform: Matrix4.translationValues(
+        0,
+        (_isHovered && isInteractive && !reduceMotion) ? -2.0 : 0.0,
+        0,
+      ),
+      transformAlignment: Alignment.center,
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: borderRadius,

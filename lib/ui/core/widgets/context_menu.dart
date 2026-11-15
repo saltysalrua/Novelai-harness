@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 import 'overlay_anchor.dart';
@@ -99,8 +100,18 @@ class _StudioContextMenuRoute extends PopupRoute<void> {
   @override
   bool get barrierDismissible => true;
 
+  bool get _reduceMotion {
+    final navContext = navigator?.context;
+    return navContext != null && MediaQuery.disableAnimationsOf(navContext);
+  }
+
   @override
-  Duration get transitionDuration => Duration.zero;
+  Duration get transitionDuration =>
+      _reduceMotion ? Duration.zero : AppMotionDurations.dropdownOpen;
+
+  @override
+  Duration get reverseTransitionDuration =>
+      _reduceMotion ? Duration.zero : AppMotionDurations.dropdownClose;
 
   @override
   Widget buildPage(
@@ -111,8 +122,13 @@ class _StudioContextMenuRoute extends PopupRoute<void> {
     _ContextMenuOverlay(
       position: position,
       actions: actions,
+      animation: animation,
       onDismiss: () {
-        if (isActive) navigator?.removeRoute(this);
+        if (isCurrent) {
+          navigator?.pop();
+        } else if (isActive) {
+          navigator?.removeRoute(this);
+        }
       },
     ),
   );
@@ -121,11 +137,13 @@ class _StudioContextMenuRoute extends PopupRoute<void> {
 class _ContextMenuOverlay extends StatefulWidget {
   final Offset position;
   final List<ContextMenuAction> actions;
+  final Animation<double> animation;
   final VoidCallback onDismiss;
 
   const _ContextMenuOverlay({
     required this.position,
     required this.actions,
+    required this.animation,
     required this.onDismiss,
   });
 
@@ -134,7 +152,7 @@ class _ContextMenuOverlay extends StatefulWidget {
 }
 
 class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
-  bool _visible = false;
+  bool _dismissed = false;
 
   static const double _menuWidth = 200.0;
   double get _itemHeight => switch (Theme.of(context).platform) {
@@ -144,12 +162,10 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
   static const double _dividerHeight = 9.0;
   static const double _menuPadding = 4.0;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _visible = true);
-    });
+  void _handleDismiss() {
+    if (_dismissed) return;
+    setState(() => _dismissed = true);
+    widget.onDismiss();
   }
 
   double get _menuHeight {
@@ -183,72 +199,105 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
       minTop + availableHeight - menuHeight,
     );
 
-    return Stack(
-      children: [
-        // 全屏屏障：点击、右键或滚轮任意处关闭菜单
-        Positioned.fill(
-          child: Focus(
-            autofocus: true,
-            onKeyEvent: (node, event) {
-              if (event is KeyDownEvent &&
-                  event.logicalKey == LogicalKeyboardKey.escape) {
-                widget.onDismiss();
-                return KeyEventResult.handled;
-              }
-              return KeyEventResult.ignored;
-            },
-            child: Listener(
-              onPointerSignal: (_) => widget.onDismiss(),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapDown: (_) => widget.onDismiss(),
-                onSecondaryTapDown: (_) => widget.onDismiss(),
-              ),
-            ),
+    final originX = menuWidth > 0
+        ? (((widget.position.dx - left) / menuWidth) * 2.0 - 1.0).clamp(
+            -1.0,
+            1.0,
+          )
+        : -1.0;
+    final originY = menuHeight > 0
+        ? (((widget.position.dy - top) / menuHeight) * 2.0 - 1.0).clamp(
+            -1.0,
+            1.0,
+          )
+        : -1.0;
+    final originAlignment = Alignment(originX, originY);
+    final reduceMotion = AppMotion.shouldReduceMotion(context);
+
+    final menuCard = Material(
+      color: Colors.transparent,
+      child: Container(
+        width: menuWidth,
+        constraints: BoxConstraints(maxHeight: menuHeight),
+        padding: const EdgeInsets.all(_menuPadding),
+        decoration: BoxDecoration(
+          color: context.colors.cardBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md + 2),
+          border: Border.all(color: context.colors.borderDefault),
+          boxShadow: context.shadowElevated,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < widget.actions.length; i++)
+                _buildAction(context, widget.actions[i], i),
+            ],
           ),
         ),
+      ),
+    );
 
-        // 菜单本体 (淡入 + 轻微缩放动画)
-        Positioned(
-          left: left,
-          top: top,
-          child: AnimatedOpacity(
-            opacity: _visible ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-            child: AnimatedScale(
-              scale: _visible ? 1.0 : 0.96,
-              duration: const Duration(milliseconds: 100),
-              curve: Curves.easeOut,
-              alignment: Alignment.topLeft,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  width: menuWidth,
-                  constraints: BoxConstraints(maxHeight: menuHeight),
-                  padding: const EdgeInsets.all(_menuPadding),
-                  decoration: BoxDecoration(
-                    color: context.colors.cardBackground,
-                    borderRadius: BorderRadius.circular(AppRadius.md + 2),
-                    border: Border.all(color: context.colors.borderDefault),
-                    boxShadow: context.shadowElevated,
-                  ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var i = 0; i < widget.actions.length; i++)
-                          _buildAction(context, widget.actions[i], i),
-                      ],
-                    ),
-                  ),
+    return IgnorePointer(
+      ignoring: _dismissed,
+      child: Stack(
+        children: [
+          // 全屏屏障：点击、右键或滚轮任意处关闭菜单
+          Positioned.fill(
+            child: Focus(
+              autofocus: true,
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.escape) {
+                  _handleDismiss();
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: Listener(
+                onPointerSignal: (_) => _handleDismiss(),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (_) => _handleDismiss(),
+                  onSecondaryTapDown: (_) => _handleDismiss(),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+
+          // 菜单本体 (05-menu-dropdown: 触发点自适应缩放 + 淡入淡出)
+          Positioned(
+            left: left,
+            top: top,
+            child: reduceMotion
+                ? menuCard
+                : AnimatedBuilder(
+                    animation: widget.animation,
+                    builder: (context, child) {
+                      final isClosing =
+                          widget.animation.status == AnimationStatus.reverse;
+                      final t = AppMotionCurves.smoothOut
+                          .transform(widget.animation.value)
+                          .clamp(0.0, 1.0);
+                      final startScale = isClosing
+                          ? AppMotionScales.dropdownClose
+                          : AppMotionScales.dropdown;
+                      final scale = startScale + (1.0 - startScale) * t;
+                      return Opacity(
+                        opacity: t,
+                        child: Transform.scale(
+                          scale: scale,
+                          alignment: originAlignment,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: menuCard,
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -280,7 +329,7 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
       return InkWell(
         onTap: isEnabled
             ? () {
-                widget.onDismiss();
+                _handleDismiss();
                 action.onTap!();
               }
             : null,

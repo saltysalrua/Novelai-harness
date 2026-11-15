@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_colors_extension.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_pan_gesture_region.dart';
+import '../../../core/widgets/app_transitions.dart';
 
 /// Notion 浅色风格与 2D 可视化交互手写板相结合的分辨率选择器
 class ResolutionPadPicker extends StatefulWidget {
@@ -286,7 +288,12 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
             const SizedBox(width: 6),
 
             // 比例与像素总量徽章
-            Container(
+            AnimatedContainer(
+              duration: AppMotion.resolveDuration(
+                context,
+                AppMotionDurations.quick,
+              ),
+              curve: AppMotionCurves.smoothOut,
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               alignment: Alignment.center,
@@ -295,15 +302,27 @@ class _ResolutionPadPickerState extends State<ResolutionPadPicker> {
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(color: colors.borderDefault),
               ),
-              child: Text(
-                _computeRatioAndMp(),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                  fontFamily: 'monospace',
-                ),
-              ),
+              child: _dragMode != null
+                  ? Text(
+                      _computeRatioAndMp(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                        fontFamily: 'monospace',
+                      ),
+                    )
+                  : AppTextSwap(
+                      text: _computeRatioAndMp(),
+                      enableBlur: false,
+                      alignment: Alignment.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
             ),
           ],
         ),

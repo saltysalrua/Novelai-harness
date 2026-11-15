@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../data/services/config_service.dart';
 import 'app_accent_controller.dart';
 import 'app_colors_extension.dart';
+import 'app_motion.dart';
+import 'app_tokens.dart';
 import 'md3_accent.dart';
 
 /// 应用视觉主题与调色板 (Notion 风格暖纸本极简工作台)
@@ -234,6 +236,40 @@ class AppTheme {
         radius: const Radius.circular(radiusSmall),
         thickness: WidgetStateProperty.all(6),
       ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: AppMotionDurations.tooltipDelay,
+        exitDuration: AppMotionDurations.tooltipOut,
+        showDuration: const Duration(milliseconds: 1600),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        textStyle: TextStyle(
+          fontFamily: fontFamily,
+          fontSize: 12,
+          color: isDark ? colors.textPrimary : colors.cardBackground,
+        ),
+        decoration: BoxDecoration(
+          color: isDark ? colors.elevatedBackground : colors.textPrimary,
+          borderRadius: BorderRadius.circular(radiusButton),
+          border: isDark ? Border.all(color: colors.borderDefault) : null,
+          boxShadow: AppShadows.elevated(Colors.black, brightness: brightness),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colors.cardBackground,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusCard),
+          side: BorderSide(color: colors.borderDefault),
+        ),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.windows: _AppPageTransitionsBuilder(),
+          TargetPlatform.macOS: _AppPageTransitionsBuilder(),
+          TargetPlatform.linux: _AppPageTransitionsBuilder(),
+          TargetPlatform.android: _AppPageTransitionsBuilder(),
+          TargetPlatform.iOS: _AppPageTransitionsBuilder(),
+        },
+      ),
     );
   }
 
@@ -252,5 +288,39 @@ class AppTheme {
           borderFocus: tokens.primary,
         )
         as AppColorsExtension;
+  }
+}
+
+/// 统一平滑页面过渡构建器 (`08-page-side-by-side` 轻量位移 + 淡入)
+class _AppPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _AppPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (AppMotion.shouldReduceMotion(context)) {
+      return child;
+    }
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, innerChild) {
+        final t = AppMotionCurves.smoothOut
+            .transform(animation.value)
+            .clamp(0.0, 1.0);
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(AppMotionDistances.base * (1.0 - t), 0),
+            child: innerChild,
+          ),
+        );
+      },
+      child: child,
+    );
   }
 }

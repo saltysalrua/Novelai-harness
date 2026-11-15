@@ -22,6 +22,7 @@ import 'package:novelai_harness/ui/features/studio/widgets/inpaint_page.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/parameters_page.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_library_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompts_page.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/studio_sidebar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -534,6 +535,162 @@ void main() {
     expect(vm.inpaintSourceImage?.id, equals(testImage.id));
     expect(vm.activeSidebarTab, equals(StudioSidebarTab.inpaint));
     expect(sentToInpaintCount, equals(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('侧边栏导航项等宽对齐且空闲持有参考图时不常驻修复红蓝点', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+
+    final vm = StudioView.testViewModelHook!;
+    final tiles = tester
+        .widgetList<AppNavTile>(
+          find.descendant(
+            of: find.byType(StudioSidebar),
+            matching: find.byType(AppNavTile),
+          ),
+        )
+        .toList();
+    expect(tiles.length, greaterThanOrEqualTo(5));
+    final firstRect = tester.getRect(find.byWidget(tiles.first));
+    for (final tile in tiles) {
+      final rect = tester.getRect(find.byWidget(tile));
+      expect(rect.left, closeTo(firstRect.left, 0.1));
+      expect(rect.width, closeTo(firstRect.width, 0.1));
+    }
+
+    vm.setInpaintSourceImage(
+      NaiGeneratedImage(
+        id: 'img_sidebar_idle',
+        bytes: _kTestPngBytes,
+        params: const NaiGenerationParams(prompt: 'test'),
+        seed: 1,
+        isOpusFree: true,
+        createdAt: DateTime(2026),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final badgeDotFinder = find.descendant(
+      of: find.byType(StudioSidebar),
+      matching: find.byWidgetPredicate(
+        (w) => w.runtimeType.toString() == '_SidebarBadgeDot',
+      ),
+    );
+    expect(badgeDotFinder, findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SelectionArea 搭配保活消息、流式思考与回溯视图切换不触发未布局或溢出异常', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+
+    final vm = StudioView.testViewModelHook!;
+    final msgs = <AgentMessage>[
+      for (var i = 0; i < 30; i++)
+        AgentMessage(
+          id: 'sel_msg_$i',
+          role: AgentRole.assistant,
+          content: 'Paragraph 1 of $i\n\nParagraph 2 of $i',
+          thoughts: 'Thought line 1\nThought line 2',
+          toolCalls: i == 0 || i == 29
+              ? const [
+                  ToolCall(id: 'tc1', name: 'tool_a', arguments: {'k': 'v'}),
+                  ToolCall(id: 'tc2', name: 'tool_b', arguments: {'k': 'v'}),
+                  ToolCall(id: 'tc3', name: 'tool_c', arguments: {'k': 'v'}),
+                ]
+              : null,
+        ),
+    ];
+
+    vm.setChatStreamingForTesting(true);
+    vm.setMessagesForTesting(msgs);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final list = tester.widget<ListView>(
+      find.descendant(
+        of: find.byType(AgentChatCard),
+        matching: find.byType(ListView),
+      ),
+    );
+    list.controller!.jumpTo(0);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // 活跃工具调用在离屏保活状态期间完成（配对结果到达，触发 AppShimmerText -> Text 切换）
+    vm.setMessagesForTesting([
+      ...msgs,
+      AgentMessage(
+        id: 'sel_tool_res_1',
+        role: AgentRole.tool,
+        toolCallId: 'tc1',
+        toolName: 'tool_a',
+        content: 'ok1',
+      ),
+      AgentMessage(
+        id: 'sel_tool_res_2',
+        role: AgentRole.tool,
+        toolCallId: 'tc2',
+        toolName: 'tool_b',
+        content: 'ok2',
+      ),
+      AgentMessage(
+        id: 'sel_tool_res_3',
+        role: AgentRole.tool,
+        toolCallId: 'tc3',
+        toolName: 'tool_c',
+        content: 'ok3',
+      ),
+    ]);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(tester.takeException(), isNull);
+
+    list.controller!.jumpTo(list.controller!.position.maxScrollExtent);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    vm.streamingText.appendThoughts('Thinking 1\nThinking 2\nThinking 3');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    vm.streamingText.setNotice('Retrying...');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    vm.streamingText.setNotice(null);
+    vm.streamingText.appendContent('Hello\n\nWorld\n\nTest');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    vm.setActiveSidebarTab(StudioSidebarTab.library);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    vm.setActiveSidebarTab(StudioSidebarTab.parameters);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final chatState = tester.state<AgentChatCardState>(find.byType(AgentChatCard));
+    chatState.openRewindView();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    chatState.dismissOverlayView();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    vm.setChatStreamingForTesting(false);
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 }

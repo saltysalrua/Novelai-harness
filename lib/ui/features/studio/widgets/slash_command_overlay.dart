@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_autocomplete_panel.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
@@ -100,6 +101,124 @@ List<SlashSuggestion> buildSlashSuggestions({
   return const [];
 }
 
+/// 斜杠指令 OverlayPortal 菜单弹出容器 (Recipe 05: 0.97->1.0 开场，1.0->0.99 轻快退场；
+/// 仅用 Transform.scale，首帧即保留面板完整布局尺寸)。
+class SlashCommandOverlayShell extends StatefulWidget {
+  final bool visible;
+  final VoidCallback? onDismissComplete;
+  final Alignment alignment;
+  final Widget child;
+
+  const SlashCommandOverlayShell({
+    super.key,
+    required this.visible,
+    required this.child,
+    this.onDismissComplete,
+    this.alignment = Alignment.bottomLeft,
+  });
+
+  @override
+  State<SlashCommandOverlayShell> createState() =>
+      _SlashCommandOverlayShellState();
+}
+
+class _SlashCommandOverlayShellState extends State<SlashCommandOverlayShell>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.dropdownOpen,
+      reverseDuration: AppMotionDurations.dropdownClose,
+    );
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed &&
+          !widget.visible &&
+          mounted) {
+        widget.onDismissComplete?.call();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncAnimation(initial: _controller.value == 0.0 && widget.visible);
+  }
+
+  @override
+  void didUpdateWidget(SlashCommandOverlayShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visible != widget.visible) {
+      _syncAnimation();
+    }
+  }
+
+  void _syncAnimation({bool initial = false}) {
+    final reduce = AppMotion.shouldReduceMotion(context);
+    if (reduce) {
+      _controller.value = widget.visible ? 1.0 : 0.0;
+      if (!widget.visible) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !widget.visible) {
+            widget.onDismissComplete?.call();
+          }
+        });
+      }
+      return;
+    }
+    if (widget.visible) {
+      if (initial || _controller.status == AnimationStatus.dismissed) {
+        _controller.forward(from: 0.0);
+      } else {
+        _controller.forward();
+      }
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final closing =
+        !widget.visible || _controller.status == AnimationStatus.reverse;
+    return IgnorePointer(
+      ignoring: !widget.visible,
+      child: AnimatedBuilder(
+        animation: _controller,
+        child: widget.child,
+        builder: (context, child) {
+          final curve = closing
+              ? AppMotionCurves.closeEase
+              : AppMotionCurves.smoothOut;
+          final t = curve.transform(_controller.value).clamp(0.0, 1.0);
+          final startScale = closing
+              ? AppMotionScales.dropdownClose
+              : AppMotionScales.dropdown;
+          final scale = startScale + (1.0 - startScale) * t;
+          return Opacity(
+            opacity: t,
+            child: Transform.scale(
+              alignment: widget.alignment,
+              scale: scale,
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// 悬浮在输入框上方的补全列表面板
 class SlashSuggestionPanel extends StatelessWidget {
   final List<SlashSuggestion> suggestions;
@@ -125,6 +244,10 @@ class SlashSuggestionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final rowDuration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.micro,
+    );
 
     return AppAutocompletePanel<SlashSuggestion>(
       items: suggestions,
@@ -134,7 +257,9 @@ class SlashSuggestionPanel extends StatelessWidget {
       onSelect: (item) => onSelected(suggestions.indexOf(item)),
       onHover: onHovered,
       itemBuilder: (context, suggestion, index, isSelected) {
-        return Container(
+        return AnimatedContainer(
+          duration: rowDuration,
+          curve: AppMotionCurves.smoothOut,
           height: rowHeight,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           color: isSelected
@@ -142,7 +267,9 @@ class SlashSuggestionPanel extends StatelessWidget {
               : Colors.transparent,
           child: Row(
             children: [
-              Container(
+              AnimatedContainer(
+                duration: rowDuration,
+                curve: AppMotionCurves.smoothOut,
                 width: 3,
                 height: 18,
                 margin: const EdgeInsets.only(right: 8),

@@ -6,7 +6,9 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_number_slider.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
 import '../../../core/widgets/app_tool_chip.dart';
+import '../../../core/widgets/app_transitions.dart';
 import 'model_cache_settings.dart';
 
 /// 模型设置弹窗的返回结果
@@ -70,6 +72,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
   late Set<ThinkingEffort> _levels;
   late LlmCacheConfig _cacheConfig;
   String? _idError;
+  int _idShakeTrigger = 0;
 
   @override
   void initState() {
@@ -124,7 +127,10 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
   void _save() {
     final id = _idController.text.trim();
     if (id.isEmpty) {
-      setState(() => _idError = context.l10n.settingsModelIdEmptyError);
+      setState(() {
+        _idError = context.l10n.settingsModelIdEmptyError;
+        _idShakeTrigger++;
+      });
       return;
     }
 
@@ -187,13 +193,16 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
                 hint: l10n.settingsModelDisplayNameHint,
               ),
             ),
-            _buildFieldRow(
-              label: l10n.settingsModelId,
-              child: _buildTextField(
-                controller: _idController,
-                hint: l10n.settingsModelIdHint,
-                errorText: _idError,
-                mono: true,
+            AppErrorShake(
+              trigger: _idShakeTrigger,
+              child: _buildFieldRow(
+                label: l10n.settingsModelId,
+                child: _buildTextField(
+                  controller: _idController,
+                  hint: l10n.settingsModelIdHint,
+                  errorText: _idError,
+                  mono: true,
+                ),
               ),
             ),
             _buildFieldRow(
@@ -209,14 +218,18 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
             ),
             _buildFieldRow(
               label: l10n.settingsModelReasoning,
-              child: Switch(
-                value: _reasoning,
-                activeThumbColor: colors.primary,
-                onChanged: (v) => setState(() => _reasoning = v),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: AppSwitch(
+                  value: _reasoning,
+                  onChanged: (v) => setState(() => _reasoning = v),
+                ),
               ),
             ),
-            if (_reasoning)
-              Padding(
+            AppPanelReveal(
+              visible: _reasoning,
+              enableBlur: false,
+              child: Padding(
                 padding: const EdgeInsets.only(left: 0, bottom: 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,20 +266,25 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
                   ],
                 ),
               ),
+            ),
             _buildFieldRow(
               label: l10n.settingsModelMultimodal,
-              child: Switch(
-                value: _multimodal,
-                activeThumbColor: colors.primary,
-                onChanged: (v) => setState(() => _multimodal = v),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: AppSwitch(
+                  value: _multimodal,
+                  onChanged: (v) => setState(() => _multimodal = v),
+                ),
               ),
             ),
             _buildFieldRow(
               label: l10n.settingsModelImageOutput,
-              child: Switch(
-                value: _imageOutput,
-                activeThumbColor: colors.primary,
-                onChanged: (v) => setState(() => _imageOutput = v),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: AppSwitch(
+                  value: _imageOutput,
+                  onChanged: (v) => setState(() => _imageOutput = v),
+                ),
               ),
             ),
             _buildFieldRow(

@@ -7,12 +7,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/theme/ui_zoom_controller.dart';
+import 'package:novelai_harness/ui/core/widgets/app_scale_gesture_region.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/image_lightbox.dart';
 
 Matrix4 _lightboxTransform(WidgetTester tester) => tester
     .widget<Transform>(
       find.descendant(
-        of: find.byType(ImageLightboxDialog),
+        of: find.byType(AppScaleGestureRegion),
         matching: find.byType(Transform),
       ),
     )

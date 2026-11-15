@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_progress_bar.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import 'prompt_edit_actions.dart';
 import 'prompt_resize_handle.dart';
@@ -235,15 +237,24 @@ class _TokenFooter extends StatelessWidget {
     };
 
     final prefix = usage.estimated ? l10n.promptTokenEstimated : '';
-    final label = Text(
-      '$prefix${usage.used} / ${usage.hardLimit}',
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: level == PromptTokenBudgetLevel.normal
-            ? FontWeight.w500
-            : FontWeight.w600,
-        color: color,
-      ),
+    final labelStyle = TextStyle(
+      fontSize: 11,
+      fontWeight: level == PromptTokenBudgetLevel.normal
+          ? FontWeight.w500
+          : FontWeight.w600,
+      color: color,
+    );
+    final label = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (prefix.isNotEmpty) Text(prefix, style: labelStyle),
+        AppNumberPopIn(
+          value: '${usage.used}',
+          enableBlur: false,
+          style: labelStyle,
+        ),
+        Text(' / ${usage.hardLimit}', style: labelStyle),
+      ],
     );
 
     return Column(
@@ -255,7 +266,7 @@ class _TokenFooter extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: Tooltip(
               message: _tooltipMessage(l10n),
-              waitDuration: const Duration(milliseconds: 300),
+              waitDuration: AppMotionDurations.verySlow,
               child: label,
             ),
           ),
@@ -319,7 +330,7 @@ class _QuickActionButton extends StatelessWidget {
     final colors = context.colors;
     return Tooltip(
       message: tooltip,
-      waitDuration: const Duration(milliseconds: 400),
+      waitDuration: AppMotionDurations.verySlow,
       child: Material(
         color: colors.canvasBackground,
         borderRadius: BorderRadius.circular(AppRadius.sm),

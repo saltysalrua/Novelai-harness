@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_transitions.dart';
 
 /// 统一单行输入模态对话框 (AppPromptDialog)
 ///
@@ -62,6 +63,7 @@ class AppPromptDialog extends StatefulWidget {
 
 class _AppPromptDialogState extends State<AppPromptDialog> {
   late final TextEditingController _controller;
+  final AppErrorShakeController _shakeController = AppErrorShakeController();
   String? _errorText;
 
   @override
@@ -72,6 +74,7 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
 
   @override
   void dispose() {
+    _shakeController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -83,6 +86,7 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
       setState(() {
         _errorText = context.maybeL10n?.commonRequiredInput ?? '内容不能为空';
       });
+      _shakeController.shake();
       return;
     }
 
@@ -92,6 +96,7 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
         setState(() {
           _errorText = customError;
         });
+        _shakeController.shake();
         return;
       }
     }
@@ -142,43 +147,46 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              style: TextStyle(fontSize: 13, color: colors.textPrimary),
-              decoration: InputDecoration(
-                hintText:
-                    widget.hintText ??
-                    context.maybeL10n?.commonInputHint ??
-                    '请输入内容…',
-                hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+            AppErrorShake(
+              controller: _shakeController,
+              child: TextField(
+                controller: _controller,
+                autofocus: true,
+                style: TextStyle(fontSize: 13, color: colors.textPrimary),
+                decoration: InputDecoration(
+                  hintText:
+                      widget.hintText ??
+                      context.maybeL10n?.commonInputHint ??
+                      '请输入内容…',
+                  hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  filled: true,
+                  fillColor: colors.mutedBackground.withValues(alpha: 0.5),
+                  errorText: _errorText,
+                  errorStyle: TextStyle(fontSize: 11, color: colors.error),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: colors.borderDefault),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: colors.borderDefault),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: colors.primary, width: 1.5),
+                  ),
                 ),
-                filled: true,
-                fillColor: colors.mutedBackground.withValues(alpha: 0.5),
-                errorText: _errorText,
-                errorStyle: TextStyle(fontSize: 11, color: colors.error),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: BorderSide(color: colors.borderDefault),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: BorderSide(color: colors.borderDefault),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: BorderSide(color: colors.primary, width: 1.5),
-                ),
+                onChanged: (_) {
+                  if (_errorText != null) {
+                    setState(() => _errorText = null);
+                  }
+                },
+                onSubmitted: (_) => _handleSubmit(),
               ),
-              onChanged: (_) {
-                if (_errorText != null) {
-                  setState(() => _errorText = null);
-                }
-              },
-              onSubmitted: (_) => _handleSubmit(),
             ),
           ],
         ),
@@ -229,7 +237,7 @@ Future<String?> showAppPromptDialog(
   String? Function(String?)? validator,
   bool barrierDismissible = true,
 }) {
-  return showDialog<String>(
+  return showAppModalDialog<String>(
     context: context,
     barrierDismissible: barrierDismissible,
     builder: (ctx) => AppPromptDialog(

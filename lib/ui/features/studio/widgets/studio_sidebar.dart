@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_nav_tile.dart';
@@ -78,6 +79,8 @@ class StudioSidebar extends StatelessWidget {
               tooltip: l10n.sidebarTabInpaint,
               isSelected: activeTab == StudioSidebarTab.inpaint,
               isTab: true,
+              showBadgeDot:
+                  viewModel.isExecutingInpaint || viewModel.isExecutingAiEdit,
               onTap: () => onTabChanged(StudioSidebarTab.inpaint),
             ),
             const SizedBox(height: 4),
@@ -130,8 +133,19 @@ class StudioSidebar extends StatelessWidget {
     required String tooltip,
     required bool isSelected,
     bool isTab = false,
+    bool showBadgeDot = false,
     required VoidCallback onTap,
   }) {
+    final navTile = AppNavTile(
+      key: key,
+      axis: Axis.vertical,
+      icon: icon,
+      title: label,
+      isSelected: isSelected,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      onTap: onTap,
+    );
+
     return Semantics(
       container: true,
       button: true,
@@ -139,16 +153,104 @@ class StudioSidebar extends StatelessWidget {
       child: Tooltip(
         message: tooltip,
         excludeFromSemantics: true,
-        child: AppNavTile(
-          key: key,
-          axis: Axis.vertical,
-          icon: icon,
-          title: label,
-          isSelected: isSelected,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-          onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          fit: StackFit.passthrough,
+          children: [
+            navTile,
+            if (showBadgeDot)
+              Positioned(
+                top: 6,
+                right: 8,
+                child: IgnorePointer(
+                  child: ExcludeSemantics(
+                    child: const _SidebarBadgeDot(),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+/// 侧栏导航状态点 (`03-notification-badge`)
+class _SidebarBadgeDot extends StatefulWidget {
+  const _SidebarBadgeDot();
+
+  @override
+  State<_SidebarBadgeDot> createState() => _SidebarBadgeDotState();
+}
+
+class _SidebarBadgeDotState extends State<_SidebarBadgeDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _reduceMotion = false;
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotionDurations.verySlow,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = AppMotion.shouldReduceMotion(context);
+    if (_reduceMotion) {
+      _controller.value = 1.0;
+      _initialized = true;
+    } else if (!_initialized) {
+      _initialized = true;
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final dot = Container(
+      width: 7,
+      height: 7,
+      decoration: BoxDecoration(
+        color: colors.primary,
+        shape: BoxShape.circle,
+        border: Border.all(color: colors.cardBackground, width: 1),
+      ),
+    );
+    if (_reduceMotion) return dot;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final v = _controller.value;
+        if (v >= 1.0) return child!;
+        final slideT = AppMotionCurves.smoothOut
+            .transform((v / 0.52).clamp(0.0, 1.0))
+            .clamp(0.0, 1.0);
+        final popT = AppMotionCurves.bounce.transform(v);
+        final fadeT = AppMotionCurves.smoothOut
+            .transform((v / 0.80).clamp(0.0, 1.0))
+            .clamp(0.0, 1.0);
+        return Opacity(
+          opacity: fadeT,
+          child: Transform.translate(
+            offset: Offset(-4.0 * (1.0 - slideT), 6.0 * (1.0 - slideT)),
+            child: Transform.scale(scale: popT, child: child),
+          ),
+        );
+      },
+      child: dot,
     );
   }
 }

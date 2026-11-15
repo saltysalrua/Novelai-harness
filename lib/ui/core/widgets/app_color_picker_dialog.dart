@@ -7,6 +7,7 @@ import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 import 'app_dialog_scaffold.dart';
+import 'app_transitions.dart';
 
 /// 通用 HSV 取色器弹窗 (原子组件，无业务状态)
 ///
@@ -39,6 +40,7 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
   late HSVColor _hsv;
   late final TextEditingController _hexController;
   late final FocusNode _hexFocus;
+  final AppErrorShakeController _hexShakeController = AppErrorShakeController();
   String? _hexError;
 
   /// 预设种子色板 (Notion 语义色系 + 常用 MD3 种子色)
@@ -75,6 +77,7 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
 
   @override
   void dispose() {
+    _hexShakeController.dispose();
     _hexFocus.removeListener(_handleHexFocusChange);
     _hexFocus.dispose();
     _hexController.dispose();
@@ -103,6 +106,7 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
       setState(() {
         _hexError = context.l10n.colorPickerHexInvalid;
       });
+      _hexShakeController.shake();
       return;
     }
     _update(HSVColor.fromColor(parsed));
@@ -166,11 +170,14 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _HexField(
-                          controller: _hexController,
-                          focusNode: _hexFocus,
-                          errorText: _hexError,
-                          onSubmitted: (_) => _submitHex(),
+                        AppErrorShake(
+                          controller: _hexShakeController,
+                          child: _HexField(
+                            controller: _hexController,
+                            focusNode: _hexFocus,
+                            errorText: _hexError,
+                            onSubmitted: (_) => _submitHex(),
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.xs),
                         Text(

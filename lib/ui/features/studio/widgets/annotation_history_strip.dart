@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_skeleton.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 
@@ -101,7 +103,11 @@ class AnnotationHistoryStrip extends StatelessWidget {
                         final isSelected = item.id == selectedId;
                         final annCount = item.annotations.length;
 
-                        final thumbnailWidget = Container(
+                        final thumbnailWidget = AnimatedContainer(
+                          duration: AppMotion.shouldReduceMotion(context)
+                              ? Duration.zero
+                              : AppMotionDurations.quick,
+                          curve: AppMotionCurves.smoothOut,
                           width: double.infinity,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -147,8 +153,10 @@ class AnnotationHistoryStrip extends StatelessWidget {
                                         gaplessPlayback: true,
                                       );
                                     }
-                                    return Container(
-                                      color: colors.mutedBackground,
+                                    return const AppSkeletonBox(
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      radius: 0,
                                     );
                                   },
                                 ),
@@ -202,8 +210,10 @@ class AnnotationHistoryStrip extends StatelessWidget {
                                       fit: BoxFit.cover,
                                     );
                                   }
-                                  return Container(
-                                    color: colors.mutedBackground,
+                                  return const AppSkeletonBox(
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    radius: 0,
                                   );
                                 },
                               ),

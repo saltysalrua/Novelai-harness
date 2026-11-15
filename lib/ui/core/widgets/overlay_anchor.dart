@@ -15,6 +15,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
@@ -136,8 +137,51 @@ class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
   @override
   bool get barrierDismissible => true;
 
+  bool get _reduceMotion {
+    final navContext = navigator?.context;
+    return navContext != null && MediaQuery.disableAnimationsOf(navContext);
+  }
+
   @override
-  Duration get transitionDuration => Duration.zero;
+  Duration get transitionDuration =>
+      _reduceMotion ? Duration.zero : AppMotionDurations.dropdownOpen;
+
+  @override
+  Duration get reverseTransitionDuration =>
+      _reduceMotion ? Duration.zero : AppMotionDurations.dropdownClose;
+
+  Widget _buildAnimatedPopover(
+    BuildContext context,
+    Animation<double> animation,
+    Alignment originAlignment,
+    Widget child,
+  ) {
+    if (_reduceMotion || AppMotion.shouldReduceMotion(context)) {
+      return child;
+    }
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, innerChild) {
+        final isClosing = animation.status == AnimationStatus.reverse;
+        final t = AppMotionCurves.smoothOut
+            .transform(animation.value)
+            .clamp(0.0, 1.0);
+        final startScale = isClosing
+            ? AppMotionScales.dropdownClose
+            : AppMotionScales.dropdown;
+        final scale = startScale + (1.0 - startScale) * t;
+        return Opacity(
+          opacity: t,
+          child: Transform.scale(
+            scale: scale,
+            alignment: originAlignment,
+            child: innerChild,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
 
   @override
   Widget buildPage(
@@ -198,7 +242,12 @@ class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
                 maxWidth: popoverWidth,
                 maxHeight: fallbackHeight,
               ),
-              child: panelChild,
+              child: _buildAnimatedPopover(
+                layoutContext,
+                animation,
+                Alignment.center,
+                panelChild,
+              ),
             ),
           );
         }
@@ -239,6 +288,14 @@ class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
           );
         }
 
+        final originX = popoverWidth > 0
+            ? (((anchor.center.dx - left) / popoverWidth) * 2.0 - 1.0).clamp(
+                -1.0,
+                1.0,
+              )
+            : -1.0;
+        final originAlignment = Alignment(originX, openAbove ? 1.0 : -1.0);
+
         return Stack(
           children: [
             Positioned(
@@ -248,7 +305,12 @@ class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
               width: popoverWidth,
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: effectiveMaxHeight),
-                child: panelChild,
+                child: _buildAnimatedPopover(
+                  layoutContext,
+                  animation,
+                  originAlignment,
+                  panelChild,
+                ),
               ),
             ),
           ],

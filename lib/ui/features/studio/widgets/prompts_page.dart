@@ -7,6 +7,7 @@ import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_tool_chip.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_editor_card.dart';
 import 'prompt_extension_deck.dart';
@@ -495,44 +496,51 @@ class _PromptsPageState extends State<PromptsPage> {
         ),
         const SizedBox(height: 10),
 
-        if (isPromptTab)
-          PromptEditorCard(
-            controller: _promptController,
-            onChanged: _updatePrompt,
-            hintText: l10n.promptsTabbedPromptHint,
-            minLines: 8,
-            maxLines: 16,
-            initialHeight: viewModel.promptHeightTabbed,
-            onHeightChanged: viewModel.updatePromptHeightTabbed,
-            headerTags: _promptHeaderTags(params),
-            footerTags: _promptFooterTags(params),
-            toolbar: _promptToolbar(params),
-            enableAutocomplete: viewModel.config.enableTagAutocomplete,
-            showTranslation: viewModel.config.showTagTranslations,
-            tokenUsage: viewModelIsComfyUi
-                ? null
-                : PromptTokenCounterService.instance.countPositive(params),
-          )
-        else
-          PromptEditorCard(
-            controller: _negativeController,
-            onChanged: _updateNegative,
-            readOnly: params.isMediumEffort,
-            hintText: params.isMediumEffort
-                ? l10n.promptsMediumUcLocked
-                : l10n.promptsTabbedUndesiredHint,
-            minLines: 8,
-            maxLines: 16,
-            initialHeight: viewModel.negativePromptHeightTabbed,
-            onHeightChanged: viewModel.updateNegativePromptHeightTabbed,
-            footerTags: _negativeFooterTags(params),
-            toolbar: _negativeToolbar(params),
-            enableAutocomplete: viewModel.config.enableTagAutocomplete,
-            showTranslation: viewModel.config.showTagTranslations,
-            tokenUsage: viewModelIsComfyUi
-                ? null
-                : PromptTokenCounterService.instance.countNegative(params),
-          ),
+        AppPageSideBySide(
+          index: activeTab,
+          enableBlur: false,
+          child: isPromptTab
+              ? PromptEditorCard(
+                  controller: _promptController,
+                  onChanged: _updatePrompt,
+                  hintText: l10n.promptsTabbedPromptHint,
+                  minLines: 8,
+                  maxLines: 16,
+                  initialHeight: viewModel.promptHeightTabbed,
+                  onHeightChanged: viewModel.updatePromptHeightTabbed,
+                  headerTags: _promptHeaderTags(params),
+                  footerTags: _promptFooterTags(params),
+                  toolbar: _promptToolbar(params),
+                  enableAutocomplete: viewModel.config.enableTagAutocomplete,
+                  showTranslation: viewModel.config.showTagTranslations,
+                  tokenUsage: viewModelIsComfyUi
+                      ? null
+                      : PromptTokenCounterService.instance.countPositive(
+                          params,
+                        ),
+                )
+              : PromptEditorCard(
+                  controller: _negativeController,
+                  onChanged: _updateNegative,
+                  readOnly: params.isMediumEffort,
+                  hintText: params.isMediumEffort
+                      ? l10n.promptsMediumUcLocked
+                      : l10n.promptsTabbedUndesiredHint,
+                  minLines: 8,
+                  maxLines: 16,
+                  initialHeight: viewModel.negativePromptHeightTabbed,
+                  onHeightChanged: viewModel.updateNegativePromptHeightTabbed,
+                  footerTags: _negativeFooterTags(params),
+                  toolbar: _negativeToolbar(params),
+                  enableAutocomplete: viewModel.config.enableTagAutocomplete,
+                  showTranslation: viewModel.config.showTagTranslations,
+                  tokenUsage: viewModelIsComfyUi
+                      ? null
+                      : PromptTokenCounterService.instance.countNegative(
+                          params,
+                        ),
+                ),
+        ),
       ],
     );
   }

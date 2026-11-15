@@ -23,7 +23,9 @@ import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_tool_chip.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import 'skill_card.dart';
 import 'skill_editor_dialog.dart';
@@ -298,16 +300,20 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
 
   void _showSkillError(Object error) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(skillErrorText(context.l10n, error))),
+    showAppToast(
+      context,
+      message: skillErrorText(context.l10n, error),
+      tone: AppToastTone.error,
     );
   }
 
   void _enableImportedSkill(String id) {
     if (_draft.currentPreset.isBuiltin) {
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.l10n.skillImportedEnableHint)),
+      showAppToast(
+        context,
+        message: context.l10n.skillImportedEnableHint,
+        tone: AppToastTone.info,
       );
     } else {
       setState(() => _draft.toggleSkill(id, true));
@@ -337,9 +343,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
         l10n.presetImportUnknownParameter(detail),
       _ => l10n.presetTransferFailed(error.toString()),
     };
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showAppToast(context, message: message, tone: AppToastTone.error);
   }
 
   Future<void> _importPresets() async {
@@ -371,10 +375,10 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           context.l10n.presetDefaultCustomName,
         ),
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.presetImportedDraft(imported.length)),
-        ),
+      showAppToast(
+        context,
+        message: context.l10n.presetImportedDraft(imported.length),
+        tone: AppToastTone.success,
       );
     } catch (error) {
       _showPresetError(error);
@@ -525,10 +529,10 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
       if (path == null) return;
       if (!_isMobile) await widget.viewModel.writeSkillExportFile(path, bytes);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.presetExportSkillSuccess(skill.name)),
-        ),
+      showAppToast(
+        context,
+        message: context.l10n.presetExportSkillSuccess(skill.name),
+        tone: AppToastTone.success,
       );
     } catch (error) {
       _showSkillError(error);
@@ -699,8 +703,10 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
 
           // 2. 预设基础信息与系统提示词
           AppSectionHeader(title: l10n.settingsSectionPresetProfile),
-          if (currentPreset.isBuiltin) ...[
-            Container(
+          AppPanelReveal(
+            visible: currentPreset.isBuiltin,
+            enableBlur: false,
+            child: Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -714,7 +720,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                 style: TextStyle(fontSize: 11, color: colors.textSecondary),
               ),
             ),
-          ],
+          ),
           AppCard(
             padding: const EdgeInsets.all(14),
             radius: AppRadius.md,

@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Uint8List;
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_scale_gesture_region.dart';
+import '../../../core/widgets/app_transitions.dart';
 
 /// 全屏大图查看器：自由平移缩放画板 (滚轮纯缩放、不随鼠标偏移) + 顶部关闭按钮
 void showImageLightbox(
@@ -16,7 +18,7 @@ void showImageLightbox(
   if (image.bytes.isNotEmpty) {
     showImageLightboxBytes(context, image.bytes);
   } else {
-    showDialog(
+    showAppModalDialog<void>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.9),
       barrierDismissible: true,
@@ -31,7 +33,7 @@ void showImageLightbox(
 
 /// 裸字节版全屏大图查看器 (对话卡图片附件/工具结果图等无参数模型场景共用)
 void showImageLightboxBytes(BuildContext context, Uint8List bytes) {
-  showDialog(
+  showAppModalDialog<void>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.9),
     barrierDismissible: true,
@@ -77,7 +79,7 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog>
     _transformationController = TransformationController();
     _zoomController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 120),
+      duration: AppMotionDurations.quick,
     )..addListener(_handleZoomFrame);
     _activeBytes = widget.bytes;
     if ((_activeBytes == null || _activeBytes!.isEmpty) &&
@@ -266,17 +268,15 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog>
                                 else
                                   const SizedBox(width: 100, height: 100),
                                 if (_isLoading)
-                                  const Center(
-                                    child: SizedBox(
-                                      width: 32,
-                                      height: 32,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.white70,
-                                            ),
+                                  Center(
+                                    child: AppMatrixDotLoader(
+                                      dotSize: 4.5,
+                                      gap: 3.5,
+                                      variant: AppMatrixDotVariant.orbit,
+                                      baseColor: Colors.white.withValues(
+                                        alpha: 0.25,
                                       ),
+                                      activeColor: Colors.white70,
                                     ),
                                   ),
                               ],

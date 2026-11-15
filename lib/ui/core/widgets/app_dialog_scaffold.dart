@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_transitions.dart';
 
 /// 统一模态对话框外壳 (Dialog Scaffold)
 ///
@@ -44,13 +45,13 @@ class AppDialogScaffold extends StatelessWidget {
     this.sidebarWidth = 200.0,
   });
 
-  /// 唤起居中弹窗便捷静态方法
+  /// 唤起居中弹窗便捷静态方法 (`06-modal` 动效)
   static Future<T?> show<T>({
     required BuildContext context,
     required WidgetBuilder builder,
     bool barrierDismissible = true,
   }) {
-    return showDialog<T>(
+    return showAppModalDialog<T>(
       context: context,
       barrierDismissible: barrierDismissible,
       barrierColor: Colors.black.withValues(alpha: 0.5),

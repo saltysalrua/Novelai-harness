@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import '../widgets/bill_settings_tab.dart';
@@ -29,12 +32,20 @@ class SettingsDialog extends StatefulWidget {
     StudioViewModel viewModel,
   ) async {
     final navigator = Navigator.of(context, rootNavigator: true);
-    final route = DialogRoute<AppConfig>(
-      context: context,
+    final capturedThemes = InheritedTheme.capture(
+      from: context,
+      to: navigator.context,
+    );
+    final barrierLabel = MaterialLocalizations.of(
+      context,
+    ).modalBarrierDismissLabel;
+    final route = AppModalPageRoute<AppConfig>(
+      opaque: false,
+      barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.5),
-      themes: InheritedTheme.capture(from: context, to: navigator.context),
-      traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
-      builder: (ctx) => SettingsDialog(viewModel: viewModel),
+      barrierLabel: barrierLabel,
+      builder: (ctx) =>
+          capturedThemes.wrap(SettingsDialog(viewModel: viewModel)),
     );
     final config = await navigator.push<AppConfig>(route);
     // pop completes before the outgoing dialog is removed. Applying locale or
@@ -117,9 +128,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
     );
     if (templateError != null) {
       setState(() => _activeTabIndex = 0);
-      ScaffoldMessenger.of(
+      showAppToast(
         context,
-      ).showSnackBar(SnackBar(content: Text(templateError)));
+        message: templateError,
+        tone: AppToastTone.error,
+      );
       return;
     }
     _modelsDraft.syncFromForm();
@@ -369,8 +382,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Text(
-              title,
+            child: AppTextSwap(
+              text: title,
+              distance: AppMotionDistances.micro,
+              enableBlur: false,
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,

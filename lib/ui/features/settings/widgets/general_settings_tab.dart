@@ -10,6 +10,7 @@ import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
@@ -17,6 +18,7 @@ import '../../../core/widgets/app_color_picker_dialog.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/app_transitions.dart';
 import 'settings_shared.dart';
 import 'image_save_template_settings.dart';
 
@@ -342,8 +344,10 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   onChanged: (mode) => setState(() => _draft.accentMode = mode),
                 ),
               ),
-              if (_draft.accentMode == AppAccentMode.manual)
-                AppSettingTile(
+              AppPanelReveal(
+                visible: _draft.accentMode == AppAccentMode.manual,
+                enableBlur: false,
+                child: AppSettingTile(
                   title: l10n.settingsAccentSeed,
                   control: _AccentSeedSwatch(
                     color:
@@ -366,8 +370,11 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     },
                   ),
                 ),
-              if (_draft.accentMode != AppAccentMode.defaultBlue)
-                AppSettingTile(
+              ),
+              AppPanelReveal(
+                visible: _draft.accentMode != AppAccentMode.defaultBlue,
+                enableBlur: false,
+                child: AppSettingTile(
                   title: l10n.settingsAccentVariant,
                   control: AppDropdown.simple(
                     value: _draft.accentVariant,
@@ -390,6 +397,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                         setState(() => _draft.accentVariant = variant),
                   ),
                 ),
+              ),
               AppSettingTile(
                 title: l10n.settingsLanguage,
                 control: AppDropdown.simple(
@@ -547,8 +555,10 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 onChanged: (val) =>
                     setState(() => _draft.enableImagePersistence = val),
               ),
-              if (_draft.enableImagePersistence)
-                AppSettingTile(
+              AppPanelReveal(
+                visible: _draft.enableImagePersistence,
+                enableBlur: false,
+                child: AppSettingTile(
                   title: l10n.settingsMaxImagesTitle,
                   control: AppDropdown.simple(
                     value:
@@ -568,6 +578,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                         setState(() => _draft.maxPersistentImages = count),
                   ),
                 ),
+              ),
               const SizedBox(height: 12),
               if (!kIsWeb &&
                   defaultTargetPlatform == TargetPlatform.windows) ...[
@@ -600,74 +611,80 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 value: _draft.comfyUiEnabled,
                 onChanged: (val) => setState(() => _draft.comfyUiEnabled = val),
               ),
-              if (_draft.comfyUiEnabled) ...[
-                AppSettingTile(
-                  title: l10n.settingsComfyBaseUrlTitle,
-                  control: SizedBox(
-                    width: 280,
-                    child: TextField(
-                      controller: _draft.comfyBaseUrlController,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: InputDecoration(
-                        hintText: l10n.settingsComfyBaseUrlHint,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+              AppPanelReveal(
+                visible: _draft.comfyUiEnabled,
+                enableBlur: false,
+                child: Column(
+                  children: [
+                    AppSettingTile(
+                      title: l10n.settingsComfyBaseUrlTitle,
+                      control: SizedBox(
+                        width: 280,
+                        child: TextField(
+                          controller: _draft.comfyBaseUrlController,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: InputDecoration(
+                            hintText: l10n.settingsComfyBaseUrlHint,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    AppSettingTile(
+                      title: l10n.settingsComfyNodeIdsTitle,
+                      control: const SizedBox.shrink(),
+                      bottomChild: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _draft.comfyPromptNodeController,
+                              style: const TextStyle(fontSize: 12),
+                              decoration: InputDecoration(
+                                hintText: l10n.settingsComfyPromptNodeHint,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _draft.comfyResolutionNodeController,
+                              style: const TextStyle(fontSize: 12),
+                              decoration: InputDecoration(
+                                hintText: l10n.settingsComfyResolutionNodeHint,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _draft.comfyParamsNodeController,
+                              style: const TextStyle(fontSize: 12),
+                              decoration: InputDecoration(
+                                hintText: l10n.settingsComfyParamsNodeHint,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                AppSettingTile(
-                  title: l10n.settingsComfyNodeIdsTitle,
-                  control: const SizedBox.shrink(),
-                  bottomChild: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _draft.comfyPromptNodeController,
-                          style: const TextStyle(fontSize: 12),
-                          decoration: InputDecoration(
-                            hintText: l10n.settingsComfyPromptNodeHint,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _draft.comfyResolutionNodeController,
-                          style: const TextStyle(fontSize: 12),
-                          decoration: InputDecoration(
-                            hintText: l10n.settingsComfyResolutionNodeHint,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _draft.comfyParamsNodeController,
-                          style: const TextStyle(fontSize: 12),
-                          decoration: InputDecoration(
-                            hintText: l10n.settingsComfyParamsNodeHint,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
               const SizedBox(height: 12),
               AppSectionHeader(title: l10n.settingsSectionTagAutocomplete),
               AppSettingTile.switchTile(
@@ -683,17 +700,30 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     : (_dictStatus.isNotEmpty
                           ? _dictStatus
                           : _dictInfoText(l10n)),
-                control: _dictUpdating
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : AppActionButton(
-                        icon: Icons.cloud_download_rounded,
-                        label: l10n.settingsDictUpdateNowButton,
-                        onPressed: _updateDictionary,
-                      ),
+                control: AnimatedSwitcher(
+                  duration: AppMotion.resolveDuration(
+                    context,
+                    AppMotionDurations.quick,
+                  ),
+                  switchInCurve: AppMotionCurves.smoothOut,
+                  switchOutCurve: AppMotionCurves.smoothOut,
+                  child: _dictUpdating
+                      ? const Padding(
+                          key: ValueKey<bool>(true),
+                          padding: EdgeInsets.symmetric(horizontal: 6),
+                          child: AppMatrixDotLoader(
+                            dotSize: 2.5,
+                            gap: 2.0,
+                            variant: AppMatrixDotVariant.scan,
+                          ),
+                        )
+                      : AppActionButton(
+                          key: const ValueKey<bool>(false),
+                          icon: Icons.cloud_download_rounded,
+                          label: l10n.settingsDictUpdateNowButton,
+                          onPressed: _updateDictionary,
+                        ),
+                ),
               ),
               AppSettingTile.switchTile(
                 title: l10n.settingsDictAutoCheckTitle,
@@ -749,11 +779,17 @@ class _AccentSeedSwatch extends StatelessWidget {
     final colors = context.colors;
     return Tooltip(
       message: context.l10n.settingsAccentSeed,
-      child: MouseRegion(
+      child: AppHoverLift(
+        lift: -1.5,
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
           onTap: onTap,
-          child: Container(
+          child: AnimatedContainer(
+            duration: AppMotion.resolveDuration(
+              context,
+              AppMotionDurations.quick,
+            ),
+            curve: AppMotionCurves.smoothOut,
             width: 34,
             height: 34,
             decoration: BoxDecoration(

@@ -13,6 +13,7 @@ import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_search_field.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_toast.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_combo_card.dart';
 import 'prompt_combo_edit_dialog.dart';
@@ -105,20 +106,19 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       final jsonStr = await widget.viewModel.exportPromptLibraryJson();
       await Clipboard.setData(ClipboardData(text: jsonStr));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.libraryExportCopied),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showAppToast(
+        context,
+        message: l10n.libraryExportCopied,
+        tone: AppToastTone.success,
+        duration: const Duration(seconds: 2),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.libraryExportFailed(e.toString())),
-          duration: const Duration(seconds: 2),
-        ),
+      showAppToast(
+        context,
+        message: l10n.libraryExportFailed(e.toString()),
+        tone: AppToastTone.error,
+        duration: const Duration(seconds: 2),
       );
     }
   }
@@ -197,20 +197,19 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
           controller.text.trim(),
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.libraryImportSuccess(count)),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
+        showAppToast(
+          context,
+          message: l10n.libraryImportSuccess(count),
+          tone: AppToastTone.success,
+          duration: const Duration(seconds: 2),
         );
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.libraryImportFailed(e.toString())),
-            duration: const Duration(seconds: 2),
-          ),
+        showAppToast(
+          context,
+          message: l10n.libraryImportFailed(e.toString()),
+          tone: AppToastTone.error,
+          duration: const Duration(seconds: 2),
         );
       }
     }
@@ -239,19 +238,13 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
           : l10n.libraryApplyAppendPrompt(combo.title);
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(milliseconds: 1200),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: l10n.libraryReturnToWorkbench,
-          textColor: Colors.white,
-          onPressed: () {
-            widget.onClose?.call();
-          },
-        ),
-      ),
+    showAppToast(
+      context,
+      message: message,
+      tone: AppToastTone.success,
+      duration: const Duration(milliseconds: 1400),
+      actionLabel: widget.onClose != null ? l10n.libraryReturnToWorkbench : null,
+      onAction: widget.onClose,
     );
   }
 
@@ -269,12 +262,11 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     if (ok == true) {
       await widget.viewModel.deletePromptCombo(combo.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.libraryDeletedCombo(combo.title)),
-          duration: const Duration(seconds: 1),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showAppToast(
+        context,
+        message: l10n.libraryDeletedCombo(combo.title),
+        tone: AppToastTone.info,
+        duration: const Duration(milliseconds: 1200),
       );
     }
   }
