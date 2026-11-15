@@ -2163,6 +2163,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Global settings (API Key / Storage / LLM)';
 
   @override
+  String get sidebarCollapse => 'Collapse';
+
+  @override
+  String get sidebarCollapseTooltip => 'Collapse left sidebar';
+
+  @override
+  String get sidebarExpandTooltip => 'Expand left sidebar';
+
+  @override
   String get promptResizeTooltip =>
       'Drag to resize height (double-click to reset)';
 

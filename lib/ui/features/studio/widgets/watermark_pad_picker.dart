@@ -415,13 +415,13 @@ class _WatermarkPositionPill extends StatelessWidget {
       message: context.l10n.watermarkPositionPillTooltip,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: isSelected ? colors.primary : colors.cardBackground,
-            borderRadius: BorderRadius.circular(4),
+            color: isSelected ? colors.primary : colors.mutedBackground,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             border: Border.all(
               color: isSelected ? colors.primary : colors.borderDefault,
               width: 1.0,

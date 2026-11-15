@@ -368,6 +368,8 @@ class _StudioViewState extends State<StudioView> {
 
   /// 桌面端 / 宽屏 (宽度 >= [StudioView.wideLayoutMinWidth])：保持经典三栏自适应工作台与无边框拖拽标题栏
   Widget _buildWideLayout(BuildContext context, {required bool isLibraryTab}) {
+    final isLeftCollapsed = _viewModel.isLeftSidebarCollapsed;
+
     return Column(
       children: [
         // 顶部自定义 Notion 风格标题栏 (支持窗口拖拽与三键控制)
@@ -381,18 +383,25 @@ class _StudioViewState extends State<StudioView> {
         Expanded(
           child: Row(
             children: [
-              // 1. 最左侧 Notion 极简侧边栏
-              StudioSidebar(
-                viewModel: _viewModel,
-                activeTab: _viewModel.activeSidebarTab,
-                onTabChanged: (tab) {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                  if (tab == StudioSidebarTab.library &&
-                      _viewModel.activeSidebarTab != StudioSidebarTab.library) {
-                    _previousSidebarTab = _viewModel.activeSidebarTab;
-                  }
-                  _viewModel.setActiveSidebarTab(tab);
-                },
+              // 1. 最左侧 Notion 极简侧边栏 (可完全收起，保持子树状态)
+              Visibility(
+                visible: !isLeftCollapsed,
+                maintainState: true,
+                child: StudioSidebar(
+                  viewModel: _viewModel,
+                  activeTab: _viewModel.activeSidebarTab,
+                  connectedToCard: true,
+                  onToggleCollapse: _viewModel.toggleLeftSidebarCollapsed,
+                  onTabChanged: (tab) {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    if (tab == StudioSidebarTab.library &&
+                        _viewModel.activeSidebarTab !=
+                            StudioSidebarTab.library) {
+                      _previousSidebarTab = _viewModel.activeSidebarTab;
+                    }
+                    _viewModel.setActiveSidebarTab(tab);
+                  },
+                ),
               ),
 
               // 2. 主区域：全屏词库视图 (覆盖所有三栏) 或 主三栏自适应工作台
@@ -403,6 +412,10 @@ class _StudioViewState extends State<StudioView> {
                   itemBuilder: (context, index) => index == 1
                       ? PromptLibraryView(
                           viewModel: _viewModel,
+                          connectedLeft: !isLeftCollapsed,
+                          onExpandSidebar: isLeftCollapsed
+                              ? _viewModel.toggleLeftSidebarCollapsed
+                              : null,
                           onClose: () {
                             _viewModel.setActiveSidebarTab(_previousSidebarTab);
                           },
@@ -421,6 +434,7 @@ class _StudioViewState extends State<StudioView> {
                           maxRightWidth: _viewModel.board.isAnnotatingImage
                               ? 160.0
                               : 560.0,
+                          leftCollapsed: isLeftCollapsed,
                           onWidthsChanged: (left, right) {
                             if (!_viewModel.board.isAnnotatingImage) {
                               _viewModel.updateSplitWidths(left, right);
@@ -429,6 +443,7 @@ class _StudioViewState extends State<StudioView> {
                           leftChild: ParameterCard(
                             viewModel: _viewModel,
                             activeTab: _viewModel.activeSidebarTab,
+                            connectedLeft: true,
                           ),
                           centerChild: ImageCanvasCard(viewModel: _viewModel),
                           rightChild: _viewModel.board.isAnnotatingImage

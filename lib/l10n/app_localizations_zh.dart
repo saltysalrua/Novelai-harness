@@ -2019,6 +2019,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarSettingsTooltip => '全局配置 (API Key / 存储 / LLM)';
 
   @override
+  String get sidebarCollapse => '收起';
+
+  @override
+  String get sidebarCollapseTooltip => '收起左侧栏';
+
+  @override
+  String get sidebarExpandTooltip => '展开左侧栏';
+
+  @override
   String get promptResizeTooltip => '拖动调整高度 (双击重置)';
 
   @override

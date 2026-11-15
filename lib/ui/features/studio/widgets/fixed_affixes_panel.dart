@@ -187,6 +187,9 @@ class _BannedWordsSectionState extends State<_BannedWordsSection> {
                   child: Switch(
                     value: enabled,
                     activeTrackColor: colors.primary,
+                    activeThumbColor: Colors.white,
+                    inactiveTrackColor: colors.mutedBackground,
+                    inactiveThumbColor: colors.textMuted,
                     onChanged: (val) => widget.viewModel.updateParams(
                       params.copyWith(stripBannedWords: val),
                     ),

@@ -16,13 +16,22 @@ import '../../../core/widgets/app_segmented_controls.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_combo_card.dart';
 import 'prompt_combo_edit_dialog.dart';
+import 'studio_shared.dart';
 
 /// 词库全屏沉浸式管理器视图
 class PromptLibraryView extends StatefulWidget {
   final StudioViewModel viewModel;
   final VoidCallback? onClose;
+  final bool connectedLeft;
+  final VoidCallback? onExpandSidebar;
 
-  const PromptLibraryView({super.key, required this.viewModel, this.onClose});
+  const PromptLibraryView({
+    super.key,
+    required this.viewModel,
+    this.onClose,
+    this.connectedLeft = false,
+    this.onExpandSidebar,
+  });
 
   @override
   State<PromptLibraryView> createState() => _PromptLibraryViewState();
@@ -282,11 +291,17 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         final isNarrow = constraints.maxWidth < 650;
 
         return Container(
-          margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
+          margin: widget.connectedLeft
+              ? const EdgeInsets.fromLTRB(0, 8, 8, 8)
+              : const EdgeInsets.all(8),
+          decoration: ShapeDecoration(
             color: colors.cardBackground,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: colors.borderDefault),
+            shape: StudioPanelShapeBorder(
+              outerSide: BorderSide(color: colors.borderDefault),
+              radius: AppRadius.lg,
+              roundLeft: !widget.connectedLeft,
+              roundRight: true,
+            ),
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -394,6 +409,18 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         final title = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (widget.onExpandSidebar != null) ...[
+              AppIconButton(
+                key: const Key('library_expand_sidebar_button'),
+                icon: Icons.keyboard_double_arrow_right_rounded,
+                size: 30,
+                iconSize: 17,
+                variant: AppIconButtonVariant.outlined,
+                tooltip: l10n.sidebarExpandTooltip,
+                onPressed: widget.onExpandSidebar,
+              ),
+              const SizedBox(width: 8),
+            ],
             Icon(
               Icons.collections_bookmark_outlined,
               size: 20,

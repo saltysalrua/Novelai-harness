@@ -171,6 +171,7 @@ mixin _StudioCore on ChangeNotifier {
   int _promptActiveTab = 0;
   int _deckActiveTab = 0;
   bool _canvasHistoryOpen = false;
+  bool _leftSidebarCollapsed = false;
 
   // 提示词输入框高度
   double _promptHeightStacked = 116.0;
@@ -768,6 +769,7 @@ class StudioViewModel extends ChangeNotifier
     _promptActiveTab = await _configService.loadPromptActiveTab();
     _deckActiveTab = await _configService.loadDeckActiveTab();
     _canvasHistoryOpen = await _configService.loadCanvasHistoryOpen();
+    _leftSidebarCollapsed = await _configService.loadLeftSidebarCollapsed();
 
     // 加载提示词输入框高度
     final promptHeights = await _configService.loadPromptFieldHeights();

@@ -584,6 +584,8 @@ class ConfigService {
   static const String _keyDeckActiveTab = 'novelai_layout_deck_active_tab';
   static const String _keyCanvasHistoryOpen =
       'novelai_layout_canvas_history_open';
+  static const String _keyLeftSidebarCollapsed =
+      'novelai_layout_left_sidebar_collapsed';
 
   // 提示词输入框高度持久化 Keys
   static const String _keyPromptHeightStacked =
@@ -1340,6 +1342,18 @@ class ConfigService {
   Future<void> saveCanvasHistoryOpen(bool isOpen) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyCanvasHistoryOpen, isOpen);
+  }
+
+  /// 加载左侧边栏收起状态
+  Future<bool> loadLeftSidebarCollapsed({bool defaultCollapsed = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyLeftSidebarCollapsed) ?? defaultCollapsed;
+  }
+
+  /// 保存左侧边栏收起状态
+  Future<void> saveLeftSidebarCollapsed(bool isCollapsed) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyLeftSidebarCollapsed, isCollapsed);
   }
 
   /// 加载提示词输入框高度

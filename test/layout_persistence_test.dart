@@ -50,12 +50,15 @@ void main() {
       final configService = ConfigService();
       expect(await configService.loadDeckActiveTab(), 0);
       expect(await configService.loadCanvasHistoryOpen(), isFalse);
+      expect(await configService.loadLeftSidebarCollapsed(), isFalse);
 
       await configService.saveDeckActiveTab(1);
       await configService.saveCanvasHistoryOpen(true);
+      await configService.saveLeftSidebarCollapsed(true);
 
       expect(await configService.loadDeckActiveTab(), 1);
       expect(await configService.loadCanvasHistoryOpen(), isTrue);
+      expect(await configService.loadLeftSidebarCollapsed(), isTrue);
     });
 
     test('prompt field heights default and save/load', () async {
@@ -111,6 +114,7 @@ void main() {
         'novelai_layout_prompt_active_tab': 1,
         'novelai_layout_deck_active_tab': 1,
         'novelai_layout_canvas_history_open': true,
+        'novelai_layout_left_sidebar_collapsed': true,
         'novelai_layout_prompt_height_stacked': 140.0,
         'novelai_layout_negative_height_stacked': 110.0,
         'novelai_layout_prompt_height_tabbed': 260.0,
@@ -132,6 +136,7 @@ void main() {
       expect(vm.promptActiveTab, 1);
       expect(vm.deckActiveTab, 1);
       expect(vm.canvasHistoryOpen, isTrue);
+      expect(vm.isLeftSidebarCollapsed, isTrue);
       expect(vm.promptHeightStacked, 140.0);
       expect(vm.negativePromptHeightStacked, 110.0);
       expect(vm.promptHeightTabbed, 260.0);
@@ -153,6 +158,7 @@ void main() {
       vm.setPromptActiveTab(1);
       vm.setDeckActiveTab(1);
       vm.setCanvasHistoryOpen(true);
+      vm.setLeftSidebarCollapsed(true);
       vm.updatePromptHeightStacked(160.0);
       vm.updateNegativePromptHeightStacked(130.0);
       vm.updatePromptHeightTabbed(300.0);
@@ -170,6 +176,7 @@ void main() {
       expect(vm.promptActiveTab, 1);
       expect(vm.deckActiveTab, 1);
       expect(vm.canvasHistoryOpen, isTrue);
+      expect(vm.isLeftSidebarCollapsed, isTrue);
       expect(vm.promptHeightStacked, 160.0);
       expect(vm.negativePromptHeightStacked, 130.0);
       expect(vm.promptHeightTabbed, 300.0);
@@ -194,6 +201,7 @@ void main() {
       expect(restartedVm.promptActiveTab, 1);
       expect(restartedVm.deckActiveTab, 1);
       expect(restartedVm.canvasHistoryOpen, isTrue);
+      expect(restartedVm.isLeftSidebarCollapsed, isTrue);
       expect(restartedVm.promptHeightStacked, 160.0);
       expect(restartedVm.negativePromptHeightStacked, 130.0);
       expect(restartedVm.promptHeightTabbed, 300.0);
@@ -203,6 +211,23 @@ void main() {
       expect(restartedVm.characterPromptHeight, 115.0);
       expect(restartedVm.characterNegativePromptHeight, 85.0);
       expect(restartedVm.chatDraft, 'updated draft message');
+    });
+
+    test('setActiveSidebarTab auto-expands collapsed left sidebar', () async {
+      final vm = StudioViewModel();
+      await vm.init();
+
+      vm.toggleLeftSidebarCollapsed();
+      expect(vm.isLeftSidebarCollapsed, isTrue);
+
+      vm.setActiveSidebarTab(StudioSidebarTab.inpaint);
+      expect(vm.activeSidebarTab, StudioSidebarTab.inpaint);
+      expect(vm.isLeftSidebarCollapsed, isFalse);
+
+      // 停留在同一 Tab 再次切入（例如发送当前图到修复）时同样应自动展开
+      vm.setLeftSidebarCollapsed(true);
+      vm.setActiveSidebarTab(StudioSidebarTab.inpaint);
+      expect(vm.isLeftSidebarCollapsed, isFalse);
     });
   });
 

@@ -3830,6 +3830,24 @@ abstract class AppLocalizations {
   /// **'全局配置 (API Key / 存储 / LLM)'**
   String get sidebarSettingsTooltip;
 
+  /// No description provided for @sidebarCollapse.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起'**
+  String get sidebarCollapse;
+
+  /// No description provided for @sidebarCollapseTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起左侧栏'**
+  String get sidebarCollapseTooltip;
+
+  /// No description provided for @sidebarExpandTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'展开左侧栏'**
+  String get sidebarExpandTooltip;
+
   /// No description provided for @promptResizeTooltip.
   ///
   /// In zh, this message translates to:

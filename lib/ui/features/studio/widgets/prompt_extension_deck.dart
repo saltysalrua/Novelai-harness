@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderEditable;
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
-import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
@@ -110,7 +109,6 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final l10n = context.l10n;
     final viewModel = widget.viewModel;
     final params = viewModel.params;
@@ -150,38 +148,25 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. 顶部全宽分段指示栏 (100% 宽度均分，自适应缩放无截断)
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: colors.mutedBackground,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(color: colors.borderSubtle),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _DeckSegmentTab(
-                    label: l10n.charPromptDeckTabCharacter,
-                    badge: characters.isNotEmpty
-                        ? '${characters.length}/$limit'
-                        : null,
-                    isActive: _activeTabIndex == 0,
-                    onTap: () => _switchTab(0),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: _DeckSegmentTab(
-                    label: l10n.charPromptDeckTabAffixes,
-                    badge: isAffixesEnabled ? l10n.charPromptEnabled : null,
-                    badgeIsActive: isAffixesEnabled,
-                    isActive: _activeTabIndex == 1,
-                    onTap: () => _switchTab(1),
-                  ),
-                ),
-              ],
-            ),
+          // 1. 顶部全宽分段指示栏 (复用 AppSegmentedCardBar，100% 宽度均分)
+          AppSegmentedCardBar<int>(
+            expand: true,
+            selectedValue: _activeTabIndex,
+            onValueChanged: _switchTab,
+            items: [
+              AppSegmentedItem<int>(
+                value: 0,
+                label: l10n.charPromptDeckTabCharacter,
+                badgeLabel: characters.isNotEmpty
+                    ? '${characters.length}/$limit'
+                    : null,
+              ),
+              AppSegmentedItem<int>(
+                value: 1,
+                label: l10n.charPromptDeckTabAffixes,
+                badgeLabel: isAffixesEnabled ? l10n.charPromptEnabled : null,
+              ),
+            ],
           ),
 
           const SizedBox(height: 8),
@@ -397,70 +382,6 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
   }
 }
 
-/// 甲板顶部全宽分段标签 (带自适应缩小，杜绝省略号截断)
-class _DeckSegmentTab extends StatelessWidget {
-  final String label;
-  final String? badge;
-  final bool badgeIsActive;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _DeckSegmentTab({
-    required this.label,
-    this.badge,
-    this.badgeIsActive = false,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.md - 2),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5.5),
-        decoration: BoxDecoration(
-          color: isActive ? colors.cardBackground : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppRadius.md - 2),
-          boxShadow: isActive ? context.shadowSubtle : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                    color: isActive ? colors.textPrimary : colors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-            if (badge != null) ...[
-              const SizedBox(width: 4),
-              AppBadge.pill(
-                label: badge!,
-                fontSize: 10,
-                variant: badgeIsActive
-                    ? AppBadgeVariant.primary
-                    : AppBadgeVariant.neutral,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// 画板位置编辑独立胶囊按钮 (流式排版自适应)
 class _CanvasEditDeckButton extends StatelessWidget {
   final bool isCanvasEditing;
@@ -650,6 +571,9 @@ class _AffixToggleSwitch extends StatelessWidget {
             child: Switch(
               value: isEnabled,
               activeTrackColor: colors.primary,
+              activeThumbColor: Colors.white,
+              inactiveTrackColor: colors.mutedBackground,
+              inactiveThumbColor: colors.textMuted,
               onChanged: onChanged,
             ),
           ),

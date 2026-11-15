@@ -5,6 +5,7 @@ import '../../../../data/services/image_metadata_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_drop_target_overlay.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../view_models/studio_view_model.dart';
 import 'canvas_history_sidebar.dart';
 import 'canvas_overlays.dart';
@@ -242,7 +243,23 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                     ),
                 ],
 
-              // 5. 右上角浮动 History 展开按键 (仅在收回状态且非编辑/非批注/非修复页签时显示)
+              // 5.1 左上角浮动侧栏展开按键 (仅桌面端左侧栏完全收起时显示，与右上角 History 按钮对称)
+              if (!widget.compact && viewModel.isLeftSidebarCollapsed)
+                Positioned(
+                  top: 14,
+                  left: 14,
+                  child: AppIconButton(
+                    key: const Key('canvas_expand_sidebar_button'),
+                    icon: Icons.keyboard_double_arrow_right_rounded,
+                    size: 38,
+                    iconSize: 20,
+                    variant: AppIconButtonVariant.elevated,
+                    tooltip: context.l10n.sidebarExpandTooltip,
+                    onPressed: viewModel.toggleLeftSidebarCollapsed,
+                  ),
+                ),
+
+              // 5.2 右上角浮动 History 展开按键 (仅在收回状态且非编辑/非批注/非修复页签时显示)
               if (!_isHistoryOpen &&
                   !isEditingPositions &&
                   !isAnnotating &&

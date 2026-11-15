@@ -5,9 +5,11 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_async_icon_button.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_collapsible_section.dart';
 import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_number_slider.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_setting_tile.dart';
@@ -267,7 +269,7 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
               SectionHeader(l10n.paramsSectionSeed),
               const SizedBox(height: 8),
               Container(
-                height: 40,
+                height: 38,
                 padding: const EdgeInsets.only(left: 10, right: 4),
                 decoration: BoxDecoration(
                   color: colors.cardBackground,
@@ -343,8 +345,8 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                         ),
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                         child: Container(
-                          width: 32,
-                          height: 32,
+                          width: 30,
+                          height: 30,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: params.seedMode == NaiSeedMode.fixed
@@ -716,28 +718,15 @@ class _ComfyConnectionCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (status == ComfyUiConnectionStatus.connecting)
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                  ),
-                )
-              else
-                IconButton(
-                  icon: Icon(
-                    Icons.refresh,
-                    size: 17,
-                    color: colors.textSecondary,
-                  ),
-                  tooltip: l10n.dockRefreshTooltip,
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(3),
-                  constraints: const BoxConstraints(),
-                  onPressed: () => viewModel.refreshComfyUiStatus(),
-                ),
+              AppAsyncIconButton(
+                isLoading: status == ComfyUiConnectionStatus.connecting,
+                icon: Icons.refresh_rounded,
+                size: 26,
+                iconSize: 16,
+                variant: AppIconButtonVariant.ghost,
+                tooltip: l10n.dockRefreshTooltip,
+                onPressed: viewModel.refreshComfyUiStatus,
+              ),
             ],
           ),
           const SizedBox(height: 8),

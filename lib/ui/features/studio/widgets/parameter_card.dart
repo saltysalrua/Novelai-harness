@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_page_stack.dart';
@@ -12,6 +13,7 @@ import 'inpaint_canvas_overlay.dart';
 import 'inpaint_page.dart';
 import 'parameters_page.dart';
 import 'prompts_page.dart';
+import 'studio_shared.dart';
 
 /// 左侧工作台面板：三页面 (参数设置 / 提示词管理 / 修复设置) + 底部生成操作坞。
 /// 各页首次访问时挂载，隐藏页不随工作台通知重建；切页保留输入与滚动位置。
@@ -20,16 +22,19 @@ class ParameterCard extends StatelessWidget {
   final StudioViewModel viewModel;
   final StudioSidebarTab activeTab;
   final bool compact;
+  final bool connectedLeft;
 
   const ParameterCard({
     super.key,
     required this.viewModel,
     this.activeTab = StudioSidebarTab.parameters,
     this.compact = false,
+    this.connectedLeft = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final pageIndex = switch (activeTab) {
       StudioSidebarTab.parameters => 0,
       StudioSidebarTab.prompts => 1,
@@ -41,8 +46,17 @@ class ParameterCard extends StatelessWidget {
       // The root is not the only exclusion: expose the active workstation
       // page to macOS assistive technology as well.
       excluding: kIsWeb || defaultTargetPlatform != TargetPlatform.macOS,
-      child: Card(
-        margin: EdgeInsets.zero,
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: ShapeDecoration(
+          color: colors.cardBackground,
+          shape: StudioPanelShapeBorder(
+            outerSide: BorderSide(color: colors.borderDefault),
+            radius: AppRadius.lg,
+            roundLeft: !connectedLeft,
+            roundRight: true,
+          ),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

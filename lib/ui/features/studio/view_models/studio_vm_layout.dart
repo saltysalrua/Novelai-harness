@@ -39,6 +39,7 @@ mixin _StudioLayoutMixin on _StudioCore {
   int get promptActiveTab => _promptActiveTab;
   int get deckActiveTab => _deckActiveTab;
   bool get canvasHistoryOpen => _canvasHistoryOpen;
+  bool get isLeftSidebarCollapsed => _leftSidebarCollapsed;
 
   // 提示词输入框高度 Getters
   double get promptHeightStacked => _promptHeightStacked;
@@ -168,9 +169,17 @@ mixin _StudioLayoutMixin on _StudioCore {
 
   @override
   void setActiveSidebarTab(StudioSidebarTab tab) {
-    if (_activeSidebarTab == tab) return;
-    _activeSidebarTab = tab;
-    _configService.saveSidebarActiveTab(tab.name);
+    final tabChanged = _activeSidebarTab != tab;
+    final wasCollapsed = _leftSidebarCollapsed;
+    if (!tabChanged && !wasCollapsed) return;
+    if (tabChanged) {
+      _activeSidebarTab = tab;
+      _configService.saveSidebarActiveTab(tab.name);
+    }
+    if (wasCollapsed) {
+      _leftSidebarCollapsed = false;
+      _configService.saveLeftSidebarCollapsed(false);
+    }
     notifyListeners();
   }
 
@@ -200,5 +209,16 @@ mixin _StudioLayoutMixin on _StudioCore {
     _canvasHistoryOpen = isOpen;
     _configService.saveCanvasHistoryOpen(isOpen);
     notifyListeners();
+  }
+
+  void setLeftSidebarCollapsed(bool collapsed) {
+    if (_leftSidebarCollapsed == collapsed) return;
+    _leftSidebarCollapsed = collapsed;
+    _configService.saveLeftSidebarCollapsed(collapsed);
+    notifyListeners();
+  }
+
+  void toggleLeftSidebarCollapsed() {
+    setLeftSidebarCollapsed(!_leftSidebarCollapsed);
   }
 }

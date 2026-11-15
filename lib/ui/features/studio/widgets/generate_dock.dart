@@ -6,7 +6,6 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_async_icon_button.dart';
 import '../../../core/widgets/app_badge.dart';
-import '../../../core/widgets/app_floating_dock.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_progress_bar.dart';
 import '../view_models/studio_view_model.dart';
@@ -78,15 +77,15 @@ class GenerateDock extends StatelessWidget {
         ? colors.warning
         : colors.error;
 
-    return AppFloatingDock(
-      radius: 0,
-      shadows: const [],
+    return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? AppSpacing.md : AppSpacing.lg,
         vertical: compact ? AppSpacing.sm : 14,
       ),
-      backgroundColor: colors.cardBackground,
-      borderColor: colors.borderDefault,
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        border: Border(top: BorderSide(color: colors.borderDefault)),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -248,35 +247,14 @@ class _RefreshButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final isLoading = viewModel.isLoadingAccount;
-    if (compact) {
-      return AppAsyncIconButton(
-        isLoading: isLoading,
-        icon: Icons.refresh_rounded,
-        size: 48,
-        iconSize: 20,
-        variant: AppIconButtonVariant.ghost,
-        tooltip: context.l10n.dockRefreshTooltip,
-        onPressed: viewModel.refreshAccountInfo,
-      );
-    }
-    return IconButton(
-      icon: isLoading
-          ? SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
-              ),
-            )
-          : Icon(Icons.refresh, size: 17, color: colors.textSecondary),
+    return AppAsyncIconButton(
+      isLoading: viewModel.isLoadingAccount,
+      icon: Icons.refresh_rounded,
+      size: compact ? 48 : 26,
+      iconSize: compact ? 20 : 16,
+      variant: AppIconButtonVariant.ghost,
       tooltip: context.l10n.dockRefreshTooltip,
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.all(3),
-      constraints: const BoxConstraints(),
-      onPressed: isLoading ? null : () => viewModel.refreshAccountInfo(),
+      onPressed: viewModel.refreshAccountInfo,
     );
   }
 }
@@ -336,34 +314,15 @@ class _ComfyStatusRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        if (compact)
-          AppAsyncIconButton(
-            isLoading: status == ComfyUiConnectionStatus.connecting,
-            icon: Icons.refresh_rounded,
-            size: 48,
-            iconSize: 20,
-            variant: AppIconButtonVariant.ghost,
-            tooltip: l10n.dockRefreshTooltip,
-            onPressed: viewModel.refreshComfyUiStatus,
-          )
-        else if (status == ComfyUiConnectionStatus.connecting)
-          SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-            ),
-          )
-        else
-          IconButton(
-            icon: Icon(Icons.refresh, size: 17, color: colors.textSecondary),
-            tooltip: l10n.dockRefreshTooltip,
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.all(3),
-            constraints: const BoxConstraints(),
-            onPressed: () => viewModel.refreshComfyUiStatus(),
-          ),
+        AppAsyncIconButton(
+          isLoading: status == ComfyUiConnectionStatus.connecting,
+          icon: Icons.refresh_rounded,
+          size: compact ? 48 : 26,
+          iconSize: compact ? 20 : 16,
+          variant: AppIconButtonVariant.ghost,
+          tooltip: l10n.dockRefreshTooltip,
+          onPressed: viewModel.refreshComfyUiStatus,
+        ),
       ],
     );
   }

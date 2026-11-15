@@ -153,6 +153,86 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('宽屏完全收起左侧栏保留表单状态与滚动位置，点击左缘按钮恢复展开', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+
+    final vm = StudioView.testViewModelHook!;
+    final parametersState = tester.state(find.byType(ParametersPage));
+    final parameterScroll = tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(ParametersPage),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position;
+    parameterScroll.jumpTo(250);
+    await tester.pumpAndSettle();
+    expect(parameterScroll.pixels, 250);
+
+    expect(
+      find.byKey(const Key('canvas_expand_sidebar_button')),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const Key('sidebar_collapse_button')));
+    await tester.pumpAndSettle();
+
+    // 左侧图标条与参数卡片整体完全收起，但在树中保活不丢滚动位置与 State
+    expect(vm.isLeftSidebarCollapsed, isTrue);
+    expect(find.byType(ParametersPage), findsNothing);
+    expect(
+      tester.state(find.byType(ParametersPage, skipOffstage: false)),
+      same(parametersState),
+    );
+    expect(
+      find.byKey(const Key('sidebar_collapse_button')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('canvas_expand_sidebar_button')),
+      findsOneWidget,
+    );
+
+    // 点击画板左上角轻量展开按钮恢复左侧栏与参数卡片
+    await tester.tap(find.byKey(const Key('canvas_expand_sidebar_button')));
+    await tester.pumpAndSettle();
+
+    expect(vm.isLeftSidebarCollapsed, isFalse);
+    expect(find.byType(ParametersPage), findsOneWidget);
+    expect(tester.state(find.byType(ParametersPage)), same(parametersState));
+    expect(parameterScroll.pixels, 250);
+    expect(
+      find.byKey(const Key('canvas_expand_sidebar_button')),
+      findsNothing,
+    );
+
+    // 切换到词库页后收起左侧栏，顶栏显示展开入口，点击恢复
+    await tester.tap(find.byIcon(Icons.collections_bookmark_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('sidebar_collapse_button')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('library_expand_sidebar_button')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('library_expand_sidebar_button')));
+    await tester.pumpAndSettle();
+    expect(vm.isLeftSidebarCollapsed, isFalse);
+    expect(
+      find.byKey(const Key('library_expand_sidebar_button')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('窄屏三卡片往返保留工作台滚动位置与控件 State', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(430, 900);

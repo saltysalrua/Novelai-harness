@@ -114,10 +114,7 @@ class _InpaintPageState extends State<InpaintPage> {
         );
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -538,26 +535,33 @@ class _InpaintPageState extends State<InpaintPage> {
     required ValueChanged<bool> onChanged,
   }) {
     final colors = context.colors;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(fontSize: 12, color: colors.textPrimary),
-          ),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onChanged(!value),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeTrackColor: colors.primary,
+              activeThumbColor: Colors.white,
+              inactiveTrackColor: colors.mutedBackground,
+              inactiveThumbColor: colors.textMuted,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeTrackColor: colors.primary,
-          activeThumbColor: Colors.white,
-          inactiveTrackColor: colors.mutedBackground,
-          inactiveThumbColor: colors.textMuted,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-      ],
+      ),
     );
   }
 

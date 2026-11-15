@@ -17,6 +17,7 @@ class ResizableThreeSplitView extends StatefulWidget {
   final double minRightWidth;
   final double maxRightWidth;
   final double maxLeftWidth;
+  final bool leftCollapsed;
   final void Function(double leftWidth, double rightWidth)? onWidthsChanged;
 
   const ResizableThreeSplitView({
@@ -31,6 +32,7 @@ class ResizableThreeSplitView extends StatefulWidget {
     this.minCenterWidth = 300.0,
     this.minRightWidth = 280.0,
     this.maxRightWidth = 560.0,
+    this.leftCollapsed = false,
     this.onWidthsChanged,
   });
 
@@ -71,58 +73,79 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
+        final effectiveLeftWidth = widget.leftCollapsed ? 0.0 : _leftWidth;
+        final dividerTotalWidth = widget.leftCollapsed ? 8.0 : 16.0;
 
         // 三栏自由拖拽分割模式；中央区域不足时按比例压缩左右两栏
         // 计算中央区域可用宽度
         double availableCenter =
-            totalWidth - _leftWidth - _rightWidth - 16; // 16 为两个分割条的宽度
+            totalWidth - effectiveLeftWidth - _rightWidth - dividerTotalWidth;
         if (availableCenter < widget.minCenterWidth) {
           // 动态按比例压缩左右两栏
           final excess = widget.minCenterWidth - availableCenter;
-          _leftWidth = (_leftWidth - excess / 2).clamp(
-            widget.minLeftWidth,
-            widget.maxLeftWidth,
-          );
-          _rightWidth = (_rightWidth - excess / 2).clamp(
-            widget.minRightWidth,
-            widget.maxRightWidth,
-          );
-          availableCenter = (totalWidth - _leftWidth - _rightWidth - 16).clamp(
-            0.0,
-            totalWidth,
-          );
+          if (widget.leftCollapsed) {
+            _rightWidth = (_rightWidth - excess).clamp(
+              widget.minRightWidth,
+              widget.maxRightWidth,
+            );
+          } else {
+            _leftWidth = (_leftWidth - excess / 2).clamp(
+              widget.minLeftWidth,
+              widget.maxLeftWidth,
+            );
+            _rightWidth = (_rightWidth - excess / 2).clamp(
+              widget.minRightWidth,
+              widget.maxRightWidth,
+            );
+          }
+          final clampedLeft = widget.leftCollapsed ? 0.0 : _leftWidth;
+          availableCenter =
+              (totalWidth - clampedLeft - _rightWidth - dividerTotalWidth)
+                  .clamp(0.0, totalWidth);
         }
+
+        final activeLeftWidth = widget.leftCollapsed ? 0.0 : _leftWidth;
 
         return Container(
           color: colors.canvasBackground,
-          padding: const EdgeInsets.all(8),
+          padding: widget.leftCollapsed
+              ? const EdgeInsets.all(8)
+              : const EdgeInsets.fromLTRB(0, 8, 8, 8),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. 左侧面板 (参数设置)
-              SizedBox(width: _leftWidth, child: widget.leftChild),
-
-              // 左侧拖拽分割条
-              _buildDivider(
-                colors: colors,
-                isDragging: _isDraggingLeft,
-                onHorizontalDragStart: () =>
-                    setState(() => _isDraggingLeft = true),
-                onHorizontalDragEnd: () {
-                  setState(() => _isDraggingLeft = false);
-                  widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
-                },
-                onHorizontalDragUpdate: (delta) {
-                  setState(() {
-                    _leftWidth = (_leftWidth + delta).clamp(
-                      widget.minLeftWidth,
-                      (totalWidth - _rightWidth - widget.minCenterWidth - 16)
-                          .clamp(widget.minLeftWidth, widget.maxLeftWidth),
-                    );
-                  });
-                  widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
-                },
+              // 1. 左侧面板 (参数设置；收起时保活子树状态但让出全部布局空间)
+              Visibility(
+                visible: !widget.leftCollapsed,
+                maintainState: true,
+                child: SizedBox(width: _leftWidth, child: widget.leftChild),
               ),
+
+              // 左侧拖拽分割条 (左侧栏收起时隐藏)
+              if (!widget.leftCollapsed)
+                _buildDivider(
+                  colors: colors,
+                  isDragging: _isDraggingLeft,
+                  onHorizontalDragStart: () =>
+                      setState(() => _isDraggingLeft = true),
+                  onHorizontalDragEnd: () {
+                    setState(() => _isDraggingLeft = false);
+                    widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
+                  },
+                  onHorizontalDragUpdate: (delta) {
+                    setState(() {
+                      _leftWidth = (_leftWidth + delta).clamp(
+                        widget.minLeftWidth,
+                        (totalWidth -
+                                _rightWidth -
+                                widget.minCenterWidth -
+                                dividerTotalWidth)
+                            .clamp(widget.minLeftWidth, widget.maxLeftWidth),
+                      );
+                    });
+                    widget.onWidthsChanged?.call(_leftWidth, _rightWidth);
+                  },
+                ),
 
               // 2. 中间面板 (图片画板)
               Expanded(child: widget.centerChild),
@@ -141,7 +164,10 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
                   setState(() {
                     _rightWidth = (_rightWidth - delta).clamp(
                       widget.minRightWidth,
-                      (totalWidth - _leftWidth - widget.minCenterWidth - 16)
+                      (totalWidth -
+                              activeLeftWidth -
+                              widget.minCenterWidth -
+                              dividerTotalWidth)
                           .clamp(widget.minRightWidth, widget.maxRightWidth),
                     );
                   });
