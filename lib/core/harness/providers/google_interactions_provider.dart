@@ -16,9 +16,16 @@ import 'tool_call_ids.dart';
 /// 原生支持 Gemini 4 Argon / Gemini 3.8 / Gemini 2.5 系列的：
 /// - `input` Step 序列 (`user_input` / `thought` / `model_output` / `function_call` / `function_result`)
 /// - `generation_config` (`thinking_level` / `thinking_summaries` / `tool_choice`)
-/// - `thought_signature` 跨轮次无损回传
+/// - `thought_signature` 跨轮次无损回传 (签名仅存于 thought 步的 signature 字段，
+///   function_call 步携带 thought_signature 会被 400 拒绝)
 /// - SSE 流式事件 (`step.start` / `step.delta` / `step.stop` / `interaction.completed`) 与非流式 JSON 兜底
 class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
+  /// 官方文档指定的跳过签名校验哑值：客户端未捕获到真实签名时
+  /// (旧历史/异构模型/摘要削减) 填入该值跳过当前轮的签名强制校验。
+  /// 探针实证 (2026-12, gemini-4-hydrogen)：thought 步携带该值可通过校验。
+  static const String _kSkipThoughtSignatureValidator =
+      'skip_thought_signature_validator';
+
   final String apiKey;
   final String baseUrl;
   @override
@@ -281,12 +288,22 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
 
           case AgentRole.assistant:
             final signature = _resolveAssistantThoughtSignature(msg);
+            final hasToolCalls = msg.toolCalls?.isNotEmpty ?? false;
+            // Interactions API 无状态模式契约 (探针实证 2026-12):
+            // 签名只能放在 thought 步的 signature 字段里;
+            // function_call 步携带 thought_signature 会被 400 拒绝
+            // (Unknown parameter 'thought_signature' at 'input[N]')。
+            // 含函数调用的回复必须有带签名的 thought 步;
+            // 未捕获到真实签名时回传官方 dummy 值跳过校验。
+            final effectiveSignature =
+                (signature != null && signature.isNotEmpty)
+                ? signature
+                : (hasToolCalls ? _kSkipThoughtSignatureValidator : null);
             if (msg.thoughts.isNotEmpty ||
-                (signature != null && signature.isNotEmpty)) {
+                (effectiveSignature != null && effectiveSignature.isNotEmpty)) {
               inputSteps.add({
                 'type': 'thought',
-                if (signature != null && signature.isNotEmpty)
-                  'signature': signature,
+                'signature': ?effectiveSignature,
                 if (msg.thoughts.isNotEmpty)
                   'summary': [
                     {'type': 'text', 'text': msg.thoughts},
@@ -302,33 +319,15 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                 ],
               });
             }
-            if (msg.toolCalls != null && msg.toolCalls!.isNotEmpty) {
+            if (hasToolCalls) {
               final calls = msg.toolCalls!;
-              final anyOwnSignature = calls.any(
-                (tc) =>
-                    tc.thoughtSignature != null &&
-                    tc.thoughtSignature!.isNotEmpty,
-              );
-              var usedFallback = false;
               for (final tc in calls) {
                 toolNameByCallId[tc.id] = tc.name;
-                final own = tc.thoughtSignature;
-                var callSignature = own != null && own.isNotEmpty ? own : null;
-                // 调用本身没有签名时，只把消息级签名补到第一个函数调用上。
-                if (callSignature == null &&
-                    !anyOwnSignature &&
-                    !usedFallback &&
-                    signature != null &&
-                    signature.isNotEmpty) {
-                  callSignature = signature;
-                  usedFallback = true;
-                }
                 inputSteps.add({
                   'type': 'function_call',
                   'id': tc.id,
                   'name': tc.name,
                   'arguments': tc.arguments,
-                  'thought_signature': ?callSignature,
                 });
               }
             }

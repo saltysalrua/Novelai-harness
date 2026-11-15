@@ -583,7 +583,7 @@ void main() {
   });
 
   group('Google Interactions thought signature', () {
-    test('function_call 带回 thought_signature，thought 步骤仍在其前面', () {
+    test('签名只存于 thought 步，function_call 不携带 thought_signature', () {
       final body = GoogleInteractionsProvider.buildRequestBody(
         messages: [
           AgentMessage(id: 'u', role: AgentRole.user, content: 'draw'),
@@ -621,11 +621,70 @@ void main() {
       );
       expect(thoughtIndex, lessThan(firstCall));
       expect(input[thoughtIndex]['signature'], 'thought_sig');
-      expect(input[firstCall]['thought_signature'], 'fc_sig');
+      // Interactions API 无状态契约: function_call 步携带 thought_signature
+      // 会被 400 拒绝 (Unknown parameter 'thought_signature' at 'input[N]')，
+      // 探针实证 2026-12 (gemini-4-hydrogen, 官方 /v1beta/interactions)。
+      expect(input[firstCall].containsKey('thought_signature'), isFalse);
       expect(input[secondCall].containsKey('thought_signature'), isFalse);
     });
 
-    test('函数调用自己的 thought_signature 优先于 thought 步骤签名', () async {
+    test('含函数调用但无签名时，thought 步回传官方 dummy 值跳过校验', () {
+      final body = GoogleInteractionsProvider.buildRequestBody(
+        messages: [
+          AgentMessage(id: 'u', role: AgentRole.user, content: 'draw'),
+          AgentMessage(
+            id: 'a',
+            role: AgentRole.assistant,
+            toolCalls: const [
+              ToolCall(id: 'fc_1', name: 'lookup', arguments: {'q': 'cat'}),
+            ],
+          ),
+          AgentMessage(
+            id: 't',
+            role: AgentRole.tool,
+            toolCallId: 'fc_1',
+            toolName: 'lookup',
+            content: 'ok',
+          ),
+        ],
+        tools: const [_LookupTool()],
+        modelId: 'gemini-4-argon',
+        reasoning: true,
+        thinkingEffort: 'medium',
+        promptToolUse: false,
+      );
+      final input = body['input'] as List;
+      final thought = input.singleWhere(
+        (step) => step is Map && step['type'] == 'thought',
+      );
+      expect(thought['signature'], 'skip_thought_signature_validator');
+      final fc = input.singleWhere(
+        (step) => step is Map && step['type'] == 'function_call',
+      );
+      expect(fc.containsKey('thought_signature'), isFalse);
+    });
+
+    test('纯文本回复无思考无签名时不补 thought 步', () {
+      final body = GoogleInteractionsProvider.buildRequestBody(
+        messages: [
+          AgentMessage(id: 'u', role: AgentRole.user, content: 'hi'),
+          AgentMessage(id: 'a', role: AgentRole.assistant, content: 'ok'),
+          AgentMessage(id: 'u2', role: AgentRole.user, content: 'again'),
+        ],
+        tools: const [],
+        modelId: 'gemini-4-argon',
+        reasoning: true,
+        thinkingEffort: 'medium',
+        promptToolUse: false,
+      );
+      final input = body['input'] as List;
+      expect(
+        input.whereType<Map>().any((s) => s['type'] == 'thought'),
+        isFalse,
+      );
+    });
+
+    test('函数调用回放时签名归并入 thought 步', () async {
       late Map<String, dynamic> captured;
       final client = MockClient.streaming((request, bodyStream) async {
         captured =
@@ -708,7 +767,7 @@ void main() {
         (step) => step is Map && step['type'] == 'function_call',
       );
       expect(thought['signature'], 'thought_sig');
-      expect(functionCall['thought_signature'], 'fc_sig');
+      expect(functionCall.containsKey('thought_signature'), isFalse);
     });
   });
 
