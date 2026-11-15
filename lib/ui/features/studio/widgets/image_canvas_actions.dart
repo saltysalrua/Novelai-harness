@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/media_store_service.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
@@ -201,10 +203,32 @@ Future<void> exportImageToCustomDirectory(
   }
 }
 
-/// 图片右键菜单：超分放大、复制图像、复制原图像、复制提示词、复用参数与查看大图
-void showImageContextMenu(
+/// 保存当前选中图片到配置目录，若未配置目录则回退导出到自选位置
+Future<void> saveOrExportSelectedCanvasImage(
+  BuildContext context,
+  StudioViewModel viewModel,
+) async {
+  final l10n = context.l10n;
+  if (viewModel.config.saveDirectory.isEmpty) {
+    final image = viewModel.selectedImage;
+    if (image == null) return;
+    await exportImageToCustomDirectory(context, viewModel, image);
+    return;
+  }
+
+  final ok = await viewModel.saveCurrentImageToDisk();
+  if (!context.mounted) return;
+  showCanvasSnackBar(
+    context,
+    ok
+        ? l10n.canvasSavedImage(viewModel.selectedImage?.localFilePath ?? '')
+        : (viewModel.errorMessage ?? l10n.canvasSaveFailed),
+  );
+}
+
+/// 构建图片操作清单 (桌面右键菜单与移动端 ActionSheet 共用唯一事实源)
+List<ContextMenuAction> buildImageContextMenuActions(
   BuildContext context, {
-  required Offset position,
   required StudioViewModel viewModel,
   required NaiGeneratedImage image,
 }) {
@@ -216,118 +240,275 @@ void showImageContextMenu(
   final showCopyRaw = viewModel.stripMetadata || viewModel.enableWatermark;
   final l10n = context.l10n;
 
+  return [
+    ContextMenuItem(
+      icon: Icons.edit_note_rounded,
+      label: image.annotations.isEmpty
+          ? l10n.canvasActionAddAnnotation
+          : l10n.canvasActionViewAnnotation(image.annotations.length),
+      onTap: () =>
+          viewModel.board.setAnnotatingImage(true, targetImageId: image.id),
+    ),
+    ContextMenuItem(
+      icon: Icons.auto_fix_high_outlined,
+      label: l10n.canvasActionSendToInpaint,
+      onTap: () => viewModel.sendImageToInpaint(image),
+    ),
+    const ContextMenuDivider(),
+    ContextMenuItem(
+      icon: Icons.zoom_in_rounded,
+      label: l10n.canvasActionUpscale,
+      onTap: isGenerating ? null : () => viewModel.upscaleSelected(),
+    ),
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
+      ContextMenuItem(
+        icon: Icons.auto_awesome_outlined,
+        label: l10n.canvasActionRtxUpscale,
+        onTap: isGenerating || !viewModel.supportsRtxUpscale
+            ? null
+            : () => viewModel.upscaleRtx(image),
+      ),
+    ContextMenuItem(
+      icon: Icons.drive_file_move_outlined,
+      label: l10n.canvasSaveToFolder,
+      onTap: () => exportImageToCustomDirectory(context, viewModel, image),
+    ),
+    const ContextMenuDivider(),
+    ContextMenuItem(
+      icon: Icons.content_copy_rounded,
+      label: l10n.canvasActionCopyImage,
+      onTap: () => copyImageToClipboard(context, viewModel, image, raw: false),
+    ),
+    if (showCopyRaw)
+      ContextMenuItem(
+        icon: Icons.image_outlined,
+        label: l10n.canvasActionCopyRawImage,
+        onTap: () => copyImageToClipboard(context, viewModel, image, raw: true),
+      ),
+    ContextMenuItem(
+      icon: Icons.copy_rounded,
+      label: l10n.canvasActionCopyPrompt,
+      onTap: () => copyTextWithSnackBar(
+        context,
+        image.params.finalPrompt,
+        l10n.canvasCopiedPrompt,
+      ),
+    ),
+    ContextMenuItem(
+      icon: Icons.sync_rounded,
+      label: l10n.canvasActionReuseParams,
+      onTap: () {
+        viewModel.updateParams(image.params);
+        showCanvasSnackBar(context, l10n.canvasAppliedParams);
+      },
+    ),
+    const ContextMenuDivider(),
+    ContextMenuItem(
+      icon: Icons.palette_outlined,
+      label: l10n.canvasActionViewPalette,
+      onTap: () => PaletteInspectorDialog.show(
+        context,
+        viewModel: viewModel,
+        image: image,
+      ),
+    ),
+    ContextMenuItem(
+      icon: Icons.fullscreen_rounded,
+      label: l10n.canvasActionViewLightbox,
+      onTap: () => showImageLightbox(
+        context,
+        image,
+        loader: () => viewModel.ensureImageLoaded(image),
+      ),
+    ),
+    const ContextMenuDivider(),
+    ContextMenuItem(
+      icon: Icons.delete_outline_rounded,
+      label: l10n.canvasActionDeleteFromHistory,
+      isDestructive: true,
+      onTap: () async {
+        await viewModel.deleteImageFromHistory(image.id);
+        if (context.mounted) {
+          showCanvasSnackBar(context, l10n.canvasDeletedFromHistory);
+        }
+      },
+    ),
+    ContextMenuItem(
+      icon: Icons.delete_sweep_outlined,
+      label: l10n.canvasActionClearHistory,
+      isDestructive: true,
+      onTap: () async {
+        final ok = await _confirmClearHistory(context, viewModel);
+        if (ok != true) return;
+        await viewModel.clearImageHistory();
+        if (context.mounted) {
+          showCanvasSnackBar(context, l10n.canvasClearedHistory);
+        }
+      },
+    ),
+  ];
+}
+
+/// 图片右键菜单：超分放大、复制图像、复制原图像、复制提示词、复用参数与查看大图
+void showImageContextMenu(
+  BuildContext context, {
+  required Offset position,
+  required StudioViewModel viewModel,
+  required NaiGeneratedImage image,
+}) {
   showStudioContextMenu(
     context,
     position: position,
-    actions: [
-      ContextMenuItem(
-        icon: Icons.edit_note_rounded,
-        label: image.annotations.isEmpty
-            ? l10n.canvasActionAddAnnotation
-            : l10n.canvasActionViewAnnotation(image.annotations.length),
-        onTap: () =>
-            viewModel.board.setAnnotatingImage(true, targetImageId: image.id),
-      ),
-      ContextMenuItem(
-        icon: Icons.auto_fix_high_outlined,
-        label: l10n.canvasActionSendToInpaint,
-        onTap: () => viewModel.sendImageToInpaint(image),
-      ),
-      const ContextMenuDivider(),
-      ContextMenuItem(
-        icon: Icons.zoom_in_rounded,
-        label: l10n.canvasActionUpscale,
-        onTap: isGenerating ? null : () => viewModel.upscaleSelected(),
-      ),
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
-        ContextMenuItem(
-          icon: Icons.auto_awesome_outlined,
-          label: l10n.canvasActionRtxUpscale,
-          onTap: isGenerating || !viewModel.supportsRtxUpscale
-              ? null
-              : () => viewModel.upscaleRtx(image),
+    actions: buildImageContextMenuActions(
+      context,
+      viewModel: viewModel,
+      image: image,
+    ),
+  );
+}
+
+/// 移动端图片底部操作菜单 (长按图片卡片或点击底栏「更多」触发)
+Future<void> showMobileImageActionSheet(
+  BuildContext context, {
+  required StudioViewModel viewModel,
+  required NaiGeneratedImage image,
+}) {
+  final actions = buildImageContextMenuActions(
+    context,
+    viewModel: viewModel,
+    image: image,
+  );
+  final colors = context.colors;
+
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: colors.cardBackground,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (sheetContext) {
+      final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.78;
+      return SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.borderHover,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      '${image.params.width} × ${image.params.height}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    if (!image.isImportedReference) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Seed ${image.seed}',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontFamily: 'monospace',
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: colors.borderDefault),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final action in actions)
+                        if (action is ContextMenuDivider)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            child: Divider(
+                              height: 1,
+                              color: colors.borderSubtle,
+                            ),
+                          )
+                        else if (action is ContextMenuItem)
+                          InkWell(
+                            onTap: action.onTap == null
+                                ? null
+                                : () {
+                                    Navigator.of(sheetContext).pop();
+                                    action.onTap!();
+                                  },
+                            child: SizedBox(
+                              height: 46,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      action.icon,
+                                      size: 18,
+                                      color: action.onTap == null
+                                          ? colors.textMuted
+                                          : (action.isDestructive
+                                                ? colors.coral
+                                                : colors.textSecondary),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        action.label,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: action.onTap == null
+                                              ? colors.textMuted
+                                              : (action.isDestructive
+                                                    ? colors.coral
+                                                    : colors.textPrimary),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ContextMenuItem(
-        icon: Icons.drive_file_move_outlined,
-        label: l10n.canvasSaveToFolder,
-        onTap: () => exportImageToCustomDirectory(context, viewModel, image),
-      ),
-      const ContextMenuDivider(),
-      ContextMenuItem(
-        icon: Icons.content_copy_rounded,
-        label: l10n.canvasActionCopyImage,
-        onTap: () =>
-            copyImageToClipboard(context, viewModel, image, raw: false),
-      ),
-      if (showCopyRaw)
-        ContextMenuItem(
-          icon: Icons.image_outlined,
-          label: l10n.canvasActionCopyRawImage,
-          onTap: () =>
-              copyImageToClipboard(context, viewModel, image, raw: true),
-        ),
-      ContextMenuItem(
-        icon: Icons.copy_rounded,
-        label: l10n.canvasActionCopyPrompt,
-        onTap: () => copyTextWithSnackBar(
-          context,
-          image.params.finalPrompt,
-          l10n.canvasCopiedPrompt,
-        ),
-      ),
-      ContextMenuItem(
-        icon: Icons.sync_rounded,
-        label: l10n.canvasActionReuseParams,
-        onTap: () {
-          viewModel.updateParams(image.params);
-          showCanvasSnackBar(context, l10n.canvasAppliedParams);
-        },
-      ),
-      const ContextMenuDivider(),
-      ContextMenuItem(
-        icon: Icons.palette_outlined,
-        label: l10n.canvasActionViewPalette,
-        onTap: () => PaletteInspectorDialog.show(
-          context,
-          viewModel: viewModel,
-          image: image,
-        ),
-      ),
-      ContextMenuItem(
-        icon: Icons.fullscreen_rounded,
-        label: l10n.canvasActionViewLightbox,
-        onTap: () => showImageLightbox(
-          context,
-          image,
-          loader: () => viewModel.ensureImageLoaded(image),
-        ),
-      ),
-      const ContextMenuDivider(),
-      ContextMenuItem(
-        icon: Icons.delete_outline_rounded,
-        label: l10n.canvasActionDeleteFromHistory,
-        isDestructive: true,
-        onTap: () async {
-          await viewModel.deleteImageFromHistory(image.id);
-          if (context.mounted) {
-            showCanvasSnackBar(context, l10n.canvasDeletedFromHistory);
-          }
-        },
-      ),
-      ContextMenuItem(
-        icon: Icons.delete_sweep_outlined,
-        label: l10n.canvasActionClearHistory,
-        isDestructive: true,
-        onTap: () async {
-          final ok = await _confirmClearHistory(context, viewModel);
-          if (ok != true) return;
-          await viewModel.clearImageHistory();
-          if (context.mounted) {
-            showCanvasSnackBar(context, l10n.canvasClearedHistory);
-          }
-        },
-      ),
-    ],
+      );
+    },
   );
 }
 

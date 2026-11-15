@@ -3699,4 +3699,40 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get toolFallbackName => '工具';
+
+  @override
+  String get chatAssistantLabel => 'AI 助手';
+
+  @override
+  String get chatCopyMessageTooltip => '复制内容';
+
+  @override
+  String get chatCopiedTooltip => '已复制';
+
+  @override
+  String get chatEditAndRewindTooltip => '编辑并撤回后续对话';
+
+  @override
+  String get chatRewindToHereTooltip => '回退到此回复';
+
+  @override
+  String get chatScrollToBottomTooltip => '回到底部';
+
+  @override
+  String get chatEmptyWelcomeTitle => '有什么可以帮您创作？';
+
+  @override
+  String get chatEmptySuggestionDraw => '帮我构思画面并生成图片';
+
+  @override
+  String get chatEmptySuggestionRefine => '优化当前提示词标签与权重';
+
+  @override
+  String get chatEmptySuggestionAnalyze => '分析画板图片并给出修改建议';
+
+  @override
+  String get chatToolArgsLabel => '调用参数';
+
+  @override
+  String get chatToolOutputLabel => '返回结果';
 }

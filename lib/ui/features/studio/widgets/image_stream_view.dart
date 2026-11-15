@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
@@ -119,11 +120,13 @@ class CanvasStreamController {
 class ImageStreamView extends StatefulWidget {
   final StudioViewModel viewModel;
   final CanvasStreamController controller;
+  final bool compact;
 
   const ImageStreamView({
     super.key,
     required this.viewModel,
     required this.controller,
+    this.compact = false,
   });
 
   @override
@@ -179,12 +182,15 @@ class _ImageStreamViewState extends State<ImageStreamView> {
           maxCardWidth,
           maxCardHeight,
         );
-        final bottomPadding = _centeringPaddingFor(
+        final calculatedBottomPadding = _centeringPaddingFor(
           constraints.maxHeight,
           lastCardParams,
           maxCardWidth,
           maxCardHeight,
         );
+        final bottomPadding = widget.compact
+            ? math.max(76.0, calculatedBottomPadding)
+            : calculatedBottomPadding;
 
         // 占位符与历史图总数 (生成中或比例不匹配的位置编辑模式下头部多一个占位符)
         final totalItemCount =
@@ -215,11 +221,17 @@ class _ImageStreamViewState extends State<ImageStreamView> {
               isSelected: true,
               maxCardWidth: maxCardWidth,
               maxCardHeight: maxCardHeight,
+              compact: widget.compact,
             );
           }
           return SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              24,
+              20,
+              widget.compact ? 84 : 24,
+            ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 minHeight: (constraints.maxHeight - 48).clamp(
@@ -305,6 +317,7 @@ class _ImageStreamViewState extends State<ImageStreamView> {
                 isSelected: isSelected,
                 maxCardWidth: maxCardWidth,
                 maxCardHeight: maxCardHeight,
+                compact: widget.compact,
               );
             },
           ),
@@ -550,6 +563,7 @@ class CanvasImageCard extends StatelessWidget {
   final bool isSelected;
   final double maxCardWidth;
   final double maxCardHeight;
+  final bool compact;
 
   const CanvasImageCard({
     super.key,
@@ -559,6 +573,7 @@ class CanvasImageCard extends StatelessWidget {
     required this.isSelected,
     required this.maxCardWidth,
     required this.maxCardHeight,
+    this.compact = false,
   });
 
   @override
@@ -585,12 +600,22 @@ class CanvasImageCard extends StatelessWidget {
         key: controller.keyFor(item.id),
         onShow: isPositionOverlayActive
             ? null
-            : (position) => showImageContextMenu(
-                context,
-                position: position,
-                viewModel: viewModel,
-                image: item,
-              ),
+            : (position) {
+                if (compact) {
+                  showMobileImageActionSheet(
+                    context,
+                    viewModel: viewModel,
+                    image: item,
+                  );
+                } else {
+                  showImageContextMenu(
+                    context,
+                    position: position,
+                    viewModel: viewModel,
+                    image: item,
+                  );
+                }
+              },
         child: GestureDetector(
           onTap: () => viewModel.selectImage(item),
           onDoubleTap: isPositionOverlayActive

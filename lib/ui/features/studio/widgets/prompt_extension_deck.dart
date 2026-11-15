@@ -30,13 +30,19 @@ bool _pointerDownHitsEditableText(PointerDownEvent event) {
 
 /// 甲板滑动切页专用横向拖拽识别器。
 ///
-/// 覆写 [addPointer]：指针落点命中可编辑文本 (RenderEditable) 时直接不加入
-/// 手势竞技场，鼠标在输入框内框选文本完全交给输入框自身处理，
-/// 杜绝「拖选文字被抢成滑动切页」的误触。
+/// 覆写 [addPointer]：
+/// 1. 指针落点命中可编辑文本 (RenderEditable) 时直接不加入手势竞技场，
+///    鼠标在输入框内框选文本完全交给输入框自身处理，杜绝「拖选文字被抢成滑动切页」；
+/// 2. 可选提供 [canAcceptPointer]（窄屏下限制仅顶部切换头响应，避免与外层 PageView 横滑冲突）。
 class _DeckSwipeRecognizer extends HorizontalDragGestureRecognizer {
+  bool Function(Offset globalPosition)? canAcceptPointer;
+
   @override
   void addPointer(PointerDownEvent event) {
     if (_pointerDownHitsEditableText(event)) return;
+    if (canAcceptPointer != null && !canAcceptPointer!(event.position)) {
+      return;
+    }
     super.addPointer(event);
   }
 }
@@ -113,6 +119,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     final supported = limit > 0;
     final isFull = viewModel.isCharacterPromptFull;
     final isAffixesEnabled = params.applyFixedPrompts;
+    final isNarrow = MediaQuery.sizeOf(context).width < 900;
 
     return RawGestureDetector(
       key: const ValueKey('deck_swipe_detector'),
@@ -123,6 +130,13 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
               () => _DeckSwipeRecognizer(),
               (recognizer) {
                 recognizer
+                  ..canAcceptPointer = isNarrow
+                      ? (globalPos) {
+                          final box = context.findRenderObject() as RenderBox?;
+                          if (box == null || !box.hasSize) return true;
+                          return box.globalToLocal(globalPos).dy <= 44.0;
+                        }
+                      : null
                   ..onStart = (_) {
                     _horizontalDragAccumulated = 0;
                   }

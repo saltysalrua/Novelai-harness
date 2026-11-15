@@ -30,6 +30,7 @@ class BoardAnnotationToolbar extends StatelessWidget {
   final VoidCallback onAddNote;
   final VoidCallback onImportImage;
   final VoidCallback onPasteImage;
+  final VoidCallback? onPickHistoryReference;
 
   const BoardAnnotationToolbar({
     super.key,
@@ -41,6 +42,7 @@ class BoardAnnotationToolbar extends StatelessWidget {
     required this.onAddNote,
     required this.onImportImage,
     required this.onPasteImage,
+    this.onPickHistoryReference,
   });
 
   @override
@@ -91,6 +93,16 @@ class BoardAnnotationToolbar extends StatelessWidget {
               isSelected: false,
               onTap: onImportImage,
             ),
+            if (onPickHistoryReference != null) ...[
+              const SizedBox(width: 4),
+              BoardToolbarItem(
+                key: const Key('board_pick_history_ref_button'),
+                icon: Icons.collections_outlined,
+                label: l10n.annotHistoryTitle.trim(),
+                isSelected: false,
+                onTap: onPickHistoryReference!,
+              ),
+            ],
             const SizedBox(width: 4),
             BoardToolbarItem(
               icon: Icons.content_paste_rounded,

@@ -8,6 +8,8 @@ import '../../../../data/services/image_metadata_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_floating_dock.dart';
 import '../../../core/widgets/app_scale_gesture_region.dart';
 import '../view_models/studio_view_model.dart';
@@ -634,8 +636,8 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                       // 3. 顶部居中浮动工具坞
                       Positioned(
                         top: 14,
-                        left: 0,
-                        right: 0,
+                        left: 12,
+                        right: 12,
                         child: Center(
                           child: BoardAnnotationToolbar(
                             toolMode: _toolMode,
@@ -670,6 +672,10 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                               ),
                             ),
                             onPasteImage: _handlePaste,
+                            onPickHistoryReference:
+                                MediaQuery.sizeOf(context).width < 900
+                                ? () => _showMobileHistoryReferenceSheet(context)
+                                : null,
                           ),
                         ),
                       ),
@@ -741,6 +747,138 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                 ),
               );
             },
+          ),
+        );
+      },
+    );
+  }
+
+  // ------------------------- 窄屏历史参考图选择器 -------------------------
+
+  Future<void> _showMobileHistoryReferenceSheet(BuildContext context) {
+    final gallery = widget.viewModel.gallery;
+    final selectedId = widget.viewModel.selectedImage?.id;
+    final colors = context.colors;
+    final l10n = context.l10n;
+
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: colors.cardBackground,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.65;
+        return SafeArea(
+          top: false,
+          child: SizedBox(
+            height: maxHeight,
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.borderHover,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.collections_outlined,
+                        size: 16,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.annotHistoryTitle.trim(),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      AppBadge.pill(
+                        label: '${gallery.length}',
+                        variant: AppBadgeVariant.primary,
+                        fontSize: 11,
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: colors.borderDefault),
+                Expanded(
+                  child: gallery.isEmpty
+                      ? AppEmptyState(
+                          icon: Icons.photo_library_outlined,
+                          title: l10n.annotHistoryEmpty,
+                          isCompact: true,
+                        )
+                      : GridView.builder(
+                          padding: const EdgeInsets.all(12),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                mainAxisSpacing: 8,
+                                crossAxisSpacing: 8,
+                                childAspectRatio: 0.85,
+                              ),
+                          itemCount: gallery.length,
+                          itemBuilder: (_, index) {
+                            final item = gallery[index];
+                            final isSelected = item.id == selectedId;
+                            final thumb =
+                                item.thumbnailBytes ??
+                                (item.bytes.isNotEmpty ? item.bytes : null);
+                            return InkWell(
+                              onTap: () {
+                                widget.viewModel.board.addImageNodeToBoard(
+                                  item,
+                                );
+                                Navigator.of(sheetContext).pop();
+                                showCanvasSnackBar(
+                                  context,
+                                  l10n.annotHistoryAddedAsReference,
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: colors.mutedBackground,
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.sm,
+                                  ),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? colors.primary
+                                        : colors.borderDefault,
+                                    width: isSelected ? 2 : 1,
+                                  ),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: thumb != null && thumb.isNotEmpty
+                                    ? Image.memory(
+                                        thumb,
+                                        fit: BoxFit.cover,
+                                        gaplessPlayback: true,
+                                      )
+                                    : Icon(
+                                        Icons.image_outlined,
+                                        color: colors.textMuted,
+                                      ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },

@@ -62,9 +62,9 @@ void main() {
     );
     // 不传时保持原值
     expect(
-      const AppConfig(agentPersistentImages: true)
-          .copyWith()
-          .agentPersistentImages,
+      const AppConfig(
+        agentPersistentImages: true,
+      ).copyWith().agentPersistentImages,
       isTrue,
     );
   });

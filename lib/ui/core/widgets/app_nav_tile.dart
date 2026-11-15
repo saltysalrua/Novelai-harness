@@ -142,7 +142,31 @@ class _AppNavTileState extends State<AppNavTile> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (widget.icon != null) ...[
-                          Icon(widget.icon, size: 18, color: iconFg),
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Icon(widget.icon, size: 18, color: iconFg),
+                              if (displayBadge != null)
+                                Positioned(
+                                  top: -2,
+                                  right: -4,
+                                  child: Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          widget.badgeColor ??
+                                          resolvedActiveColor,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: colors.cardBackground,
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                           const SizedBox(height: 2),
                         ],
                         Text(

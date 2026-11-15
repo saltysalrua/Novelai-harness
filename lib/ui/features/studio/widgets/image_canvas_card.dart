@@ -18,8 +18,15 @@ import 'metadata_reader_dialog.dart';
 /// 中间画板卡片：垂直图像流 + 可收起历史侧边栏 + 浮动徽章/横幅 + 角色位置交互画板 + 外部图片拖拽与粘贴导入
 class ImageCanvasCard extends StatefulWidget {
   final StudioViewModel viewModel;
+  final bool compact;
+  final VoidCallback? onSentToInpaint;
 
-  const ImageCanvasCard({super.key, required this.viewModel});
+  const ImageCanvasCard({
+    super.key,
+    required this.viewModel,
+    this.compact = false,
+    this.onSentToInpaint,
+  });
 
   @override
   State<ImageCanvasCard> createState() => _ImageCanvasCardState();
@@ -90,6 +97,7 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
         viewModel.isEditingWatermarkPosition;
     final isAnnotating = viewModel.board.isAnnotatingImage;
     final isInpaintTab =
+        !widget.compact &&
         viewModel.activeSidebarTab == StudioSidebarTab.inpaint &&
         !isEditingPositions;
     final selectedImage =
@@ -125,6 +133,7 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
         child: Container(
           color: context.colors.canvasBackground, // Notion 统一暖纸本底色
           child: Stack(
+            fit: StackFit.expand,
             children: [
               // 1. 中间核心：上下滑动的垂直图像瀑布流 (单图居中 / 多图平滑瀑布流 / 临时位置占位卡片)
               Positioned.fill(
@@ -143,6 +152,7 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                                       : ImageStreamView(
                                           viewModel: viewModel,
                                           controller: _stream,
+                                          compact: widget.compact,
                                         ))),
                     ),
 
@@ -197,28 +207,40 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
                   child: CanvasPositionFloatingControls(viewModel: viewModel),
                 ),
 
-              // 4. 左下角浮动参数徽章 (非编辑与非批注模式且选中图片时展示)
+              // 4. 底部操作浮层：窄屏合并为统一胶囊条，宽屏拆分为左下参数徽章 + 右下保存按钮
               if (selectedImage != null && !isEditingPositions && !isAnnotating)
-                Positioned(
-                  bottom: 18,
-                  left: 18,
-                  child: CanvasParamBadges(
-                    image: selectedImage,
-                    viewModel: viewModel,
+                if (widget.compact)
+                  Positioned(
+                    bottom: 12,
+                    left: 12,
+                    right: 12,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        child: MobileCanvasActionBar(
+                          image: selectedImage,
+                          viewModel: viewModel,
+                          onInpaintPressed: widget.onSentToInpaint,
+                        ),
+                      ),
+                    ),
+                  )
+                else ...[
+                  Positioned(
+                    bottom: 18,
+                    left: 18,
+                    child: CanvasParamBadges(
+                      image: selectedImage,
+                      viewModel: viewModel,
+                    ),
                   ),
-                ),
-
-              // 4.5 右下角手动保存按钮 (当前图为未保存缓存图时展示；
-              //     含自动保存开启后残留的旧未保存图，避免无处可存)
-              if (selectedImage != null &&
-                  selectedImage.isUnsaved &&
-                  !isEditingPositions &&
-                  !isAnnotating)
-                Positioned(
-                  bottom: 18,
-                  right: 18,
-                  child: CanvasSaveButton(viewModel: viewModel),
-                ),
+                  if (selectedImage.isUnsaved)
+                    Positioned(
+                      bottom: 18,
+                      right: 18,
+                      child: CanvasSaveButton(viewModel: viewModel),
+                    ),
+                ],
 
               // 5. 右上角浮动 History 展开按键 (仅在收回状态且非编辑/非批注/非修复页签时显示)
               if (!_isHistoryOpen &&

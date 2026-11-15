@@ -1618,5 +1618,17 @@
   "promptsUcPreset": "UC 预设",
   "referenceImageBadge": "参考图",
   "toolFallbackName": "工具",
+  "chatAssistantLabel": "AI 助手",
+  "chatCopyMessageTooltip": "复制内容",
+  "chatCopiedTooltip": "已复制",
+  "chatEditAndRewindTooltip": "编辑并撤回后续对话",
+  "chatRewindToHereTooltip": "回退到此回复",
+  "chatScrollToBottomTooltip": "回到底部",
+  "chatEmptyWelcomeTitle": "有什么可以帮您创作？",
+  "chatEmptySuggestionDraw": "帮我构思画面并生成图片",
+  "chatEmptySuggestionRefine": "优化当前提示词标签与权重",
+  "chatEmptySuggestionAnalyze": "分析画板图片并给出修改建议",
+  "chatToolArgsLabel": "调用参数",
+  "chatToolOutputLabel": "返回结果",
   "@settingsUiZoomSubtitle": {"placeholders": {"modifier": {"type": "String"}}}
 }

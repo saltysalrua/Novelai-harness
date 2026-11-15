@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 // markdown 只作为 flutter_markdown_plus 的传递依赖出现，这里只用它的元素类型。
 // ignore: depend_on_referenced_packages
@@ -10,13 +12,14 @@ import '../../../../core/harness/types.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/stable_edge_selection.dart';
 import 'agent_chat_blocks.dart';
 import 'chat_image_attachment.dart';
 import 'image_lightbox.dart';
 
-/// 单条对话消息的 Pi 风格平铺渲染入口
-/// (system 隐藏 / user 纯文本 / assistant Markdown / tool 结果块)
+/// 单条对话消息的现代 AI Chat 渲染入口
+/// (system 隐藏 / user 右侧气泡 / assistant 左侧消息+合并工具步骤卡 / 未配对 tool 结果兜底)
 class AgentChatMessageItem extends StatefulWidget {
   final AgentMessage message;
 
@@ -26,11 +29,23 @@ class AgentChatMessageItem extends StatefulWidget {
   /// 只保活近期消息，避免长会话无限持有 Markdown 和图片子树。
   final bool keepAlive;
 
+  /// 与 [message.toolCalls] 按下标配对的工具执行结果列表
+  final List<AgentMessage?> pairedToolResults;
+
+  /// 当前消息是否作为已合并到前一条助手卡片中的工具结果 (若是则隐藏重复行)
+  final bool isMergedToolResult;
+
+  /// 回溯/编辑该消息的回调
+  final ValueChanged<String>? onRewind;
+
   const AgentChatMessageItem({
     super.key,
     required this.message,
     this.thinkingExpanded = false,
     this.keepAlive = false,
+    this.pairedToolResults = const [],
+    this.isMergedToolResult = false,
+    this.onRewind,
   });
 
   @override
@@ -56,194 +71,414 @@ class _AgentChatMessageItemState extends State<AgentChatMessageItem>
       case AgentRole.system:
         return const SizedBox.shrink();
       case AgentRole.user:
-        return UserMessageRow(message: message);
+        return UserMessageRow(message: message, onRewind: widget.onRewind);
       case AgentRole.tool:
+        if (widget.isMergedToolResult) return const SizedBox.shrink();
         return ToolResultBlock(message: message);
       case AgentRole.assistant:
         return AssistantMessageItem(
           message: message,
           thinkingExpanded: widget.thinkingExpanded,
+          pairedToolResults: widget.pairedToolResults,
+          onRewind: widget.onRewind,
         );
     }
   }
 }
 
-/// 用户消息: 平铺无气泡，› 前缀 + 纯文本 (与 Pi TUI 一致) + 图片附件缩略图
-class UserMessageRow extends StatelessWidget {
-  final AgentMessage message;
+/// 悬停高亮消息外框 + 固定高度快捷操作栏共享容器
+class _HoverableMessageActionScope extends StatefulWidget {
+  final Widget Function(BuildContext context, bool hovered) builder;
 
-  const UserMessageRow({super.key, required this.message});
+  const _HoverableMessageActionScope({required this.builder});
+
+  @override
+  State<_HoverableMessageActionScope> createState() =>
+      _HoverableMessageActionScopeState();
+}
+
+class _HoverableMessageActionScopeState
+    extends State<_HoverableMessageActionScope> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) {
+        if (!_hovered) setState(() => _hovered = true);
+      },
+      onExit: (_) {
+        if (_hovered) setState(() => _hovered = false);
+      },
+      child: widget.builder(context, _hovered),
+    );
+  }
+}
+
+/// 带即时复制成功反馈的紧凑图标按钮
+class _MessageCopyButton extends StatefulWidget {
+  final String text;
+  final String copyTooltip;
+  final String copiedTooltip;
+
+  const _MessageCopyButton({
+    super.key,
+    required this.text,
+    required this.copyTooltip,
+    required this.copiedTooltip,
+  });
+
+  @override
+  State<_MessageCopyButton> createState() => _MessageCopyButtonState();
+}
+
+class _MessageCopyButtonState extends State<_MessageCopyButton> {
+  bool _copied = false;
+  Timer? _resetTimer;
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: widget.text));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    _resetTimer?.cancel();
+    _resetTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    return AppIconButton(
+      icon: _copied ? Icons.check_rounded : Icons.content_copy_rounded,
+      size: 20,
+      iconSize: 12,
+      iconColor: _copied ? colors.success : colors.textMuted,
+      tooltip: _copied ? widget.copiedTooltip : widget.copyTooltip,
+      variant: AppIconButtonVariant.ghost,
+      onPressed: _copy,
+    );
+  }
+}
+
+/// 用户消息: 右侧圆角气泡 + 图片附件缩略图 + 底部复制/编辑撤回操作栏
+class UserMessageRow extends StatelessWidget {
+  final AgentMessage message;
+  final ValueChanged<String>? onRewind;
+
+  const UserMessageRow({super.key, required this.message, this.onRewind});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.maybeL10n;
     final images = message.images;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Icon(
-                  Icons.keyboard_arrow_right,
-                  size: 16,
-                  color: colors.primary,
-                ),
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 36),
+      child: _HoverableMessageActionScope(
+        builder: (context, hovered) => Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: colors.elevatedBackground,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                border: Border.all(color: colors.borderSubtle),
               ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: SelectableText(
-                  message.content,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: colors.textPrimary,
-                    height: 1.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (images.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final img in images)
-                    ChatImageThumbnail(
-                      bytes: img.bytes,
-                      size: 72,
-                      onTap: () => showImageLightboxBytes(context, img.bytes),
+                  if (images.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final img in images)
+                          ChatImageThumbnail(
+                            bytes: img.bytes,
+                            size: 72,
+                            onTap: () =>
+                                showImageLightboxBytes(context, img.bytes),
+                          ),
+                      ],
+                    ),
+                  if (images.isNotEmpty && message.content.isNotEmpty)
+                    const SizedBox(height: 6),
+                  if (message.content.isNotEmpty)
+                    SelectableText(
+                      message.content,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: colors.textPrimary,
+                        height: 1.5,
+                      ),
                     ),
                 ],
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 助手消息: 思考块 (可折叠，Ctrl+O 全局展开) + Markdown 正文 + 工具调用块 (可折叠)
-class AssistantMessageItem extends StatelessWidget {
-  final AgentMessage message;
-
-  /// 思考块全局展开开关 (Ctrl+O)
-  final bool thinkingExpanded;
-
-  const AssistantMessageItem({
-    super.key,
-    required this.message,
-    this.thinkingExpanded = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // 展示层兜底：正文里的 [回复 #N] 标记与残渣一律不上 UI
-    // (历史会话、陈旧落盘数据也一并洗干净)
-    final content = ReplyMarker.strip(message.content);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (message.replyNumber != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: SelectableText(
-              '#${message.replyNumber}',
-              style: TextStyle(fontSize: 11, color: context.colors.textMuted),
-            ),
-          ),
-        if (message.thoughts.isNotEmpty)
-          AgentTimelineStep(
-            child: ThinkingBlock(
-              thoughts: message.thoughts,
-              forceExpanded: thinkingExpanded,
-            ),
-          ),
-        if (content.isNotEmpty) ...[
-          AgentTimelineStep(child: AgentMarkdownBody(data: content)),
-        ],
-        if (message.toolCalls != null)
-          for (final (index, call) in message.toolCalls!.indexed)
-            AgentTimelineStep(
-              // 协议 ID 在旧历史中可能重复或为空，不能直接当组件身份。
-              // 消息 + 调用位置保证唯一，追加调用/思考块时保留各自折叠状态。
-              key: ValueKey((message.id, call.id, index)),
-              accent: context.colors.primary,
-              child: ToolCallBlock(call: call),
-            ),
-      ],
-    );
-  }
-}
-
-/// 工具调用块: 名称 + 参数摘要，展开后显示完整参数 JSON
-class ToolCallBlock extends StatelessWidget {
-  final ToolCall call;
-
-  const ToolCallBlock({super.key, required this.call});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return CollapsibleTile(
-      margin: EdgeInsets.zero,
-      header: Row(
-        children: [
-          Icon(Icons.build_circle_outlined, size: 14, color: colors.primary),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              call.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'monospace',
-                color: colors.primary,
+            if (message.content.isNotEmpty || onRewind != null) ...[
+              const SizedBox(height: 2),
+              AnimatedOpacity(
+                opacity: hovered ? 0.9 : 0.35,
+                duration: const Duration(milliseconds: 120),
+                child: SizedBox(
+                  height: 18,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.content.isNotEmpty)
+                        _MessageCopyButton(
+                          key: ValueKey('user_msg_copy_${message.id}'),
+                          text: message.content,
+                          copyTooltip: l10n?.chatCopyMessageTooltip ?? '复制内容',
+                          copiedTooltip: l10n?.chatCopiedTooltip ?? '已复制',
+                        ),
+                      if (onRewind != null)
+                        AppIconButton(
+                          key: ValueKey('user_msg_rewind_${message.id}'),
+                          icon: Icons.edit_note_rounded,
+                          size: 20,
+                          iconSize: 13,
+                          iconColor: colors.textMuted,
+                          tooltip:
+                              l10n?.chatEditAndRewindTooltip ?? '编辑并撤回后续对话',
+                          variant: AppIconButtonVariant.ghost,
+                          onPressed: () => onRewind!(message.id),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              summarizeToolArguments(call.arguments),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-                color: colors.textMuted,
-              ),
-            ),
-          ),
-        ],
-      ),
-      bodyBuilder: (context) => SizedBox(
-        width: double.infinity,
-        child: SelectableText(
-          const JsonEncoder.withIndent('  ').convert(call.arguments),
-          style: TextStyle(
-            fontSize: 12,
-            fontFamily: 'monospace',
-            color: colors.textSecondary,
-            height: 1.45,
-          ),
+            ],
+          ],
         ),
       ),
     );
   }
 }
 
-/// 工具结果块: 状态图标 + 工具名 + 行数摘要，展开后显示完整输出
+/// 助手消息: 思考块 + 合并工具步骤卡 + Markdown 正文 + 紧凑底部操作栏
+class AssistantMessageItem extends StatelessWidget {
+  final AgentMessage message;
+
+  /// 思考块全局展开开关 (Ctrl+O)
+  final bool thinkingExpanded;
+
+  /// 按调用顺序配对的工具执行结果
+  final List<AgentMessage?> pairedToolResults;
+
+  /// 回退到此回复的回调
+  final ValueChanged<String>? onRewind;
+
+  const AssistantMessageItem({
+    super.key,
+    required this.message,
+    this.thinkingExpanded = false,
+    this.pairedToolResults = const [],
+    this.onRewind,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.maybeL10n;
+    // 展示层兜底：正文里的 [回复 #N] 标记与残渣一律不上 UI
+    // (历史会话、陈旧落盘数据也一并洗干净)
+    final content = ReplyMarker.strip(message.content);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _HoverableMessageActionScope(
+        builder: (context, hovered) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (message.replyNumber != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: SelectableText(
+                  '#${message.replyNumber}',
+                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                ),
+              ),
+            if (message.thoughts.isNotEmpty)
+              ThinkingBlock(
+                thoughts: message.thoughts,
+                forceExpanded: thinkingExpanded,
+              ),
+            if (message.toolCalls != null)
+              for (final (index, call) in message.toolCalls!.indexed)
+                Padding(
+                  // 协议 ID 在旧历史中可能重复或为空，不能直接当组件身份。
+                  // 消息 + 调用位置保证唯一，追加调用/思考块时保留各自折叠状态。
+                  key: ValueKey((message.id, call.id, index)),
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: ToolCallBlock(
+                    call: call,
+                    result: index < pairedToolResults.length
+                        ? pairedToolResults[index]
+                        : null,
+                  ),
+                ),
+            if (content.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: AgentMarkdownBody(data: content),
+              ),
+            if (content.isNotEmpty || onRewind != null) ...[
+              const SizedBox(height: 3),
+              AnimatedOpacity(
+                opacity: hovered ? 0.9 : 0.35,
+                duration: const Duration(milliseconds: 120),
+                child: SizedBox(
+                  height: 18,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (content.isNotEmpty)
+                        _MessageCopyButton(
+                          key: ValueKey('assistant_msg_copy_${message.id}'),
+                          text: content,
+                          copyTooltip: l10n?.chatCopyMessageTooltip ?? '复制内容',
+                          copiedTooltip: l10n?.chatCopiedTooltip ?? '已复制',
+                        ),
+                      if (onRewind != null)
+                        AppIconButton(
+                          key: ValueKey('assistant_msg_rewind_${message.id}'),
+                          icon: Icons.history_rounded,
+                          size: 20,
+                          iconSize: 12,
+                          iconColor: colors.textMuted,
+                          tooltip: l10n?.chatRewindToHereTooltip ?? '回退到此回复',
+                          variant: AppIconButtonVariant.ghost,
+                          onPressed: () => onRewind!(message.id),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 工具步骤卡: 合并展示调用入参与配对结果 (无配对结果时仅显示调用态)，附图直出
+class ToolCallBlock extends StatelessWidget {
+  final ToolCall call;
+  final AgentMessage? result;
+
+  const ToolCallBlock({super.key, required this.call, this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final pairedResult = result;
+    final statusColor = pairedResult == null
+        ? colors.primary
+        : (pairedResult.isError ? colors.error : colors.success);
+    final statusIcon = pairedResult == null
+        ? Icons.build_circle_outlined
+        : (pairedResult.isError
+              ? Icons.error_outline_rounded
+              : Icons.check_circle_outline_rounded);
+
+    final resultSummary =
+        pairedResult != null && pairedResult.content.trim().isNotEmpty
+        ? firstNonEmptyLine(pairedResult.content)
+        : '';
+    final summary = resultSummary.isNotEmpty
+        ? resultSummary
+        : summarizeToolArguments(call.arguments);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CollapsibleTile(
+          margin: EdgeInsets.zero,
+          backgroundColor: colors.mutedBackground.withValues(alpha: 0.4),
+          borderColor: colors.borderSubtle,
+          borderRadius: AppRadius.md,
+          headerPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 6,
+          ),
+          header: Row(
+            children: [
+              Icon(statusIcon, size: 14, color: statusColor),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  call.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              if (summary.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    summary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          bodyBuilder: (context) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SelectableText(
+                const JsonEncoder.withIndent('  ').convert(call.arguments),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: colors.textSecondary,
+                  height: 1.45,
+                ),
+              ),
+              if (pairedResult != null && pairedResult.content.isNotEmpty) ...[
+                Divider(height: 12, color: colors.borderSubtle),
+                BoundedSelectableText(
+                  text: pairedResult.content,
+                  maxHeight: 280,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: colors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (pairedResult?.imageBase64 != null &&
+            pairedResult!.imageBase64!.isNotEmpty)
+          _ToolOutputImagePreview(bytes: pairedResult.imageBytes!),
+      ],
+    );
+  }
+}
+
+/// 独立工具结果块 (无前序配对调用时的兜底渲染): 状态图标 + 工具名 + 行数摘要，附图直出
 class ToolResultBlock extends StatelessWidget {
   final AgentMessage message;
 
@@ -252,55 +487,59 @@ class ToolResultBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.maybeL10n;
     final lineCount = message.content.isEmpty
         ? 0
         : message.content.split('\n').length;
     final firstLine = message.content.isEmpty
-        ? context.l10n.chatToolNoOutput
+        ? (l10n?.chatToolNoOutput ?? '(无输出)')
         : message.content.split('\n').first.trim();
     final accent = message.isError ? colors.error : colors.success;
 
-    return AgentTimelineStep(
-      accent: accent,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CollapsibleTile(
             margin: EdgeInsets.zero,
+            backgroundColor: colors.mutedBackground.withValues(alpha: 0.4),
+            borderColor: colors.borderSubtle,
+            borderRadius: AppRadius.md,
+            headerPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
             header: Row(
               children: [
                 Icon(
                   message.isError
-                      ? Icons.error_outline
-                      : Icons.check_circle_outline,
+                      ? Icons.error_outline_rounded
+                      : Icons.check_circle_outline_rounded,
                   size: 14,
                   color: accent,
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    message.toolName ?? context.l10n.toolFallbackName,
+                    message.toolName ?? (l10n?.toolFallbackName ?? '工具'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'monospace',
-                      color: accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: colors.textPrimary,
                     ),
                   ),
                 ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    context.l10n.chatToolResultSummary(lineCount, firstLine),
+                    l10n?.chatToolResultSummary(lineCount, firstLine) ??
+                        '$lineCount 行 · $firstLine',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      color: colors.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 12, color: colors.textMuted),
                   ),
                 ),
               ],
@@ -316,64 +555,65 @@ class ToolResultBlock extends StatelessWidget {
               ),
             ),
           ),
-          // 工具结果附带的图片 (如查看画板图片工具) 不藏在折叠块里，
-          // 单独平铺在工具结果下方，收起时也直接可见；点击全屏放大查看。
-          // 按面板实际宽度解码 (cacheWidth)，避免 1536px 级全分辨率纹理拖慢滚动。
-          // 图片异步解码完成前没有内在尺寸，先用文件头同步读出的宽高以
-          // AspectRatio 预留布局高度 (底色占位)，滚动历史时高度不再突变跳动。
           if (message.imageBase64 != null && message.imageBase64!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 2),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final bytes = message.imageBytes!;
-                  final panelWidth = constraints.maxWidth;
-                  final dpr = MediaQuery.devicePixelRatioOf(context);
-                  // 使用实际可用宽度，不再用窗口宽度猜测面板尺寸。
-                  final cacheWidth = (panelWidth * dpr).round().clamp(
-                    320,
-                    1600,
-                  );
-                  final image = GestureDetector(
-                    onTap: () => showImageLightboxBytes(context, bytes),
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.zoomIn,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                        child: Image.memory(
-                          bytes,
-                          fit: BoxFit.contain,
-                          cacheWidth: cacheWidth,
-                          filterQuality: FilterQuality.medium,
-                          gaplessPlayback: true,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                        ),
-                      ),
-                    ),
-                  );
-                  final probed = probeImageHeaderSize(bytes);
-                  if (probed == null) {
-                    // 文件头解析失败 (罕见)：回退到宽度撑满、解码后才定高的旧行为
-                    return SizedBox(width: double.infinity, child: image);
-                  }
-                  return ColoredBox(
-                    // 解码完成前的占位底色，避免预留区白闪一帧
-                    color: colors.canvasBackground,
-                    child: AspectRatio(
-                      aspectRatio: probed.width / probed.height,
-                      child: image,
-                    ),
-                  );
-                },
-              ),
-            ),
+            _ToolOutputImagePreview(bytes: message.imageBytes!),
         ],
       ),
     );
   }
 }
 
-/// 流式输出占位: 实时思考块 + 正文 Markdown
+/// 工具结果附带的图片预览：按面板宽度缓存解码尺寸，并用文件头尺寸预留 AspectRatio 高度。
+class _ToolOutputImagePreview extends StatelessWidget {
+  final Uint8List bytes;
+
+  const _ToolOutputImagePreview({required this.bytes});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 2),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final panelWidth = constraints.maxWidth;
+          final dpr = MediaQuery.devicePixelRatioOf(context);
+          final cacheWidth = (panelWidth * dpr).round().clamp(320, 1600);
+          final image = GestureDetector(
+            onTap: () => showImageLightboxBytes(context, bytes),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.zoomIn,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                child: Image.memory(
+                  bytes,
+                  fit: BoxFit.contain,
+                  cacheWidth: cacheWidth,
+                  filterQuality: FilterQuality.medium,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          );
+          final probed = probeImageHeaderSize(bytes);
+          if (probed == null) {
+            return SizedBox(width: double.infinity, child: image);
+          }
+          return ColoredBox(
+            color: colors.canvasBackground,
+            child: AspectRatio(
+              aspectRatio: probed.width / probed.height,
+              child: image,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 流式输出占位: 角色头 + 实时思考块 + 正文 Markdown + 紧凑进度指示
 class StreamingMessageBubble extends StatelessWidget {
   final String thoughts;
   final String content;
@@ -397,8 +637,8 @@ class StreamingMessageBubble extends StatelessWidget {
     final colors = context.colors;
     // 展示层兜底：流式气泡里的标记与残渣不上 UI
     final visibleContent = ReplyMarker.strip(content);
-    return AgentTimelineStep(
-      accent: colors.primary,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -410,17 +650,7 @@ class StreamingMessageBubble extends StatelessWidget {
           if (thoughts.isNotEmpty)
             ThinkingBlock(thoughts: thoughts, forceExpanded: thinkingExpanded),
           if (visibleContent.isNotEmpty)
-            AgentMarkdownBody(data: visibleContent)
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                thoughts.isEmpty
-                    ? context.l10n.chatConceiving
-                    : context.l10n.chatThinkingProgress,
-                style: TextStyle(fontSize: 12, color: colors.textMuted),
-              ),
-            ),
+            AgentMarkdownBody(data: visibleContent),
           const Padding(
             padding: EdgeInsets.only(top: 8),
             child: SizedBox(

@@ -5,6 +5,9 @@ import '../../../core/theme/app_colors_extension.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_floating_dock.dart';
+import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 
@@ -167,27 +170,7 @@ class CanvasSaveButton extends StatelessWidget {
     return Tooltip(
       message: l10n.canvasSaveButtonTooltip,
       child: InkWell(
-        onTap: () async {
-          // 未配置存储目录：退化为「导出副本到用户选定位置」
-          // (桌面为目录选择器 + 命名模板落盘，移动端为系统 SAF 单文件保存)
-          if (viewModel.config.saveDirectory.isEmpty) {
-            final image = viewModel.selectedImage;
-            if (image == null) return;
-            await exportImageToCustomDirectory(context, viewModel, image);
-            return;
-          }
-
-          final ok = await viewModel.saveCurrentImageToDisk();
-          if (!context.mounted) return;
-          showCanvasSnackBar(
-            context,
-            ok
-                ? l10n.canvasSavedImage(
-                    viewModel.selectedImage?.localFilePath ?? '',
-                  )
-                : (viewModel.errorMessage ?? l10n.canvasSaveFailed),
-          );
-        },
+        onTap: () => saveOrExportSelectedCanvasImage(context, viewModel),
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
           height: 38,
@@ -319,6 +302,202 @@ class HistoryToggleButton extends StatelessWidget {
             color: context.colors.textPrimary,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 窄屏/移动端画板底部统一操作栏：左侧分辨率/可复制种子 + 右侧快捷操作 (修复 / 批注 / 保存 / 更多)
+/// 替代宽屏分散的左下参数徽章与右下保存按钮，彻底消除窄屏底栏碰撞重叠。
+class MobileCanvasActionBar extends StatelessWidget {
+  final NaiGeneratedImage image;
+  final StudioViewModel viewModel;
+  final VoidCallback? onInpaintPressed;
+
+  const MobileCanvasActionBar({
+    super.key,
+    required this.image,
+    required this.viewModel,
+    this.onInpaintPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+
+    return AppFloatingDock(
+      key: const Key('mobile_canvas_action_bar'),
+      radius: AppRadius.lg,
+      enableBlur: true,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${image.params.width}×${image.params.height}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.w700,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                            if (!image.isImportedReference) ...[
+                              const SizedBox(width: 8),
+                              Tooltip(
+                                message: l10n.canvasCopySeedTooltip,
+                                child: InkWell(
+                                  onTap: () => copyTextWithSnackBar(
+                                    context,
+                                    '${image.seed}',
+                                    l10n.canvasCopiedSeed,
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.sm,
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: colors.mutedBackground,
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadius.sm,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.eco_rounded,
+                                          size: 12,
+                                          color: colors.primary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${image.seed}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontFamily: 'monospace',
+                                            fontWeight: FontWeight.w600,
+                                            color: colors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(width: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AppToolChip(
+                              key: const Key('mobile_canvas_inpaint_button'),
+                              icon: Icons.auto_fix_high_outlined,
+                              label: l10n.sidebarTabInpaint,
+                              variant: AppToolChipVariant.tinted,
+                              fontSize: 11,
+                              iconSize: 13,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 5,
+                              ),
+                              radius: AppRadius.sm + 2,
+                              onTap: () {
+                                viewModel.sendImageToInpaint(image);
+                                onInpaintPressed?.call();
+                              },
+                            ),
+                            const SizedBox(width: 4),
+                            AppToolChip(
+                              key: const Key('mobile_canvas_annotate_button'),
+                              icon: Icons.edit_note_rounded,
+                              label: image.annotations.isEmpty
+                                  ? l10n.canvasAnnotate
+                                  : l10n.canvasAnnotateWithCount(
+                                      image.annotations.length,
+                                    ),
+                              variant: AppToolChipVariant.tinted,
+                              fontSize: 11,
+                              iconSize: 14,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 5,
+                              ),
+                              radius: AppRadius.sm + 2,
+                              onTap: () => viewModel.board.setAnnotatingImage(
+                                true,
+                                targetImageId: image.id,
+                              ),
+                            ),
+                            if (image.isUnsaved) ...[
+                              const SizedBox(width: 4),
+                              AppToolChip(
+                                key: const Key('mobile_canvas_save_button'),
+                                icon: Icons.save_rounded,
+                                label: l10n.save,
+                                isSelected: true,
+                                variant: AppToolChipVariant.tinted,
+                                fontSize: 11,
+                                iconSize: 13,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 5,
+                                ),
+                                radius: AppRadius.sm + 2,
+                                onTap: () {
+                                  if (viewModel.selectedImage?.id != image.id) {
+                                    viewModel.selectImage(image);
+                                  }
+                                  saveOrExportSelectedCanvasImage(
+                                    context,
+                                    viewModel,
+                                  );
+                                },
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 6),
+          AppIconButton(
+            key: const Key('mobile_canvas_more_button'),
+            icon: Icons.more_horiz_rounded,
+            size: 28,
+            iconSize: 16,
+            variant: AppIconButtonVariant.outlined,
+            tooltip: MaterialLocalizations.of(context).showMenuTooltip,
+            onPressed: () => showMobileImageActionSheet(
+              context,
+              viewModel: viewModel,
+              image: image,
+            ),
+          ),
+        ],
       ),
     );
   }

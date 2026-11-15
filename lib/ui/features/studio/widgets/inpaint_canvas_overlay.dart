@@ -264,11 +264,15 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
 
         if (image == null) {
           return Center(
-            child: Text(
-              l10n.inpaintOverlayEmptyHint,
-              style: TextStyle(
-                fontSize: 13,
-                color: context.colors.textSecondary,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                l10n.inpaintOverlayEmptyHint,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.textSecondary,
+                ),
               ),
             ),
           );
@@ -513,8 +517,8 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                 Positioned(
                   key: const ValueKey('inpaint-dock'),
                   top: 14,
-                  left: 0,
-                  right: 0,
+                  left: 12,
+                  right: 12,
                   child: Center(child: _buildToolDock(context, vm, inpaint)),
                 ),
 
@@ -791,20 +795,23 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
       return AppFloatingDock(
         radius: 20,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_awesome, size: 13, color: colors.primary),
-            const SizedBox(width: 5),
-            Text(
-              l10n.inpaintOverlayAiEditHint,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.auto_awesome, size: 13, color: colors.primary),
+              const SizedBox(width: 5),
+              Text(
+                l10n.inpaintOverlayAiEditHint,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textSecondary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -840,49 +847,59 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     return AppFloatingDock(
       radius: 20,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          toolChip(
-            InpaintTool.rect,
-            Icons.crop_free_rounded,
-            l10n.inpaintToolRect,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: math.max(120.0, MediaQuery.sizeOf(context).width - 24),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              toolChip(
+                InpaintTool.rect,
+                Icons.crop_free_rounded,
+                l10n.inpaintToolRect,
+              ),
+              toolChip(
+                InpaintTool.brush,
+                Icons.brush_rounded,
+                l10n.inpaintToolBrush,
+              ),
+              toolChip(
+                InpaintTool.eraser,
+                Icons.layers_clear_rounded,
+                l10n.inpaintToolEraser,
+              ),
+              const SizedBox(width: 4),
+              if (showBrushSize) ...[
+                _BrushSizeSlider(
+                  value: inpaint.brushRadius,
+                  onCommit: vm.setInpaintBrushRadius,
+                ),
+                const SizedBox(width: 2),
+              ],
+              AppToolChip(
+                icon: Icons.delete_sweep_outlined,
+                label: l10n.inpaintClearMask,
+                variant: AppToolChipVariant.tinted,
+                fontSize: 11,
+                iconSize: 13,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                radius: 14,
+                onTap: vm.clearInpaintMask,
+              ),
+              const SizedBox(width: 4),
+              AppBadge(
+                label: isFree ? l10n.opusFree : l10n.inpaintRequiresPoints,
+                variant: isFree
+                    ? AppBadgeVariant.success
+                    : AppBadgeVariant.warning,
+              ),
+              // 执行修复统一由左侧生成坞的「开始修复」按钮触发，工具坞不再重复入口
+            ],
           ),
-          toolChip(
-            InpaintTool.brush,
-            Icons.brush_rounded,
-            l10n.inpaintToolBrush,
-          ),
-          toolChip(
-            InpaintTool.eraser,
-            Icons.layers_clear_rounded,
-            l10n.inpaintToolEraser,
-          ),
-          const SizedBox(width: 4),
-          if (showBrushSize) ...[
-            _BrushSizeSlider(
-              value: inpaint.brushRadius,
-              onCommit: vm.setInpaintBrushRadius,
-            ),
-            const SizedBox(width: 2),
-          ],
-          AppToolChip(
-            icon: Icons.delete_sweep_outlined,
-            label: l10n.inpaintClearMask,
-            variant: AppToolChipVariant.tinted,
-            fontSize: 11,
-            iconSize: 13,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            radius: 14,
-            onTap: vm.clearInpaintMask,
-          ),
-          const SizedBox(width: 4),
-          AppBadge(
-            label: isFree ? l10n.opusFree : l10n.inpaintRequiresPoints,
-            variant: isFree ? AppBadgeVariant.success : AppBadgeVariant.warning,
-          ),
-          // 执行修复统一由左侧生成坞的「开始修复」按钮触发，工具坞不再重复入口
-        ],
+        ),
       ),
     );
   }

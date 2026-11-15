@@ -3987,4 +3987,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get toolFallbackName => 'Tool';
+
+  @override
+  String get chatAssistantLabel => 'AI Assistant';
+
+  @override
+  String get chatCopyMessageTooltip => 'Copy message';
+
+  @override
+  String get chatCopiedTooltip => 'Copied';
+
+  @override
+  String get chatEditAndRewindTooltip => 'Edit & rewind following messages';
+
+  @override
+  String get chatRewindToHereTooltip => 'Rewind to this reply';
+
+  @override
+  String get chatScrollToBottomTooltip => 'Scroll to bottom';
+
+  @override
+  String get chatEmptyWelcomeTitle => 'What would you like to create?';
+
+  @override
+  String get chatEmptySuggestionDraw => 'Design a scene and generate an image';
+
+  @override
+  String get chatEmptySuggestionRefine =>
+      'Refine current prompt tags & weights';
+
+  @override
+  String get chatEmptySuggestionAnalyze =>
+      'Analyze the canvas image and suggest edits';
+
+  @override
+  String get chatToolArgsLabel => 'Arguments';
+
+  @override
+  String get chatToolOutputLabel => 'Output';
 }

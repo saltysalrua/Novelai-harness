@@ -6823,6 +6823,78 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'工具'**
   String get toolFallbackName;
+
+  /// No description provided for @chatAssistantLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'AI 助手'**
+  String get chatAssistantLabel;
+
+  /// No description provided for @chatCopyMessageTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制内容'**
+  String get chatCopyMessageTooltip;
+
+  /// No description provided for @chatCopiedTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制'**
+  String get chatCopiedTooltip;
+
+  /// No description provided for @chatEditAndRewindTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑并撤回后续对话'**
+  String get chatEditAndRewindTooltip;
+
+  /// No description provided for @chatRewindToHereTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'回退到此回复'**
+  String get chatRewindToHereTooltip;
+
+  /// No description provided for @chatScrollToBottomTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'回到底部'**
+  String get chatScrollToBottomTooltip;
+
+  /// No description provided for @chatEmptyWelcomeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'有什么可以帮您创作？'**
+  String get chatEmptyWelcomeTitle;
+
+  /// No description provided for @chatEmptySuggestionDraw.
+  ///
+  /// In zh, this message translates to:
+  /// **'帮我构思画面并生成图片'**
+  String get chatEmptySuggestionDraw;
+
+  /// No description provided for @chatEmptySuggestionRefine.
+  ///
+  /// In zh, this message translates to:
+  /// **'优化当前提示词标签与权重'**
+  String get chatEmptySuggestionRefine;
+
+  /// No description provided for @chatEmptySuggestionAnalyze.
+  ///
+  /// In zh, this message translates to:
+  /// **'分析画板图片并给出修改建议'**
+  String get chatEmptySuggestionAnalyze;
+
+  /// No description provided for @chatToolArgsLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'调用参数'**
+  String get chatToolArgsLabel;
+
+  /// No description provided for @chatToolOutputLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回结果'**
+  String get chatToolOutputLabel;
 }
 
 class _AppLocalizationsDelegate
