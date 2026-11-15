@@ -56,6 +56,10 @@ class _PromptsPageState extends State<PromptsPage> {
   @override
   void didUpdateWidget(covariant PromptsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncFromViewModel();
+  }
+
+  void _syncFromViewModel() {
     final params = widget.viewModel.params;
     if (_isTabbedMode != widget.viewModel.promptTabbedMode) {
       _isTabbedMode = widget.viewModel.promptTabbedMode;
@@ -276,38 +280,47 @@ class _PromptsPageState extends State<PromptsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final viewModel = widget.viewModel;
+    return ListenableBuilder(
+      // 保活隐藏页暂停订阅；切回提示词页时自动读取最新参数。
+      listenable: Listenable.merge([
+        if (TickerMode.valuesOf(context).enabled) widget.viewModel,
+      ]),
+      builder: (context, _) {
+        final l10n = context.l10n;
+        final viewModel = widget.viewModel;
+        _syncFromViewModel();
 
-    // 同步设置项：标签分类着色开关 (设置弹窗保存后 viewModel 通知重建)
-    final showCategoryColors = viewModel.config.showTagCategoryColors;
-    for (final c in [
-      _promptController,
-      _negativeController,
-      _prefixController,
-      _suffixController,
-    ]) {
-      c.setHighlightOptions(categoryColors: showCategoryColors);
-    }
+        // 同步设置项：标签分类着色开关 (设置弹窗保存后 viewModel 通知重建)
+        final showCategoryColors = viewModel.config.showTagCategoryColors;
+        for (final c in [
+          _promptController,
+          _negativeController,
+          _prefixController,
+          _suffixController,
+        ]) {
+          c.setHighlightOptions(categoryColors: showCategoryColors);
+        }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        PageHeader(title: l10n.promptsPageTitle),
-        const SizedBox(height: 16),
-        if (_isTabbedMode)
-          _buildTabbedSection(l10n)
-        else
-          _buildStackedSection(l10n),
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            PageHeader(title: l10n.promptsPageTitle),
+            const SizedBox(height: 16),
+            if (_isTabbedMode)
+              _buildTabbedSection(l10n)
+            else
+              _buildStackedSection(l10n),
 
-        // 提示词扩展甲板：多角色提示词 ↔ 固定词缀左右滑动切换
-        const SizedBox(height: 18),
-        PromptExtensionDeck(
-          viewModel: viewModel,
-          prefixController: _prefixController,
-          suffixController: _suffixController,
-        ),
-      ],
+            // 提示词扩展甲板：多角色提示词 ↔ 固定词缀左右滑动切换
+            const SizedBox(height: 18),
+            PromptExtensionDeck(
+              viewModel: viewModel,
+              prefixController: _prefixController,
+              suffixController: _suffixController,
+            ),
+          ],
+        );
+      },
     );
   }
 

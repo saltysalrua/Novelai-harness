@@ -118,19 +118,30 @@ class _AppCardState extends State<AppCard> {
       shadows = context.shadowSubtle;
     }
 
-    Widget content = Container(
-      padding: widget.padding,
+    final borderRadius = BorderRadius.circular(widget.radius);
+    Widget inner = widget.padding != null
+        ? Padding(padding: widget.padding!, child: widget.child)
+        : widget.child;
+    if (widget.clipBehavior != Clip.none) {
+      // 使用 ClipRRect 生成 ClipRRectLayer，避免 Container(clipBehavior) 触发开销更高的 ClipPathLayer
+      inner = ClipRRect(
+        borderRadius: borderRadius,
+        clipBehavior: widget.clipBehavior,
+        child: inner,
+      );
+    }
+
+    Widget content = DecoratedBox(
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(widget.radius),
+        borderRadius: borderRadius,
         border: Border.all(
           color: resolvedBorderColor,
           width: resolvedBorderWidth,
         ),
         boxShadow: shadows,
       ),
-      clipBehavior: widget.clipBehavior,
-      child: widget.child,
+      child: inner,
     );
 
     if (isInteractive) {

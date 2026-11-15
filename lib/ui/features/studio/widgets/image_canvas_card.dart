@@ -35,6 +35,7 @@ class ImageCanvasCard extends StatefulWidget {
 
 class _ImageCanvasCardState extends State<ImageCanvasCard> {
   bool _isHistoryOpen = false;
+  bool _lastVmHistoryOpen = false;
   bool _isDraggingOver = false;
   late final CanvasStreamController _stream = CanvasStreamController();
 
@@ -42,13 +43,15 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
   void initState() {
     super.initState();
     _isHistoryOpen = widget.viewModel.canvasHistoryOpen;
+    _lastVmHistoryOpen = _isHistoryOpen;
   }
 
   @override
   void didUpdateWidget(covariant ImageCanvasCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_isHistoryOpen != widget.viewModel.canvasHistoryOpen) {
-      _isHistoryOpen = widget.viewModel.canvasHistoryOpen;
+    if (_lastVmHistoryOpen != widget.viewModel.canvasHistoryOpen) {
+      _lastVmHistoryOpen = widget.viewModel.canvasHistoryOpen;
+      _isHistoryOpen = _lastVmHistoryOpen;
     }
   }
 
@@ -90,27 +93,37 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
 
   @override
   Widget build(BuildContext context) {
-    final viewModel = widget.viewModel;
-    final gallery = viewModel.gallery;
-    final isGenerating = viewModel.isGenerating;
-    final isEditingPositions =
-        viewModel.isEditingCharacterPositions ||
-        viewModel.isEditingWatermarkPosition;
-    final isAnnotating = viewModel.board.isAnnotatingImage;
-    final isInpaintTab =
-        !widget.compact &&
-        viewModel.activeSidebarTab == StudioSidebarTab.inpaint &&
-        !isEditingPositions;
-    final selectedImage =
-        viewModel.selectedImage ?? (gallery.isNotEmpty ? gallery.first : null);
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        if (TickerMode.valuesOf(context).enabled) widget.viewModel,
+      ]),
+      builder: (context, _) {
+        final viewModel = widget.viewModel;
+        if (_lastVmHistoryOpen != viewModel.canvasHistoryOpen) {
+          _lastVmHistoryOpen = viewModel.canvasHistoryOpen;
+          _isHistoryOpen = _lastVmHistoryOpen;
+        }
+        final gallery = viewModel.gallery;
+        final isGenerating = viewModel.isGenerating;
+        final isEditingPositions =
+            viewModel.isEditingCharacterPositions ||
+            viewModel.isEditingWatermarkPosition;
+        final isAnnotating = viewModel.board.isAnnotatingImage;
+        final isInpaintTab =
+            !widget.compact &&
+            viewModel.activeSidebarTab == StudioSidebarTab.inpaint &&
+            !isEditingPositions;
+        final selectedImage =
+            viewModel.selectedImage ??
+            (gallery.isNotEmpty ? gallery.first : null);
 
-    final showEmptyState =
-        gallery.isEmpty &&
-        !isGenerating &&
-        !isEditingPositions &&
-        !isAnnotating;
+        final showEmptyState =
+            gallery.isEmpty &&
+            !isGenerating &&
+            !isEditingPositions &&
+            !isAnnotating;
 
-    return DropTarget(
+        return DropTarget(
       onDragEntered: (_) => setState(() => _isDraggingOver = true),
       onDragExited: (_) => setState(() => _isDraggingOver = false),
       onDragDone: (details) async {
@@ -295,6 +308,8 @@ class _ImageCanvasCardState extends State<ImageCanvasCard> {
           ),
         ),
       ),
+        );
+      },
     );
   }
 }

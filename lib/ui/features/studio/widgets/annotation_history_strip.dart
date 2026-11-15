@@ -16,12 +16,15 @@ class AnnotationHistoryStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gallery = viewModel.gallery;
-    final selectedId = viewModel.selectedImage?.id;
-    final colors = context.colors;
-    final l10n = context.l10n;
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, _) {
+        final gallery = viewModel.gallery;
+        final selectedId = viewModel.selectedImage?.id;
+        final colors = context.colors;
+        final l10n = context.l10n;
 
-    return Card(
+        return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
       clipBehavior: Clip.antiAlias,
@@ -273,6 +276,8 @@ class AnnotationHistoryStrip extends StatelessWidget {
           ],
         ),
       ),
+        );
+      },
     );
   }
 }

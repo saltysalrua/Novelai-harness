@@ -486,15 +486,10 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                               height: kBoardCanvasSize,
                               color: colors.canvasBackground,
                               child: CustomPaint(
-                                // 网格点阵画在卡片之下，连线画在卡片之上 (前景) 不被图片遮挡
+                                // 网格点阵画在卡片之下，与前景连线分离，避免拖拽节点/连线时重复重绘网格
+                                isComplex: true,
                                 painter: BoardGridPainter(
                                   dotColor: colors.borderHover,
-                                ),
-                                foregroundPainter: BoardWirePainter(
-                                  boardData: boardData,
-                                  liveOverlays: _liveOverlays,
-                                  wireDrag: _wireDrag,
-                                  dragColor: colors.primary,
                                 ),
                                 child: Stack(
                                   clipBehavior: Clip.none,
@@ -573,6 +568,22 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                         onUpdateWire: _updateWireFromGlobal,
                                         onEndWire: _endWireDrag,
                                       ),
+
+                                    // 1.3 连线前景层隔离在独立 RepaintBoundary，拖拽时零波及卡片/网格
+                                    Positioned.fill(
+                                      child: IgnorePointer(
+                                        child: RepaintBoundary(
+                                          child: CustomPaint(
+                                            painter: BoardWirePainter(
+                                              boardData: boardData,
+                                              liveOverlays: _liveOverlays,
+                                              wireDrag: _wireDrag,
+                                              dragColor: colors.primary,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),

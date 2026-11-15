@@ -68,6 +68,38 @@ class _StudioViewState extends State<StudioView> {
   bool _wasAnnotating = false;
   StudioSidebarTab? _lastObservedSidebarTab;
   int? _pageBeforePositionEdit;
+  late Object _lastShellSig;
+  int _outerBuildSeq = 0;
+  int _cachedOuterBuildSeq = -1;
+  bool? _cachedIsNarrow;
+  Widget? _cachedLayoutBody;
+
+  Object _computeShellSig() {
+    final selected =
+        _viewModel.selectedImage ??
+        (_viewModel.gallery.isNotEmpty ? _viewModel.gallery.first : null);
+    return (
+      _viewModel.errorMessage,
+      _viewModel.activeSidebarTab,
+      _viewModel.isLeftSidebarCollapsed,
+      _viewModel.board.isAnnotatingImage,
+      _viewModel.isEditingCharacterPositions,
+      _viewModel.isEditingWatermarkPosition,
+      _viewModel.isGenerating,
+      _viewModel.isChatStreaming,
+      selected?.id,
+    );
+  }
+
+  void _onViewModelChanged() {
+    _handleViewModelStateTransitions();
+    if (!mounted) return;
+    final nextSig = _computeShellSig();
+    if (nextSig != _lastShellSig) {
+      _lastShellSig = nextSig;
+      setState(() {});
+    }
+  }
 
   @override
   void initState() {
@@ -84,7 +116,8 @@ class _StudioViewState extends State<StudioView> {
     if (_viewModel.activeSidebarTab != StudioSidebarTab.library) {
       _previousSidebarTab = _viewModel.activeSidebarTab;
     }
-    _viewModel.addListener(_handleViewModelStateTransitions);
+    _lastShellSig = _computeShellSig();
+    _viewModel.addListener(_onViewModelChanged);
     WindowStateService.instance.beforeClose = _viewModel.flushPendingSaves;
     StudioView.testViewModelHook = _viewModel;
     HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvents);
@@ -92,7 +125,7 @@ class _StudioViewState extends State<StudioView> {
 
   @override
   void dispose() {
-    _viewModel.removeListener(_handleViewModelStateTransitions);
+    _viewModel.removeListener(_onViewModelChanged);
     _mobilePageController.dispose();
     if (WindowStateService.instance.beforeClose ==
         _viewModel.flushPendingSaves) {
@@ -321,48 +354,49 @@ class _StudioViewState extends State<StudioView> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _viewModel,
-      builder: (context, _) {
-        final isLibraryTab =
-            _viewModel.activeSidebarTab == StudioSidebarTab.library;
+    _outerBuildSeq++;
+    final isLibraryTab = _viewModel.activeSidebarTab == StudioSidebarTab.library;
 
-        return CallbackShortcuts(
-          bindings: <ShortcutActivator, VoidCallback>{
-            const SingleActivator(LogicalKeyboardKey.escape): _handleGlobalEsc,
-            // Ctrl+O 改由 _handleGlobalKeyEvents (HardwareKeyboard 优先分发)
-            // 统一处理，避免焦点链漏派
-          },
-          child: Focus(
-            autofocus: true,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow =
-                    constraints.maxWidth < StudioView.wideLayoutMinWidth;
-                _isNarrowViewport = isNarrow;
-                // 系统返回键 (Android 手势/物理键) 先在层内消费，无可消费层时交还系统。
-                // canPop 由判态驱动：无层内动作时保持 true，交由系统正常退出/回桌面。
-                return PopScope(
-                  canPop: !_hasSystemBackAction(isNarrow: isNarrow),
-                  onPopInvokedWithResult: (didPop, _) {
-                    if (didPop) return;
-                    _handleSystemBack(isNarrow: isNarrow);
-                  },
-                  child: Scaffold(
-                    backgroundColor: context.colors.canvasBackground,
-                    body: isNarrow
-                        ? _buildNarrowLayout(
-                            context,
-                            isLibraryTab: isLibraryTab,
-                          )
-                        : _buildWideLayout(context, isLibraryTab: isLibraryTab),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.escape): _handleGlobalEsc,
+        // Ctrl+O 改由 _handleGlobalKeyEvents (HardwareKeyboard 优先分发)
+        // 统一处理，避免焦点链漏派
       },
+      child: Focus(
+        autofocus: true,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow =
+                constraints.maxWidth < StudioView.wideLayoutMinWidth;
+            _isNarrowViewport = isNarrow;
+            // 仅在宽窄断点切换或外层 Shell 重建时重新构建三栏/窄屏骨架，
+            // 窗口拖动缩放时不于 LAYOUT 阶段同步重建整棵工作台树。
+            if (_cachedLayoutBody != null &&
+                _cachedIsNarrow == isNarrow &&
+                _cachedOuterBuildSeq == _outerBuildSeq) {
+              return _cachedLayoutBody!;
+            }
+            _cachedIsNarrow = isNarrow;
+            _cachedOuterBuildSeq = _outerBuildSeq;
+            // 系统返回键 (Android 手势/物理键) 先在层内消费，无可消费层时交还系统。
+            // canPop 由判态驱动：无层内动作时保持 true，交由系统正常退出/回桌面。
+            return _cachedLayoutBody = PopScope(
+              canPop: !_hasSystemBackAction(isNarrow: isNarrow),
+              onPopInvokedWithResult: (didPop, _) {
+                if (didPop) return;
+                _handleSystemBack(isNarrow: isNarrow);
+              },
+              child: Scaffold(
+                backgroundColor: context.colors.canvasBackground,
+                body: isNarrow
+                    ? _buildNarrowLayout(context, isLibraryTab: isLibraryTab)
+                    : _buildWideLayout(context, isLibraryTab: isLibraryTab),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 

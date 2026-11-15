@@ -85,11 +85,18 @@ class PromptTokenCounterService {
 
   static const String t5AssetPath = 'assets/tokenizers/t5_spiece.model';
   static const String qwenAssetPath = 'assets/tokenizers/qwen35_bpe.txt.gz';
+  static const int _maxSingleCacheEntries = 256;
+
+  static final RegExp _clipSplitRegex = RegExp(r'[,，\s\n]+');
+  static final RegExp _naiWeightRegex = RegExp(
+    r'^(-?\d+\.?\d*)::(.+?)(?:::)?$',
+  );
 
   T5PromptTokenEncoder? _t5;
   QwenPromptTokenEncoder? _qwen;
   Future<void>? _t5Loading;
   Future<void>? _qwenLoading;
+  final Map<(NaiTokenizerKind, String), int> _singleCountCache = {};
 
   /// 分词器是否已就绪 (CLIP 恒就绪：走启发式估算)。
   bool isReady(NaiModel model) => switch (model.tokenizerKind) {
@@ -104,10 +111,18 @@ class PromptTokenCounterService {
       NaiTokenizerKind.clip => Future<void>.value(),
       NaiTokenizerKind.t5 => _t5Loading ??= T5PromptTokenEncoder.load(
         assetPath: t5AssetPath,
-      ).then((encoder) => _t5 = encoder),
+      ).then((encoder) {
+        _t5 = encoder;
+        _singleCountCache.removeWhere((k, _) => k.$1 == NaiTokenizerKind.t5);
+      }),
       NaiTokenizerKind.qwen35 => _qwenLoading ??= QwenPromptTokenEncoder.load(
         assetPath: qwenAssetPath,
-      ).then((encoder) => _qwen = encoder),
+      ).then((encoder) {
+        _qwen = encoder;
+        _singleCountCache.removeWhere(
+          (k, _) => k.$1 == NaiTokenizerKind.qwen35,
+        );
+      }),
     };
   }
 
@@ -120,17 +135,19 @@ class PromptTokenCounterService {
     if (t5 != null) {
       _t5 = t5;
       _t5Loading = Future<void>.value();
+      _singleCountCache.removeWhere((k, _) => k.$1 == NaiTokenizerKind.t5);
     }
     if (qwen != null) {
       _qwen = qwen;
       _qwenLoading = Future<void>.value();
+      _singleCountCache.removeWhere((k, _) => k.$1 == NaiTokenizerKind.qwen35);
     }
   }
 
   /// 按 NovelAI CLIP 分词规则粗略估算提示词 Token 数 (V3 兜底)。
   static int estimatePromptTokens(String text, {int limit = 225}) {
     if (text.trim().isEmpty) return 0;
-    final parts = text.split(RegExp(r'[,，\s\n]+')).where((s) => s.isNotEmpty);
+    final parts = text.split(_clipSplitRegex).where((s) => s.isNotEmpty);
     return (parts.length * 1.35).round().clamp(0, limit);
   }
 
@@ -267,25 +284,39 @@ class PromptTokenCounterService {
   }
 
   int _countSingle(NaiModel model, String text) {
-    switch (model.tokenizerKind) {
+    final kind = model.tokenizerKind;
+    final cacheKey = (kind, text);
+    final cached = _singleCountCache[cacheKey];
+    if (cached != null) return cached;
+
+    final int count;
+    switch (kind) {
       case NaiTokenizerKind.t5:
         final encoder = _t5;
         if (encoder == null) {
-          return estimatePromptTokens(text, limit: 1 << 30);
+          count = estimatePromptTokens(text, limit: 1 << 30);
+        } else {
+          // T5 词表会把 {}/:: 语法字符当未知字符忽略，剥离只为避免干扰
+          // 逗号分段，结果与不剥相同 (对齐 Aaalice 实测)。
+          count = encoder.countTokens(_normalizePromptForCounting(text));
         }
-        // T5 词表会把 {}/:: 语法字符当未知字符忽略，剥离只为避免干扰
-        // 逗号分段，结果与不剥相同 (对齐 Aaalice 实测)。
-        return encoder.countTokens(_normalizePromptForCounting(text));
       case NaiTokenizerKind.qwen35:
         final encoder = _qwen;
         if (encoder == null) {
-          return estimatePromptTokens(text, limit: 1 << 30);
+          count = estimatePromptTokens(text, limit: 1 << 30);
+        } else {
+          // Qwen 会把语法字符与首尾空白真实编码进 token，官网原样计数。
+          count = encoder.countTokens(text);
         }
-        // Qwen 会把语法字符与首尾空白真实编码进 token，官网原样计数。
-        return encoder.countTokens(text);
       case NaiTokenizerKind.clip:
-        return estimatePromptTokens(text, limit: 1 << 30);
+        count = estimatePromptTokens(text, limit: 1 << 30);
     }
+
+    if (_singleCountCache.length >= _maxSingleCacheEntries) {
+      _singleCountCache.remove(_singleCountCache.keys.first);
+    }
+    _singleCountCache[cacheKey] = count;
+    return count;
   }
 
   List<PromptTokenBreakdownEntry> _buildBreakdown(
@@ -415,9 +446,7 @@ class PromptTokenCounterService {
     var text = segment;
 
     // 1. NAI 数值权重: num::text:: (或缺失右侧 ::)
-    final naiWeightMatch = RegExp(
-      r'^(-?\d+\.?\d*)::(.+?)(?:::)?$',
-    ).firstMatch(text);
+    final naiWeightMatch = _naiWeightRegex.firstMatch(text);
     if (naiWeightMatch != null) {
       return naiWeightMatch.group(2)!.trim();
     }

@@ -281,12 +281,17 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final allEntries = widget.viewModel.promptLibraryEntries;
-    final categories = _getAllCategories(allEntries);
-    final filtered = _filterEntries(allEntries);
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        if (TickerMode.valuesOf(context).enabled) widget.viewModel,
+      ]),
+      builder: (context, _) {
+        final colors = context.colors;
+        final allEntries = widget.viewModel.promptLibraryEntries;
+        final categories = _getAllCategories(allEntries);
+        final filtered = _filterEntries(allEntries);
 
-    return LayoutBuilder(
+        return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 650;
 
@@ -355,6 +360,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               ],
             ],
           ),
+        );
+      },
         );
       },
     );

@@ -41,6 +41,9 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="true" />
         <!-- 复制图像到剪贴板：缓存文件经 FileProvider 暴露为 content:// URI 后放入 ClipData -->
         <provider
             android:name="androidx.core.content.FileProvider"

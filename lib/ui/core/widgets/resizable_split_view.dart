@@ -118,7 +118,10 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
               Visibility(
                 visible: !widget.leftCollapsed,
                 maintainState: true,
-                child: SizedBox(width: _leftWidth, child: widget.leftChild),
+                child: SizedBox(
+                  width: _leftWidth,
+                  child: RepaintBoundary(child: widget.leftChild),
+                ),
               ),
 
               // 左侧拖拽分割条 (左侧栏收起时隐藏)
@@ -148,7 +151,7 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
                 ),
 
               // 2. 中间面板 (图片画板)
-              Expanded(child: widget.centerChild),
+              Expanded(child: RepaintBoundary(child: widget.centerChild)),
 
               // 右侧拖拽分割条
               _buildDivider(
@@ -176,7 +179,10 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
               ),
 
               // 3. 右侧面板 (AI 对话框)
-              SizedBox(width: _rightWidth, child: widget.rightChild),
+              SizedBox(
+                width: _rightWidth,
+                child: RepaintBoundary(child: widget.rightChild),
+              ),
             ],
           ),
         );

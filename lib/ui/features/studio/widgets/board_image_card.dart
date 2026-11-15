@@ -132,8 +132,9 @@ class _BoardImageCardState extends State<BoardImageCard> {
       top: cardPos.dy,
       width: cardSize.width,
       height: cardSize.height + 32,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: RepaintBoundary(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 1. 卡片顶部拖拽手柄条 + 连线端口 (仅参考图可拉线)
           GestureDetector(
@@ -374,6 +375,7 @@ class _BoardImageCardState extends State<BoardImageCard> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

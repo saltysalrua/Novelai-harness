@@ -460,6 +460,7 @@ class TagDictionaryService {
   Future<void>? _loadingFuture;
   bool get isLoaded => _loaded;
   int get count => _entryCount;
+  int get revision => _revision;
 
   // 查询结果缓存 (超过容量上限整表清空，防止长会话无界增长)
   static const int _cacheCapacity = 500;

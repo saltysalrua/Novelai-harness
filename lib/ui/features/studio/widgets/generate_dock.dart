@@ -57,47 +57,51 @@ class GenerateDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final info = viewModel.accountInfo;
-    final estimatedCost = viewModel.estimatedGenerationCost;
-    // 修复页签下主按钮切换为「开始修复」(AI 整图编辑模式下为「开始 AI 编辑」)，
-    // 其余页签为「生成图片」
-    final isInpaintTab = viewModel.activeSidebarTab == StudioSidebarTab.inpaint;
-    final isAiEditMode =
-        isInpaintTab && viewModel.inpaintParams.mode == InpaintMode.aiEdit;
-    final isRepairing =
-        viewModel.isExecutingInpaint || viewModel.isExecutingAiEdit;
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, _) {
+        final colors = context.colors;
+        final info = viewModel.accountInfo;
+        final estimatedCost = viewModel.estimatedGenerationCost;
+        // 修复页签下主按钮切换为「开始修复」(AI 整图编辑模式下为「开始 AI 编辑」)，
+        // 其余页签为「生成图片」
+        final isInpaintTab =
+            viewModel.activeSidebarTab == StudioSidebarTab.inpaint;
+        final isAiEditMode =
+            isInpaintTab && viewModel.inpaintParams.mode == InpaintMode.aiEdit;
+        final isRepairing =
+            viewModel.isExecutingInpaint || viewModel.isExecutingAiEdit;
 
-    final percent = info != null
-        ? (info.staminaPercent / 100.0).clamp(0.0, 1.0)
-        : 0.0;
-    final staminaColor = (info?.staminaPercent ?? 0) >= 80
-        ? colors.success
-        : (info?.staminaPercent ?? 0) >= 30
-        ? colors.warning
-        : colors.error;
+        final percent = info != null
+            ? (info.staminaPercent / 100.0).clamp(0.0, 1.0)
+            : 0.0;
+        final staminaColor = (info?.staminaPercent ?? 0) >= 80
+            ? colors.success
+            : (info?.staminaPercent ?? 0) >= 30
+            ? colors.warning
+            : colors.error;
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? AppSpacing.md : AppSpacing.lg,
-        vertical: compact ? AppSpacing.sm : 14,
-      ),
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        border: Border(top: BorderSide(color: colors.borderDefault)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ComfyUI 模式：账号栏换成 Bridge 连接状态 (无点数概念)
-          if (viewModel.isComfyUiMode)
-            _ComfyStatusRow(viewModel: viewModel, compact: compact)
-          else if (info == null)
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
+        return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? AppSpacing.md : AppSpacing.lg,
+            vertical: compact ? AppSpacing.sm : 14,
+          ),
+          decoration: BoxDecoration(
+            color: colors.cardBackground,
+            border: Border(top: BorderSide(color: colors.borderDefault)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ComfyUI 模式：账号栏换成 Bridge 连接状态 (无点数概念)
+              if (viewModel.isComfyUiMode)
+                _ComfyStatusRow(viewModel: viewModel, compact: compact)
+              else if (info == null)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
                     context.l10n.dockNoAccountInfo,
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                     overflow: compact ? null : TextOverflow.ellipsis,
@@ -233,6 +237,8 @@ class GenerateDock extends StatelessWidget {
           ),
         ],
       ),
+        );
+      },
     );
   }
 }

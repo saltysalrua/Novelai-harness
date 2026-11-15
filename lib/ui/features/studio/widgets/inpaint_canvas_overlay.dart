@@ -36,22 +36,34 @@ class InpaintRepairCanvas extends StatefulWidget {
 class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
   // 框选交互状态 (起点 + 增量模式，避免手柄/选区随拖拽坐标漂移)
   _RectDragMode _rectDragMode = _RectDragMode.none;
-  int _activeHandleIndex = -1;
-  Rect? _liveSelection; // 拖拽中的实时选区 (归一化)
+  final ValueNotifier<int> _activeHandleNotifier = ValueNotifier<int>(-1);
+  final ValueNotifier<Rect?> _liveSelectionNotifier = ValueNotifier<Rect?>(
+    null,
+  ); // 拖拽中的实时选区 (归一化)
   Rect? _dragBaseRect; // 拖拽开始时的选区
   Offset? _dragStartNorm; // 拖拽起点的归一化坐标
   Offset? _handleDragStartGlobal; // 手柄缩放起点的全局坐标 (State 级缓存)
 
-  // 画笔交互状态
+  // 画笔交互状态 (使用局部 notifier 驱动重绘，拖拽期间零整树 setState)
   final List<Offset> _liveStrokePoints = [];
+  final ValueNotifier<int> _livePaintRevision = ValueNotifier<int>(0);
+  late final Listenable _liveOverlayListenable = Listenable.merge([
+    _livePaintRevision,
+    _liveSelectionNotifier,
+  ]);
 
   // 已提交描层的 Picture 缓存 (画得越多越不能每帧重画)
   ui.Picture? _committedPicture;
+  int _committedPictureRevision = 0;
+  bool _committedHasEraser = false;
   List<InpaintBrushStroke>? _committedCacheKey;
   Size _committedCacheSize = Size.zero;
 
   @override
   void dispose() {
+    _activeHandleNotifier.dispose();
+    _liveSelectionNotifier.dispose();
+    _livePaintRevision.dispose();
     _committedPicture?.dispose();
     _committedPicture = null;
     super.dispose();
@@ -98,13 +110,18 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
   /// 包围盒或矩形选区 (可为 null = 无选区，UI 不画默认框)。
   /// 橡皮只做减法不改变修复区，拖拽中沿用已提交的生效选区，
   /// 避免外延裁剪框跟着橡皮轨迹乱跳。
+  Rect? _currentDisplaySelNorm(InpaintParams inpaint, InpaintTool tool) {
+    if (tool != InpaintTool.rect) return null;
+    return _liveSelectionNotifier.value ?? inpaint.selectionRect;
+  }
+
   Rect? _liveEffectiveSelNorm(InpaintParams inpaint) {
     final tool = widget.viewModel.inpaintTool;
     if (tool == InpaintTool.brush && _liveStrokePoints.isNotEmpty) {
       return _strokeBboxNorm(_liveStrokePoints, inpaint.brushRadius);
     }
     if (inpaint.hasBrushMask) return inpaint.effectiveSelectionRect;
-    return _liveSelection ?? inpaint.selectionRect;
+    return _liveSelectionNotifier.value ?? inpaint.selectionRect;
   }
 
   Rect _strokeBboxNorm(List<Offset> points, double radius) {
@@ -155,8 +172,12 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     Rect imageRect,
   ) {
     if (strokes.isEmpty) {
-      _committedPicture?.dispose();
-      _committedPicture = null;
+      if (_committedPicture != null) {
+        _committedPicture?.dispose();
+        _committedPicture = null;
+        _committedPictureRevision++;
+      }
+      _committedHasEraser = false;
       _committedCacheKey = strokes;
       _committedCacheSize = imageRect.size;
       return null;
@@ -176,8 +197,10 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     final canvas = ui.Canvas(recorder, localRect);
 
     final shortSide = math.min(imageRect.width, imageRect.height);
+    var hasEraser = false;
     for (final stroke in strokes) {
       if (stroke.points.isEmpty) continue;
+      if (stroke.isEraser) hasEraser = true;
       _paintStrokeOn(
         canvas,
         stroke.points,
@@ -188,6 +211,8 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     }
 
     _committedPicture = recorder.endRecording();
+    _committedPictureRevision++;
+    _committedHasEraser = hasEraser;
     _committedCacheKey = strokes;
     _committedCacheSize = imageRect.size;
     return _committedPicture;
@@ -297,33 +322,6 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
             }
             final imageRect = _imageRectOf(canvasSize, srcW, srcH);
 
-            // 显示中的选区 (框选工具)：无选区时为 null，不画默认框
-            final Rect? displaySelNorm = (tool == InpaintTool.rect)
-                ? (_liveSelection ?? inpaint.selectionRect)
-                : null;
-            final Rect? displaySelCanvas = displaySelNorm == null
-                ? null
-                : Rect.fromLTWH(
-                    imageRect.left + displaySelNorm.left * imageRect.width,
-                    imageRect.top + displaySelNorm.top * imageRect.height,
-                    displaySelNorm.width * imageRect.width,
-                    displaySelNorm.height * imageRect.height,
-                  );
-
-            // 生效选区 (画笔描边优先) 与实时外延裁剪框
-            final liveEffectiveSel = _liveEffectiveSelNorm(inpaint);
-            final cropNormRect = isFocus
-                ? _liveContextCropNorm(liveEffectiveSel, srcW, srcH)
-                : null;
-            final Rect? cropCanvasRect = cropNormRect == null
-                ? null
-                : Rect.fromLTWH(
-                    imageRect.left + cropNormRect.left * imageRect.width,
-                    imageRect.top + cropNormRect.top * imageRect.height,
-                    cropNormRect.width * imageRect.width,
-                    cropNormRect.height * imageRect.height,
-                  );
-
             final committedPicture = _buildCommittedPicture(
               inpaint.brushStrokes,
               imageRect,
@@ -335,122 +333,169 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                 Positioned.fromRect(
                   key: const ValueKey('inpaint-src'),
                   rect: imageRect,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: ValueListenableBuilder<Map<String, Uint8List>>(
-                      valueListenable: vm.imageBytesNotifier,
-                      builder: (context, bytesMap, _) {
-                        final fullBytes = image.bytes.isNotEmpty
-                            ? image.bytes
-                            : bytesMap[image.id];
-                        final cacheW = (imageRect.width * dpr).round().clamp(
-                          64,
-                          4096,
-                        );
-                        if (fullBytes != null && fullBytes.isNotEmpty) {
-                          return Image.memory(
-                            fullBytes,
-                            fit: BoxFit.fill,
-                            gaplessPlayback: true,
-                            cacheWidth: cacheW,
+                  child: RepaintBoundary(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: ValueListenableBuilder<Map<String, Uint8List>>(
+                        valueListenable: vm.imageBytesNotifier,
+                        builder: (context, bytesMap, _) {
+                          final fullBytes = image.bytes.isNotEmpty
+                              ? image.bytes
+                              : bytesMap[image.id];
+                          final cacheW = (imageRect.width * dpr).round().clamp(
+                            64,
+                            4096,
                           );
-                        }
+                          if (fullBytes != null && fullBytes.isNotEmpty) {
+                            return Image.memory(
+                              fullBytes,
+                              fit: BoxFit.fill,
+                              gaplessPlayback: true,
+                              cacheWidth: cacheW,
+                            );
+                          }
 
-                        vm.ensureImageLoaded(image);
+                          vm.ensureImageLoaded(image);
 
-                        final thumb = image.thumbnailBytes;
-                        if (thumb != null && thumb.isNotEmpty) {
-                          return Image.memory(
-                            thumb,
-                            fit: BoxFit.fill,
-                            gaplessPlayback: true,
-                            cacheWidth: cacheW,
-                          );
-                        }
+                          final thumb = image.thumbnailBytes;
+                          if (thumb != null && thumb.isNotEmpty) {
+                            return Image.memory(
+                              thumb,
+                              fit: BoxFit.fill,
+                              gaplessPlayback: true,
+                              cacheWidth: cacheW,
+                            );
+                          }
 
-                        return Container(
-                          color: context.colors.mutedBackground,
-                          child: Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  context.colors.primary,
+                          return Container(
+                            color: context.colors.mutedBackground,
+                            child: Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    context.colors.primary,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
 
                 // 2. 蒙版层：外延框外压暗 (even-odd 只填环带) + 已提交描边
                 //    Picture 缓存 + 实时描边 + 选区框 (AI 整图编辑不渲染蒙版)
+                //    通过局部 repaint Listenable 驱动重绘，画笔/框选拖拽期间不触发外层 rebuild
                 if (!isAiEdit)
                   Positioned.fromRect(
                     key: const ValueKey('inpaint-mask'),
                     rect: imageRect,
                     child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _InpaintMaskPainter(
-                          committedPicture: committedPicture,
-                          liveStroke: _liveStrokePoints,
-                          liveStrokeIsEraser: tool == InpaintTool.eraser,
-                          liveBrushRadius: inpaint.brushRadius,
-                          dimOutsideRect: isFocus ? cropNormRect : null,
-                          selectionRect: displaySelNorm,
-                          selectionColor: context.colors.primary,
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _InpaintMaskPainter(
+                            repaint: _liveOverlayListenable,
+                            committedPicture: committedPicture,
+                            committedRevision: _committedPictureRevision,
+                            committedHasEraser: _committedHasEraser,
+                            liveStroke: _liveStrokePoints,
+                            liveStrokeIsEraser: tool == InpaintTool.eraser,
+                            liveBrushRadius: inpaint.brushRadius,
+                            tool: tool,
+                            baseSelectionRect: inpaint.selectionRect,
+                            liveSelection: _liveSelectionNotifier,
+                            hasBrushMask: inpaint.hasBrushMask,
+                            isFocus: isFocus,
+                            contextPadding: inpaint.contextPadding,
+                            srcW: srcW,
+                            srcH: srcH,
+                            computeCropNorm: (selNorm) =>
+                                _liveContextCropNorm(selNorm, srcW, srcH),
+                            selectionColor: context.colors.primary,
+                          ),
                         ),
                       ),
                     ),
                   ),
 
-                // 3. 焦点模式外延上下文虚线框 (实时跟随)
-                if (isFocus && cropCanvasRect != null)
-                  Positioned.fromRect(
-                    key: const ValueKey('inpaint-crop-frame'),
-                    rect: cropCanvasRect,
+                // 3. 焦点模式外延上下文虚线框 (局部订阅拖拽/笔刷变化，实时跟随)
+                if (isFocus)
+                  Positioned.fill(
                     child: IgnorePointer(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: context.colors.primary.withValues(
-                              alpha: 0.45,
-                            ),
-                            width: 1.2,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Align(
-                          alignment: Alignment.topLeft,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: context.colors.primary,
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(3),
-                                bottomRight: Radius.circular(3),
+                      child: ListenableBuilder(
+                        listenable: _liveOverlayListenable,
+                        builder: (context, _) {
+                          final liveEffectiveSel = _liveEffectiveSelNorm(
+                            inpaint,
+                          );
+                          final cropNormRect = _liveContextCropNorm(
+                            liveEffectiveSel,
+                            srcW,
+                            srcH,
+                          );
+                          if (cropNormRect == null) {
+                            return const SizedBox.shrink();
+                          }
+                          final cropCanvasRect = Rect.fromLTWH(
+                            imageRect.left +
+                                cropNormRect.left * imageRect.width,
+                            imageRect.top +
+                                cropNormRect.top * imageRect.height,
+                            cropNormRect.width * imageRect.width,
+                            cropNormRect.height * imageRect.height,
+                          );
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Positioned.fromRect(
+                                key: const ValueKey('inpaint-crop-frame'),
+                                rect: cropCanvasRect,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: context.colors.primary.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                      width: 1.2,
+                                    ),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: context.colors.primary,
+                                        borderRadius: const BorderRadius.only(
+                                          topLeft: Radius.circular(3),
+                                          bottomRight: Radius.circular(3),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        l10n.inpaintOverlayContextCrop(
+                                          inpaint.contextPadding.round(),
+                                        ),
+                                        style: const TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              l10n.inpaintOverlayContextCrop(
-                                inpaint.contextPadding.round(),
-                              ),
-                              style: const TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -459,22 +504,40 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                 if (isExecuting)
                   ValueListenableBuilder<Uint8List?>(
                     valueListenable: vm.inpaintPreviewNotifier,
-                    builder: (context, bytes, _) => bytes == null
-                        ? const SizedBox.shrink()
-                        : Positioned.fromRect(
-                            key: const ValueKey('inpaint-preview'),
-                            rect: (isFocus && cropCanvasRect != null)
-                                ? cropCanvasRect
-                                : imageRect,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: Image.memory(
-                                bytes,
-                                fit: BoxFit.contain,
-                                gaplessPlayback: true,
-                              ),
-                            ),
+                    builder: (context, bytes, _) {
+                      if (bytes == null) return const SizedBox.shrink();
+                      final cropNormRect = isFocus
+                          ? _liveContextCropNorm(
+                              _liveEffectiveSelNorm(inpaint),
+                              srcW,
+                              srcH,
+                            )
+                          : null;
+                      final cropCanvasRect = cropNormRect == null
+                          ? null
+                          : Rect.fromLTWH(
+                              imageRect.left +
+                                  cropNormRect.left * imageRect.width,
+                              imageRect.top +
+                                  cropNormRect.top * imageRect.height,
+                              cropNormRect.width * imageRect.width,
+                              cropNormRect.height * imageRect.height,
+                            );
+                      return Positioned.fromRect(
+                        key: const ValueKey('inpaint-preview'),
+                        rect: (isFocus && cropCanvasRect != null)
+                            ? cropCanvasRect
+                            : imageRect,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.memory(
+                            bytes,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
                           ),
+                        ),
+                      );
+                    },
                   ),
 
                 // 5. 手势交互层 (整个源图区域；执行中与 AI 整图编辑模式禁用)
@@ -487,29 +550,54 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                       onPanStart: (d) => _onPanStart(
                         d.localPosition,
                         imageRect,
-                        displaySelNorm,
+                        _currentDisplaySelNorm(inpaint, tool),
                       ),
-                      onPanUpdate: (d) => _onPanUpdate(
-                        d.localPosition,
-                        imageRect,
-                        displaySelNorm,
-                      ),
+                      onPanUpdate: (d) =>
+                          _onPanUpdate(d.localPosition, imageRect),
                       onPanEnd: (_) => _onPanEnd(),
                       onPanCancel: () => _onPanEnd(),
                       child: const SizedBox.expand(),
                     ),
                   ),
 
-                // 6. 四角缩放手柄 (框选工具且无画笔蒙版且有选区时显示)
+                // 6. 四角缩放手柄 (框选工具且无画笔蒙版且有选区时显示；局部订阅拖拽变化)
                 if (!isExecuting &&
                     !isAiEdit &&
                     tool == InpaintTool.rect &&
-                    !inpaint.hasBrushMask &&
-                    displaySelCanvas != null)
-                  ..._buildCornerHandles(
-                    imageRect,
-                    displaySelNorm!,
-                    displaySelCanvas,
+                    !inpaint.hasBrushMask)
+                  Positioned.fill(
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([
+                        _liveSelectionNotifier,
+                        _activeHandleNotifier,
+                      ]),
+                      builder: (context, _) {
+                        final displaySelNorm = _currentDisplaySelNorm(
+                          inpaint,
+                          tool,
+                        );
+                        if (displaySelNorm == null) {
+                          return const SizedBox.shrink();
+                        }
+                        final displaySelCanvas = Rect.fromLTWH(
+                          imageRect.left +
+                              displaySelNorm.left * imageRect.width,
+                          imageRect.top +
+                              displaySelNorm.top * imageRect.height,
+                          displaySelNorm.width * imageRect.width,
+                          displaySelNorm.height * imageRect.height,
+                        );
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: _buildCornerHandles(
+                            imageRect,
+                            displaySelNorm,
+                            displaySelCanvas,
+                            _activeHandleNotifier.value,
+                          ),
+                        );
+                      },
+                    ),
                   ),
 
                 // 7. 顶部浮动工具坞
@@ -592,19 +680,18 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
         _dragBaseRect = selNorm;
         _dragStartNorm = norm;
         if (_rectDragMode == _RectDragMode.marquee) {
-          _liveSelection = Rect.fromPoints(norm, norm);
+          _liveSelectionNotifier.value = Rect.fromPoints(norm, norm);
         }
-        setState(() {});
       case InpaintTool.brush:
       case InpaintTool.eraser:
-        // 画笔与橡皮统一为拖绘制流 (橡皮 = 反向画笔)，仅本地 state 驱动
+        // 画笔与橡皮统一为拖绘制流 (橡皮 = 反向画笔)，仅通知局部 painter 重绘
         _liveStrokePoints.clear();
         _liveStrokePoints.add(norm);
-        setState(() {});
+        _livePaintRevision.value++;
     }
   }
 
-  void _onPanUpdate(Offset localPoint, Rect imageRect, Rect? selNorm) {
+  void _onPanUpdate(Offset localPoint, Rect imageRect) {
     final vm = widget.viewModel;
     final norm = _toNormalized(localPoint, imageRect);
     switch (vm.inpaintTool) {
@@ -613,24 +700,23 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
         if (start == null) return;
         if (_rectDragMode == _RectDragMode.marquee) {
           // 新建选区不依赖旧选区 (空白处拖拽时 _dragBaseRect 为 null)
-          setState(() => _liveSelection = Rect.fromPoints(start, norm));
+          _liveSelectionNotifier.value = Rect.fromPoints(start, norm);
         } else if (_rectDragMode == _RectDragMode.move) {
           final base = _dragBaseRect;
           if (base == null) return;
           final dx = norm.dx - start.dx;
           final dy = norm.dy - start.dy;
-          setState(() {
-            _liveSelection = Rect.fromLTWH(
-              (base.left + dx).clamp(0.0, 1.0 - base.width),
-              (base.top + dy).clamp(0.0, 1.0 - base.height),
-              base.width,
-              base.height,
-            );
-          });
+          _liveSelectionNotifier.value = Rect.fromLTWH(
+            (base.left + dx).clamp(0.0, 1.0 - base.width),
+            (base.top + dy).clamp(0.0, 1.0 - base.height),
+            base.width,
+            base.height,
+          );
         }
       case InpaintTool.brush:
       case InpaintTool.eraser:
-        setState(() => _liveStrokePoints.add(norm));
+        _liveStrokePoints.add(norm);
+        _livePaintRevision.value++;
     }
   }
 
@@ -638,7 +724,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     final vm = widget.viewModel;
     switch (vm.inpaintTool) {
       case InpaintTool.rect:
-        final r = _liveSelection;
+        final r = _liveSelectionNotifier.value;
         if (r != null && r.width > 0.015 && r.height > 0.015) {
           vm.setInpaintSelectionRect(_normRectInside(r));
         }
@@ -653,18 +739,17 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
           );
         }
         _liveStrokePoints.clear();
-        setState(() {});
+        _livePaintRevision.value++;
     }
   }
 
   void _resetRectDrag() {
     _rectDragMode = _RectDragMode.none;
-    _activeHandleIndex = -1;
-    _liveSelection = null;
+    _activeHandleNotifier.value = -1;
+    _liveSelectionNotifier.value = null;
     _dragBaseRect = null;
     _dragStartNorm = null;
     _handleDragStartGlobal = null;
-    setState(() {});
   }
 
   // ---------------------------------------------------------------------------
@@ -675,6 +760,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     Rect imageRect,
     Rect selNorm,
     Rect selCanvas,
+    int activeHandleIndex,
   ) {
     const handleHit = 28.0;
 
@@ -713,10 +799,8 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
             // 起点存 State 字段：拖拽中 rebuild 不会丢失基准
             _handleDragStartGlobal = d.globalPosition;
             _dragBaseRect = selNorm;
-            setState(() {
-              _activeHandleIndex = corner;
-              _liveSelection = selNorm;
-            });
+            _activeHandleNotifier.value = corner;
+            _liveSelectionNotifier.value = selNorm;
           },
           onPanUpdate: (d) {
             final start = _handleDragStartGlobal;
@@ -726,14 +810,12 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
               (d.globalPosition.dx - start.dx) / imageRect.width,
               (d.globalPosition.dy - start.dy) / imageRect.height,
             );
-            setState(() {
-              _liveSelection = _normRectInside(
-                applyDelta(base, corner, deltaNorm),
-              );
-            });
+            _liveSelectionNotifier.value = _normRectInside(
+              applyDelta(base, corner, deltaNorm),
+            );
           },
           onPanEnd: (_) {
-            final r = _liveSelection;
+            final r = _liveSelectionNotifier.value;
             if (r != null && r.width > 0.015 && r.height > 0.015) {
               widget.viewModel.setInpaintSelectionRect(_normRectInside(r));
             }
@@ -749,7 +831,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                 color: Colors.white,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: _activeHandleIndex == corner
+                  color: activeHandleIndex == corner
                       ? context.colors.error
                       : context.colors.primary,
                   width: 2.2,
@@ -956,29 +1038,75 @@ class _BrushSizeSliderState extends State<_BrushSizeSlider> {
 /// 蒙版可视化绘制器：外延框外压暗环带 + 已提交描边 Picture + 实时描边 + 选区框
 class _InpaintMaskPainter extends CustomPainter {
   final ui.Picture? committedPicture;
+  final int committedRevision;
+  final bool committedHasEraser;
   final List<Offset> liveStroke;
   final bool liveStrokeIsEraser;
   final double liveBrushRadius;
-  final Rect? dimOutsideRect;
-  final Rect? selectionRect;
+  final InpaintTool tool;
+  final Rect? baseSelectionRect;
+  final ValueNotifier<Rect?> liveSelection;
+  final bool hasBrushMask;
+  final bool isFocus;
+  final double contextPadding;
+  final int srcW;
+  final int srcH;
+  final Rect? Function(Rect? selNorm) computeCropNorm;
 
   /// 选区描框主题色 (由当前主题注入)
   final Color selectionColor;
 
   _InpaintMaskPainter({
+    required Listenable repaint,
     required this.committedPicture,
+    required this.committedRevision,
+    required this.committedHasEraser,
     required this.liveStroke,
     required this.liveStrokeIsEraser,
     required this.liveBrushRadius,
-    required this.dimOutsideRect,
-    required this.selectionRect,
+    required this.tool,
+    required this.baseSelectionRect,
+    required this.liveSelection,
+    required this.hasBrushMask,
+    required this.isFocus,
+    required this.contextPadding,
+    required this.srcW,
+    required this.srcH,
+    required this.computeCropNorm,
     required this.selectionColor,
-  });
+  }) : super(repaint: repaint);
+
+  Rect? _resolveLiveEffectiveSelection() {
+    if (tool == InpaintTool.brush && liveStroke.isNotEmpty) {
+      var l = liveStroke.first.dx;
+      var t = liveStroke.first.dy;
+      var r = l;
+      var b = t;
+      for (final p in liveStroke.skip(1)) {
+        l = math.min(l, p.dx);
+        t = math.min(t, p.dy);
+        r = math.max(r, p.dx);
+        b = math.max(b, p.dy);
+      }
+      return Rect.fromLTRB(
+        (l - liveBrushRadius).clamp(0.0, 1.0),
+        (t - liveBrushRadius).clamp(0.0, 1.0),
+        (r + liveBrushRadius).clamp(0.0, 1.0),
+        (b + liveBrushRadius).clamp(0.0, 1.0),
+      );
+    }
+    if (hasBrushMask) return baseSelectionRect;
+    return liveSelection.value ?? baseSelectionRect;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
+    final selectionRect = tool == InpaintTool.rect
+        ? (liveSelection.value ?? baseSelectionRect)
+        : null;
+    final dim = isFocus ? computeCropNorm(_resolveLiveEffectiveSelection()) : null;
+
     // 1. 焦点模式：外延裁剪框外压暗 (外矩形+内矩形 even-odd 只填环带)
-    final dim = dimOutsideRect;
     if (dim != null) {
       final dimPath = ui.Path()
         ..addRect(Offset.zero & size)
@@ -997,12 +1125,14 @@ class _InpaintMaskPainter extends CustomPainter {
       );
     }
 
-    // 2+3. 笔迹层：已提交描边 Picture + 进行中的描边，整体包在一个
-    //    隔离图层 (saveLayer) 里——橡皮描边用 BlendMode.clear 打穿，
-    //    视觉上真正擦掉先前笔迹而不是叠加一层白色 (clear 只作用于
-    //    图层内部，不会打穿图层之下的压暗环带与源图)
+    // 2+3. 笔迹层：仅当存在橡皮擦笔迹 (BlendMode.clear) 时才分配 saveLayer 隔离图层，
+    //    避免 Impeller 下无橡皮擦时每帧产生多余的离屏渲染 Pass 开销。
     if (committedPicture != null || liveStroke.isNotEmpty) {
-      canvas.saveLayer(Offset.zero & size, Paint());
+      final needsIsolationLayer =
+          committedHasEraser || (liveStroke.isNotEmpty && liveStrokeIsEraser);
+      if (needsIsolationLayer) {
+        canvas.saveLayer(Offset.zero & size, Paint());
+      }
       if (committedPicture != null) {
         canvas.drawPicture(committedPicture!);
       }
@@ -1051,7 +1181,9 @@ class _InpaintMaskPainter extends CustomPainter {
           );
         }
       }
-      canvas.restore();
+      if (needsIsolationLayer) {
+        canvas.restore();
+      }
     }
 
     // 4. 矩形选区框 (无选区时不画)
@@ -1070,13 +1202,25 @@ class _InpaintMaskPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, Radius.zero),
+      canvas.drawRect(
+        r,
         Paint()..color = selectionColor.withValues(alpha: 0.10),
       );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _InpaintMaskPainter old) => true;
+  bool shouldRepaint(covariant _InpaintMaskPainter old) =>
+      old.committedRevision != committedRevision ||
+      old.committedHasEraser != committedHasEraser ||
+      old.liveStrokeIsEraser != liveStrokeIsEraser ||
+      old.liveBrushRadius != liveBrushRadius ||
+      old.tool != tool ||
+      old.baseSelectionRect != baseSelectionRect ||
+      old.hasBrushMask != hasBrushMask ||
+      old.isFocus != isFocus ||
+      old.contextPadding != contextPadding ||
+      old.srcW != srcW ||
+      old.srcH != srcH ||
+      old.selectionColor != selectionColor;
 }

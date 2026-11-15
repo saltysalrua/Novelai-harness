@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
@@ -267,7 +268,7 @@ class BoardGridPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 只画当前视口范围内的网格点，保证性能
+    // 只画当前视口范围内的网格点，并用 Float32List + drawRawPoints 避免海量 Offset 堆分配
     final clip = canvas.getLocalClipBounds();
     final left = clip.left.clamp(0.0, size.width);
     final right = clip.right.clamp(0.0, size.width);
@@ -286,14 +287,21 @@ class BoardGridPainter extends CustomPainter {
     final startY = (top / step).floor() * step;
     final endY = (bottom / step).ceil() * step;
 
-    final points = <Offset>[];
-    for (double x = startX; x <= endX; x += step) {
-      for (double y = startY; y <= endY; y += step) {
-        points.add(Offset(x, y));
+    final cols = ((endX - startX) / step).floor() + 1;
+    final rows = ((endY - startY) / step).floor() + 1;
+    if (cols <= 0 || rows <= 0) return;
+
+    final rawPoints = Float32List(cols * rows * 2);
+    var writeIdx = 0;
+    for (var col = 0; col < cols; col++) {
+      final x = startX + col * step;
+      for (var row = 0; row < rows; row++) {
+        rawPoints[writeIdx++] = x;
+        rawPoints[writeIdx++] = startY + row * step;
       }
     }
-    if (points.isNotEmpty) {
-      canvas.drawPoints(ui.PointMode.points, points, dotPaint);
+    if (writeIdx > 0) {
+      canvas.drawRawPoints(ui.PointMode.points, rawPoints, dotPaint);
     }
   }
 
@@ -325,15 +333,16 @@ class BoardWirePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final live = liveOverlays.value;
     final drag = wireDrag.value;
+    final hasConnectedNotes = boardData.noteNodes.any((n) => n.isConnected);
+    final Map<String, CanvasImageNode>? imageById =
+        (boardData.imageLinks.isNotEmpty || hasConnectedNotes)
+        ? {for (final img in boardData.imageNodes) img.id: img}
+        : null;
 
     // 1. 参考图连线 (虚线，一个选区/锚点可挂多条)
     for (final link in boardData.imageLinks) {
-      final srcNode = boardData.imageNodes
-          .where((img) => img.id == link.sourceImageId)
-          .firstOrNull;
-      final tgtNode = boardData.imageNodes
-          .where((img) => img.id == link.targetImageId)
-          .firstOrNull;
+      final srcNode = imageById?[link.sourceImageId];
+      final tgtNode = imageById?[link.targetImageId];
       if (srcNode == null || tgtNode == null) continue;
 
       final ann = tgtNode.annotations
@@ -358,9 +367,7 @@ class BoardWirePainter extends CustomPainter {
       // 便签正在被拖出重连时隐藏旧连线，提供"已拔出"视觉反馈
       if (drag?.noteId == note.id) continue;
 
-      final imgNode = boardData.imageNodes
-          .where((img) => img.id == note.targetImageId)
-          .firstOrNull;
+      final imgNode = imageById?[note.targetImageId];
       if (imgNode == null) continue;
 
       final ann = imgNode.annotations
@@ -396,30 +403,34 @@ class BoardWirePainter extends CustomPainter {
     }
   }
 
-  /// 虚线连线绘制 (参考图连线，直线 + 虚线 + 端点小圆点)
+  /// 虚线连线绘制 (直线向量插值合批到单 Path：8px 实线 + 6px 间隔，避免 PathMetrics 分配)
   void _drawDashedCable(Canvas canvas, Offset start, Offset end, Color color) {
-    final path = Path()
-      ..moveTo(start.dx, start.dy)
-      ..lineTo(end.dx, end.dy);
+    final delta = end - start;
+    final totalLength = delta.distance;
+    if (totalLength > 0.001) {
+      final linePaint = Paint()
+        ..color = color.withValues(alpha: 0.85)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
 
-    final linePaint = Paint()
-      ..color = color.withValues(alpha: 0.85)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    // 逐段提取路径绘制虚线 (8px 实线 + 6px 间隔)
-    for (final metric in path.computeMetrics()) {
+      final unit = delta / totalLength;
+      final dashedPath = Path();
+      const dashLen = 8.0;
+      const gapLen = 6.0;
       var dist = 0.0;
-      var draw = true;
-      while (dist < metric.length) {
-        final next = (dist + (draw ? 8.0 : 6.0)).clamp(0.0, metric.length);
-        if (draw) {
-          final segment = metric.extractPath(dist, next);
-          canvas.drawPath(segment, linePaint);
-        }
-        dist = next;
-        draw = !draw;
+      while (dist < totalLength) {
+        final segEnd = (dist + dashLen).clamp(0.0, totalLength);
+        dashedPath.moveTo(
+          start.dx + unit.dx * dist,
+          start.dy + unit.dy * dist,
+        );
+        dashedPath.lineTo(
+          start.dx + unit.dx * segEnd,
+          start.dy + unit.dy * segEnd,
+        );
+        dist += dashLen + gapLen;
       }
+      canvas.drawPath(dashedPath, linePaint);
     }
 
     final dotPaint = Paint()
@@ -480,5 +491,9 @@ class BoardWirePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant BoardWirePainter oldDelegate) => true;
+  bool shouldRepaint(covariant BoardWirePainter oldDelegate) =>
+      oldDelegate.boardData != boardData ||
+      oldDelegate.liveOverlays != liveOverlays ||
+      oldDelegate.wireDrag != wireDrag ||
+      oldDelegate.dragColor != dragColor;
 }

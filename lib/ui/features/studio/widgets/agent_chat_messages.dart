@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -86,9 +87,14 @@ class _AgentChatMessageItemState extends State<AgentChatMessageItem>
   }
 }
 
-/// 悬停高亮消息外框 + 固定高度快捷操作栏共享容器
+/// 悬停高亮消息外框 + 固定高度快捷操作栏共享容器：
+/// 鼠标悬停仅更新局部 [ValueNotifier]，不重建正文 Markdown / 工具块 / 气泡内容。
 class _HoverableMessageActionScope extends StatefulWidget {
-  final Widget Function(BuildContext context, bool hovered) builder;
+  final Widget Function(
+    BuildContext context,
+    ValueListenable<bool> hoveredListenable,
+  )
+  builder;
 
   const _HoverableMessageActionScope({required this.builder});
 
@@ -99,18 +105,96 @@ class _HoverableMessageActionScope extends StatefulWidget {
 
 class _HoverableMessageActionScopeState
     extends State<_HoverableMessageActionScope> {
-  bool _hovered = false;
+  final ValueNotifier<bool> _hovered = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _hovered.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) {
-        if (!_hovered) setState(() => _hovered = true);
+        if (!_hovered.value) _hovered.value = true;
       },
       onExit: (_) {
-        if (_hovered) setState(() => _hovered = false);
+        if (_hovered.value) _hovered.value = false;
       },
       child: widget.builder(context, _hovered),
+    );
+  }
+}
+
+/// 消息底部紧凑操作栏（复制 + 回退）：
+/// 通过图标颜色透明通道渐变替代整栏 [AnimatedOpacity]，避免每条消息产生离屏 `saveLayer`。
+class _MessageActionBar extends StatelessWidget {
+  final ValueListenable<bool> hoveredListenable;
+  final String? copyText;
+  final Key? copyKey;
+  final String copyTooltip;
+  final String copiedTooltip;
+  final Key? rewindKey;
+  final IconData rewindIcon;
+  final double rewindIconSize;
+  final String? rewindTooltip;
+  final VoidCallback? onRewind;
+
+  const _MessageActionBar({
+    required this.hoveredListenable,
+    required this.copyTooltip,
+    required this.copiedTooltip,
+    required this.rewindIcon,
+    required this.rewindIconSize,
+    this.copyText,
+    this.copyKey,
+    this.rewindKey,
+    this.rewindTooltip,
+    this.onRewind,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: hoveredListenable,
+      builder: (context, hovered, _) {
+        final colors = context.colors;
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: hovered ? 0.9 : 0.35),
+          duration: const Duration(milliseconds: 120),
+          builder: (context, alpha, _) {
+            final mutedColor = colors.textMuted.withValues(alpha: alpha);
+            return SizedBox(
+              height: 18,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (copyText != null)
+                    _MessageCopyButton(
+                      key: copyKey,
+                      text: copyText!,
+                      iconColor: mutedColor,
+                      copyTooltip: copyTooltip,
+                      copiedTooltip: copiedTooltip,
+                    ),
+                  if (onRewind != null)
+                    AppIconButton(
+                      key: rewindKey,
+                      icon: rewindIcon,
+                      size: 20,
+                      iconSize: rewindIconSize,
+                      iconColor: mutedColor,
+                      tooltip: rewindTooltip,
+                      variant: AppIconButtonVariant.ghost,
+                      onPressed: onRewind,
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -118,12 +202,14 @@ class _HoverableMessageActionScopeState
 /// 带即时复制成功反馈的紧凑图标按钮
 class _MessageCopyButton extends StatefulWidget {
   final String text;
+  final Color iconColor;
   final String copyTooltip;
   final String copiedTooltip;
 
   const _MessageCopyButton({
     super.key,
     required this.text,
+    required this.iconColor,
     required this.copyTooltip,
     required this.copiedTooltip,
   });
@@ -159,7 +245,7 @@ class _MessageCopyButtonState extends State<_MessageCopyButton> {
       icon: _copied ? Icons.check_rounded : Icons.content_copy_rounded,
       size: 20,
       iconSize: 12,
-      iconColor: _copied ? colors.success : colors.textMuted,
+      iconColor: _copied ? colors.success : widget.iconColor,
       tooltip: _copied ? widget.copiedTooltip : widget.copyTooltip,
       variant: AppIconButtonVariant.ghost,
       onPressed: _copy,
@@ -183,7 +269,7 @@ class UserMessageRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10, left: 36),
       child: _HoverableMessageActionScope(
-        builder: (context, hovered) => Column(
+        builder: (context, hoveredListenable) => Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Container(
@@ -228,36 +314,17 @@ class UserMessageRow extends StatelessWidget {
             ),
             if (message.content.isNotEmpty || onRewind != null) ...[
               const SizedBox(height: 2),
-              AnimatedOpacity(
-                opacity: hovered ? 0.9 : 0.35,
-                duration: const Duration(milliseconds: 120),
-                child: SizedBox(
-                  height: 18,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (message.content.isNotEmpty)
-                        _MessageCopyButton(
-                          key: ValueKey('user_msg_copy_${message.id}'),
-                          text: message.content,
-                          copyTooltip: l10n?.chatCopyMessageTooltip ?? '复制内容',
-                          copiedTooltip: l10n?.chatCopiedTooltip ?? '已复制',
-                        ),
-                      if (onRewind != null)
-                        AppIconButton(
-                          key: ValueKey('user_msg_rewind_${message.id}'),
-                          icon: Icons.edit_note_rounded,
-                          size: 20,
-                          iconSize: 13,
-                          iconColor: colors.textMuted,
-                          tooltip:
-                              l10n?.chatEditAndRewindTooltip ?? '编辑并撤回后续对话',
-                          variant: AppIconButtonVariant.ghost,
-                          onPressed: () => onRewind!(message.id),
-                        ),
-                    ],
-                  ),
-                ),
+              _MessageActionBar(
+                hoveredListenable: hoveredListenable,
+                copyText: message.content.isNotEmpty ? message.content : null,
+                copyKey: ValueKey('user_msg_copy_${message.id}'),
+                copyTooltip: l10n?.chatCopyMessageTooltip ?? '复制内容',
+                copiedTooltip: l10n?.chatCopiedTooltip ?? '已复制',
+                rewindKey: ValueKey('user_msg_rewind_${message.id}'),
+                rewindIcon: Icons.edit_note_rounded,
+                rewindIconSize: 13,
+                rewindTooltip: l10n?.chatEditAndRewindTooltip ?? '编辑并撤回后续对话',
+                onRewind: onRewind != null ? () => onRewind!(message.id) : null,
               ),
             ],
           ],
@@ -298,7 +365,7 @@ class AssistantMessageItem extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: _HoverableMessageActionScope(
-        builder: (context, hovered) => Column(
+        builder: (context, hoveredListenable) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (message.replyNumber != null)
@@ -335,35 +402,17 @@ class AssistantMessageItem extends StatelessWidget {
               ),
             if (content.isNotEmpty || onRewind != null) ...[
               const SizedBox(height: 3),
-              AnimatedOpacity(
-                opacity: hovered ? 0.9 : 0.35,
-                duration: const Duration(milliseconds: 120),
-                child: SizedBox(
-                  height: 18,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (content.isNotEmpty)
-                        _MessageCopyButton(
-                          key: ValueKey('assistant_msg_copy_${message.id}'),
-                          text: content,
-                          copyTooltip: l10n?.chatCopyMessageTooltip ?? '复制内容',
-                          copiedTooltip: l10n?.chatCopiedTooltip ?? '已复制',
-                        ),
-                      if (onRewind != null)
-                        AppIconButton(
-                          key: ValueKey('assistant_msg_rewind_${message.id}'),
-                          icon: Icons.history_rounded,
-                          size: 20,
-                          iconSize: 12,
-                          iconColor: colors.textMuted,
-                          tooltip: l10n?.chatRewindToHereTooltip ?? '回退到此回复',
-                          variant: AppIconButtonVariant.ghost,
-                          onPressed: () => onRewind!(message.id),
-                        ),
-                    ],
-                  ),
-                ),
+              _MessageActionBar(
+                hoveredListenable: hoveredListenable,
+                copyText: content.isNotEmpty ? content : null,
+                copyKey: ValueKey('assistant_msg_copy_${message.id}'),
+                copyTooltip: l10n?.chatCopyMessageTooltip ?? '复制内容',
+                copiedTooltip: l10n?.chatCopiedTooltip ?? '已复制',
+                rewindKey: ValueKey('assistant_msg_rewind_${message.id}'),
+                rewindIcon: Icons.history_rounded,
+                rewindIconSize: 12,
+                rewindTooltip: l10n?.chatRewindToHereTooltip ?? '回退到此回复',
+                onRewind: onRewind != null ? () => onRewind!(message.id) : null,
               ),
             ],
           ],
@@ -578,7 +627,12 @@ class _ToolOutputImagePreview extends StatelessWidget {
         builder: (context, constraints) {
           final panelWidth = constraints.maxWidth;
           final dpr = MediaQuery.devicePixelRatioOf(context);
-          final cacheWidth = (panelWidth * dpr).round().clamp(320, 1600);
+          // 按 128px 档位量化解码缓存宽度，拖拽分栏/缩放窗口时不逐像素触发重解码
+          final rawCacheWidth = (panelWidth * dpr).round();
+          final cacheWidth = (((rawCacheWidth + 127) ~/ 128) * 128).clamp(
+            320,
+            1600,
+          );
           final image = GestureDetector(
             onTap: () => showImageLightboxBytes(context, bytes),
             child: MouseRegion(

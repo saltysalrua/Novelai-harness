@@ -593,60 +593,65 @@ class AgentChatCardState extends State<AgentChatCard> {
 
   @override
   Widget build(BuildContext context) {
-    // ViewModel 就地变更，不能比较 oldWidget.viewModel（它是同一个实例）。
-    final sessionId = widget.viewModel.currentSessionId;
-    if (_renderedSessionId != sessionId) {
-      _renderedSessionId = sessionId;
-      _clearExtentFreeze();
-      _messageWidgetCache.clear();
-      _scrollToBottom(animate: false);
-    }
-    // 非对话视图 (会话抽屉/回溯) 期间不得持陈旧冻结快照
-    if (_currentView != _AgentCardView.chat) {
-      _clearExtentFreeze();
-    }
-    switch (_currentView) {
-      case _AgentCardView.sessions:
-        return AgentSessionListView(
-          viewModel: widget.viewModel,
-          onBack: () => _switchView(_AgentCardView.chat),
-        );
-      case _AgentCardView.rewind:
-        return AgentRewindView(
-          viewModel: widget.viewModel,
-          onBack: () => _switchView(_AgentCardView.chat),
-          compact: widget.compact,
-        );
-      case _AgentCardView.chat:
-        break;
-    }
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        if (TickerMode.valuesOf(context).enabled) widget.viewModel,
+      ]),
+      builder: (context, _) {
+        // ViewModel 就地变更，不能比较 oldWidget.viewModel（它是同一个实例）。
+        final sessionId = widget.viewModel.currentSessionId;
+        if (_renderedSessionId != sessionId) {
+          _renderedSessionId = sessionId;
+          _clearExtentFreeze();
+          _messageWidgetCache.clear();
+          _scrollToBottom(animate: false);
+        }
+        // 非对话视图 (会话抽屉/回溯) 期间不得持陈旧冻结快照
+        if (_currentView != _AgentCardView.chat) {
+          _clearExtentFreeze();
+        }
+        switch (_currentView) {
+          case _AgentCardView.sessions:
+            return AgentSessionListView(
+              viewModel: widget.viewModel,
+              onBack: () => _switchView(_AgentCardView.chat),
+            );
+          case _AgentCardView.rewind:
+            return AgentRewindView(
+              viewModel: widget.viewModel,
+              onBack: () => _switchView(_AgentCardView.chat),
+              compact: widget.compact,
+            );
+          case _AgentCardView.chat:
+            break;
+        }
 
-    if (_currentView == _AgentCardView.chat) {
-      // 流式收尾瞬间：流式气泡被定稿消息替换 (Element 换型 + 进度条剥离)，
-      // 末尾高度可能瞬态落差几到几十像素；未暂停跟随时静默贴底结算
-      final streamingNow = widget.viewModel.isChatStreaming;
-      if (_wasStreaming && !streamingNow && !_followSuspended) {
-        _lastUserScrollIntentAt = null;
-        _scrollToBottom(animate: false);
-      }
-      _wasStreaming = streamingNow;
-      // 思考块全局展开/折叠 (Ctrl+O/状态切换): 所有思考块同时改变高度，
-      // 视口内容会被整个推走——捕获顶部锚点并在重建后静默补偿。
-      // 拖拽冻结期间判定走冻结值，Ctrl+O 补偿随之推迟到手势解除冻结时生效
-      final thinkingNow = _extentFrozen
-          ? _frozenThinkingExpanded
-          : widget.viewModel.isThinkingExpanded;
-      if (thinkingNow != _lastThinkingExpanded) {
-        _lastThinkingExpanded = thinkingNow;
-        _preserveTopAnchorAcrossRebuild();
-      }
-      // 结构性通知 (消息入列/工具结果等) 不一定伴随流式文本增量，
-      // build 里与 ListenableBuilder 的增量回调双路驱动跟随判断
-      _autoScrollOnStream();
-      _syncScrollToBottomButton();
-    }
+        if (_currentView == _AgentCardView.chat) {
+          // 流式收尾瞬间：流式气泡被定稿消息替换 (Element 换型 + 进度条剥离)，
+          // 末尾高度可能瞬态落差几到几十像素；未暂停跟随时静默贴底结算
+          final streamingNow = widget.viewModel.isChatStreaming;
+          if (_wasStreaming && !streamingNow && !_followSuspended) {
+            _lastUserScrollIntentAt = null;
+            _scrollToBottom(animate: false);
+          }
+          _wasStreaming = streamingNow;
+          // 思考块全局展开/折叠 (Ctrl+O/状态切换): 所有思考块同时改变高度，
+          // 视口内容会被整个推走——捕获顶部锚点并在重建后静默补偿。
+          // 拖拽冻结期间判定走冻结值，Ctrl+O 补偿随之推迟到手势解除冻结时生效
+          final thinkingNow = _extentFrozen
+              ? _frozenThinkingExpanded
+              : widget.viewModel.isThinkingExpanded;
+          if (thinkingNow != _lastThinkingExpanded) {
+            _lastThinkingExpanded = thinkingNow;
+            _preserveTopAnchorAcrossRebuild();
+          }
+          // 结构性通知 (消息入列/工具结果等) 不一定伴随流式文本增量，
+          // build 里与 ListenableBuilder 的增量回调双路驱动跟随判断
+          _autoScrollOnStream();
+          _syncScrollToBottomButton();
+        }
 
-    return Focus(
+        return Focus(
       focusNode: _cardFocusNode,
       autofocus: true,
       onKeyEvent: (node, event) {
@@ -741,6 +746,8 @@ class AgentChatCardState extends State<AgentChatCard> {
           ],
         ),
       ),
+        );
+      },
     );
   }
 

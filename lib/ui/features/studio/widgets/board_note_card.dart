@@ -84,8 +84,9 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
       top: notePos.dy,
       width: noteSize.width,
       height: noteSize.height,
-      child: Stack(
-        clipBehavior: Clip.none,
+      child: RepaintBoundary(
+        child: Stack(
+          clipBehavior: Clip.none,
         children: [
           Positioned.fill(
             child: Material(
@@ -279,6 +280,7 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
