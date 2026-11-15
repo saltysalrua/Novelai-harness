@@ -127,7 +127,7 @@ void main() {
       expect(find.text('重绘强度'), findsOneWidget);
       expect(find.text('附加噪声'), findsOneWidget);
       // 原子组件验证
-      expect(find.byType(AppOptionCard<InpaintMode>), findsNWidgets(3));
+      expect(find.byType(AppSegmentedCardBar<InpaintMode>), findsOneWidget);
       expect(find.byType(AppCollapsibleSection), findsOneWidget);
       expect(find.byType(AppBadge), findsOneWidget);
       expect(find.byType(AppKeyValueRow), findsNWidgets(3));

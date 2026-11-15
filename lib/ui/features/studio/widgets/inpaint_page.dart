@@ -121,47 +121,30 @@ class _InpaintPageState extends State<InpaintPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              PageHeader(
-                title: l10n.inpaintPageTitle,
-                subtitle: l10n.inpaintPageSubtitle,
-              ),
+              PageHeader(title: l10n.inpaintPageTitle),
               const SizedBox(height: AppSpacing.lg),
 
-              // 1. 修复模式切换 (AppOptionCard 选项)
+              // 1. 修复模式切换 (AppSegmentedCardBar 选项)
               SectionHeader(l10n.inpaintSectionMode),
               const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: AppOptionCard<InpaintMode>(
-                      value: InpaintMode.focus,
-                      title: l10n.inpaintModeFocus,
-                      subtitle: l10n.inpaintModeFocusSubtitle,
-                      isSelected: isFocus,
-                      onTap: () => vm.setInpaintMode(InpaintMode.focus),
-                    ),
+              AppSegmentedCardBar<InpaintMode>(
+                items: [
+                  AppSegmentedItem(
+                    value: InpaintMode.focus,
+                    label: l10n.inpaintModeFocus,
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: AppOptionCard<InpaintMode>(
-                      value: InpaintMode.standard,
-                      title: l10n.inpaintModeStandard,
-                      subtitle: l10n.inpaintModeStandardSubtitle,
-                      isSelected: inpaint.mode == InpaintMode.standard,
-                      onTap: () => vm.setInpaintMode(InpaintMode.standard),
-                    ),
+                  AppSegmentedItem(
+                    value: InpaintMode.standard,
+                    label: l10n.inpaintModeStandard,
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: AppOptionCard<InpaintMode>(
-                      value: InpaintMode.aiEdit,
-                      title: l10n.inpaintModeAiEdit,
-                      subtitle: l10n.inpaintModeAiEditSubtitle,
-                      isSelected: isAiEdit,
-                      onTap: () => vm.setInpaintMode(InpaintMode.aiEdit),
-                    ),
+                  AppSegmentedItem(
+                    value: InpaintMode.aiEdit,
+                    label: l10n.inpaintModeAiEdit,
                   ),
                 ],
+                selectedValue: inpaint.mode,
+                expand: true,
+                onValueChanged: vm.setInpaintMode,
               ),
               const SizedBox(height: AppSpacing.lg),
 

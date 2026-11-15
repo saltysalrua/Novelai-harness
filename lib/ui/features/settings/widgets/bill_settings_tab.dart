@@ -67,7 +67,7 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
                 spacing: AppSpacing.md,
                 alignment: WrapAlignment.spaceBetween,
                 children: [
-                  AppSegmentedPillBar<BillPeriod>(
+                  AppSegmentedCardBar<BillPeriod>(
                     scrollable: true,
                     items: [
                       for (final period in BillPeriod.values)

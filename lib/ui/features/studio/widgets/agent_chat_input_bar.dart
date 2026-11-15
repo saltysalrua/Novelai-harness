@@ -914,7 +914,7 @@ class _ModelThinkingPickerSheetState extends State<_ModelThinkingPickerSheet> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: AppSegmentedPillBar<ThinkingEffort>(
+                        child: AppSegmentedCardBar<ThinkingEffort>(
                           items: [
                             for (final effort in availableLevels)
                               AppSegmentedItem<ThinkingEffort>(
@@ -924,8 +924,10 @@ class _ModelThinkingPickerSheetState extends State<_ModelThinkingPickerSheet> {
                           ],
                           selectedValue: currentEffort,
                           expand: true,
-                          variant: AppPillVariant.soft,
-                          radius: AppRadius.md,
+                          itemPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           onValueChanged: widget.viewModel.setThinkingEffort,
                         ),
                       ),

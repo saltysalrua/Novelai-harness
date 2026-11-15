@@ -202,7 +202,6 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
                     viewModel: viewModel,
                     isAffixesEnabled: isAffixesEnabled,
                     params: params,
-                    l10n: l10n,
                   ),
           ),
 
@@ -256,7 +255,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (characters.isNotEmpty) ...[
-            AppSegmentedPillBar<bool>(
+            AppSegmentedCardBar<bool>(
               items: [
                 AppSegmentedItem(
                   value: true,
@@ -270,10 +269,9 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
                 ),
               ],
               selectedValue: params.characterAiPosition,
-              variant: AppPillVariant.soft,
               itemPadding: const EdgeInsets.symmetric(
-                horizontal: 7,
-                vertical: 3.5,
+                horizontal: 8,
+                vertical: 5,
               ),
               onValueChanged: (isAi) => viewModel.setCharacterAiPosition(isAi),
             ),
@@ -284,10 +282,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
               ),
             ),
           ] else
-            Text(
-              l10n.charPromptIsolationHint,
-              style: TextStyle(fontSize: 12, color: context.colors.textMuted),
-            ),
+            const SizedBox.shrink(),
           _buildAddCharacterButtons(viewModel, supported, isFull),
         ],
       ),
@@ -319,31 +314,21 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     );
   }
 
-  /// 固定词缀二级操作工具栏 (左侧说明 + 右侧 Switch，流式排版永不溢出)
+  /// 固定词缀二级操作工具栏 (右侧总开关)
   Widget _buildFixedAffixesToolbar({
     required StudioViewModel viewModel,
     required bool isAffixesEnabled,
     required NaiGenerationParams params,
-    required AppLocalizations l10n,
   }) {
     return KeyedSubtree(
       key: const ValueKey('affix_toolbar'),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(
-            l10n.promptsAffixesHint,
-            style: TextStyle(fontSize: 12, color: context.colors.textMuted),
-          ),
-          _AffixToggleSwitch(
-            isEnabled: isAffixesEnabled,
-            onChanged: (val) =>
-                viewModel.updateParams(params.copyWith(applyFixedPrompts: val)),
-          ),
-        ],
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: _AffixToggleSwitch(
+          isEnabled: isAffixesEnabled,
+          onChanged: (val) =>
+              viewModel.updateParams(params.copyWith(applyFixedPrompts: val)),
+        ),
       ),
     );
   }

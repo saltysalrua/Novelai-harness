@@ -133,7 +133,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
             // 视图切换模式
             Row(
               children: [
-                AppSegmentedPillBar<_SkillEditorViewMode>(
+                AppSegmentedCardBar<_SkillEditorViewMode>(
                   items: [
                     AppSegmentedItem(
                       value: _SkillEditorViewMode.structured,
@@ -223,25 +223,17 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                 },
               ),
               const Spacer(),
-              TextButton(
+              AppActionButton(
+                label: l10n.cancel,
+                variant: AppActionButtonVariant.ghost,
                 onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  l10n.cancel,
-                  style: TextStyle(color: colors.textSecondary),
-                ),
               ),
               const SizedBox(width: 8),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colors.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
+              AppActionButton(
+                label: l10n.skillSave,
+                variant: AppActionButtonVariant.primary,
+                isLoading: _saving,
                 onPressed: _saving ? null : _save,
-                child: Text(l10n.skillSave),
               ),
             ],
           ),

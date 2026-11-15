@@ -293,10 +293,7 @@ class _PromptsPageState extends State<PromptsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        PageHeader(
-          title: l10n.promptsPageTitle,
-          subtitle: l10n.promptsPageSubtitle,
-        ),
+        PageHeader(title: l10n.promptsPageTitle),
         const SizedBox(height: 16),
         if (_isTabbedMode)
           _buildTabbedSection(l10n)
@@ -428,8 +425,8 @@ class _PromptsPageState extends State<PromptsPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: AppSegmentedPillBar<String>(
+            Flexible(
+              child: AppSegmentedCardBar<String>(
                 scrollable: true,
                 items: [
                   AppSegmentedItem(
