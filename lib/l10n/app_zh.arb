@@ -1633,5 +1633,10 @@
   "chatEmptySuggestionAnalyze": "分析画板图片并给出修改建议",
   "chatToolArgsLabel": "调用参数",
   "chatToolOutputLabel": "返回结果",
-  "@settingsUiZoomSubtitle": {"placeholders": {"modifier": {"type": "String"}}}
+  "@settingsUiZoomSubtitle": {"placeholders": {"modifier": {"type": "String"}}},
+  "settingsFrameRateLimit": "帧率上限",
+  "settingsFrameRateLimitSubtitle": "限制高刷新率显示器的最高渲染帧率，降低 GPU 光栅负载与卡顿",
+  "frameRateUnlimited": "不限制（随显示器）",
+  "frameRateFpsOption": "{fps} FPS",
+  "@frameRateFpsOption": {"placeholders": {"fps": {"type": "int"}}}
 }

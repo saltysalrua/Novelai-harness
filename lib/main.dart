@@ -10,6 +10,7 @@ import 'ui/core/context_l10n.dart';
 import 'ui/core/locale/app_locale_controller.dart';
 import 'ui/core/theme/app_accent_controller.dart';
 import 'ui/core/theme/app_theme.dart';
+import 'ui/core/theme/frame_rate_controller.dart';
 import 'ui/core/theme/theme_mode_controller.dart';
 import 'ui/core/theme/ui_zoom_controller.dart';
 import 'ui/core/widgets/custom_title_bar.dart';
@@ -19,7 +20,7 @@ import 'ui/features/studio/views/studio_view.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  AppWidgetsFlutterBinding.ensureInitialized();
 
   // 异步预热 Danbooru 词库索引 (后台 isolate，零阻塞 UI)
   TagDictionaryService.instance.ensureLoaded();
@@ -91,6 +92,7 @@ Future<bool> _syncControllersFromBootConfig() async {
     AppAccentController.instance.syncFromConfig(bootConfig);
     AppLocaleController.instance.syncFromConfig(bootConfig);
     AppUiZoomController.instance.syncFromConfig(bootConfig);
+    AppFrameRateController.instance.syncFromConfig(bootConfig);
     return true;
   } catch (error, stackTrace) {
     debugPrint('Boot config load failed: $error\n$stackTrace');

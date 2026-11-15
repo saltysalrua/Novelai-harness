@@ -139,6 +139,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
           widget.viewModel.config.accentSeedColor,
       localePreference: _generalDraft.localePreference,
       uiZoom: _generalDraft.uiZoom,
+      maxFrameRate: _generalDraft.maxFrameRate,
       enableStreamPreview: _generalDraft.enableStreamPreview,
       enableTagAutocomplete: _generalDraft.enableTagAutocomplete,
       showTagTranslations: _generalDraft.showTagTranslations,

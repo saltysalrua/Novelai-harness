@@ -3744,4 +3744,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatToolOutputLabel => '返回结果';
+
+  @override
+  String get settingsFrameRateLimit => '帧率上限';
+
+  @override
+  String get settingsFrameRateLimitSubtitle =>
+      '限制高刷新率显示器的最高渲染帧率，降低 GPU 光栅负载与卡顿';
+
+  @override
+  String get frameRateUnlimited => '不限制（随显示器）';
+
+  @override
+  String frameRateFpsOption(int fps) {
+    return '$fps FPS';
+  }
 }

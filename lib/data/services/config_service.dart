@@ -159,6 +159,10 @@ class AppConfig {
   /// 全局 UI 缩放系数 (浏览器式 Ctrl+=/- 整体缩放)，1.0 = 100%；
   /// 由 AppUiZoomController 在 MaterialApp 根节点 Transform 生效
   final double uiZoom;
+
+  /// 最大渲染帧率上限（`0` = 不限制，跟随显示器原生刷新率）；
+  /// 由 AppFrameRateController 与 AppWidgetsFlutterBinding 协同生效
+  final int maxFrameRate;
   final bool enableStreamPreview;
   final bool enableTagAutocomplete;
   final bool showTagTranslations;
@@ -306,6 +310,7 @@ class AppConfig {
     this.accentSeedColor,
     this.localePreference = AppLocalePreference.system,
     this.uiZoom = 1.0,
+    this.maxFrameRate = 0,
     this.enableStreamPreview = true,
     this.enableTagAutocomplete = true,
     this.showTagTranslations = true,
@@ -369,6 +374,7 @@ class AppConfig {
     String? accentSeedColor,
     AppLocalePreference? localePreference,
     double? uiZoom,
+    int? maxFrameRate,
     bool? enableStreamPreview,
     bool? enableTagAutocomplete,
     bool? showTagTranslations,
@@ -433,6 +439,7 @@ class AppConfig {
       accentSeedColor: accentSeedColor ?? this.accentSeedColor,
       localePreference: localePreference ?? this.localePreference,
       uiZoom: uiZoom ?? this.uiZoom,
+      maxFrameRate: maxFrameRate ?? this.maxFrameRate,
       enableStreamPreview: enableStreamPreview ?? this.enableStreamPreview,
       enableTagAutocomplete:
           enableTagAutocomplete ?? this.enableTagAutocomplete,
@@ -525,6 +532,7 @@ class ConfigService {
   static const String _keyAccentSeedColor = 'novelai_accent_seed_color';
   static const String _keyLocalePreference = 'novelai_locale_preference';
   static const String _keyUiZoom = 'novelai_ui_zoom';
+  static const String _keyMaxFrameRate = 'novelai_max_frame_rate';
   static const String _keyEnableStreamPreview = 'novelai_enable_stream_preview';
   static const String _keyEnableTagAutocomplete =
       'novelai_enable_tag_autocomplete';
@@ -678,6 +686,9 @@ class ConfigService {
       prefs.getString(_keyLocalePreference),
     );
     final uiZoom = clampUiZoom(prefs.getDouble(_keyUiZoom) ?? 1.0);
+    final maxFrameRate = clampMaxFrameRate(
+      prefs.getInt(_keyMaxFrameRate) ?? 0,
+    );
     bool enableStream = prefs.getBool(_keyEnableStreamPreview) ?? true;
     bool enableTagAc = prefs.getBool(_keyEnableTagAutocomplete) ?? true;
     bool showTagTrans = prefs.getBool(_keyShowTagTranslations) ?? true;
@@ -921,6 +932,7 @@ class ConfigService {
       accentSeedColor: accentSeedColor,
       localePreference: localePref,
       uiZoom: uiZoom,
+      maxFrameRate: maxFrameRate,
       enableStreamPreview: enableStream,
       enableTagAutocomplete: enableTagAc,
       showTagTranslations: showTagTrans,
@@ -1017,6 +1029,7 @@ class ConfigService {
       _keyAccentSeedColor: config.accentSeedColor,
       _keyLocalePreference: localePreferenceStorage(config.localePreference),
       _keyUiZoom: clampUiZoom(config.uiZoom),
+      _keyMaxFrameRate: clampMaxFrameRate(config.maxFrameRate),
       _keyEnableStreamPreview: config.enableStreamPreview,
       _keyEnableTagAutocomplete: config.enableTagAutocomplete,
       _keyShowTagTranslations: config.showTagTranslations,
@@ -1263,6 +1276,17 @@ class ConfigService {
   /// UI 缩放合法范围 (80% ~ 175%)，与 AppUiZoomController 共用的单一事实源
   static const double minUiZoom = 0.8;
   static const double maxUiZoom = 1.75;
+
+  /// 帧率上限合法档位（0 = 不限制，正整数 = 目标 FPS）
+  static const List<int> supportedMaxFrameRates = [0, 30, 60, 90, 120, 144];
+  static const int minFrameRate = 24;
+  static const int maxFrameRateLimit = 240;
+
+  /// 帧率上限安全档位：0 或负数归一化为 0（不限制），其余钳到 24~240 FPS
+  static int clampMaxFrameRate(int value) {
+    if (value <= 0) return 0;
+    return value.clamp(minFrameRate, maxFrameRateLimit);
+  }
 
   /// 窗口最小可用尺寸单一事实源：`main.dart` 的 minimumSize 与窗口状态钳制共用，
   /// 两者必须一致，否则用户缩到小窗口后重启会被旧下限弹回大尺寸。

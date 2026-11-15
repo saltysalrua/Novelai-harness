@@ -4034,4 +4034,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatToolOutputLabel => 'Output';
+
+  @override
+  String get settingsFrameRateLimit => 'Frame Rate Limit';
+
+  @override
+  String get settingsFrameRateLimitSubtitle =>
+      'Cap the maximum render FPS on high-refresh displays to reduce GPU raster load and jank';
+
+  @override
+  String get frameRateUnlimited => 'Uncapped (Display)';
+
+  @override
+  String frameRateFpsOption(int fps) {
+    return '$fps FPS';
+  }
 }

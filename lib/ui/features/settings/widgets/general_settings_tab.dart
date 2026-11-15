@@ -64,6 +64,7 @@ class GeneralSettingsDraft {
       accentSeedColor = config.accentSeedColor,
       localePreference = config.localePreference,
       uiZoom = config.uiZoom,
+      maxFrameRate = config.maxFrameRate,
       enableStreamPreview = config.enableStreamPreview,
       enableTagAutocomplete = config.enableTagAutocomplete,
       showTagTranslations = config.showTagTranslations,
@@ -133,6 +134,9 @@ class GeneralSettingsDraft {
 
   /// 全局 UI 缩放 (浏览器式整体缩放)，保存时聚合进 AppConfig
   double uiZoom;
+
+  /// 最大渲染帧率上限 (`0` = 不限制)，保存时聚合进 AppConfig
+  int maxFrameRate;
   bool enableStreamPreview;
   bool enableTagAutocomplete;
   bool showTagTranslations;
@@ -414,6 +418,25 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   labelOf: (zoom) => '${(zoom * 100).round()}%',
                   width: 110,
                   onChanged: (zoom) => setState(() => _draft.uiZoom = zoom),
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsFrameRateLimit,
+                subtitle: l10n.settingsFrameRateLimitSubtitle,
+                control: AppDropdown<int>.simple(
+                  value:
+                      ConfigService.supportedMaxFrameRates.contains(
+                        _draft.maxFrameRate,
+                      )
+                      ? _draft.maxFrameRate
+                      : 0,
+                  items: ConfigService.supportedMaxFrameRates,
+                  labelOf: (fps) => fps <= 0
+                      ? l10n.frameRateUnlimited
+                      : l10n.frameRateFpsOption(fps),
+                  width: 170,
+                  onChanged: (fps) =>
+                      setState(() => _draft.maxFrameRate = fps),
                 ),
               ),
               const SizedBox(height: 12),

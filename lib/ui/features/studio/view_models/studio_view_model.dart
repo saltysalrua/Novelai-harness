@@ -13,6 +13,7 @@ import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../../core/harness/tools/ai_edit_image_tool.dart';
 import '../../../core/locale/app_locale_controller.dart';
 import '../../../core/theme/app_accent_controller.dart';
+import '../../../core/theme/frame_rate_controller.dart';
 import '../../../core/theme/theme_mode_controller.dart';
 import '../../../core/theme/ui_zoom_controller.dart';
 import '../../../../core/harness/tools/annotation_tools.dart';
@@ -946,6 +947,8 @@ class StudioViewModel extends ChangeNotifier
     _syncVmLocale();
     // UI 缩放同理：根级 ValueListenableBuilder 局部接管，不全局重绘
     AppUiZoomController.instance.syncFromConfig(newConfig);
+    // 帧率上限同理：AppWidgetsFlutterBinding 监听即时生效，不触发全树重建
+    AppFrameRateController.instance.syncFromConfig(newConfig);
     // ComfyUI 模式：开关或地址变化时刷新 Bridge 连接状态
     if (newConfig.comfyUiEnabled != oldConfig.comfyUiEnabled ||
         newConfig.comfyUiBaseUrl != oldConfig.comfyUiBaseUrl) {

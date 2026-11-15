@@ -1633,5 +1633,10 @@
   "chatEmptySuggestionAnalyze": "Analyze the canvas image and suggest edits",
   "chatToolArgsLabel": "Arguments",
   "chatToolOutputLabel": "Output",
-  "@settingsUiZoomSubtitle": {"placeholders": {"modifier": {"type": "String"}}}
+  "@settingsUiZoomSubtitle": {"placeholders": {"modifier": {"type": "String"}}},
+  "settingsFrameRateLimit": "Frame Rate Limit",
+  "settingsFrameRateLimitSubtitle": "Cap the maximum render FPS on high-refresh displays to reduce GPU raster load and jank",
+  "frameRateUnlimited": "Uncapped (Display)",
+  "frameRateFpsOption": "{fps} FPS",
+  "@frameRateFpsOption": {"placeholders": {"fps": {"type": "int"}}}
 }

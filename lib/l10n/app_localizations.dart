@@ -6913,6 +6913,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'返回结果'**
   String get chatToolOutputLabel;
+
+  /// No description provided for @settingsFrameRateLimit.
+  ///
+  /// In zh, this message translates to:
+  /// **'帧率上限'**
+  String get settingsFrameRateLimit;
+
+  /// No description provided for @settingsFrameRateLimitSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'限制高刷新率显示器的最高渲染帧率，降低 GPU 光栅负载与卡顿'**
+  String get settingsFrameRateLimitSubtitle;
+
+  /// No description provided for @frameRateUnlimited.
+  ///
+  /// In zh, this message translates to:
+  /// **'不限制（随显示器）'**
+  String get frameRateUnlimited;
+
+  /// No description provided for @frameRateFpsOption.
+  ///
+  /// In zh, this message translates to:
+  /// **'{fps} FPS'**
+  String frameRateFpsOption(int fps);
 }
 
 class _AppLocalizationsDelegate
