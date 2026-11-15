@@ -3640,6 +3640,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Start compaction at 70% of the safe context window; wait only when the limit is reached.';
 
   @override
+  String get settingsAgentPersistentImages => 'Persist image attachments';
+
+  @override
+  String get settingsAgentPersistentImagesHint =>
+      'Image attachments from earlier turns are re-sent to the vision model every turn instead of being collapsed; this noticeably increases token usage and may break prompt caching.';
+
+  @override
   String get settingsCompactionProvider => 'Compaction provider';
 
   @override

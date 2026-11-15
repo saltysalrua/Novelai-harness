@@ -170,6 +170,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       agentMaxTurns: _defaultsDraft.agentMaxTurns.clamp(1, 100),
       agentCompactionEnabled: _defaultsDraft.compactionEnabled,
       agentBackgroundCompaction: _defaultsDraft.backgroundCompaction,
+      agentPersistentImages: _defaultsDraft.persistentImages,
       compactionProviderId: _defaultsDraft.compactionProviderId,
       compactionModelId: _defaultsDraft.compactionModelId,
     );

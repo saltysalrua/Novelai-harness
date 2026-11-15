@@ -19,6 +19,7 @@ class DefaultsSettingsDraft {
       agentMaxTurns = config.agentMaxTurns,
       compactionEnabled = config.agentCompactionEnabled,
       backgroundCompaction = config.agentBackgroundCompaction,
+      persistentImages = config.agentPersistentImages,
       compactionProviderId = config.compactionProviderId,
       compactionModelId = config.compactionModelId;
 
@@ -32,6 +33,7 @@ class DefaultsSettingsDraft {
   int agentMaxTurns;
   bool compactionEnabled;
   bool backgroundCompaction;
+  bool persistentImages;
   String compactionProviderId;
   String compactionModelId;
 }
@@ -154,6 +156,14 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               onChanged: _draft.compactionEnabled
                   ? (v) => setState(() => _draft.backgroundCompaction = v)
                   : null,
+            ),
+          ),
+          AppSettingTile(
+            title: l10n.settingsAgentPersistentImages,
+            subtitle: l10n.settingsAgentPersistentImagesHint,
+            control: Switch(
+              value: _draft.persistentImages,
+              onChanged: (v) => setState(() => _draft.persistentImages = v),
             ),
           ),
           AppSettingTile(

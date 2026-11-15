@@ -228,6 +228,9 @@ class AppConfig {
   final int agentMaxTurns;
   final bool agentCompactionEnabled;
   final bool agentBackgroundCompaction;
+
+  /// 图片持久发送：历史轮次图片不再折叠为占位符，每轮重发给视觉模型
+  final bool agentPersistentImages;
   final String compactionProviderId;
   final String compactionModelId;
 
@@ -337,6 +340,7 @@ class AppConfig {
     this.agentMaxTurns = 30,
     this.agentCompactionEnabled = true,
     this.agentBackgroundCompaction = true,
+    this.agentPersistentImages = false,
     this.compactionProviderId = '',
     this.compactionModelId = '',
 
@@ -399,6 +403,7 @@ class AppConfig {
     int? agentMaxTurns,
     bool? agentCompactionEnabled,
     bool? agentBackgroundCompaction,
+    bool? agentPersistentImages,
     String? compactionProviderId,
     String? compactionModelId,
 
@@ -470,6 +475,8 @@ class AppConfig {
           agentCompactionEnabled ?? this.agentCompactionEnabled,
       agentBackgroundCompaction:
           agentBackgroundCompaction ?? this.agentBackgroundCompaction,
+      agentPersistentImages:
+          agentPersistentImages ?? this.agentPersistentImages,
       compactionProviderId: compactionProviderId ?? this.compactionProviderId,
       compactionModelId: compactionModelId ?? this.compactionModelId,
 
@@ -617,6 +624,8 @@ class ConfigService {
       'novelai_agent_compaction_enabled';
   static const String _keyAgentBackgroundCompaction =
       'novelai_agent_background_compaction';
+  static const String _keyAgentPersistentImages =
+      'novelai_agent_persistent_images';
   static const String _keyCompactionProviderId =
       'novelai_compaction_provider_id';
   static const String _keyCompactionModelId = 'novelai_compaction_model_id';
@@ -947,6 +956,7 @@ class ConfigService {
       agentCompactionEnabled: prefs.getBool(_keyAgentCompactionEnabled) ?? true,
       agentBackgroundCompaction:
           prefs.getBool(_keyAgentBackgroundCompaction) ?? true,
+      agentPersistentImages: prefs.getBool(_keyAgentPersistentImages) ?? false,
       compactionProviderId: compactionProviderId,
       compactionModelId: compactionModelId,
 
@@ -1039,6 +1049,7 @@ class ConfigService {
       _keyAgentMaxTurns: config.agentMaxTurns.clamp(1, 100),
       _keyAgentCompactionEnabled: config.agentCompactionEnabled,
       _keyAgentBackgroundCompaction: config.agentBackgroundCompaction,
+      _keyAgentPersistentImages: config.agentPersistentImages,
       _keyCompactionProviderId: config.compactionProviderId,
       _keyCompactionModelId: config.compactionModelId,
       _keyPresets: presetsJson,

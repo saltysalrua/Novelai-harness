@@ -1511,6 +1511,8 @@
   "settingsAutoCompactionHint": "保留近期消息，将更早内容转换为摘要；原始历史不删除。",
   "settingsBackgroundCompaction": "后台异步压缩",
   "settingsBackgroundCompactionHint": "安全窗口使用到 70% 时提前压缩；到达上限才等待。",
+  "settingsAgentPersistentImages": "图片持久发送",
+  "settingsAgentPersistentImagesHint": "历史轮次的图片附件不再折叠，每轮重发给视觉模型；显著增加 Token 消耗，也可能击穿提示缓存。",
   "settingsCompactionProvider": "压缩供应商",
   "settingsCompactionProviderHint": "未选择独立模型或配置不可用时使用主模型。压缩请求单独计入账单。",
   "settingsCompactionModel": "压缩模型",

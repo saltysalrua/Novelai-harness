@@ -6248,6 +6248,18 @@ abstract class AppLocalizations {
   /// **'安全窗口使用到 70% 时提前压缩；到达上限才等待。'**
   String get settingsBackgroundCompactionHint;
 
+  /// No description provided for @settingsAgentPersistentImages.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片持久发送'**
+  String get settingsAgentPersistentImages;
+
+  /// No description provided for @settingsAgentPersistentImagesHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'历史轮次的图片附件不再折叠，每轮重发给视觉模型；显著增加 Token 消耗，也可能击穿提示缓存。'**
+  String get settingsAgentPersistentImagesHint;
+
   /// No description provided for @settingsCompactionProvider.
   ///
   /// In zh, this message translates to:

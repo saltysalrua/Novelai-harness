@@ -1511,6 +1511,8 @@
   "settingsAutoCompactionHint": "Keep recent messages and summarize older content without deleting the original history.",
   "settingsBackgroundCompaction": "Background compaction",
   "settingsBackgroundCompactionHint": "Start compaction at 70% of the safe context window; wait only when the limit is reached.",
+  "settingsAgentPersistentImages": "Persist image attachments",
+  "settingsAgentPersistentImagesHint": "Image attachments from earlier turns are re-sent to the vision model every turn instead of being collapsed; this noticeably increases token usage and may break prompt caching.",
   "settingsCompactionProvider": "Compaction provider",
   "settingsCompactionProviderHint": "Use the main model if no separate model is selected or available. Compaction requests are billed separately.",
   "settingsCompactionModel": "Compaction model",

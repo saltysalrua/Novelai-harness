@@ -3391,6 +3391,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsBackgroundCompactionHint => '安全窗口使用到 70% 时提前压缩；到达上限才等待。';
 
   @override
+  String get settingsAgentPersistentImages => '图片持久发送';
+
+  @override
+  String get settingsAgentPersistentImagesHint =>
+      '历史轮次的图片附件不再折叠，每轮重发给视觉模型；显著增加 Token 消耗，也可能击穿提示缓存。';
+
+  @override
   String get settingsCompactionProvider => '压缩供应商';
 
   @override

@@ -38,6 +38,10 @@ class AgentHarness {
   /// 是否启用上下文自动压缩 (按估算 Token 自适应触发)
   bool compactionEnabled = true;
   bool backgroundCompactionEnabled = true;
+
+  /// 图片持久发送：关闭时历史轮次的图片折叠为占位符 (默认，省 Token
+  /// 且保住提示缓存前缀)；开启后历史图片每轮原样重发，模型可直接回看。
+  bool persistentImages = false;
   LlmProvider? compactionProvider;
   int compactionModelWindowTokens = 128000;
   Duration compactionTimeout = const Duration(minutes: 2);
@@ -586,7 +590,10 @@ class AgentHarness {
         );
       }
       // 本轮新产生的图片原样发送；更早轮次的图片折叠为占位符
-      if (m.imageEpoch == _sendEpoch || !m.hasVisionImages) {
+      // (persistentImages 开启时全部原样发送，不折叠)
+      if (persistentImages ||
+          m.imageEpoch == _sendEpoch ||
+          !m.hasVisionImages) {
         result.add(m);
       } else {
         result.add(m.withVisionImagesCollapsed(_kCollapsedImagePlaceholder));

@@ -785,6 +785,55 @@ void main() {
       expect(oldUser.images, isEmpty);
       expect(oldUser.content, contains('图片附件已折叠'));
     });
+
+    test('persistentImages 开启时历史图片不折叠、每轮原样重发', () async {
+      final receivedBatches = <List<AgentMessage>>[];
+      final provider = MockLlmProvider((messages, toolList) {
+        receivedBatches.add(messages);
+        return [ContentDeltaEvent('OK')];
+      });
+      final harness = AgentHarness(tools: tools, provider: provider)
+        ..persistentImages = true;
+
+      const img = AgentMessageImage(base64: 'aGk=');
+      await harness.send('看这张图', images: [img]).toList();
+      await harness.send('再看一次').toList();
+      await harness.send('还没完').toList();
+
+      // 每一轮请求中旧图片都携带原图 bytes，不再替换为占位符
+      for (final batch in receivedBatches) {
+        final oldUser = batch.firstWhere((m) => m.content == '看这张图');
+        expect(oldUser.images.length, equals(1));
+        expect(oldUser.images.first.base64, equals('aGk='));
+        expect(oldUser.content.contains('图片附件已折叠'), isFalse);
+      }
+
+      // 会话消息流同样保留原图
+      final storedUser = harness.messages.firstWhere(
+        (m) => m.content == '看这张图',
+      );
+      expect(storedUser.images.length, equals(1));
+    });
+
+    test('persistentImages 关闭时回到默认折叠行为', () async {
+      final receivedBatches = <List<AgentMessage>>[];
+      final provider = MockLlmProvider((messages, toolList) {
+        receivedBatches.add(messages);
+        return [ContentDeltaEvent('OK')];
+      });
+      final harness = AgentHarness(tools: tools, provider: provider);
+      expect(harness.persistentImages, isFalse);
+
+      const img = AgentMessageImage(base64: 'aGk=');
+      await harness.send('看这张图', images: [img]).toList();
+      await harness.send('再看一次').toList();
+
+      final oldUser = receivedBatches.last.firstWhere(
+        (m) => m.content.contains('看这张图'),
+      );
+      expect(oldUser.images, isEmpty);
+      expect(oldUser.content, contains('图片附件已折叠'));
+    });
   });
 
   group('上下文自动压缩', () {
