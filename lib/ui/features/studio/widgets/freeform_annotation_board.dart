@@ -8,7 +8,9 @@ import '../../../../data/services/image_metadata_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_drop_target_overlay.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_floating_dock.dart';
 import '../../../core/widgets/app_scale_gesture_region.dart';
@@ -580,58 +582,13 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                       ),
 
                       // 2. 拖入高亮指示器 (外部文件或内部 History 拖入)
-                      if (_isDraggingExternalOver || isInternalDragOver)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: colors.primary.withValues(alpha: 0.10),
-                                border: Border.all(
-                                  color: colors.primary,
-                                  width: 3.0,
-                                ),
-                              ),
-                              child: Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: colors.cardBackground,
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.md,
-                                    ),
-                                    boxShadow: context.shadowElevated,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.file_download_outlined,
-                                        color: colors.primary,
-                                        size: 22,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        isInternalDragOver
-                                            ? context.l10n.boardDropInternalHint
-                                            : context
-                                                  .l10n
-                                                  .boardDropExternalHint,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: colors.textPrimary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                      AppDropTargetOverlay(
+                        isDragging:
+                            _isDraggingExternalOver || isInternalDragOver,
+                        title: isInternalDragOver
+                            ? context.l10n.boardDropInternalHint
+                            : context.l10n.boardDropExternalHint,
+                      ),
 
                       // 3. 顶部居中浮动工具坞
                       Positioned(
@@ -689,54 +646,24 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              TextButton.icon(
+                              AppActionButton(
+                                icon: Icons.close_rounded,
+                                label: context.l10n.boardExitAnnotation,
+                                variant: AppActionButtonVariant.ghost,
                                 onPressed: () =>
                                     viewModel.board.setAnnotatingImage(false),
-                                icon: const Icon(Icons.close_rounded, size: 15),
-                                label: Text(
-                                  context.l10n.boardExitAnnotation,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: colors.textSecondary,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 8,
-                                  ),
-                                ),
                               ),
                               const SizedBox(width: 6),
-                              ElevatedButton.icon(
+                              AppActionButton(
+                                icon: Icons.smart_toy_outlined,
+                                label: context.l10n.boardSendAllToAi,
+                                variant: AppActionButtonVariant.primary,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 9,
+                                ),
                                 onPressed: () =>
                                     viewModel.board.sendAnnotationsToChat(),
-                                icon: const Icon(
-                                  Icons.smart_toy_outlined,
-                                  size: 15,
-                                ),
-                                label: Text(
-                                  context.l10n.boardSendAllToAi,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: colors.primary,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 9,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.sm,
-                                    ),
-                                  ),
-                                  elevation: 0,
-                                ),
                               ),
                             ],
                           ),

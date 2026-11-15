@@ -4,12 +4,12 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/context_l10n.dart';
 
-/// 侧边栏页面标题与副标题 (参数设置 / 提示词管理页首复用)
+/// 侧边栏页面标题与可选副标题 (参数设置 / 提示词管理页首复用)
 class PageHeader extends StatelessWidget {
   final String title;
-  final String subtitle;
+  final String? subtitle;
 
-  const PageHeader({super.key, required this.title, required this.subtitle});
+  const PageHeader({super.key, required this.title, this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -26,11 +26,13 @@ class PageHeader extends StatelessWidget {
             letterSpacing: -0.2,
           ),
         ),
-        const SizedBox(height: 3),
-        Text(
-          subtitle,
-          style: TextStyle(fontSize: 12, color: colors.textSecondary),
-        ),
+        if (subtitle != null && subtitle!.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          Text(
+            subtitle!,
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
+        ],
       ],
     );
   }

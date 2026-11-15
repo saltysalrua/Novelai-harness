@@ -23,11 +23,11 @@ class ModelCacheSettings extends StatelessWidget {
       children: [
         AppSettingTile(
           title: l10n.settingsCacheMode,
-          subtitle: l10n.settingsCacheModeDesc,
-          control: const SizedBox.shrink(),
-          bottomChild: AppDropdown<LlmCacheMode>.simple(
+          control: AppDropdown<LlmCacheMode>.simple(
             value: value.mode,
             items: LlmCacheMode.values,
+            width: 160,
+            isExpanded: true,
             labelOf: (mode) => switch (mode) {
               LlmCacheMode.auto => l10n.settingsCacheModeAuto,
               LlmCacheMode.off => l10n.settingsCacheModeOff,
@@ -40,11 +40,11 @@ class ModelCacheSettings extends StatelessWidget {
         if (value.mode != LlmCacheMode.off) ...[
           AppSettingTile(
             title: l10n.settingsCacheRetention,
-            subtitle: l10n.settingsCacheRetentionDesc,
-            control: const SizedBox.shrink(),
-            bottomChild: AppDropdown<LlmCacheRetention>.simple(
+            control: AppDropdown<LlmCacheRetention>.simple(
               value: value.retention,
               items: LlmCacheRetention.values,
+              width: 160,
+              isExpanded: true,
               labelOf: (retention) => switch (retention) {
                 LlmCacheRetention.short => l10n.settingsCacheRetentionShort,
                 LlmCacheRetention.long => l10n.settingsCacheRetentionLong,
@@ -55,11 +55,11 @@ class ModelCacheSettings extends StatelessWidget {
           ),
           AppSettingTile(
             title: l10n.settingsCacheAffinity,
-            subtitle: l10n.settingsCacheAffinityDesc,
-            control: const SizedBox.shrink(),
-            bottomChild: AppDropdown<LlmCacheAffinity>.simple(
+            control: AppDropdown<LlmCacheAffinity>.simple(
               value: value.affinity,
               items: LlmCacheAffinity.values,
+              width: 160,
+              isExpanded: true,
               labelOf: (affinity) => switch (affinity) {
                 LlmCacheAffinity.off => l10n.settingsCacheAffinityOff,
                 LlmCacheAffinity.openai => 'OpenAI',

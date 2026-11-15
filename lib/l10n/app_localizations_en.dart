@@ -2002,7 +2002,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get metadataDialogTitle => 'Image Metadata Reader';
 
   @override
-  String get metadataPromptTitle => 'Prompt';
+  String get metadataPromptTitle => 'Positive Prompt';
 
   @override
   String get metadataCopiedPrompt => 'Prompt copied to clipboard';
@@ -2091,7 +2091,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get metadataParamEnabled => 'Enabled';
 
   @override
-  String get metadataRawJsonTitle => 'Raw Metadata (JSON / Text)';
+  String get metadataRawJsonTitle => 'Raw Metadata';
 
   @override
   String get metadataCopyRawTooltip => 'Copy raw text';
@@ -2194,7 +2194,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boardExitAnnotation => 'Exit Annotation';
 
   @override
-  String get boardSendAllToAi => 'Send All Annotations to AI';
+  String get boardSendAllToAi => 'Send Notes';
 
   @override
   String get boardWireMissedTarget =>
@@ -2224,7 +2224,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boardToolResetView => 'Reset View';
 
   @override
-  String get boardImageCardMainTitle => 'Main Image (Current Generation)';
+  String get boardImageCardMainTitle => 'Main';
 
   @override
   String boardImageCardRefTitle(int width, int height) {

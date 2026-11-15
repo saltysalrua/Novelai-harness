@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_number_slider.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import 'model_cache_settings.dart';
 
 /// 模型设置弹窗的返回结果
@@ -195,37 +198,13 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
             ),
             _buildFieldRow(
               label: l10n.settingsModelTemperature,
-              child: SizedBox(
-                width: 190,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(trackHeight: 3),
-                        child: Slider(
-                          value: _temperature,
-                          min: 0.0,
-                          max: 1.5,
-                          divisions: 30,
-                          activeColor: colors.primary,
-                          onChanged: (v) => setState(() => _temperature = v),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 36,
-                      child: Text(
-                        _temperature.toStringAsFixed(2),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'monospace',
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              child: AppNumberSlider(
+                value: _temperature,
+                min: 0.0,
+                max: 1.5,
+                step: 0.05,
+                fractionDigits: 2,
+                onChanged: (v) => setState(() => _temperature = v),
               ),
             ),
             _buildFieldRow(
@@ -327,69 +306,35 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
               style: TextStyle(color: colors.error, fontSize: 13),
             ),
           ),
-        TextButton(
+        AppActionButton(
+          label: l10n.cancel,
+          variant: AppActionButtonVariant.ghost,
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(
-            l10n.cancel,
-            style: TextStyle(color: colors.textSecondary, fontSize: 13),
-          ),
         ),
         const SizedBox(width: 8),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colors.primary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
+        AppActionButton(
+          label: widget.isNew ? l10n.settingsAdd : l10n.save,
+          variant: AppActionButtonVariant.primary,
           onPressed: _save,
-          child: Text(
-            widget.isNew ? l10n.settingsAdd : l10n.save,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
         ),
       ],
     );
   }
 
   Widget _buildLevelChip(ThinkingEffort level, bool selected) {
-    final colors = context.colors;
     final l10n = context.l10n;
-    return InkWell(
+    return AppToolChip(
+      label: switch (level) {
+        ThinkingEffort.none => l10n.chatThinkingEffortNone,
+        ThinkingEffort.low => l10n.chatThinkingEffortLow,
+        ThinkingEffort.medium => l10n.chatThinkingEffortMedium,
+        ThinkingEffort.high => l10n.chatThinkingEffortHigh,
+        ThinkingEffort.xhigh => l10n.chatThinkingEffortXHigh,
+        ThinkingEffort.max => l10n.chatThinkingEffortMax,
+      },
+      isSelected: selected,
+      variant: AppToolChipVariant.tinted,
       onTap: () => _toggleLevel(level),
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected
-              ? colors.primary.withValues(alpha: 0.12)
-              : colors.mutedBackground,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: selected
-                ? colors.primary.withValues(alpha: 0.4)
-                : colors.borderDefault,
-          ),
-        ),
-        child: Text(
-          switch (level) {
-            ThinkingEffort.none => l10n.chatThinkingEffortNone,
-            ThinkingEffort.low => l10n.chatThinkingEffortLow,
-            ThinkingEffort.medium => l10n.chatThinkingEffortMedium,
-            ThinkingEffort.high => l10n.chatThinkingEffortHigh,
-            ThinkingEffort.xhigh => l10n.chatThinkingEffortXHigh,
-            ThinkingEffort.max => l10n.chatThinkingEffortMax,
-          },
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: selected ? colors.primary : colors.textSecondary,
-          ),
-        ),
-      ),
     );
   }
 

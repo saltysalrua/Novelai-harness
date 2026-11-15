@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_icon_button.dart';
@@ -142,37 +143,6 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                       shape: AppBadgeShape.pill,
                       fontSize: 10,
                     ),
-                ],
-              ),
-            ),
-
-            // 说明提示栏
-            Container(
-              margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: colors.canvasBackground,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(color: colors.borderDefault),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline_rounded,
-                    size: 13,
-                    color: colors.textSecondary,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      context.l10n.rewindDescription,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.textSecondary,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -343,67 +313,39 @@ class _AgentRewindViewState extends State<AgentRewindView> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      hasSelection
-                          ? context.l10n.rewindSelectedTurn(
+                    child: hasSelection
+                        ? Text(
+                            context.l10n.rewindSelectedTurn(
                               checkpoints[selected].index,
-                            )
-                          : context.l10n.rewindSelectPrompt,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textSecondary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                            ),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textSecondary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : const SizedBox.shrink(),
                   ),
-                  Flexible(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        side: BorderSide(color: colors.borderDefault),
-                        foregroundColor: colors.textPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
-                      ),
-                      onPressed: widget.onBack,
-                      child: Text(
-                        context.l10n.rewindCancelButton,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
-                      ),
+                  AppActionButton(
+                    label: context.l10n.rewindCancelButton,
+                    variant: AppActionButtonVariant.outlined,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
+                    onPressed: widget.onBack,
                   ),
                   const SizedBox(width: 8),
-                  Flexible(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: colors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
-                      ),
-                      onPressed: hasSelection && !_confirming
-                          ? () => _confirmRewind(checkpoints)
-                          : null,
-                      child: Text(
-                        context.l10n.rewindConfirmButton,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
-                      ),
+                  AppActionButton(
+                    label: context.l10n.rewindConfirmButton,
+                    variant: AppActionButtonVariant.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
                     ),
+                    onPressed: hasSelection && !_confirming
+                        ? () => _confirmRewind(checkpoints)
+                        : null,
                   ),
                 ],
               ),

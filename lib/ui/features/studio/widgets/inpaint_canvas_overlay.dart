@@ -404,7 +404,6 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                           dimOutsideRect: isFocus ? cropNormRect : null,
                           selectionRect: displaySelNorm,
                           selectionColor: context.colors.primary,
-                          selectionLabel: context.l10n.inpaintSelectionLabel,
                         ),
                       ),
                     ),
@@ -965,7 +964,6 @@ class _InpaintMaskPainter extends CustomPainter {
 
   /// 选区描框主题色 (由当前主题注入)
   final Color selectionColor;
-  final String selectionLabel;
 
   _InpaintMaskPainter({
     required this.committedPicture,
@@ -975,7 +973,6 @@ class _InpaintMaskPainter extends CustomPainter {
     required this.dimOutsideRect,
     required this.selectionRect,
     required this.selectionColor,
-    required this.selectionLabel,
   });
 
   @override
@@ -1073,33 +1070,10 @@ class _InpaintMaskPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       );
-      canvas.drawRect(
-        r,
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(r, Radius.zero),
         Paint()..color = selectionColor.withValues(alpha: 0.10),
       );
-      final tp = TextPainter(
-        text: TextSpan(
-          text: selectionLabel,
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: r.center,
-            width: tp.width + 12,
-            height: tp.height + 6,
-          ),
-          const Radius.circular(4),
-        ),
-        Paint()..color = Colors.black.withValues(alpha: 0.6),
-      );
-      tp.paint(canvas, r.center - Offset(tp.width / 2, tp.height / 2));
     }
   }
 

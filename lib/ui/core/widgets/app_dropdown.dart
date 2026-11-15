@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_search_field.dart';
+import 'overlay_anchor.dart';
 
 /// 下拉组件展示形态变体
 enum AppDropdownVariant {
@@ -37,13 +41,14 @@ class AppDropdownItem<T> {
 
 /// 统一现代化下拉选择器组件
 ///
-/// 完全基于 [AppColorsExtension] 与 [AppTokens]，支持深浅主题平滑自适应，
-/// 统一收拢标准表单下拉、胶囊药丸下拉与紧凑小下拉三种场景。
+/// 采用与 Agent 对话卡片模型选择器一致的锚定吸附浮层 (`showAnchoredPopover`)，
+/// 完全基于 [AppColorsExtension] 与 [AppTokens]，支持深浅主题平滑自适应、
+/// 窗口缩放重对齐与长列表实时搜索。
 ///
 /// 内置两项防御性保障：
 /// 1. **防悬挂兜底**：当 [value] 不在 [items] 中时（动态列表被外部刷新/删除），
-///    自动在菜单头部追加一个「未识别」占位项，避免 DropdownButton 断言崩溃；
-/// 2. **菜单宽度保护**：胶囊变体默认展开宽度 220，不再被窄按钮宽度截断。
+///    自动在菜单头部追加一个「未识别」占位项，确保当前值可见；
+/// 2. **菜单宽度保护**：胶囊与紧凑变体默认展开宽度扩展至安全最小值，避免选项被截断。
 class AppDropdown<T> extends StatelessWidget {
   final T value;
   final List<AppDropdownItem<T>> items;
@@ -60,11 +65,14 @@ class AppDropdown<T> extends StatelessWidget {
   /// 菜单长标签允许折行 (最多两行后省略)，收起态仍保持单行。
   final bool multilineMenu;
 
-  /// 展开菜单的宽度上限；胶囊变体默认 220 防截断，其余变体默认跟随按钮宽
+  /// 展开菜单的宽度上限；未指定时自动贴合触发器与变体安全最小宽
   final double? menuWidth;
 
   /// [value] 不在 [items] 中时，占位项展示的文案
   final String? danglingLabel;
+
+  /// 是否在浮层顶部显示实时搜索框；为 null 时在选项数 >= 8 自动开启
+  final bool? searchable;
 
   const AppDropdown({
     super.key,
@@ -80,6 +88,7 @@ class AppDropdown<T> extends StatelessWidget {
     this.multilineMenu = false,
     this.menuWidth,
     this.danglingLabel,
+    this.searchable,
   });
 
   /// 便捷工厂：从普通对象列表与标签映射构造
@@ -96,6 +105,7 @@ class AppDropdown<T> extends StatelessWidget {
     double? width,
     bool isExpanded = true,
     double? menuWidth,
+    bool? searchable,
   }) {
     return AppDropdown<T>(
       key: key,
@@ -115,16 +125,49 @@ class AppDropdown<T> extends StatelessWidget {
       width: width,
       isExpanded: isExpanded,
       menuWidth: menuWidth,
+      searchable: searchable,
     );
+  }
+
+  Future<void> _openPopover(
+    BuildContext triggerContext,
+    List<AppDropdownItem<T>> effectiveItems,
+    double fontSize,
+  ) async {
+    final renderBox = triggerContext.findRenderObject() as RenderBox?;
+    final triggerWidth = (renderBox != null && renderBox.hasSize)
+        ? renderBox.size.width
+        : 160.0;
+    final defaultMin = variant == AppDropdownVariant.pill ? 220.0 : 160.0;
+    final defaultMax = variant == AppDropdownVariant.pill ? 240.0 : 320.0;
+    final effectiveMinWidth = menuWidth ?? math.max(triggerWidth, defaultMin);
+    final effectiveMaxWidth = menuWidth ?? math.max(triggerWidth, defaultMax);
+
+    final result = await showAnchoredPopover<({T value})>(
+      context: triggerContext,
+      preferAbove: false,
+      gap: 4,
+      minWidth: effectiveMinWidth,
+      maxWidth: effectiveMaxWidth,
+      maxHeight: 380,
+      builder: (_) => _AppDropdownPopoverSheet<T>(
+        items: effectiveItems,
+        selectedValue: value,
+        fontSize: fontSize,
+        multilineMenu: multilineMenu,
+        showSearch: searchable ?? (effectiveItems.length >= 8),
+      ),
+    );
+    if (result != null) {
+      onChanged(result.value);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    // 防悬挂兜底：value 不在 items 时追加占位项，保留选中可见性，
-    // 避免 DropdownButton "value == null || items contains" 断言崩溃
-    // (吸收 models_settings_tab.dart 的既有防护经验)
+    // 防悬挂兜底：value 不在 items 时追加占位项，保留选中可见性
     final bool valueExists = items.any((item) => item.value == value);
     final List<AppDropdownItem<T>> effectiveItems = valueExists
         ? items
@@ -140,6 +183,11 @@ class AppDropdown<T> extends StatelessWidget {
             ...items,
           ];
 
+    final currentItem = effectiveItems.firstWhere(
+      (item) => item.value == value,
+      orElse: () => effectiveItems.first,
+    );
+
     final (
       double height,
       double radius,
@@ -149,13 +197,13 @@ class AppDropdown<T> extends StatelessWidget {
       AppDropdownVariant.standard => (
         38.0,
         AppRadius.md,
-        13,
+        13.0,
         const EdgeInsets.symmetric(horizontal: 10),
       ),
       AppDropdownVariant.pill => (
         28.0,
         AppRadius.pill,
-        12,
+        12.0,
         const EdgeInsets.symmetric(horizontal: 9),
       ),
       AppDropdownVariant.compact => (
@@ -168,132 +216,221 @@ class AppDropdown<T> extends StatelessWidget {
         32.0,
         AppRadius.md,
         12.0,
-        const EdgeInsets.symmetric(horizontal: 4),
+        const EdgeInsets.symmetric(horizontal: 6),
       ),
     };
 
-    // 胶囊变体按钮较窄，菜单宽度默认 220 防止选项文本被截断
-    // (minWidth 195 / maxWidth 300 防截断保护语义)
-    final double? effectiveMenuWidth =
-        menuWidth ?? (variant == AppDropdownVariant.pill ? 220.0 : null);
-
-    return Container(
-      width: width,
-      height: minHeight == 0 ? height : null,
-      constraints: BoxConstraints(
-        minHeight: minHeight > height ? minHeight : height,
+    final labelWidget = Text(
+      currentItem.label,
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: FontWeight.w500,
+        color: enabled ? colors.textPrimary : colors.textMuted,
       ),
-      padding: padding,
-      decoration: BoxDecoration(
-        color: variant == AppDropdownVariant.inline
-            ? Colors.transparent
-            : colors.cardBackground,
+    );
+
+    final triggerContent = Material(
+      color: variant == AppDropdownVariant.inline
+          ? Colors.transparent
+          : colors.cardBackground,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),
-        border: variant == AppDropdownVariant.inline
-            ? null
-            : Border.all(color: colors.borderDefault),
+        side: variant == AppDropdownVariant.inline
+            ? BorderSide.none
+            : BorderSide(color: colors.borderDefault),
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          isExpanded: isExpanded,
-          isDense: minHeight < kMinInteractiveDimension,
-          dropdownColor: colors.cardBackground,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          menuMaxHeight: 400.0,
-          menuWidth: effectiveMenuWidth,
-          icon: Icon(
-            Icons.arrow_drop_down_rounded,
-            size: 20,
-            color: colors.textSecondary,
-          ),
-          selectedItemBuilder: (context) {
-            return effectiveItems.map((item) {
-              // DropdownButton 使用 IndexedStack 保留收起态条目；只需为
-              // 当前值构建内容，避免大量模型选项参与隐藏布局与文字排版。
-              if (item.value != value) return const SizedBox.shrink();
-              return Row(
-                children: [
-                  if (item.icon != null) ...[
-                    Icon(item.icon, size: 14, color: colors.textMuted),
-                    const SizedBox(width: 6),
-                  ],
-                  Expanded(
-                    child: Text(
-                      item.label,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w500,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  if (item.trailing != null) ...[
-                    const SizedBox(width: 6),
-                    item.trailing!,
-                  ],
-                ],
-              );
-            }).toList();
-          },
-          items: effectiveItems.map((item) {
-            final isSelected = item.value == value;
-
-            return DropdownMenuItem<T>(
-              value: item.value,
-              child: Tooltip(
-                message: item.tooltip ?? item.label,
-                waitDuration: const Duration(milliseconds: 500),
-                child: Row(
-                  children: [
-                    if (item.icon != null) ...[
-                      Icon(
-                        item.icon,
-                        size: 14,
-                        color: isSelected ? colors.primary : colors.textMuted,
-                      ),
-                      const SizedBox(width: 7),
-                    ],
-                    Expanded(
-                      child: Text(
-                        item.label,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: multilineMenu ? 2 : 1,
-                        style: TextStyle(
-                          fontSize: fontSize,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          color: isSelected
-                              ? colors.primary
-                              : colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    if (item.trailing != null) ...[
-                      const SizedBox(width: 6),
-                      item.trailing!,
-                    ] else if (isSelected) ...[
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.check_rounded,
-                        size: 14,
-                        color: colors.primary,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-          onChanged: enabled
-              ? (v) {
-                  if (v != null) onChanged(v);
-                }
+      clipBehavior: Clip.antiAlias,
+      child: Builder(
+        builder: (triggerContext) => InkWell(
+          onTap: enabled
+              ? () => _openPopover(triggerContext, effectiveItems, fontSize)
               : null,
+          borderRadius: BorderRadius.circular(radius),
+          child: Container(
+            height: minHeight == 0 ? height : null,
+            constraints: BoxConstraints(
+              minHeight: minHeight > height ? minHeight : height,
+            ),
+            padding: padding,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: isExpanded ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                if (currentItem.icon != null) ...[
+                  Icon(currentItem.icon, size: 14, color: colors.textMuted),
+                  const SizedBox(width: 6),
+                ],
+                if (isExpanded)
+                  Expanded(child: labelWidget)
+                else
+                  Flexible(child: labelWidget),
+                if (currentItem.trailing != null) ...[
+                  const SizedBox(width: 6),
+                  currentItem.trailing!,
+                ],
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 16,
+                  color: enabled
+                      ? colors.textMuted
+                      : colors.textMuted.withValues(alpha: 0.45),
+                ),
+              ],
+            ),
+          ),
         ),
+      ),
+    );
+
+    if (width != null) {
+      return SizedBox(width: width, child: triggerContent);
+    }
+    return triggerContent;
+  }
+}
+
+class _AppDropdownPopoverSheet<T> extends StatefulWidget {
+  final List<AppDropdownItem<T>> items;
+  final T selectedValue;
+  final double fontSize;
+  final bool multilineMenu;
+  final bool showSearch;
+
+  const _AppDropdownPopoverSheet({
+    required this.items,
+    required this.selectedValue,
+    required this.fontSize,
+    required this.multilineMenu,
+    required this.showSearch,
+  });
+
+  @override
+  State<_AppDropdownPopoverSheet<T>> createState() =>
+      _AppDropdownPopoverSheetState<T>();
+}
+
+class _AppDropdownPopoverSheetState<T>
+    extends State<_AppDropdownPopoverSheet<T>> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final filtered = _query.isEmpty
+        ? widget.items
+        : widget.items
+              .where((item) => item.label.toLowerCase().contains(_query))
+              .toList();
+
+    return Padding(
+      padding: const EdgeInsets.all(6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.showSearch) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
+              child: AppSearchField(
+                hintText: context.maybeL10n?.settingsSearchModelHint ?? 'Search...',
+                debounceDuration: Duration.zero,
+                onChanged: (q) =>
+                    setState(() => _query = q.trim().toLowerCase()),
+              ),
+            ),
+          ],
+          Flexible(
+            child: filtered.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Icon(
+                        Icons.search_off_rounded,
+                        size: 22,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final item = filtered[index];
+                      final isSelected = item.value == widget.selectedValue;
+                      return Tooltip(
+                        message: item.tooltip ?? item.label,
+                        waitDuration: const Duration(milliseconds: 500),
+                        child: Material(
+                          color: isSelected
+                              ? colors.primaryTint
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            onTap: () => Navigator.of(
+                              context,
+                            ).pop<({T value})>((value: item.value)),
+                            child: DropdownMenuItem<T>(
+                              value: item.value,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    if (item.icon != null) ...[
+                                      Icon(
+                                        item.icon,
+                                        size: 14,
+                                        color: isSelected
+                                            ? colors.primary
+                                            : colors.textMuted,
+                                      ),
+                                      const SizedBox(width: 7),
+                                    ],
+                                    Expanded(
+                                      child: Text(
+                                        item.label,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: widget.multilineMenu ? 2 : 1,
+                                        style: TextStyle(
+                                          fontSize: widget.fontSize,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                          color: isSelected
+                                              ? colors.primary
+                                              : colors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    if (item.trailing != null) ...[
+                                      const SizedBox(width: 6),
+                                      item.trailing!,
+                                    ] else if (isSelected) ...[
+                                      const SizedBox(width: 8),
+                                      Icon(
+                                        Icons.check_rounded,
+                                        size: 15,
+                                        color: colors.primary,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

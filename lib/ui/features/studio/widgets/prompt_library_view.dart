@@ -5,10 +5,11 @@ import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
-import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_search_field.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
@@ -292,7 +293,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 1. 顶部操作栏
-              _buildTopBar(context, allEntries.length),
+              _buildTopBar(context),
               Divider(height: 1, color: colors.borderDefault),
 
               // 2. 主体区：窄屏分类在顶部横向滚动，宽屏在左侧
@@ -382,7 +383,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
 
   /// 顶部操作栏：宽屏单行完整排布；窄屏 (移动端 / 小窗口) 收成两行
   /// (标题+图标化操作钮 / 整宽搜索框)，彻底避开固定子项溢出让「新建词组合」被裁到屏外。
-  Widget _buildTopBar(BuildContext context, int totalCount) {
+  Widget _buildTopBar(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
 
@@ -410,13 +411,6 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                   color: colors.textPrimary,
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            AppBadge(
-              label: '$totalCount',
-              variant: AppBadgeVariant.primary,
-              shape: AppBadgeShape.pill,
-              fontSize: 11,
             ),
           ],
         );
@@ -563,42 +557,28 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
 
   /// + 新建词组合 (compact 时仅图标 + Tooltip)
   Widget _buildNewComboButton(BuildContext context, {required bool compact}) {
-    final colors = context.colors;
     final l10n = context.l10n;
-    final button = ElevatedButton(
-      onPressed: () {
+    void openCreateDialog() =>
         PromptComboEditDialog.show(context, viewModel: widget.viewModel);
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: colors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        padding: compact
-            ? const EdgeInsets.symmetric(horizontal: 10, vertical: 10)
-            : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.add, size: 16),
-          if (!compact) ...[
-            const SizedBox(width: 8),
-            Text(
-              l10n.libraryNewCombo,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ],
-      ),
+
+    if (compact) {
+      return AppIconButton(
+        icon: Icons.add_rounded,
+        size: 36,
+        iconSize: 18,
+        variant: AppIconButtonVariant.primary,
+        tooltip: l10n.libraryNewCombo,
+        onPressed: openCreateDialog,
+      );
+    }
+    return AppActionButton(
+      icon: Icons.add_rounded,
+      iconSize: 16,
+      label: l10n.libraryNewCombo,
+      variant: AppActionButtonVariant.primary,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      onPressed: openCreateDialog,
     );
-    return compact
-        ? Tooltip(message: l10n.libraryNewCombo, child: button)
-        : button;
   }
 
   IconData _getCategoryIcon(String cat) {
@@ -648,11 +628,6 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                       letterSpacing: 0.5,
                     ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  l10n.libraryEntriesCount(allEntries.length),
-                  style: TextStyle(fontSize: 11, color: colors.textSecondary),
                 ),
               ],
             ),

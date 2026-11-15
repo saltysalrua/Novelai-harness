@@ -101,11 +101,9 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final accentState = AppAccentController.instance.state.value;
-    final isAdaptive = accentState.isAdaptive;
 
     return AppDialogScaffold(
       title: l10n.paletteDialogTitle,
-      subtitle: isAdaptive ? l10n.paletteHintAdaptive : l10n.paletteHintManual,
       width: 560,
       body: _loading
           ? const Center(

@@ -23,6 +23,7 @@ import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import 'skill_card.dart';
 import 'skill_editor_dialog.dart';
@@ -597,7 +598,6 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
           AppSectionHeader(title: l10n.settingsSectionPresetSelection),
           AppSettingTile(
             title: l10n.presetCurrentPreset,
-            subtitle: l10n.presetCurrentPresetSubtitle,
             control: const SizedBox.shrink(),
             bottomChild: AppControlFlow(
               children: [
@@ -900,38 +900,19 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     l10n.presetParamCharacterAiPosition,
                   _ => PresetParamKeys.getLabel(key),
                 };
-                return FilterChip(
-                  label: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: isAllowed
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                      color: isAllowed ? colors.primary : colors.textPrimary,
-                    ),
-                  ),
-                  selected: isAllowed,
-                  onSelected: currentPreset.isBuiltin
+                return AppToolChip(
+                  label: label,
+                  isSelected: isAllowed,
+                  variant: AppToolChipVariant.tinted,
+                  onTap: currentPreset.isBuiltin
                       ? null
-                      : (val) => setState(
+                      : () => setState(
                           () => _draft.toggleParam(
                             key,
-                            val,
+                            !isAllowed,
                             l10n.presetDefaultCustomName,
                           ),
                         ),
-                  backgroundColor: colors.mutedBackground,
-                  selectedColor: colors.primary.withValues(alpha: 0.12),
-                  checkmarkColor: colors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    side: BorderSide(
-                      color: isAllowed
-                          ? colors.primary.withValues(alpha: 0.5)
-                          : colors.borderDefault,
-                    ),
-                  ),
                 );
               }).toList(),
             ),

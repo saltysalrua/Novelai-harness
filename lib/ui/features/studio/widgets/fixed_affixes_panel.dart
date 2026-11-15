@@ -45,10 +45,7 @@ class FixedAffixesCardContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _AffixFieldHeader(
-                  badge: l10n.promptsPrefixBadge,
-                  title: l10n.affixPrefixTitle,
-                ),
+                _AffixFieldHeader(badge: l10n.promptsPrefixBadge),
                 Divider(height: 1, thickness: 1, color: colors.borderSubtle),
                 ResizableTextField(
                   controller: prefixController,
@@ -75,10 +72,7 @@ class FixedAffixesCardContent extends StatelessWidget {
                     color: colors.textMuted,
                   ),
                 ),
-                _AffixFieldHeader(
-                  badge: l10n.promptsSuffixBadge,
-                  title: l10n.affixSuffixTitle,
-                ),
+                _AffixFieldHeader(badge: l10n.promptsSuffixBadge),
                 Divider(height: 1, thickness: 1, color: colors.borderSubtle),
                 ResizableTextField(
                   controller: suffixController,
@@ -227,9 +221,8 @@ class _BannedWordsSectionState extends State<_BannedWordsSection> {
 /// Prefix / Suffix 区块标头 (灰底 + 蓝色徽标)
 class _AffixFieldHeader extends StatelessWidget {
   final String badge;
-  final String title;
 
-  const _AffixFieldHeader({required this.badge, required this.title});
+  const _AffixFieldHeader({required this.badge});
 
   @override
   Widget build(BuildContext context) {
@@ -245,14 +238,6 @@ class _AffixFieldHeader extends StatelessWidget {
             shape: AppBadgeShape.rounded,
             fontSize: 10,
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
-              overflow: TextOverflow.ellipsis,
-            ),
           ),
         ],
       ),

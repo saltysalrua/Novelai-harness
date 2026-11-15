@@ -140,32 +140,10 @@ class _BoardNoteCardState extends State<BoardNoteCard> {
                             ),
                             const SizedBox(width: 6),
                             if (note.isConnected)
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.link_rounded,
-                                    size: 13,
-                                    color: colors.textSecondary,
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    context.l10n.boardNoteConnected,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: colors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            else
-                              Text(
-                                context.l10n.boardNoteTitle,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: colors.textSecondary,
-                                ),
+                              Icon(
+                                Icons.link_rounded,
+                                size: 13,
+                                color: colors.textSecondary,
                               ),
                             const Spacer(),
                             if (note.isConnected)

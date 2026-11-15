@@ -1861,13 +1861,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get metadataDialogTitle => '图像元数据读取';
 
   @override
-  String get metadataPromptTitle => '正向提示词 (Prompt)';
+  String get metadataPromptTitle => '正向提示词';
 
   @override
   String get metadataCopiedPrompt => '已复制正向提示词';
 
   @override
-  String get metadataNegativePromptTitle => '负向提示词 (Negative Prompt)';
+  String get metadataNegativePromptTitle => '负向提示词';
 
   @override
   String get metadataCopiedNegativePrompt => '已复制负向提示词';
@@ -1897,7 +1897,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get metadataCharacterPromptsTitle => '多角色提示词 (Character Prompts)';
+  String get metadataCharacterPromptsTitle => '多角色提示词';
 
   @override
   String metadataCharacterIndex(int index) {
@@ -1949,7 +1949,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get metadataParamEnabled => '开启';
 
   @override
-  String get metadataRawJsonTitle => '原始元数据 (Raw JSON / Text)';
+  String get metadataRawJsonTitle => '原始元数据';
 
   @override
   String get metadataCopyRawTooltip => '复制原始文本';
@@ -2048,7 +2048,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get boardExitAnnotation => '退出批注';
 
   @override
-  String get boardSendAllToAi => '发送全部批注到 AI';
+  String get boardSendAllToAi => '发送批注';
 
   @override
   String get boardWireMissedTarget => '未命中选区/图钉，已取消连线';
@@ -2077,7 +2077,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get boardToolResetView => '适应视口';
 
   @override
-  String get boardImageCardMainTitle => '主图 (当前生成图)';
+  String get boardImageCardMainTitle => '主图';
 
   @override
   String boardImageCardRefTitle(int width, int height) {

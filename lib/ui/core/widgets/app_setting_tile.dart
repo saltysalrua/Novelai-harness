@@ -40,7 +40,7 @@ class AppSettingTile extends StatelessWidget {
     required String title,
     String? subtitle,
     required bool value,
-    required ValueChanged<bool> onChanged,
+    required ValueChanged<bool>? onChanged,
     Widget? bottomChild,
     EdgeInsets? margin,
   }) {
@@ -51,7 +51,7 @@ class AppSettingTile extends StatelessWidget {
       bottomChild: bottomChild,
       margin: margin,
       isSwitch: true,
-      onTap: () => onChanged(!value),
+      onTap: onChanged == null ? null : () => onChanged(!value),
       control: Builder(
         builder: (context) {
           final colors = context.colors;

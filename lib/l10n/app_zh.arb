@@ -817,9 +817,9 @@
   "metadataBlindWatermarkContent": "盲水印内容",
   "metadataBlindWatermarkNotFound": "未检测到盲水印",
   "metadataDialogTitle": "图像元数据读取",
-  "metadataPromptTitle": "正向提示词 (Prompt)",
+  "metadataPromptTitle": "正向提示词",
   "metadataCopiedPrompt": "已复制正向提示词",
-  "metadataNegativePromptTitle": "负向提示词 (Negative Prompt)",
+  "metadataNegativePromptTitle": "负向提示词",
   "metadataCopiedNegativePrompt": "已复制负向提示词",
   "metadataDimensionAuto": "自动",
   "metadataDimensions": "尺寸: {width} x {height}",
@@ -844,7 +844,7 @@
       "seed": { "type": "String" }
     }
   },
-  "metadataCharacterPromptsTitle": "多角色提示词 (Character Prompts)",
+  "metadataCharacterPromptsTitle": "多角色提示词",
   "metadataCharacterIndex": "角色 {index}",
   "@metadataCharacterIndex": {
     "placeholders": {
@@ -870,7 +870,7 @@
   "metadataParamUcPreset": "UC 预设",
   "metadataParamTransparentBg": "透明背景",
   "metadataParamEnabled": "开启",
-  "metadataRawJsonTitle": "原始元数据 (Raw JSON / Text)",
+  "metadataRawJsonTitle": "原始元数据",
   "metadataCopyRawTooltip": "复制原始文本",
   "metadataCopiedRaw": "已复制原始元数据",
   "metadataExtractBlindWatermark": "提取盲水印",
@@ -917,7 +917,7 @@
   "boardDropInternalHint": "松开鼠标放置参考图",
   "boardDropExternalHint": "松开鼠标导入外部参考图",
   "boardExitAnnotation": "退出批注",
-  "boardSendAllToAi": "发送全部批注到 AI",
+  "boardSendAllToAi": "发送批注",
   "boardWireMissedTarget": "未命中选区/图钉，已取消连线",
   "boardToolPan": "漫游",
   "boardToolRect": "圈选选区",
@@ -926,7 +926,7 @@
   "boardToolAddImage": "+ 参考图",
   "boardToolPasteImage": "粘贴图 ({shortcut})",
   "boardToolResetView": "适应视口",
-  "boardImageCardMainTitle": "主图 (当前生成图)",
+  "boardImageCardMainTitle": "主图",
   "boardImageCardRefTitle": "参考图 ({width}x{height})",
   "@boardImageCardRefTitle": {
     "placeholders": {

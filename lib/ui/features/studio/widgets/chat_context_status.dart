@@ -70,14 +70,6 @@ class ChatContextStatus extends StatelessWidget {
               _label(popoverContext.l10n),
               style: const TextStyle(fontSize: 13, height: 1.5),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              popoverContext.l10n.chatContextExplanation,
-              style: TextStyle(
-                fontSize: 12,
-                color: popoverContext.colors.textSecondary,
-              ),
-            ),
             if (usage.error != null) ...[
               const SizedBox(height: AppSpacing.sm),
               SelectableText(
@@ -109,7 +101,9 @@ class ChatContextStatus extends StatelessWidget {
     final percentText = '${(usage.fraction * 100).round()}%';
 
     return Tooltip(
-      message: '${_label(l10n)}\n${usage.error ?? l10n.chatContextExplanation}',
+      message: usage.error != null
+          ? '${_label(l10n)}\n${usage.error}'
+          : _label(l10n),
       child: Semantics(
         button: true,
         label: l10n.chatContextTitle,

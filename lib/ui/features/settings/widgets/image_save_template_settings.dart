@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../data/services/image_save_path_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
-import '../../../core/widgets/app_collapsible_section.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_setting_tile.dart';
 
@@ -42,7 +41,6 @@ class ImageSaveTemplateSettings extends StatelessWidget {
     final errorText = errorTextOf(context, error);
     return AppSettingTile(
       title: l10n.settingsImageSaveTemplateTitle,
-      subtitle: l10n.settingsImageSaveTemplateSubtitle,
       control: const SizedBox.shrink(),
       bottomChild: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -120,22 +118,6 @@ class ImageSaveTemplateSettings extends StatelessWidget {
               style: const TextStyle(fontSize: 12),
             ),
           ],
-          const SizedBox(height: 8),
-          Text(
-            l10n.settingsImageSaveTemplateHelp,
-            style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
-          ),
-          AppCollapsibleSection(
-            title: l10n.settingsImageSaveMacros,
-            isCard: false,
-            child: Text(
-              l10n.settingsImageSaveMacroHelp,
-              style: TextStyle(
-                fontSize: 12,
-                color: context.colors.textSecondary,
-              ),
-            ),
-          ),
         ],
       ),
     );

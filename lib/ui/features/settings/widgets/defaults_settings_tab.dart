@@ -77,7 +77,6 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           AppSectionHeader(title: l10n.settingsSectionModelAndSampler),
           AppSettingTile(
             title: l10n.settingsDefaultModelTitle,
-            subtitle: l10n.settingsDefaultModelSubtitle,
             control: AppDropdown.simple(
               value: _draft.model,
               items: NaiModel.values,
@@ -88,7 +87,6 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           ),
           AppSettingTile(
             title: l10n.settingsDefaultSamplerTitle,
-            subtitle: l10n.settingsDefaultSamplerSubtitle,
             control: AppDropdown.simple(
               value: _draft.sampler,
               items: NaiSampler.values,
@@ -99,7 +97,6 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           ),
           AppSettingTile(
             title: l10n.settingsDefaultNoiseScheduleTitle,
-            subtitle: l10n.settingsDefaultNoiseScheduleSubtitle,
             control: AppDropdown.simple(
               value: _draft.noiseSchedule,
               items: NoiseSchedule.values,
@@ -113,7 +110,6 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           AppSectionHeader(title: l10n.settingsSectionDefaultStepsAndScale),
           AppSettingTile(
             title: l10n.settingsDefaultStepsTitle,
-            subtitle: l10n.settingsDefaultStepsSubtitle,
             control: const SizedBox.shrink(),
             bottomChild: AppNumberSlider.integer(
               value: _draft.steps,
@@ -124,9 +120,6 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           ),
           AppSettingTile(
             title: l10n.settingsDefaultScaleTitle,
-            subtitle: l10n.settingsDefaultScaleSubtitle(
-              _draft.scale.toStringAsFixed(1),
-            ),
             control: const SizedBox.shrink(),
             bottomChild: AppNumberSlider(
               value: _draft.scale,
@@ -140,35 +133,25 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
 
           const SizedBox(height: AppSpacing.lg),
           AppSectionHeader(title: l10n.settingsSectionContextManagement),
-          AppSettingTile(
+          AppSettingTile.switchTile(
             title: l10n.settingsAutoCompaction,
-            subtitle: l10n.settingsAutoCompactionHint,
-            control: Switch(
-              value: _draft.compactionEnabled,
-              onChanged: (v) => setState(() => _draft.compactionEnabled = v),
-            ),
+            value: _draft.compactionEnabled,
+            onChanged: (v) => setState(() => _draft.compactionEnabled = v),
           ),
-          AppSettingTile(
+          AppSettingTile.switchTile(
             title: l10n.settingsBackgroundCompaction,
-            subtitle: l10n.settingsBackgroundCompactionHint,
-            control: Switch(
-              value: _draft.backgroundCompaction,
-              onChanged: _draft.compactionEnabled
-                  ? (v) => setState(() => _draft.backgroundCompaction = v)
-                  : null,
-            ),
+            value: _draft.backgroundCompaction,
+            onChanged: _draft.compactionEnabled
+                ? (v) => setState(() => _draft.backgroundCompaction = v)
+                : null,
           ),
-          AppSettingTile(
+          AppSettingTile.switchTile(
             title: l10n.settingsAgentPersistentImages,
-            subtitle: l10n.settingsAgentPersistentImagesHint,
-            control: Switch(
-              value: _draft.persistentImages,
-              onChanged: (v) => setState(() => _draft.persistentImages = v),
-            ),
+            value: _draft.persistentImages,
+            onChanged: (v) => setState(() => _draft.persistentImages = v),
           ),
           AppSettingTile(
             title: l10n.settingsCompactionProvider,
-            subtitle: l10n.settingsCompactionProviderHint,
             control: AppDropdown.simple(
               value: summaryProvider?.id ?? '',
               items: ['', ...providers.map((p) => p.id)],
@@ -202,7 +185,6 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           AppSectionHeader(title: l10n.settingsSectionAgentLoop),
           AppSettingTile(
             title: l10n.settingsAgentMaxTurnsTitle,
-            subtitle: l10n.settingsAgentMaxTurnsSubtitle,
             control: const SizedBox.shrink(),
             bottomChild: AppNumberSlider.integer(
               value: _draft.agentMaxTurns,

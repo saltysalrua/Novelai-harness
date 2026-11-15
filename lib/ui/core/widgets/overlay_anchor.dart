@@ -40,11 +40,34 @@ Offset globalToOverlayOf(
   return overlay == null ? global : globalToOverlayPosition(overlay, global);
 }
 
+Rect? _computeAnchorRect(BuildContext context) {
+  if (!context.mounted) return null;
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  final renderObject = context.findRenderObject();
+  if (renderObject is! RenderBox ||
+      !renderObject.hasSize ||
+      !renderObject.attached) {
+    return null;
+  }
+  final topLeftGlobal = renderObject.localToGlobal(Offset.zero);
+  final bottomRightGlobal = renderObject.localToGlobal(
+    renderObject.size.bottomRight(Offset.zero),
+  );
+  final topLeft = overlay == null
+      ? topLeftGlobal
+      : globalToOverlayPosition(overlay, topLeftGlobal);
+  final bottomRight = overlay == null
+      ? bottomRightGlobal
+      : globalToOverlayPosition(overlay, bottomRightGlobal);
+  return Rect.fromPoints(topLeft, bottomRight);
+}
+
 /// 在触发组件附近弹出轻浮层：自动对齐触发区域左右/上下方向并约束在可见安全区内，
 /// 点击外部或按 Esc 即可关闭；桌面多栏下不会跑偏到屏幕正中央遮挡画布。
 Future<T?> showAnchoredPopover<T>({
   required BuildContext context,
   required WidgetBuilder builder,
+  double minWidth = 0,
   double maxWidth = 360,
   double maxHeight = 420,
   double gap = 8,
@@ -52,22 +75,7 @@ Future<T?> showAnchoredPopover<T>({
   bool preferAbove = true,
 }) {
   final navigator = Navigator.of(context, rootNavigator: true);
-  final overlay = Overlay.maybeOf(context, rootOverlay: true);
-  final renderObject = context.findRenderObject();
-  Rect? anchorRect;
-  if (renderObject is RenderBox && renderObject.hasSize) {
-    final topLeftGlobal = renderObject.localToGlobal(Offset.zero);
-    final bottomRightGlobal = renderObject.localToGlobal(
-      renderObject.size.bottomRight(Offset.zero),
-    );
-    final topLeft = overlay == null
-        ? topLeftGlobal
-        : globalToOverlayPosition(overlay, topLeftGlobal);
-    final bottomRight = overlay == null
-        ? bottomRightGlobal
-        : globalToOverlayPosition(overlay, bottomRightGlobal);
-    anchorRect = Rect.fromPoints(topLeft, bottomRight);
-  }
+  final anchorRect = _computeAnchorRect(context);
 
   final themes = InheritedTheme.capture(from: context, to: navigator.context);
   final barrierLabel = MaterialLocalizations.of(
@@ -76,10 +84,12 @@ Future<T?> showAnchoredPopover<T>({
 
   return navigator.push<T>(
     _AnchoredPopoverRoute<T>(
+      anchorContext: context,
       anchorRect: anchorRect,
       builder: builder,
       themes: themes,
       barrierLabel: barrierLabel,
+      minWidth: minWidth,
       maxWidth: maxWidth,
       maxHeight: maxHeight,
       gap: gap,
@@ -90,9 +100,11 @@ Future<T?> showAnchoredPopover<T>({
 }
 
 class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
+  final BuildContext anchorContext;
   final Rect? anchorRect;
   final WidgetBuilder builder;
   final CapturedThemes themes;
+  final double minWidth;
   final double maxWidth;
   final double maxHeight;
   final double gap;
@@ -100,16 +112,20 @@ class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
   final bool preferAbove;
 
   _AnchoredPopoverRoute({
+    required this.anchorContext,
     required this.anchorRect,
     required this.builder,
     required this.themes,
     required this.barrierLabel,
+    required this.minWidth,
     required this.maxWidth,
     required this.maxHeight,
     required this.gap,
     required this.viewportMargin,
     required this.preferAbove,
   });
+
+  Rect? _resolveAnchorRect() => _computeAnchorRect(anchorContext) ?? anchorRect;
 
   @override
   final String barrierLabel;
@@ -138,7 +154,9 @@ class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
         final availableWidth = (maxRight - minLeft)
             .clamp(120.0, double.infinity)
             .toDouble();
-        final popoverWidth = math.min(maxWidth, availableWidth);
+        final double popoverWidth = minWidth > 0
+            ? math.max(minWidth, maxWidth).clamp(120.0, availableWidth).toDouble()
+            : math.min(maxWidth, availableWidth);
 
         final minTop = padding.top + viewportMargin;
         final safeBottom =
@@ -171,7 +189,7 @@ class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
           ),
         );
 
-        final anchor = anchorRect;
+        final anchor = _resolveAnchorRect();
         if (anchor == null) {
           final fallbackHeight = math.min(maxHeight, totalAvailableHeight);
           return Center(

@@ -281,25 +281,23 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppSectionHeader(title: l10n.metadataImportSelection),
-          Text(
-            l10n.metadataImportSelectionHint,
-            style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
-          ),
-          Wrap(
-            spacing: 8,
-            children: [
-              TextButton(
-                onPressed: () => setState(
-                  () => _selectedFields.addAll(meta.importableFields),
+          AppSectionHeader(
+            title: l10n.metadataImportSelection,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => setState(
+                    () => _selectedFields.addAll(meta.importableFields),
+                  ),
+                  child: Text(l10n.metadataImportSelectAll),
                 ),
-                child: Text(l10n.metadataImportSelectAll),
-              ),
-              TextButton(
-                onPressed: () => setState(_selectedFields.clear),
-                child: Text(l10n.metadataImportSelectNone),
-              ),
-            ],
+                TextButton(
+                  onPressed: () => setState(_selectedFields.clear),
+                  child: Text(l10n.metadataImportSelectNone),
+                ),
+              ],
+            ),
           ),
           Wrap(
             spacing: 6,
@@ -336,8 +334,6 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
     final heightStr = meta.height != null
         ? '${meta.height}'
         : l10n.metadataDimensionAuto;
-    final modelStr = meta.model ?? l10n.metadataModelUnknown;
-    final samplerStr = meta.sampler ?? l10n.metadataSamplerDefault;
 
     return AppCard(
       padding: const EdgeInsets.all(12),
@@ -352,11 +348,6 @@ class _MetadataReaderDialogState extends State<MetadataReaderDialog> {
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            l10n.metadataModelAndSampler(modelStr, samplerStr),
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
           ),
         ],
       ),

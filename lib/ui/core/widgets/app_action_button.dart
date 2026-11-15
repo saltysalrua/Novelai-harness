@@ -10,6 +10,9 @@ enum AppActionButtonVariant {
 
   /// 品牌主色高亮 (强行动，如 新建 / 保存)
   primary,
+
+  /// 无边框轻量行动 (如 取消 / 退出批注)
+  ghost,
 }
 
 /// 统一紧凑型带图标标签操作按钮 (阶段 3 垂直切片沉淀)
@@ -37,6 +40,15 @@ class AppActionButton extends StatelessWidget {
   /// 图标字号 (默认 15，对齐旧 SettingsActionButton)
   final double iconSize;
 
+  /// 圆角半径，默认 [AppRadius.md] (8.0)
+  final double radius;
+
+  /// 自定义内边距，未指定时使用紧凑默认内边距
+  final EdgeInsetsGeometry? padding;
+
+  /// 是否显示加载态旋转指示器 (同时禁用点击)
+  final bool isLoading;
+
   const AppActionButton({
     super.key,
     required this.label,
@@ -44,55 +56,81 @@ class AppActionButton extends StatelessWidget {
     this.onPressed,
     this.variant = AppActionButtonVariant.outlined,
     this.iconSize = 15,
+    this.radius = AppRadius.md,
+    this.padding,
+    this.isLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final enabled = onPressed != null;
+    final enabled = !isLoading && onPressed != null;
+    final visuallyActive = enabled || isLoading;
 
     final foreground = switch (variant) {
-      AppActionButtonVariant.outlined => colors.textPrimary,
+      AppActionButtonVariant.outlined =>
+        visuallyActive ? colors.textPrimary : colors.textMuted,
       AppActionButtonVariant.primary =>
-        enabled ? Colors.white : colors.textMuted,
+        visuallyActive ? Colors.white : colors.textMuted,
+      AppActionButtonVariant.ghost =>
+        visuallyActive ? colors.textSecondary : colors.textMuted,
     };
     final background = switch (variant) {
       AppActionButtonVariant.outlined => colors.cardBackground,
       AppActionButtonVariant.primary =>
-        enabled ? colors.primary : colors.mutedBackground,
+        visuallyActive ? colors.primary : colors.mutedBackground,
+      AppActionButtonVariant.ghost => Colors.transparent,
     };
     final borderColor = switch (variant) {
       AppActionButtonVariant.outlined => colors.borderDefault,
       AppActionButtonVariant.primary => colors.primary.withValues(
-        alpha: enabled ? 1.0 : 0.5,
+        alpha: visuallyActive ? 1.0 : 0.5,
       ),
+      AppActionButtonVariant.ghost => Colors.transparent,
     };
 
     final text = Text(
       label,
       style: TextStyle(
         fontSize: 12,
-        fontWeight: FontWeight.w500,
+        fontWeight: variant == AppActionButtonVariant.primary
+            ? FontWeight.w600
+            : FontWeight.w500,
         color: foreground,
       ),
     );
 
+    final Widget? leading = isLoading
+        ? SizedBox(
+            width: iconSize,
+            height: iconSize,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.8,
+              color: foreground,
+            ),
+          )
+        : (icon != null ? Icon(icon, size: iconSize, color: foreground) : null);
+
     return OutlinedButton(
-      onPressed: onPressed,
+      onPressed: enabled ? onPressed : null,
       style: OutlinedButton.styleFrom(
         backgroundColor: background,
-        side: BorderSide(color: borderColor),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        side: variant == AppActionButtonVariant.ghost
+            ? BorderSide.none
+            : BorderSide(color: borderColor),
+        padding:
+            padding ??
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
+          borderRadius: BorderRadius.circular(radius),
         ),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
-      child: icon != null
+      child: leading != null
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: iconSize, color: foreground),
+                leading,
                 const SizedBox(width: AppSpacing.xs),
                 text,
               ],

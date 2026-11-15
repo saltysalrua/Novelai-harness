@@ -145,7 +145,6 @@ class WatermarkPadPicker extends StatelessWidget {
           // 3. 智能选位模式 (每次导出时按图像内容自动重选位置)
           AppSettingTile.switchTile(
             title: l10n.watermarkAutoPosition,
-            subtitle: l10n.watermarkAutoPositionSubtitle,
             value: config.autoPosition,
             margin: EdgeInsets.zero,
             onChanged: (v) => onChanged(config.copyWith(autoPosition: v)),
@@ -155,7 +154,6 @@ class WatermarkPadPicker extends StatelessWidget {
           // 4. 自动对比度
           AppSettingTile.switchTile(
             title: l10n.watermarkAutoContrast,
-            subtitle: l10n.watermarkAutoContrastSubtitle,
             value: config.autoContrast,
             margin: EdgeInsets.zero,
             onChanged: (v) => onChanged(config.copyWith(autoContrast: v)),
@@ -329,11 +327,6 @@ class WatermarkPadPicker extends StatelessWidget {
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    l10n.watermarkEffectiveOnExport,
-                    style: TextStyle(fontSize: 10, color: colors.textSecondary),
                   ),
                 ],
               ),

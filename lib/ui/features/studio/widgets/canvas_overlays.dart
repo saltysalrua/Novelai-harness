@@ -287,22 +287,13 @@ class HistoryToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: context.l10n.canvasOpenHistoryTooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: canvasBadgeDecoration(context),
-          child: Icon(
-            Icons.history_rounded,
-            size: 20,
-            color: context.colors.textPrimary,
-          ),
-        ),
-      ),
+    return AppIconButton(
+      icon: Icons.history_rounded,
+      size: 38,
+      iconSize: 20,
+      variant: AppIconButtonVariant.elevated,
+      tooltip: context.l10n.canvasOpenHistoryTooltip,
+      onPressed: onTap,
     );
   }
 }

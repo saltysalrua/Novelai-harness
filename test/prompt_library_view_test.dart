@@ -6,6 +6,7 @@ import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/widgets/app_action_button.dart';
+import 'package:novelai_harness/ui/core/widgets/app_dropdown.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/views/studio_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/character_card_item.dart';
@@ -71,7 +72,7 @@ void main() {
         expect(find.text('选择本地图片'), findsOneWidget);
 
         // 打开分类下拉框并选择“风格”
-        final dropdown = find.byType(DropdownButton<String>);
+        final dropdown = find.byType(AppDropdown<String>);
         expect(dropdown, findsOneWidget);
         // 窄窗口为上下分区，表单独立滚动，先滚动到分类控件。
         await tester.ensureVisible(dropdown);

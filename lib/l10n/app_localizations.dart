@@ -3545,7 +3545,7 @@ abstract class AppLocalizations {
   /// No description provided for @metadataPromptTitle.
   ///
   /// In zh, this message translates to:
-  /// **'正向提示词 (Prompt)'**
+  /// **'正向提示词'**
   String get metadataPromptTitle;
 
   /// No description provided for @metadataCopiedPrompt.
@@ -3557,7 +3557,7 @@ abstract class AppLocalizations {
   /// No description provided for @metadataNegativePromptTitle.
   ///
   /// In zh, this message translates to:
-  /// **'负向提示词 (Negative Prompt)'**
+  /// **'负向提示词'**
   String get metadataNegativePromptTitle;
 
   /// No description provided for @metadataCopiedNegativePrompt.
@@ -3605,7 +3605,7 @@ abstract class AppLocalizations {
   /// No description provided for @metadataCharacterPromptsTitle.
   ///
   /// In zh, this message translates to:
-  /// **'多角色提示词 (Character Prompts)'**
+  /// **'多角色提示词'**
   String get metadataCharacterPromptsTitle;
 
   /// No description provided for @metadataCharacterIndex.
@@ -3701,7 +3701,7 @@ abstract class AppLocalizations {
   /// No description provided for @metadataRawJsonTitle.
   ///
   /// In zh, this message translates to:
-  /// **'原始元数据 (Raw JSON / Text)'**
+  /// **'原始元数据'**
   String get metadataRawJsonTitle;
 
   /// No description provided for @metadataCopyRawTooltip.
@@ -3887,7 +3887,7 @@ abstract class AppLocalizations {
   /// No description provided for @boardSendAllToAi.
   ///
   /// In zh, this message translates to:
-  /// **'发送全部批注到 AI'**
+  /// **'发送批注'**
   String get boardSendAllToAi;
 
   /// No description provided for @boardWireMissedTarget.
@@ -3941,7 +3941,7 @@ abstract class AppLocalizations {
   /// No description provided for @boardImageCardMainTitle.
   ///
   /// In zh, this message translates to:
-  /// **'主图 (当前生成图)'**
+  /// **'主图'**
   String get boardImageCardMainTitle;
 
   /// No description provided for @boardImageCardRefTitle.

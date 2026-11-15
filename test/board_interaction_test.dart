@@ -422,7 +422,7 @@ void main() {
       final before = vm.board.boardData.imageNodes.first.offset;
 
       // 分步拖拽：首步必须超过 kPanSlop(36px) 才能赢得手势竞技场
-      final headerCenter = tester.getCenter(find.text('主图 (当前生成图)'));
+      final headerCenter = tester.getCenter(find.text('主图'));
       final gesture = await tester.startGesture(headerCenter);
       await gesture.moveBy(const Offset(40, 20));
       await gesture.moveBy(const Offset(10, 10));
@@ -455,7 +455,7 @@ void main() {
     testWidgets('便利贴可添加与删除', (tester) async {
       final vm = await _pumpBoard(tester);
 
-      await tester.tap(find.text('+ 便利贴'));
+      await tester.tap(find.byTooltip('+ 便利贴'));
       await tester.pump();
       expect(vm.board.boardData.noteNodes.length, 1);
       expect(find.byType(BoardNoteCard), findsOneWidget);
@@ -654,7 +654,7 @@ void main() {
 
       // 主图卡片不展示删除键
       final mainCard = find.ancestor(
-        of: find.text('主图 (当前生成图)'),
+        of: find.text('主图'),
         matching: find.byType(BoardImageCard),
       );
       expect(

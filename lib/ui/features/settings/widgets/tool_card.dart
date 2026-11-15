@@ -32,9 +32,7 @@ class ToolCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
-    final properties = (tool.parameters['properties'] is Map)
-        ? (tool.parameters['properties'] as Map).keys.toList()
-        : <dynamic>[];
+
 
     return SizedBox(
       width: 270,
@@ -96,6 +94,7 @@ class ToolCard extends StatelessWidget {
                   icon: tool is CustomAgentTool
                       ? Icons.edit_outlined
                       : Icons.code_rounded,
+                  variant: AppIconButtonVariant.ghost,
                   size: 26,
                   iconSize: 14,
                   tooltip: tool is CustomAgentTool
@@ -113,6 +112,7 @@ class ToolCard extends StatelessWidget {
                 if (onDelete != null && !tool.isBuiltin)
                   AppIconButton(
                     icon: Icons.close_rounded,
+                    variant: AppIconButtonVariant.ghost,
                     size: 26,
                     iconSize: 14,
                     tooltip: l10n.toolTooltipDelete,
@@ -144,33 +144,6 @@ class ToolCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            if (properties.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: properties.take(4).map((p) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1.5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors.mutedBackground,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Text(
-                      '$p',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontFamily: 'monospace',
-                        color: colors.textMuted,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
           ],
         ),
       ),

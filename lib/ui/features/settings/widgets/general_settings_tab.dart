@@ -312,7 +312,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSectionHeader(title: l10n.settingsSectionAppearance),
               AppSettingTile(
                 title: l10n.settingsThemeMode,
-                subtitle: l10n.settingsThemeModeSubtitle,
                 control: AppDropdown.simple(
                   value: _draft.themeMode,
                   items: AppThemeModePreference.values,
@@ -327,7 +326,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile(
                 title: l10n.settingsAccentSource,
-                subtitle: l10n.settingsAccentSourceSubtitle,
                 control: AppDropdown.simple(
                   value: _draft.accentMode,
                   items: AppAccentMode.values,
@@ -340,52 +338,56 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   onChanged: (mode) => setState(() => _draft.accentMode = mode),
                 ),
               ),
-              AppSettingTile(
-                title: l10n.settingsAccentSeed,
-                subtitle: l10n.settingsAccentSeedSubtitle,
-                control: _AccentSeedSwatch(
-                  color:
-                      _seedColorOf(_draft.accentSeedColor) ??
-                      const Color(0xFF0075DE),
-                  onTap: () async {
-                    final picked = await AppColorPickerDialog.show(
-                      context,
-                      initialColor:
-                          _seedColorOf(_draft.accentSeedColor) ??
-                          const Color(0xFF0075DE),
-                    );
-                    if (picked == null) return;
-                    setState(() {
-                      _draft.accentSeedColor = seedColorText(picked.toARGB32());
-                      _draft.accentMode = AppAccentMode.manual;
-                    });
-                  },
+              if (_draft.accentMode == AppAccentMode.manual)
+                AppSettingTile(
+                  title: l10n.settingsAccentSeed,
+                  control: _AccentSeedSwatch(
+                    color:
+                        _seedColorOf(_draft.accentSeedColor) ??
+                        const Color(0xFF0075DE),
+                    onTap: () async {
+                      final picked = await AppColorPickerDialog.show(
+                        context,
+                        initialColor:
+                            _seedColorOf(_draft.accentSeedColor) ??
+                            const Color(0xFF0075DE),
+                      );
+                      if (picked == null) return;
+                      setState(() {
+                        _draft.accentSeedColor = seedColorText(
+                          picked.toARGB32(),
+                        );
+                        _draft.accentMode = AppAccentMode.manual;
+                      });
+                    },
+                  ),
                 ),
-              ),
-              AppSettingTile(
-                title: l10n.settingsAccentVariant,
-                subtitle: l10n.settingsAccentVariantSubtitle,
-                control: AppDropdown.simple(
-                  value: _draft.accentVariant,
-                  items: AppAccentVariant.values,
-                  labelOf: (variant) => switch (variant) {
-                    AppAccentVariant.tonalSpot => l10n.accentVariantTonalSpot,
-                    AppAccentVariant.vibrant => l10n.accentVariantVibrant,
-                    AppAccentVariant.expressive => l10n.accentVariantExpressive,
-                    AppAccentVariant.content => l10n.accentVariantContent,
-                    AppAccentVariant.neutral => l10n.accentVariantNeutral,
-                    AppAccentVariant.monochrome => l10n.accentVariantMonochrome,
-                    AppAccentVariant.rainbow => l10n.accentVariantRainbow,
-                    AppAccentVariant.fruitSalad => l10n.accentVariantFruitSalad,
-                  },
-                  width: 170,
-                  onChanged: (variant) =>
-                      setState(() => _draft.accentVariant = variant),
+              if (_draft.accentMode != AppAccentMode.defaultBlue)
+                AppSettingTile(
+                  title: l10n.settingsAccentVariant,
+                  control: AppDropdown.simple(
+                    value: _draft.accentVariant,
+                    items: AppAccentVariant.values,
+                    labelOf: (variant) => switch (variant) {
+                      AppAccentVariant.tonalSpot => l10n.accentVariantTonalSpot,
+                      AppAccentVariant.vibrant => l10n.accentVariantVibrant,
+                      AppAccentVariant.expressive =>
+                        l10n.accentVariantExpressive,
+                      AppAccentVariant.content => l10n.accentVariantContent,
+                      AppAccentVariant.neutral => l10n.accentVariantNeutral,
+                      AppAccentVariant.monochrome =>
+                        l10n.accentVariantMonochrome,
+                      AppAccentVariant.rainbow => l10n.accentVariantRainbow,
+                      AppAccentVariant.fruitSalad =>
+                        l10n.accentVariantFruitSalad,
+                    },
+                    width: 170,
+                    onChanged: (variant) =>
+                        setState(() => _draft.accentVariant = variant),
+                  ),
                 ),
-              ),
               AppSettingTile(
                 title: l10n.settingsLanguage,
-                subtitle: l10n.settingsLanguageSubtitle,
                 control: AppDropdown.simple(
                   value: _draft.localePreference,
                   items: AppLocalePreference.values,
@@ -418,7 +420,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSectionHeader(title: l10n.settingsSectionNovelaiService),
               AppSettingTile(
                 title: l10n.settingsApiKeyTitle,
-                subtitle: l10n.settingsApiKeySubtitle,
                 control: SettingsKeyField(
                   controller: _draft.naiKeyController,
                   hintText: 'pst-...',
@@ -426,9 +427,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile(
                 title: l10n.settingsSaveDirTitle,
-                subtitle: isAndroid
-                    ? l10n.settingsAndroidSaveDirSubtitle
-                    : l10n.settingsSaveDirSubtitle,
+                subtitle: isAndroid ? l10n.settingsAndroidSaveDirSubtitle : null,
                 control: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 320),
                   child: Row(
@@ -501,9 +500,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile.switchTile(
                 title: l10n.settingsAutoSaveTitle,
-                subtitle: _draft.autoSaveImages
-                    ? l10n.settingsAutoSaveSubtitleOn
-                    : l10n.settingsAutoSaveSubtitleOff,
                 value: _draft.autoSaveImages,
                 onChanged: (val) => setState(() => _draft.autoSaveImages = val),
               ),
@@ -517,7 +513,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 ),
               AppSettingTile.switchTile(
                 title: l10n.settingsStreamPreviewTitle,
-                subtitle: l10n.settingsStreamPreviewSubtitle,
                 value: _draft.enableStreamPreview,
                 onChanged: (val) =>
                     setState(() => _draft.enableStreamPreview = val),
@@ -532,7 +527,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               if (_draft.enableImagePersistence)
                 AppSettingTile(
                   title: l10n.settingsMaxImagesTitle,
-                  subtitle: l10n.settingsMaxImagesSubtitle,
                   control: AppDropdown.simple(
                     value:
                         [
@@ -557,7 +551,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 AppSectionHeader(title: l10n.canvasActionRtxUpscale),
                 AppSettingTile(
                   title: l10n.settingsRtxScaleTitle,
-                  subtitle: l10n.settingsRtxScaleSubtitle,
                   control: AppDropdown<int>.simple(
                     value: _draft.rtxUpscaleScale,
                     items: const [2, 4],
@@ -572,7 +565,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSectionHeader(title: l10n.settingsSectionWebSearch),
               AppSettingTile(
                 title: l10n.settingsAnySearchKeyTitle,
-                subtitle: l10n.settingsAnySearchKeySubtitle,
                 control: SettingsKeyField(
                   controller: _draft.anySearchKeyController,
                   hintText: 'as_sk-...',
@@ -582,27 +574,33 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSectionHeader(title: l10n.settingsSectionComfy),
               AppSettingTile.switchTile(
                 title: l10n.settingsComfyEnabledTitle,
-                subtitle: l10n.settingsComfyEnabledDesc,
                 value: _draft.comfyUiEnabled,
                 onChanged: (val) => setState(() => _draft.comfyUiEnabled = val),
               ),
               if (_draft.comfyUiEnabled) ...[
                 AppSettingTile(
                   title: l10n.settingsComfyBaseUrlTitle,
-                  control: SettingsKeyField(
-                    controller: _draft.comfyBaseUrlController,
-                    hintText: l10n.settingsComfyBaseUrlHint,
+                  control: SizedBox(
+                    width: 280,
+                    child: TextField(
+                      controller: _draft.comfyBaseUrlController,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        hintText: l10n.settingsComfyBaseUrlHint,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 AppSettingTile(
                   title: l10n.settingsComfyNodeIdsTitle,
-                  subtitle: l10n.settingsComfyNodeIdsHint,
-                  control: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  control: const SizedBox.shrink(),
+                  bottomChild: Row(
                     children: [
-                      SizedBox(
-                        width: 220,
+                      Expanded(
                         child: TextField(
                           controller: _draft.comfyPromptNodeController,
                           style: const TextStyle(fontSize: 12),
@@ -615,9 +613,8 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        width: 220,
+                      const SizedBox(width: 8),
+                      Expanded(
                         child: TextField(
                           controller: _draft.comfyResolutionNodeController,
                           style: const TextStyle(fontSize: 12),
@@ -630,9 +627,8 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        width: 220,
+                      const SizedBox(width: 8),
+                      Expanded(
                         child: TextField(
                           controller: _draft.comfyParamsNodeController,
                           style: const TextStyle(fontSize: 12),
@@ -653,7 +649,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSectionHeader(title: l10n.settingsSectionTagAutocomplete),
               AppSettingTile.switchTile(
                 title: l10n.settingsTagAutocompleteTitle,
-                subtitle: l10n.settingsTagAutocompleteSubtitle,
                 value: _draft.enableTagAutocomplete,
                 onChanged: (val) =>
                     setState(() => _draft.enableTagAutocomplete = val),
@@ -679,21 +674,18 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile.switchTile(
                 title: l10n.settingsDictAutoCheckTitle,
-                subtitle: l10n.settingsDictAutoCheckSubtitle,
                 value: _draft.enableTagDictionaryAutoUpdate,
                 onChanged: (val) =>
                     setState(() => _draft.enableTagDictionaryAutoUpdate = val),
               ),
               AppSettingTile.switchTile(
                 title: l10n.settingsTagTranslationsTitle,
-                subtitle: l10n.settingsTagTranslationsSubtitle,
                 value: _draft.showTagTranslations,
                 onChanged: (val) =>
                     setState(() => _draft.showTagTranslations = val),
               ),
               AppSettingTile.switchTile(
                 title: l10n.settingsTagColorsTitle,
-                subtitle: l10n.settingsTagColorsSubtitle,
                 value: _draft.showTagCategoryColors,
                 onChanged: (val) =>
                     setState(() => _draft.showTagCategoryColors = val),
@@ -702,7 +694,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSectionHeader(title: l10n.settingsSectionProtection),
               AppSettingTile.switchTile(
                 title: l10n.settingsOpusTitle,
-                subtitle: l10n.settingsOpusSubtitle,
                 value: _draft.opusFreeMode,
                 onChanged: (val) => setState(() => _draft.opusFreeMode = val),
               ),

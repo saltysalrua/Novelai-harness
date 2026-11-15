@@ -406,7 +406,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         AppSectionHeader(title: l10n.settingsSectionProviderSelection),
         AppSettingTile(
           title: l10n.settingsCurrentProvider,
-          subtitle: l10n.settingsCurrentProviderSubtitle,
+          subtitle: null,
           control: AppControlFlow(
             children: [
               AppDropdown<String>(
@@ -452,7 +452,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         AppSectionHeader(title: l10n.settingsSectionProviderProfile),
         AppSettingTile(
           title: l10n.settingsProviderName,
-          subtitle: l10n.settingsProviderNameSubtitle,
           control: SizedBox(
             width: 240,
             height: 36,
@@ -471,7 +470,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         ),
         AppSettingTile(
           title: l10n.settingsApiEndpointAndProtocol,
-          subtitle: l10n.settingsApiEndpointAndProtocolSubtitle,
           control: AppControlFlow(
             children: [
               SizedBox(
@@ -514,40 +512,28 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                 _draft.protocol,
                 l10n.settingsEndpointUrlNotConfigured,
               );
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.mutedBackground,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: colors.borderSubtle),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.link_rounded, size: 14, color: colors.primary),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        l10n.settingsFullEndpoint(fullEndpoint),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontFamily: 'monospace',
-                          color: colors.textSecondary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+              return Row(
+                children: [
+                  Icon(Icons.link_rounded, size: 14, color: colors.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      l10n.settingsFullEndpoint(fullEndpoint),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: colors.textSecondary,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               );
             },
           ),
         ),
         AppSettingTile(
           title: l10n.settingsLlmApiKeyTitle,
-          subtitle: l10n.settingsLlmApiKeySubtitle,
           control: SettingsKeyField(
             controller: _draft.apiKeyController,
             hintText: 'sk-...',
@@ -556,7 +542,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         ),
         AppSettingTile(
           title: l10n.settingsThinkingParamFormat,
-          subtitle: l10n.settingsThinkingParamFormatSubtitle,
           control: AppDropdown<ThinkingParamFormat>(
             value: _draft.thinkingParamFormat,
             width: 220,
@@ -576,7 +561,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         AppSettingTile.switchTile(
           key: const ValueKey('streaming_toggle'),
           title: l10n.settingsStreaming,
-          subtitle: l10n.settingsStreamingSubtitle,
           value: _draft.streaming,
           onChanged: (value) => setState(() => _draft.streaming = value),
         ),
@@ -584,60 +568,26 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         AppSettingTile.switchTile(
           key: const ValueKey('prompt_tool_use_toggle'),
           title: l10n.settingsPromptToolUse,
-          subtitle: l10n.settingsPromptToolUseSubtitle,
           value: _draft.promptToolUse,
           onChanged: (value) => setState(() => _draft.promptToolUse = value),
         ),
 
         const SizedBox(height: 12),
         // 3. 模型列表与在线拉取
-        AppSectionHeader(title: l10n.settingsSectionModels),
-        AppSettingTile(
-          title: l10n.settingsModelsListTitle,
-          subtitle: l10n.settingsModelsListSubtitle,
-          control: AppControlFlow(
+        AppSectionHeader(
+          title: l10n.settingsSectionModels,
+          trailing: AppControlFlow(
             children: [
-              // 在线拉取模型按钮
-              ElevatedButton.icon(
+              AppActionButton(
+                icon: Icons.cloud_download_outlined,
+                label: _draft.isFetchingModels
+                    ? l10n.settingsFetchingModels
+                    : l10n.settingsFetchModelsOnline,
+                iconSize: 14,
+                isLoading: _draft.isFetchingModels,
                 onPressed: _draft.isFetchingModels
                     ? null
                     : _fetchRemoteModelsOnline,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colors.cardBackground,
-                  foregroundColor: colors.textPrimary,
-                  elevation: 0,
-                  side: BorderSide(color: colors.borderDefault),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-                icon: _draft.isFetchingModels
-                    ? SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.primary,
-                        ),
-                      )
-                    : Icon(
-                        Icons.cloud_download_outlined,
-                        size: 15,
-                        color: colors.primary,
-                      ),
-                label: Text(
-                  _draft.isFetchingModels
-                      ? l10n.settingsFetchingModels
-                      : l10n.settingsFetchModelsOnline,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
               ),
               AppActionButton(
                 icon: Icons.add_rounded,
@@ -647,53 +597,53 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
               ),
             ],
           ),
-          bottomChild: _draft.fetchStatusMessage != null
-              ? Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _draft.isFetchSuccess
-                        ? colors.success.withValues(alpha: 0.1)
-                        : colors.error.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _draft.isFetchSuccess
-                            ? Icons.check_circle_outline_rounded
-                            : Icons.error_outline_rounded,
-                        size: 14,
-                        color: _draft.isFetchSuccess
-                            ? colors.success
-                            : colors.error,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _draft.fetchStatusMessage!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _draft.isFetchSuccess
-                                ? colors.success
-                                : colors.error,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : null,
         ),
+        if (_draft.fetchStatusMessage != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: _draft.isFetchSuccess
+                  ? colors.success.withValues(alpha: 0.1)
+                  : colors.error.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _draft.isFetchSuccess
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.error_outline_rounded,
+                  size: 14,
+                  color: _draft.isFetchSuccess
+                      ? colors.success
+                      : colors.error,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _draft.fetchStatusMessage!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _draft.isFetchSuccess
+                          ? colors.success
+                          : colors.error,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
         const SizedBox(height: 12),
         // 4. AI 整图编辑绘图模型 (独立于对话 LLM 的供应商与模型选择)
         AppSectionHeader(title: l10n.settingsSectionImageEdit),
         AppSettingTile(
           title: l10n.settingsImageEditModelTitle,
-          subtitle: l10n.settingsImageEditModelSubtitle,
+          subtitle: l10n.settingsImageEditTip,
           control: AppControlFlow(
             alignment: WrapAlignment.end,
             children: [
@@ -740,30 +690,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                     setState(() => _draft.setImageEditModel(val)),
               ),
             ],
-          ),
-          bottomChild: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: colors.mutedBackground,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: colors.borderSubtle),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 14,
-                  color: colors.primary,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    l10n.settingsImageEditTip,
-                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
 

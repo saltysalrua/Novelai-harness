@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_floating_dock.dart';
-import '../../../core/widgets/app_tool_chip.dart';
+import '../../../core/widgets/app_icon_button.dart';
 
 /// 画板圈选工具类型
 enum AnnotationToolMode {
@@ -130,7 +131,7 @@ class BoardAnnotationToolbar extends StatelessWidget {
   }
 }
 
-/// 工具坞单键 (委托至统一的 [AppToolChip] 原子组件)
+/// 工具坞单键 (纯图标 + Tooltip，委托至统一的 [AppIconButton] 原子组件)
 class BoardToolbarItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -147,13 +148,16 @@ class BoardToolbarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppToolChip(
+    return AppIconButton(
       icon: icon,
-      label: label,
-      isSelected: isSelected,
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      fontSize: 12,
+      tooltip: label,
+      size: 32,
+      iconSize: 16,
+      radius: AppRadius.md,
+      variant: isSelected
+          ? AppIconButtonVariant.primary
+          : AppIconButtonVariant.ghost,
+      onPressed: onTap,
     );
   }
 }

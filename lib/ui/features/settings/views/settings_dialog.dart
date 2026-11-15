@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
@@ -352,39 +353,29 @@ class _SettingsDialogState extends State<SettingsDialog> {
   Widget _buildContentHeader(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
-    final (title, subtitle) = switch (_activeTabIndex) {
-      0 => (l10n.settingsTabGeneral, l10n.settingsSubtitleGeneral),
-      1 => (l10n.settingsTabModels, l10n.settingsSubtitleModels),
-      2 => (l10n.settingsTabPresets, l10n.settingsSubtitlePresets),
-      3 => (l10n.settingsTabDefaults, l10n.settingsSubtitleDefaults),
-      4 => (l10n.settingsTabBill, l10n.settingsSubtitleBill),
-      _ => (l10n.settings, ''),
+    final title = switch (_activeTabIndex) {
+      0 => l10n.settingsTabGeneral,
+      1 => l10n.settingsTabModels,
+      2 => l10n.settingsTabPresets,
+      3 => l10n.settingsTabDefaults,
+      4 => l10n.settingsTabBill,
+      _ => l10n.settings,
     };
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 20, 20, 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 13, color: colors.textSecondary),
-                ),
-              ],
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
           IconButton(
@@ -409,29 +400,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          TextButton(
+          AppActionButton(
+            label: l10n.cancel,
+            variant: AppActionButtonVariant.ghost,
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              l10n.cancel,
-              style: TextStyle(color: colors.textSecondary, fontSize: 13),
-            ),
           ),
           const SizedBox(width: 10),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
+          AppActionButton(
+            label: l10n.settingsSaveButton,
+            variant: AppActionButtonVariant.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
             onPressed: _handleSave,
-            child: Text(
-              l10n.settingsSaveButton,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
           ),
         ],
       ),

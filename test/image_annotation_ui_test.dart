@@ -135,21 +135,21 @@ void main() {
       await tester.pump(const Duration(milliseconds: 150));
 
       // 验证顶部工具栏按键
-      expect(find.text('漫游'), findsOneWidget);
-      expect(find.text('圈选选区'), findsOneWidget);
-      expect(find.text('图钉锚点'), findsOneWidget);
-      expect(find.text('+ 便利贴'), findsOneWidget);
-      expect(find.text('适应视口'), findsOneWidget);
+      expect(find.byTooltip('漫游'), findsOneWidget);
+      expect(find.byTooltip('圈选选区'), findsOneWidget);
+      expect(find.byTooltip('图钉锚点'), findsOneWidget);
+      expect(find.byTooltip('+ 便利贴'), findsOneWidget);
+      expect(find.byTooltip('适应视口'), findsOneWidget);
 
       // 验证主图卡片标识
-      expect(find.text('主图 (当前生成图)'), findsOneWidget);
+      expect(find.text('主图'), findsOneWidget);
 
       // 验证底部操作按钮
       expect(find.text('退出批注'), findsOneWidget);
-      expect(find.text('发送全部批注到 AI'), findsOneWidget);
+      expect(find.text('发送批注'), findsOneWidget);
 
       // 点击 '+ 便利贴' 添加一张新便利贴
-      await tester.tap(find.text('+ 便利贴'));
+      await tester.tap(find.byTooltip('+ 便利贴'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 150));
 

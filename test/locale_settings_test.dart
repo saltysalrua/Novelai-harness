@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/locale/app_locale_controller.dart';
+import 'package:novelai_harness/ui/core/widgets/app_dropdown.dart';
 import 'package:novelai_harness/ui/features/settings/widgets/general_settings_tab.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -189,7 +190,7 @@ void main() {
       expect(draft.localePreference, AppLocalePreference.system);
 
       // 语言下拉当前显示「跟随系统」，展开并选择 English
-      await tester.tap(find.byType(DropdownButton<AppLocalePreference>));
+      await tester.tap(find.byType(AppDropdown<AppLocalePreference>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('English').last);
       await tester.pumpAndSettle();

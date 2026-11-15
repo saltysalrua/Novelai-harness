@@ -159,7 +159,7 @@ void main() {
     testWidgets('便利贴右下角手柄拖拽可调宽高', (tester) async {
       final vm = await _pumpBoard(tester);
 
-      await tester.tap(find.text('+ 便利贴'));
+      await tester.tap(find.byTooltip('+ 便利贴'));
       await tester.pump();
       expect(vm.board.boardData.noteNodes, hasLength(1));
       final note = vm.board.boardData.noteNodes.single;

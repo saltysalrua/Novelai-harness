@@ -7,6 +7,7 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_search_field.dart';
 import 'tag_inspiration_presets.dart';
 import 'tag_suggestion_tile.dart';
@@ -216,49 +217,13 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
               final group = kTagInspirationGroups[index];
               final isSelected = index == _activeCategoryIndex;
 
-              return InkWell(
-                onTap: () => setState(() => _activeCategoryIndex = index),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? colors.cardBackground
-                        : Colors.transparent,
-                    border: isSelected
-                        ? Border(
-                            left: BorderSide(color: colors.primary, width: 3),
-                          )
-                        : null,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        group.icon,
-                        size: 15,
-                        color: isSelected
-                            ? colors.primary
-                            : colors.textSecondary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          group.localizedTitle(context.l10n),
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: isSelected
-                                ? colors.primary
-                                : colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: AppNavTile(
+                  icon: group.icon,
+                  title: group.localizedTitle(context.l10n),
+                  isSelected: isSelected,
+                  onTap: () => setState(() => _activeCategoryIndex = index),
                 ),
               );
             },
@@ -270,17 +235,6 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Text(
-                kTagInspirationGroups[_activeCategoryIndex].localizedTitle(
-                  context.l10n,
-                ),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,

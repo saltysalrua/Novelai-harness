@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/context_l10n.dart';
 
@@ -258,26 +259,17 @@ class _ToolEditorDialogState extends State<ToolEditorDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppActionButton(
+          label: isReadOnly ? l10n.close : l10n.cancel,
+          variant: AppActionButtonVariant.ghost,
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(
-            isReadOnly ? l10n.close : l10n.cancel,
-            style: TextStyle(color: colors.textSecondary),
-          ),
         ),
         if (!isReadOnly) ...[
           const SizedBox(width: 8),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
+          AppActionButton(
+            label: l10n.toolSave,
+            variant: AppActionButtonVariant.primary,
             onPressed: _saveCustomTool,
-            child: Text(l10n.toolSave),
           ),
         ],
       ],
