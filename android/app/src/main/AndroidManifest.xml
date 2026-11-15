@@ -1,5 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+ (API 33+) 访问图库/图片并在系统设置中显示「照片和视频」权限入口 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <!-- Android 12 及以下 (API <= 32) 读取外部存储并在系统设置中显示「存储/文件和媒体」权限入口 -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
     <!-- Android 9 及以下直接写公共 Pictures 目录时需要；
          Android 10+ 作用域存储经 MediaStore 写入，不再需要该权限。 -->
     <uses-permission
@@ -13,6 +19,7 @@
         android:label="NovelAI Harness"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"

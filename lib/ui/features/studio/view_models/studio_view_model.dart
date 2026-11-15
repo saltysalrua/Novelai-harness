@@ -747,8 +747,21 @@ class StudioViewModel extends ChangeNotifier
 
   /// 初始化 Studio
   Future<void> init() async {
-    _config = await _configService.loadConfig();
+    var storageDegraded = false;
+    try {
+      _config = await _configService.loadConfig();
+    } catch (_) {
+      storageDegraded = true;
+      try {
+        _config = await _configService.loadConfigTolerant();
+      } catch (_) {
+        _config = const AppConfig();
+      }
+    }
     _syncVmLocale();
+    if (storageDegraded) {
+      _errorMessage = vmL10n.bootStorageFallbackBanner;
+    }
     _syncGalleryExportHook();
     final lastPrompt = await _configService.loadLastPrompt();
     final applyFixed = await _configService.loadApplyFixedPrompts();
@@ -827,23 +840,27 @@ class StudioViewModel extends ChangeNotifier
     _setupHarnessAndTools();
 
     // 初始化会话日志并续接上次对话 (Pi --continue 语义)
-    await _sessionLog.init(baseDir: _sessionLogBaseDir);
-    await _usageLedger.init(baseDir: _sessionLog.baseDirPath);
-    final snapshot = await _sessionLog.loadLatestSessionAsync();
-    if (snapshot != null && snapshot.messages.isNotEmpty) {
-      _harness.restoreMessages(snapshot.messages);
-      _harness.restoreContextState(_sessionLog.loadContextState());
-      _sessionModelUsage = {
-        for (final e in snapshot.sessionUsage.entries)
-          displayNameForModelKey(e.key): e.value,
-      };
+    try {
+      await _sessionLog.init(baseDir: _sessionLogBaseDir);
+      await _usageLedger.init(baseDir: _sessionLog.baseDirPath);
+      final snapshot = await _sessionLog.loadLatestSessionAsync();
+      if (snapshot != null && snapshot.messages.isNotEmpty) {
+        _harness.restoreMessages(snapshot.messages);
+        _harness.restoreContextState(_sessionLog.loadContextState());
+        _sessionModelUsage = {
+          for (final e in snapshot.sessionUsage.entries)
+            displayNameForModelKey(e.key): e.value,
+        };
+      }
+      _sessionLog.recordModelChange(
+        _config.activeLlmProvider.id,
+        _config.activeLlmProvider.activeModel.id,
+      );
+      _sessionLog.recordThinkingLevelChange(_currentThinkingEffort.id);
+      await refreshSessions();
+    } catch (_) {
+      if (!storageDegraded) rethrow;
     }
-    _sessionLog.recordModelChange(
-      _config.activeLlmProvider.id,
-      _config.activeLlmProvider.activeModel.id,
-    );
-    _sessionLog.recordThinkingLevelChange(_currentThinkingEffort.id);
-    await refreshSessions();
 
     // 加载持久化的图像历史
     if (_config.enableImagePersistence && _config.saveDirectory.isNotEmpty) {
@@ -877,6 +894,8 @@ class StudioViewModel extends ChangeNotifier
 
     notifyListeners();
 
+    unawaited(_promptAndroidStoragePermissionOnce());
+
     // 后台加载账号信息
     if (_config.novelAiKey.isNotEmpty) {
       await refreshAccountInfo();
@@ -889,6 +908,20 @@ class StudioViewModel extends ChangeNotifier
         enabled: _config.enableTagDictionaryAutoUpdate,
       );
     }());
+  }
+
+  /// Android 首次启动时引导申请图片/存储运行时权限（非阻塞：拒绝仍可正常进入）。
+  Future<void> _promptAndroidStoragePermissionOnce() async {
+    final mediaStore = MediaStoreService.instance;
+    if (!mediaStore.isSupported) return;
+    try {
+      if (await mediaStore.hasStoragePermission()) return;
+      if (await _configService.hasPromptedAndroidStoragePermission()) return;
+      await _configService.markAndroidStoragePermissionPrompted();
+      await mediaStore.requestStoragePermission();
+    } catch (_) {
+      // 权限通道异常不阻塞工作台运行
+    }
   }
 
   void _notifyHistoryThumbnails() {

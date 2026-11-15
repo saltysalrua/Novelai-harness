@@ -34,6 +34,54 @@ class MediaStoreService {
   /// 是否运行在支持该通道的安卓环境。
   bool get isSupported => _isAndroid;
 
+  /// 检查当前是否已获得所需的存储/图片读取运行时权限。
+  ///
+  /// 非 Android 平台返回 `true`；通道异常时保守返回 `false`。
+  Future<bool> hasStoragePermission() async {
+    if (!_isAndroid) return true;
+    try {
+      final granted = await _channel.invokeMethod<bool>('hasStoragePermission');
+      return granted ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// 向系统发起存储/图库运行时权限请求。
+  ///
+  /// - Android 13+ 请求 `READ_MEDIA_IMAGES`；
+  /// - Android 10–12 请求 `READ_EXTERNAL_STORAGE`；
+  /// - Android 9 及以下请求读写外部存储权限。
+  /// 非 Android 平台直接返回 `true`；被拒绝或通道异常返回 `false`，不阻塞主流程。
+  Future<bool> requestStoragePermission() async {
+    if (!_isAndroid) return true;
+    try {
+      final granted = await _channel.invokeMethod<bool>(
+        'requestStoragePermission',
+      );
+      return granted ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// 打开本应用的系统设置详情页，便于用户在「永久拒绝」后手动授予权限。
+  Future<bool> openAppSettings() async {
+    if (!_isAndroid) return false;
+    try {
+      final opened = await _channel.invokeMethod<bool>('openAppSettings');
+      return opened ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   /// 把 PNG 字节写入公共图片媒体库 `Pictures/<subDir>`，返回展示路径。
   ///
   /// [subDir] 为可选的相对子目录 (如 `NovelAI/2026-09`)，为空时直接落

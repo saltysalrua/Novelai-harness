@@ -3385,6 +3385,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bootRetry => '重试';
 
   @override
+  String get bootGrantPermission => '授予存储权限';
+
+  @override
+  String get bootOpenSettings => '打开应用设置';
+
+  @override
+  String get bootContinueAnyway => '继续进入（仅内存缓存）';
+
+  @override
+  String get bootStorageFallbackBanner => '图片存储目录不可用，当前以临时内存模式运行；请检查权限或剩余空间。';
+
+  @override
   String get settingsSectionContextManagement => '上下文管理';
 
   @override

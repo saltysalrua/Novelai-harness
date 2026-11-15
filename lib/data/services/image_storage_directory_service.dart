@@ -11,12 +11,19 @@ class ImageStorageDirectoryService {
   ImageStorageDirectoryService({
     bool? isAndroid,
     Future<Directory> Function()? documentsDirectory,
+    List<Future<Directory?> Function()>? fallbackDirectories,
   }) : _isAndroid = isAndroid ?? Platform.isAndroid,
        _documentsDirectory =
-           documentsDirectory ?? getApplicationDocumentsDirectory;
+           documentsDirectory ?? getApplicationDocumentsDirectory,
+       _fallbackDirectories =
+           fallbackDirectories ??
+           (documentsDirectory == null
+               ? [getApplicationSupportDirectory, getExternalStorageDirectory]
+               : const []);
 
   final bool _isAndroid;
   final Future<Directory> Function() _documentsDirectory;
+  final List<Future<Directory?> Function()> _fallbackDirectories;
 
   Future<String> resolve(String configuredDirectory) async {
     if (!_isAndroid && configuredDirectory.isNotEmpty) {
@@ -26,19 +33,33 @@ class ImageStorageDirectoryService {
       return configuredDirectory;
     }
 
-    try {
-      final documents = await _documentsDirectory();
-      final directory = Directory(p.join(documents.path, 'NovelAI_Output'));
-      await directory.create(recursive: true);
-      if (_isAndroid && !await _canPersist(directory.path)) {
-        throw FileSystemException('无法读写应用图片存储目录', directory.path);
+    Object? primaryError;
+    StackTrace? primaryStack;
+    final candidates = <Future<Directory?> Function()>[
+      _documentsDirectory,
+      ..._fallbackDirectories,
+    ];
+    for (final provider in candidates) {
+      try {
+        final baseDir = await provider();
+        if (baseDir == null) continue;
+        final directory = Directory(p.join(baseDir.path, 'NovelAI_Output'));
+        await directory.create(recursive: true);
+        if (_isAndroid && !await _canPersist(directory.path)) {
+          throw FileSystemException('无法读写应用图片存储目录', directory.path);
+        }
+        return directory.path;
+      } catch (error, stack) {
+        primaryError ??= error;
+        primaryStack ??= stack;
       }
-      return directory.path;
-    } catch (_) {
-      // 安卓不能静默返回空目录：仓储会因此只留内存图片，重启即丢失。
-      if (_isAndroid) rethrow;
-      return '';
     }
+
+    // 安卓不能静默返回空目录：仓储会因此只留内存图片，重启即丢失。
+    if (_isAndroid && primaryError != null) {
+      Error.throwWithStackTrace(primaryError, primaryStack!);
+    }
+    return '';
   }
 
   Future<bool> _canPersist(String path) async {

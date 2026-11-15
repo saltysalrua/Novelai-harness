@@ -383,4 +383,44 @@ void main() {
       );
     });
   });
+
+  group('Android 存储权限通道', () {
+    test('非 Android 平台默认已授权且不打开设置', () async {
+      final nonAndroid = MediaStoreService(isAndroid: false);
+      expect(await nonAndroid.hasStoragePermission(), isTrue);
+      expect(await nonAndroid.requestStoragePermission(), isTrue);
+      expect(await nonAndroid.openAppSettings(), isFalse);
+    });
+
+    test('Android 平台正确转发权限检查、请求与设置跳转', () async {
+      final methods = <String>[];
+      const channel = MethodChannel(MediaStoreService.channelName);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            methods.add(call.method);
+            return switch (call.method) {
+              'hasStoragePermission' => false,
+              'requestStoragePermission' => true,
+              'openAppSettings' => true,
+              _ => null,
+            };
+          });
+
+      final androidService = MediaStoreService(
+        isAndroid: true,
+        channel: channel,
+      );
+      expect(await androidService.hasStoragePermission(), isFalse);
+      expect(await androidService.requestStoragePermission(), isTrue);
+      expect(await androidService.openAppSettings(), isTrue);
+      expect(
+        methods,
+        equals([
+          'hasStoragePermission',
+          'requestStoragePermission',
+          'openAppSettings',
+        ]),
+      );
+    });
+  });
 }

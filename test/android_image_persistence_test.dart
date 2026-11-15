@@ -118,6 +118,27 @@ void main() {
       await expectLater(missingProvider.resolve(''), throwsStateError);
     });
 
+    test('主目录失败时自动降级到备用目录，且支持配置容错回退空串', () async {
+      final fallbackBase = Directory(p.join(temp.path, 'support'));
+      final withFallback = ImageStorageDirectoryService(
+        isAndroid: true,
+        documentsDirectory: () async => throw StateError('docs unavailable'),
+        fallbackDirectories: [() async => null, () async => fallbackBase],
+      );
+      final expectedFallback = p.join(fallbackBase.path, 'NovelAI_Output');
+      expect(await withFallback.resolve(''), expectedFallback);
+      expect(Directory(expectedFallback).existsSync(), isTrue);
+
+      final unavailable = ImageStorageDirectoryService(
+        isAndroid: true,
+        documentsDirectory: () async => throw StateError('docs unavailable'),
+      );
+      final degraded = await ConfigService(
+        imageStorageDirectoryService: unavailable,
+      ).loadConfigTolerant();
+      expect(degraded.saveDirectory, '');
+    });
+
     test('桌面自定义目录保持原语义，不被安卓策略覆盖', () async {
       final desktop = ImageStorageDirectoryService(
         isAndroid: false,

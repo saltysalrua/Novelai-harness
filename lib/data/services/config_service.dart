@@ -594,6 +594,8 @@ class ConfigService {
       'novelai_layout_canvas_history_open';
   static const String _keyLeftSidebarCollapsed =
       'novelai_layout_left_sidebar_collapsed';
+  static const String _keyAndroidStoragePermissionPrompted =
+      'novelai_android_storage_permission_prompted';
 
   // 提示词输入框高度持久化 Keys
   static const String _keyPromptHeightStacked =
@@ -658,7 +660,17 @@ class ConfigService {
   }
 
   /// 加载配置 (优先 SharedPreferences，首次启动尝试自动读取 ~/.pi/agent/novelai.json 与环境变量)
-  Future<AppConfig> loadConfig() async {
+  Future<AppConfig> loadConfig() =>
+      _loadConfig(tolerateStorageDirectoryFailure: false);
+
+  /// 容错加载配置：存储目录不可用时回退为空串（临时内存模式）而不抛错，
+  /// 供启动降级恢复路径使用。
+  Future<AppConfig> loadConfigTolerant() =>
+      _loadConfig(tolerateStorageDirectoryFailure: true);
+
+  Future<AppConfig> _loadConfig({
+    required bool tolerateStorageDirectoryFailure,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
 
     String naiKey = prefs.getString(_keyNovelAiKey) ?? '';
@@ -766,10 +778,15 @@ class ConfigService {
     }
 
     // 修复安卓旧版本选中的不可写公共目录；将修正路径落盘，重启保持一致。
-    final resolvedSaveDir = await resolveImageSaveDirectory(saveDir);
-    if (resolvedSaveDir != saveDir) {
-      saveDir = resolvedSaveDir;
-      await prefs.setString(_keySaveDir, saveDir);
+    try {
+      final resolvedSaveDir = await resolveImageSaveDirectory(saveDir);
+      if (resolvedSaveDir != saveDir) {
+        saveDir = resolvedSaveDir;
+        await prefs.setString(_keySaveDir, saveDir);
+      }
+    } catch (_) {
+      if (!tolerateStorageDirectoryFailure) rethrow;
+      saveDir = '';
     }
 
     // LLM 多供应商配置加载与平滑迁移
@@ -1534,6 +1551,18 @@ class ConfigService {
   Future<void> saveWindowMaximized(bool isMaximized) async {
     final prefs = await SharedPreferences.getInstance();
     await _saveChangedPreference(prefs, _keyWindowMaximized, isMaximized);
+  }
+
+  /// 是否已在 Android 端引导请求过存储/图片权限（避免用户拒绝后每次重启重复弹窗）
+  Future<bool> hasPromptedAndroidStoragePermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyAndroidStoragePermissionPrompted) ?? false;
+  }
+
+  /// 记录已触发过 Android 存储/图片权限引导弹窗
+  Future<void> markAndroidStoragePermissionPrompted() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyAndroidStoragePermissionPrompted, true);
   }
 
   Map<String, dynamic>? _tryLoadLocalPiNovelAiJson() {

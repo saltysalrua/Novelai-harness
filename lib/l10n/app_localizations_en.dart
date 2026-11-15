@@ -3632,6 +3632,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bootRetry => 'Retry';
 
   @override
+  String get bootGrantPermission => 'Grant storage permission';
+
+  @override
+  String get bootOpenSettings => 'Open app settings';
+
+  @override
+  String get bootContinueAnyway => 'Continue anyway (temporary memory)';
+
+  @override
+  String get bootStorageFallbackBanner =>
+      'Image storage directory unavailable; running in temporary memory mode. Check permissions or free space.';
+
+  @override
   String get settingsSectionContextManagement => 'Context management';
 
   @override

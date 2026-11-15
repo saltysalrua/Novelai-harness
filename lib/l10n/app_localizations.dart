@@ -6236,6 +6236,30 @@ abstract class AppLocalizations {
   /// **'重试'**
   String get bootRetry;
 
+  /// No description provided for @bootGrantPermission.
+  ///
+  /// In zh, this message translates to:
+  /// **'授予存储权限'**
+  String get bootGrantPermission;
+
+  /// No description provided for @bootOpenSettings.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开应用设置'**
+  String get bootOpenSettings;
+
+  /// No description provided for @bootContinueAnyway.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续进入（仅内存缓存）'**
+  String get bootContinueAnyway;
+
+  /// No description provided for @bootStorageFallbackBanner.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片存储目录不可用，当前以临时内存模式运行；请检查权限或剩余空间。'**
+  String get bootStorageFallbackBanner;
+
   /// No description provided for @settingsSectionContextManagement.
   ///
   /// In zh, this message translates to:
