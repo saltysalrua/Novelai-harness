@@ -71,8 +71,8 @@ jobs:
       # subosito/flutter-action v2.21.0
       - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
         with:
-          flutter-version: 3.44.0-0.3.pre
-          channel: beta
+          flutter-version: 3.47.4
+          channel: stable
           cache: true
 
       - name: Build Windows release
@@ -122,8 +122,8 @@ jobs:
       # subosito/flutter-action v2.21.0（版本与 Windows 保持一致）
       - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
         with:
-          flutter-version: 3.44.0-0.3.pre
-          channel: beta
+          flutter-version: 3.47.4
+          channel: stable
           cache: true
 
       - name: Configure release signing (optional)
