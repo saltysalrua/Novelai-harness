@@ -10,7 +10,7 @@ import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_progress_bar.dart';
 import '../view_models/studio_view_model.dart';
 
-/// 左侧面板底部常驻操作坞：账号等级 / 点数 / Opus 免点标识 / V5 体力条 / 刷新 + 主操作按钮
+/// 左侧面板底部常驻操作坞：统一状态条 (账号等级/点数/V5 体力 或 ComfyUI 状态) + 主操作按钮
 ///
 /// 主操作按钮随侧栏页签切换：修复页签下为「开始修复」(执行局部修复)，
 /// 其余页签为「生成图片」(结合预计点数 / 生成中可点击终止)。
@@ -72,173 +72,257 @@ class GenerateDock extends StatelessWidget {
         final isRepairing =
             viewModel.isExecutingInpaint || viewModel.isExecutingAiEdit;
 
-        final percent = info != null
-            ? (info.staminaPercent / 100.0).clamp(0.0, 1.0)
-            : 0.0;
-        final staminaColor = (info?.staminaPercent ?? 0) >= 80
-            ? colors.success
-            : (info?.staminaPercent ?? 0) >= 30
-            ? colors.warning
-            : colors.error;
+        final labelStyle = TextStyle(
+          fontSize: compact ? 14 : 13.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.1,
+        );
 
         return Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? AppSpacing.md : AppSpacing.lg,
-            vertical: compact ? AppSpacing.sm : 14,
+          padding: EdgeInsets.fromLTRB(
+            compact ? AppSpacing.md : 12,
+            compact ? AppSpacing.sm : 8,
+            compact ? AppSpacing.md : 12,
+            compact ? AppSpacing.sm : 12,
           ),
           decoration: BoxDecoration(
             color: colors.cardBackground,
-            border: Border(top: BorderSide(color: colors.borderDefault)),
+            border: Border(top: BorderSide(color: colors.borderSubtle)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ComfyUI 模式：账号栏换成 Bridge 连接状态 (无点数概念)
-              if (viewModel.isComfyUiMode)
-                _ComfyStatusRow(viewModel: viewModel, compact: compact)
-              else if (info == null)
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                    context.l10n.dockNoAccountInfo,
-                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                    overflow: compact ? null : TextOverflow.ellipsis,
+              // 顶部状态条：ComfyUI Bridge 状态 / 未获取账号 / 账号点数与 V5 内联体力
+              _StatusStripContainer(
+                child: viewModel.isComfyUiMode
+                    ? _ComfyStatusRow(viewModel: viewModel, compact: compact)
+                    : (info == null
+                          ? _EmptyAccountRow(
+                              viewModel: viewModel,
+                              compact: compact,
+                            )
+                          : _AccountStatusStrip(
+                              viewModel: viewModel,
+                              info: info,
+                              compact: compact,
+                            )),
+              ),
+
+              const SizedBox(height: AppSpacing.sm),
+
+              // 主操作按钮 (修复页签 = 开始修复；其余 = 生成图片)
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isInpaintTab
+                      ? colors.primary
+                      : _buildButtonColor(context, estimatedCost),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: colors.mutedBackground,
+                  disabledForegroundColor: colors.textMuted,
+                  minimumSize: Size(double.infinity, compact ? 44 : 38),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: compact ? 10 : 8,
+                  ),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  elevation: 0,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                 ),
-                const SizedBox(width: 6),
-                _RefreshButton(viewModel: viewModel, compact: compact),
-              ],
-            )
-          else ...[
-            // 等级、点数与刷新
-            Row(
-              children: [
-                Expanded(
-                  child: Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.xs,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      AppBadge(
-                        label: info.tierName,
-                        shape: AppBadgeShape.pill,
-                        variant: AppBadgeVariant.primary,
-                      ),
-                      Text(
-                        '${info.totalAnlas} Anlas',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: colors.textPrimary,
+                onPressed: isInpaintTab
+                    ? (isRepairing || viewModel.isGenerating
+                          ? null
+                          : () => viewModel.executeInpaint())
+                    : (viewModel.isGenerating
+                          ? () => viewModel.abortGeneration()
+                          : () => viewModel.generateImage()),
+                icon: isInpaintTab
+                    ? (isAiEditMode
+                          ? const Icon(Icons.auto_awesome, size: 16)
+                          : const Icon(Icons.auto_fix_high_outlined, size: 16))
+                    : (viewModel.isGenerating
+                          ? const Icon(Icons.stop_circle_outlined, size: 16)
+                          : const Icon(Icons.auto_awesome, size: 16)),
+                label: isInpaintTab
+                    ? Text(
+                        isAiEditMode
+                            ? (isRepairing
+                                  ? context.l10n.dockAiEditing
+                                  : context.l10n.startAiEdit)
+                            : (isRepairing
+                                  ? context.l10n.dockInpainting
+                                  : context.l10n.startInpaint),
+                        textAlign: TextAlign.center,
+                        style: labelStyle,
+                      )
+                    : ListenableBuilder(
+                        // 生成中的步数文案仅随实时进度控制器局部刷新
+                        listenable: viewModel.liveProgressController,
+                        builder: (context, _) => Text(
+                          _buildButtonLabel(context, estimatedCost),
+                          textAlign: TextAlign.center,
+                          style: labelStyle,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                _RefreshButton(viewModel: viewModel, compact: compact),
-              ],
-            ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 
-            // 仅在当前选择 V5 系列模型时展示体力进度条
-            if (viewModel.params.model.isV5) ...[
-              SizedBox(height: compact ? 0 : AppSpacing.sm),
+/// 底部操作坞顶部统一状态条容器 (对齐工作台微边框胶囊容器语言)
+class _StatusStripContainer extends StatelessWidget {
+  final Widget child;
+
+  const _StatusStripContainer({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.mutedBackground.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: colors.borderSubtle),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// 未获取账号信息时的紧凑状态行
+class _EmptyAccountRow extends StatelessWidget {
+  final StudioViewModel viewModel;
+  final bool compact;
+
+  const _EmptyAccountRow({required this.viewModel, required this.compact});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            context.l10n.dockNoAccountInfo,
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            overflow: compact ? null : TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 6),
+        _RefreshButton(viewModel: viewModel, compact: compact),
+      ],
+    );
+  }
+}
+
+/// 账号等级 / Anlas 点数 / V5 体力内联单行状态条 (极端窄宽自动折行)
+class _AccountStatusStrip extends StatelessWidget {
+  final StudioViewModel viewModel;
+  final NaiAccountInfo info;
+  final bool compact;
+
+  const _AccountStatusStrip({
+    required this.viewModel,
+    required this.info,
+    required this.compact,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final showStamina = viewModel.params.model.isV5;
+    final percent = (info.staminaPercent / 100.0).clamp(0.0, 1.0);
+    final staminaColor = info.staminaPercent >= 80
+        ? colors.success
+        : info.staminaPercent >= 30
+        ? colors.warning
+        : colors.error;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  AppBadge(
+                    label: info.tierName,
+                    shape: AppBadgeShape.rounded,
+                    variant: AppBadgeVariant.primary,
+                    fontSize: 10.5,
+                  ),
+                  const SizedBox(width: 6),
                   Text(
-                    context.l10n.v5Stamina,
+                    '${info.totalAnlas} Anlas',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: AppProgressBar(
-                      value: percent,
-                      color: staminaColor,
-                      backgroundColor: colors.mutedBackground,
-                      height: 5,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${info.staminaPercent.toStringAsFixed(0)}%',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: staminaColor,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
                     ),
                   ),
                 ],
               ),
-            ],
-          ],
-
-          const SizedBox(height: AppSpacing.md),
-
-          // 主操作按钮 (修复页签 = 开始修复；其余 = 生成图片)
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isInpaintTab
-                  ? colors.primary
-                  : _buildButtonColor(context, estimatedCost),
-              foregroundColor: Colors.white,
-              minimumSize: compact ? const Size(0, 48) : null,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-            ),
-            onPressed: isInpaintTab
-                ? (isRepairing || viewModel.isGenerating
-                      ? null
-                      : () => viewModel.executeInpaint())
-                : (viewModel.isGenerating
-                      ? () => viewModel.abortGeneration()
-                      : () => viewModel.generateImage()),
-            icon: isInpaintTab
-                ? (isAiEditMode
-                      ? const Icon(Icons.auto_awesome, size: 17)
-                      : const Icon(Icons.auto_fix_high_outlined, size: 17))
-                : (viewModel.isGenerating
-                      ? const Icon(Icons.stop_circle_outlined, size: 17)
-                      : const Icon(Icons.auto_awesome, size: 17)),
-            label: isInpaintTab
-                ? Text(
-                    isAiEditMode
-                        ? (isRepairing
-                              ? context.l10n.dockAiEditing
-                              : context.l10n.startAiEdit)
-                        : (isRepairing
-                              ? context.l10n.dockInpainting
-                              : context.l10n.startInpaint),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: compact ? 14 : 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  )
-                : ListenableBuilder(
-                    // 生成中的步数文案仅随实时进度控制器局部刷新
-                    listenable: viewModel.liveProgressController,
-                    builder: (context, _) => Text(
-                      _buildButtonLabel(context, estimatedCost),
-                      textAlign: TextAlign.center,
+              if (showStamina) ...[
+                Container(
+                  width: 1,
+                  height: 12,
+                  color: colors.borderDefault,
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      context.l10n.v5Stamina,
                       style: TextStyle(
-                        fontSize: compact ? 14 : 15,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: colors.textSecondary,
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 38,
+                      child: AppProgressBar(
+                        value: percent,
+                        color: staminaColor,
+                        backgroundColor: colors.borderDefault.withValues(
+                          alpha: 0.6,
+                        ),
+                        height: 4,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${info.staminaPercent.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w600,
+                        color: staminaColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
-        ],
-      ),
-        );
-      },
+        ),
+        const SizedBox(width: 6),
+        _RefreshButton(viewModel: viewModel, compact: compact),
+      ],
     );
   }
 }
@@ -256,8 +340,9 @@ class _RefreshButton extends StatelessWidget {
     return AppAsyncIconButton(
       isLoading: viewModel.isLoadingAccount,
       icon: Icons.refresh_rounded,
-      size: compact ? 48 : 26,
-      iconSize: compact ? 20 : 16,
+      size: compact ? 36 : 24,
+      iconSize: compact ? 18 : 14,
+      loadingIndicatorSize: compact ? 15 : 12,
       variant: AppIconButtonVariant.ghost,
       tooltip: context.l10n.dockRefreshTooltip,
       onPressed: viewModel.refreshAccountInfo,
@@ -293,8 +378,8 @@ class _ComfyStatusRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 8,
-          height: 8,
+          width: 7,
+          height: 7,
           decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
         ),
         const SizedBox(width: 8),
@@ -307,14 +392,18 @@ class _ComfyStatusRow extends StatelessWidget {
               Text(
                 statusText,
                 style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
               ),
               Text(
                 viewModel.config.comfyUiBaseUrl,
-                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontFamily: 'monospace',
+                  color: colors.textSecondary,
+                ),
               ),
             ],
           ),
@@ -323,8 +412,9 @@ class _ComfyStatusRow extends StatelessWidget {
         AppAsyncIconButton(
           isLoading: status == ComfyUiConnectionStatus.connecting,
           icon: Icons.refresh_rounded,
-          size: compact ? 48 : 26,
-          iconSize: compact ? 20 : 16,
+          size: compact ? 36 : 24,
+          iconSize: compact ? 18 : 14,
+          loadingIndicatorSize: compact ? 15 : 12,
           variant: AppIconButtonVariant.ghost,
           tooltip: l10n.dockRefreshTooltip,
           onPressed: viewModel.refreshComfyUiStatus,

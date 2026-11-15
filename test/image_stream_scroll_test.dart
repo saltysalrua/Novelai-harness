@@ -78,14 +78,15 @@ final kTestPngBytes = Uint8List.fromList([
   0x82,
 ]);
 
-NaiGeneratedImage _image(String id) => NaiGeneratedImage(
-  id: id,
-  bytes: kTestPngBytes,
-  params: const NaiGenerationParams(prompt: 'p', width: 832, height: 1216),
-  seed: 1,
-  isOpusFree: true,
-  createdAt: DateTime.now(),
-);
+NaiGeneratedImage _image(String id, {int width = 832, int height = 1216}) =>
+    NaiGeneratedImage(
+      id: id,
+      bytes: kTestPngBytes,
+      params: NaiGenerationParams(prompt: 'p', width: width, height: height),
+      seed: 1,
+      isOpusFree: true,
+      createdAt: DateTime.now(),
+    );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -298,5 +299,69 @@ void main() {
       final centerY = box.localToGlobal(Offset(0, box.size.height / 2)).dy;
       expect((centerY - 300).abs(), lessThan(8));
     });
+
+    testWidgets(
+      'centers mixed-resolution history images accurately across many jumps',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        const sizes = <(int, int)>[
+          (1472, 704),
+          (1216, 832),
+          (1024, 1024),
+          (832, 1216),
+        ];
+
+        final repo = NovelAiRepository();
+        final vm = StudioViewModel(repository: repo);
+        for (var i = 0; i < 15; i++) {
+          final (w, h) = sizes[i % sizes.length];
+          repo.addImageForTesting(_image('mix-$i', width: w, height: h));
+        }
+        vm.selectImage(vm.gallery.first);
+
+        final controller = CanvasStreamController();
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: SizedBox(
+                width: 800,
+                height: 600,
+                child: ImageStreamView(viewModel: vm, controller: controller),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        for (final targetIndex in [14, 7, 2]) {
+          final target = vm.gallery[targetIndex];
+          controller.scrollToItem(targetIndex, target.id);
+          await tester.pumpAndSettle();
+
+          final ctx = controller.keyFor(target.id).currentContext;
+          expect(
+            ctx,
+            isNotNull,
+            reason: 'index=$targetIndex (${target.id}) should be mounted',
+          );
+          final box = ctx!.findRenderObject() as RenderBox;
+          final centerY = box.localToGlobal(Offset(0, box.size.height / 2)).dy;
+          expect(
+            (centerY - 300).abs(),
+            lessThan(4),
+            reason: 'mixed-res jump index=$targetIndex centerY=$centerY',
+          );
+        }
+      },
+    );
   });
 }

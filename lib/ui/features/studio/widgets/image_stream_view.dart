@@ -12,16 +12,157 @@ import 'character_position_canvas_view.dart';
 import 'image_canvas_actions.dart';
 import 'image_lightbox.dart';
 
+/// 瀑布流卡片之间的固定分隔高度 (上下各 20px padding + 8px 圆点)
+const double kCanvasStreamSeparatorExtent = 48.0;
+
+/// 依据图片纵横比与画板约束计算卡片在瀑布流中的精确高度 (含上下各 2px 边框)
+double canvasStreamCardHeight(
+  NaiGenerationParams params,
+  double maxCardWidth,
+  double maxCardHeight,
+) {
+  final aspect = imageAspectRatioOf(params);
+  if (aspect <= 0) return 400.0;
+  const borderThickness = 4.0; // _canvasCardDecoration 上下各 2px border
+  final innerWidth = math.max(0.0, maxCardWidth - borderThickness);
+  final naturalHeight = innerWidth / aspect + borderThickness;
+  return naturalHeight.clamp(0.0, maxCardHeight);
+}
+
+/// 让某张卡片在视口中垂直居中所需的上下内边距
+double canvasStreamCenteringPadding(
+  double viewportHeight,
+  NaiGenerationParams params,
+  double maxCardWidth,
+  double maxCardHeight,
+) {
+  final cardHeight = canvasStreamCardHeight(
+    params,
+    maxCardWidth,
+    maxCardHeight,
+  );
+  return ((viewportHeight - cardHeight) / 2).clamp(
+    24.0,
+    (viewportHeight / 2).clamp(24.0, 500.0),
+  );
+}
+
 /// 画板垂直图像流的滚动协调器：
 /// 持有滚动控制器与每张图的锚点 Key，供图像流、历史侧边栏与浮动横幅共同驱动滚动定位。
 class CanvasStreamController {
   final ScrollController scrollController = SmoothWheelScrollController();
   final Map<String, GlobalKey> _itemKeys = {};
 
+  StudioViewModel? _viewModel;
+  double _viewportHeight = 0;
+  double _maxCardWidth = 0;
+  double _maxCardHeight = 0;
+  bool _compact = false;
+  int _anchorEpoch = 0;
+
   /// 是否正在程序化调整滚动锚点 (期间暂停"居中图自动选中"检测)
   bool isAdjustingAnchor = false;
 
   GlobalKey keyFor(String id) => _itemKeys.putIfAbsent(id, GlobalKey.new);
+
+  /// 同步当前视口与卡片布局约束，供跳转定位与卡片列表共享单一高度事实源
+  void attachLayout({
+    required StudioViewModel viewModel,
+    required double viewportHeight,
+    required double maxCardWidth,
+    required double maxCardHeight,
+    required bool compact,
+  }) {
+    _viewModel = viewModel;
+    _viewportHeight = viewportHeight;
+    _maxCardWidth = maxCardWidth;
+    _maxCardHeight = maxCardHeight;
+    _compact = compact;
+  }
+
+  /// 基于所有历史图真实宽高比计算目标卡片居中的精确滚动偏移
+  double? computeCenterOffsetForImage(
+    String imageId, {
+    int? fallbackGalleryIndex,
+  }) {
+    final vm = _viewModel;
+    if (vm == null || _viewportHeight <= 0 || _maxCardWidth <= 0) return null;
+    final gallery = vm.gallery;
+    if (gallery.isEmpty) return null;
+
+    var galleryIndex = gallery.indexWhere((item) => item.id == imageId);
+    if (galleryIndex < 0) {
+      if (fallbackGalleryIndex != null &&
+          fallbackGalleryIndex >= 0 &&
+          fallbackGalleryIndex < gallery.length) {
+        galleryIndex = fallbackGalleryIndex;
+      } else {
+        return null;
+      }
+    }
+
+    final isGenerating = vm.isGenerating;
+    final selectedImage =
+        vm.selectedImage ?? (gallery.isNotEmpty ? gallery.first : null);
+    final isEditingPositions =
+        vm.isEditingCharacterPositions || vm.isEditingWatermarkPosition;
+    final targetAspect = imageAspectRatioOf(vm.params);
+    final selectedAspect = selectedImage != null
+        ? imageAspectRatioOf(selectedImage.params)
+        : 0.0;
+    final isAspectMatching =
+        selectedImage != null && (targetAspect - selectedAspect).abs() < 0.01;
+    final showPositionPlaceholder = isEditingPositions && !isAspectMatching;
+
+    final itemParams = <NaiGenerationParams>[
+      if (isGenerating) vm.params,
+      if (showPositionPlaceholder) vm.params,
+      for (final item in gallery) item.params,
+    ];
+    final headerCount =
+        (isGenerating ? 1 : 0) + (showPositionPlaceholder ? 1 : 0);
+    final cardIndex = headerCount + galleryIndex;
+    if (cardIndex < 0 || cardIndex >= itemParams.length) return null;
+    if (itemParams.length <= 1) return 0.0;
+
+    final topPadding = canvasStreamCenteringPadding(
+      _viewportHeight,
+      itemParams.first,
+      _maxCardWidth,
+      _maxCardHeight,
+    );
+    final calculatedBottomPadding = canvasStreamCenteringPadding(
+      _viewportHeight,
+      itemParams.last,
+      _maxCardWidth,
+      _maxCardHeight,
+    );
+    final bottomPadding = _compact
+        ? math.max(76.0, calculatedBottomPadding)
+        : calculatedBottomPadding;
+
+    var offset = topPadding;
+    double? targetCardCenter;
+    for (var i = 0; i < itemParams.length; i++) {
+      final cardHeight = canvasStreamCardHeight(
+        itemParams[i],
+        _maxCardWidth,
+        _maxCardHeight,
+      );
+      if (i == cardIndex) {
+        targetCardCenter = offset + cardHeight / 2.0;
+      }
+      offset += cardHeight;
+      if (i < itemParams.length - 1) {
+        offset += kCanvasStreamSeparatorExtent;
+      }
+    }
+    if (targetCardCenter == null) return null;
+
+    final totalContentHeight = offset + bottomPadding;
+    final maxExtent = math.max(0.0, totalContentHeight - _viewportHeight);
+    return (targetCardCenter - _viewportHeight / 2.0).clamp(0.0, maxExtent);
+  }
 
   void scrollToTop() {
     if (!scrollController.hasClients) return;
@@ -35,6 +176,63 @@ class CanvasStreamController {
   }
 
   void scrollToItem(int index, String imageId) {
+    if (!scrollController.hasClients) return;
+    final targetOffset = computeCenterOffsetForImage(
+      imageId,
+      fallbackGalleryIndex: index,
+    );
+    if (targetOffset != null) {
+      final epoch = ++_anchorEpoch;
+      isAdjustingAnchor = true;
+      final pos = scrollController.position;
+      final clampedTarget = targetOffset.clamp(
+        pos.minScrollExtent,
+        pos.maxScrollExtent,
+      );
+      scrollController
+          .animateTo(
+            clampedTarget,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOutCubic,
+          )
+          .whenComplete(() {
+            if (_anchorEpoch != epoch) return;
+            final ctx = _itemKeys[imageId]?.currentContext;
+            if (ctx != null && ctx.mounted && scrollController.hasClients) {
+              final renderBox = ctx.findRenderObject() as RenderBox?;
+              final scrollRender =
+                  scrollController.position.context.notificationContext
+                          ?.findRenderObject()
+                      as RenderBox?;
+              if (renderBox != null &&
+                  renderBox.hasSize &&
+                  scrollRender != null &&
+                  scrollRender.hasSize) {
+                final itemCenter = renderBox
+                    .localToGlobal(Offset(0, renderBox.size.height / 2))
+                    .dy;
+                final viewportCenter = scrollRender
+                    .localToGlobal(Offset(0, scrollRender.size.height / 2))
+                    .dy;
+                if ((itemCenter - viewportCenter).abs() > 1.0) {
+                  _ensureItemVisible(
+                    ctx,
+                    duration: Duration.zero,
+                    alignment: 0.5,
+                  ).whenComplete(() {
+                    if (_anchorEpoch == epoch) {
+                      isAdjustingAnchor = false;
+                    }
+                  });
+                  return;
+                }
+              }
+            }
+            isAdjustingAnchor = false;
+          });
+      return;
+    }
+
     final itemContext = _itemKeys[imageId]?.currentContext;
     if (itemContext != null) {
       _animateAnchor(
@@ -47,21 +245,21 @@ class CanvasStreamController {
       );
       return;
     }
-    if (!scrollController.hasClients) return;
-    // 目标图在懒加载视口外尚未构建：先按估算高度滚到附近，
-    // 等卡片真实挂载后再二次精准居中 (单靠估算信高度会“只露个头”)
-    final targetOffset = (index * 750.0).clamp(
+    // 布局未附着时的兜底：先按估算高度滚到附近，等卡片挂载后再二次居中
+    final fallbackOffset = (index * 750.0).clamp(
       0.0,
       scrollController.position.maxScrollExtent,
     );
+    final epoch = ++_anchorEpoch;
     isAdjustingAnchor = true;
     scrollController
         .animateTo(
-          targetOffset,
+          fallbackOffset,
           duration: const Duration(milliseconds: 350),
           curve: Curves.easeOutCubic,
         )
-        .then((_) {
+        .whenComplete(() {
+          if (_anchorEpoch != epoch) return;
           final ctx = _itemKeys[imageId]?.currentContext;
           if (ctx == null || !ctx.mounted) {
             isAdjustingAnchor = false;
@@ -72,12 +270,27 @@ class CanvasStreamController {
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
             alignment: 0.5,
-          ).then((_) => isAdjustingAnchor = false);
+          ).whenComplete(() {
+            if (_anchorEpoch == epoch) {
+              isAdjustingAnchor = false;
+            }
+          });
         });
   }
 
   /// 无动画锚定到指定图 (保持用户正在浏览的历史图视野不动)
   void anchorToItemSilently(String imageId) {
+    if (!scrollController.hasClients) return;
+    final targetOffset = computeCenterOffsetForImage(imageId);
+    if (targetOffset != null) {
+      isAdjustingAnchor = true;
+      final pos = scrollController.position;
+      scrollController.jumpTo(
+        targetOffset.clamp(pos.minScrollExtent, pos.maxScrollExtent),
+      );
+      isAdjustingAnchor = false;
+      return;
+    }
     final itemContext = _itemKeys[imageId]?.currentContext;
     if (itemContext == null) return;
     isAdjustingAnchor = true;
@@ -105,8 +318,13 @@ class CanvasStreamController {
   }
 
   void _animateAnchor(Future<void> future) {
+    final epoch = ++_anchorEpoch;
     isAdjustingAnchor = true;
-    future.then((_) => isAdjustingAnchor = false);
+    future.whenComplete(() {
+      if (_anchorEpoch == epoch) {
+        isAdjustingAnchor = false;
+      }
+    });
   }
 
   void dispose() {
@@ -166,7 +384,17 @@ class _ImageStreamViewState extends State<ImageStreamView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxCardHeight = (constraints.maxHeight - 64).clamp(240.0, 1600.0);
-        final maxCardWidth = (constraints.maxWidth - 48).clamp(240.0, 1200.0);
+        final rawMaxCardWidth = (constraints.maxWidth - 48).clamp(240.0, 1200.0);
+        final listInnerWidth = math.max(0.0, constraints.maxWidth - 40);
+        final maxCardWidth = math.min(rawMaxCardWidth, listInnerWidth);
+
+        controller.attachLayout(
+          viewModel: viewModel,
+          viewportHeight: constraints.maxHeight,
+          maxCardWidth: maxCardWidth,
+          maxCardHeight: maxCardHeight,
+          compact: widget.compact,
+        );
 
         final firstCardParams = (isGenerating || showPositionPlaceholder)
             ? viewModel.params
@@ -176,13 +404,13 @@ class _ImageStreamViewState extends State<ImageStreamView> {
             : viewModel.params;
 
         // 精准动态上下内边距：使顶部第一张图与底部最后一张图在视口中能够 100% 垂直居中展示
-        final topPadding = _centeringPaddingFor(
+        final topPadding = canvasStreamCenteringPadding(
           constraints.maxHeight,
           firstCardParams,
           maxCardWidth,
           maxCardHeight,
         );
-        final calculatedBottomPadding = _centeringPaddingFor(
+        final calculatedBottomPadding = canvasStreamCenteringPadding(
           constraints.maxHeight,
           lastCardParams,
           maxCardWidth,
@@ -244,7 +472,18 @@ class _ImageStreamViewState extends State<ImageStreamView> {
           );
         }
 
-        // 多张图片 (或已有图片并在生成新图/展示临时位置卡片)：垂直无限滚动瀑布流
+        final headerCount =
+            (isGenerating ? 1 : 0) + (showPositionPlaceholder ? 1 : 0);
+        final totalSliverCount = totalItemCount * 2 - 1;
+
+        NaiGenerationParams cardParamsAt(int cardIndex) {
+          if (cardIndex < headerCount) return viewModel.params;
+          return gallery[cardIndex - headerCount].params;
+        }
+
+        // 多张图片 (或已有图片并在生成新图/展示临时位置卡片)：
+        // 使用带精确 itemExtentBuilder 的变高列表，消除混排不同分辨率图片时
+        // 懒加载高度估算失真造成的跳转偏移误差。
         return NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             // 滚动帧只移动画布；停止后才同步选中图与全局面板。
@@ -256,11 +495,9 @@ class _ImageStreamViewState extends State<ImageStreamView> {
             }
             return false;
           },
-          child: ListView.separated(
+          child: ListView.builder(
             controller: controller.scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
-            // 预构建上下各 1200px 的卡片：历史图侧栏点选远端图时目标卡片
-            // 大概率已在缓存内挂载，二次居中修正不再落空
             scrollCacheExtent: const ScrollCacheExtent.pixels(1200),
             addAutomaticKeepAlives: false,
             padding: EdgeInsets.only(
@@ -269,22 +506,36 @@ class _ImageStreamViewState extends State<ImageStreamView> {
               top: topPadding,
               bottom: bottomPadding,
             ),
-            itemCount: totalItemCount,
-            separatorBuilder: (context, _) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              child: Center(
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: context.colors.textMuted.withValues(alpha: 0.25),
+            itemCount: totalSliverCount,
+            itemExtentBuilder: (sliverIndex, _) {
+              if (sliverIndex < 0 || sliverIndex >= totalSliverCount) {
+                return null;
+              }
+              if (sliverIndex.isOdd) return kCanvasStreamSeparatorExtent;
+              final cardIndex = sliverIndex ~/ 2;
+              return canvasStreamCardHeight(
+                cardParamsAt(cardIndex),
+                maxCardWidth,
+                maxCardHeight,
+              );
+            },
+            itemBuilder: (context, sliverIndex) {
+              if (sliverIndex.isOdd) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: context.colors.textMuted.withValues(alpha: 0.25),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-            itemBuilder: (context, index) {
-              var adjustedIndex = index;
+                );
+              }
+              var adjustedIndex = sliverIndex ~/ 2;
               if (isGenerating) {
                 if (adjustedIndex == 0) {
                   return CanvasGeneratingCard(
@@ -342,36 +593,6 @@ class _ImageStreamViewState extends State<ImageStreamView> {
       }
       _updateActiveVisibleImage(widget.viewModel, widget.viewModel.gallery);
     });
-  }
-
-  /// 依据图片纵横比估算其在瀑布流中的实际卡片高度 (用于视口居中内边距计算)
-  double _estimatedCardHeight(
-    NaiGenerationParams params,
-    double maxCardWidth,
-    double maxCardHeight,
-  ) {
-    final aspect = imageAspectRatioOf(params);
-    if (aspect <= 0) return 400.0;
-    final cardHeight = maxCardWidth / aspect;
-    return cardHeight > maxCardHeight ? maxCardHeight : cardHeight;
-  }
-
-  /// 让某张卡片在视口中垂直居中所需的上下内边距
-  double _centeringPaddingFor(
-    double viewportHeight,
-    NaiGenerationParams params,
-    double maxCardWidth,
-    double maxCardHeight,
-  ) {
-    final cardHeight = _estimatedCardHeight(
-      params,
-      maxCardWidth,
-      maxCardHeight,
-    );
-    return ((viewportHeight - cardHeight) / 2).clamp(
-      24.0,
-      (viewportHeight / 2).clamp(24.0, 500.0),
-    );
   }
 
   /// 新图插入/生成状态切换时自动调整滚动：
