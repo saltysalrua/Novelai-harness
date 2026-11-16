@@ -239,3 +239,55 @@ class StudioPanelShapeBorder extends ShapeBorder {
   int get hashCode =>
       Object.hash(outerSide, rightDividerSide, radius, roundLeft, roundRight);
 }
+
+/// 将标签按逗号规范追加到提示词末尾 (提示词编辑器与画板快捷标签库共用)
+String appendTagToPromptText(String current, String tag) {
+  final trimmed = current.trim();
+  if (trimmed.isEmpty) return tag;
+  return trimmed.endsWith(',') ? '$trimmed $tag' : '$trimmed, $tag';
+}
+
+/// 统一生成操作按钮文案 (GenerateDock 与画板快捷生成按钮共用)
+String resolveGenerateActionLabel(
+  BuildContext context, {
+  required bool isGenerating,
+  required int currentStep,
+  required int totalSteps,
+  required int estimatedCost,
+  bool compact = false,
+}) {
+  final l10n = context.l10n;
+  if (isGenerating) {
+    if (totalSteps > 0 && currentStep > 0) {
+      return compact
+          ? '$currentStep/$totalSteps'
+          : l10n.dockAbortWithSteps(currentStep, totalSteps);
+    }
+    return compact ? l10n.canvasQuickAbort : l10n.abortGeneration;
+  }
+  if (compact) {
+    return estimatedCost > 0
+        ? '${l10n.canvasQuickGenerate} ($estimatedCost)'
+        : l10n.canvasQuickGenerate;
+  }
+  if (estimatedCost > 0) {
+    return l10n.dockGenerateWithCost(estimatedCost);
+  }
+  if (estimatedCost < 0) {
+    return l10n.dockGenerateNeedPoints;
+  }
+  return l10n.generateImage;
+}
+
+/// 统一生成操作按钮主色 (GenerateDock 与画板快捷生成按钮共用)
+Color resolveGenerateActionColor(
+  BuildContext context, {
+  required bool isGenerating,
+  required int estimatedCost,
+}) {
+  final colors = context.colors;
+  if (isGenerating) return colors.error;
+  if (estimatedCost != 0) return colors.warning;
+  return colors.primary;
+}
+

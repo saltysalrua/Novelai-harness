@@ -1645,5 +1645,9 @@
   "settingsFrameRateLimitSubtitle": "Cap the maximum render FPS on high-refresh displays to reduce GPU raster load and jank",
   "frameRateUnlimited": "Uncapped (Display)",
   "frameRateFpsOption": "{fps} FPS",
-  "@frameRateFpsOption": {"placeholders": {"fps": {"type": "int"}}}
+  "@frameRateFpsOption": {"placeholders": {"fps": {"type": "int"}}},
+  "inpaintExit": "Exit Inpaint",
+  "canvasQuickGenerate": "Generate",
+  "canvasQuickAbort": "Stop",
+  "libraryReturn": "Back"
 }

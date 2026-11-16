@@ -50,6 +50,21 @@ class StudioSidebar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // 顶部收起按钮 (与收起后画板左上角展开按钮位置对齐)
+            if (onToggleCollapse != null) ...[
+              _buildNavItem(
+                key: const Key('sidebar_collapse_button'),
+                icon: Icons.keyboard_double_arrow_left_rounded,
+                label: l10n.sidebarCollapse,
+                tooltip: l10n.sidebarCollapseTooltip,
+                isSelected: false,
+                onTap: onToggleCollapse!,
+              ),
+              const SizedBox(height: 6),
+              Divider(height: 1, color: colors.borderSubtle),
+              const SizedBox(height: 6),
+            ],
+
             // 导航分类项：参数
             _buildNavItem(
               icon: Icons.tune_outlined,
@@ -99,18 +114,6 @@ class StudioSidebar extends StatelessWidget {
 
             Divider(height: 1, color: colors.borderSubtle),
             const SizedBox(height: 6),
-
-            if (onToggleCollapse != null) ...[
-              _buildNavItem(
-                key: const Key('sidebar_collapse_button'),
-                icon: Icons.keyboard_double_arrow_left_rounded,
-                label: l10n.sidebarCollapse,
-                tooltip: l10n.sidebarCollapseTooltip,
-                isSelected: false,
-                onTap: onToggleCollapse!,
-              ),
-              const SizedBox(height: 2),
-            ],
 
             // 底部全局设置按钮 (弹窗形式打开)
             _buildNavItem(
@@ -163,9 +166,7 @@ class StudioSidebar extends StatelessWidget {
                 top: 6,
                 right: 8,
                 child: IgnorePointer(
-                  child: ExcludeSemantics(
-                    child: const _SidebarBadgeDot(),
-                  ),
+                  child: ExcludeSemantics(child: const _SidebarBadgeDot()),
                 ),
               ),
           ],

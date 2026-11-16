@@ -6979,6 +6979,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'{fps} FPS'**
   String frameRateFpsOption(int fps);
+
+  /// No description provided for @inpaintExit.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出修复'**
+  String get inpaintExit;
+
+  /// No description provided for @canvasQuickGenerate.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成'**
+  String get canvasQuickGenerate;
+
+  /// No description provided for @canvasQuickAbort.
+  ///
+  /// In zh, this message translates to:
+  /// **'终止'**
+  String get canvasQuickAbort;
+
+  /// No description provided for @libraryReturn.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回'**
+  String get libraryReturn;
 }
 
 class _AppLocalizationsDelegate

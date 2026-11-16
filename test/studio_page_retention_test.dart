@@ -181,10 +181,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(parameterScroll.pixels, 250);
 
-    expect(
-      find.byKey(const Key('canvas_expand_sidebar_button')),
-      findsNothing,
-    );
+    expect(find.byKey(const Key('canvas_expand_sidebar_button')), findsNothing);
     await tester.tap(find.byKey(const Key('sidebar_collapse_button')));
     await tester.pumpAndSettle();
 
@@ -195,10 +192,7 @@ void main() {
       tester.state(find.byType(ParametersPage, skipOffstage: false)),
       same(parametersState),
     );
-    expect(
-      find.byKey(const Key('sidebar_collapse_button')),
-      findsNothing,
-    );
+    expect(find.byKey(const Key('sidebar_collapse_button')), findsNothing);
     expect(
       find.byKey(const Key('canvas_expand_sidebar_button')),
       findsOneWidget,
@@ -212,10 +206,7 @@ void main() {
     expect(find.byType(ParametersPage), findsOneWidget);
     expect(tester.state(find.byType(ParametersPage)), same(parametersState));
     expect(parameterScroll.pixels, 250);
-    expect(
-      find.byKey(const Key('canvas_expand_sidebar_button')),
-      findsNothing,
-    );
+    expect(find.byKey(const Key('canvas_expand_sidebar_button')), findsNothing);
 
     // 切换到词库页后收起左侧栏，顶栏显示展开入口，点击恢复
     await tester.tap(find.byIcon(Icons.collections_bookmark_outlined));
@@ -572,12 +563,7 @@ void main() {
         theme: AppTheme.darkThemeFor(AppAccentController.instance.state.value),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: ImageCanvasCard(
-            viewModel: vm,
-            compact: true,
-          ),
-        ),
+        home: Scaffold(body: ImageCanvasCard(viewModel: vm, compact: true)),
       ),
     );
     await tester.pumpAndSettle();
@@ -736,7 +722,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    final chatState = tester.state<AgentChatCardState>(find.byType(AgentChatCard));
+    final chatState = tester.state<AgentChatCardState>(
+      find.byType(AgentChatCard),
+    );
     chatState.openRewindView();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -802,16 +790,238 @@ void main() {
     await vm.flushPendingLayoutSave();
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('宽屏收起左卡片时画板直达生图、词库往返不拉出左卡片，修复模式可直出直退', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1280, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+
+    final vm = StudioView.testViewModelHook!;
+    vm.setInpaintSourceImage(
+      NaiGeneratedImage(
+        id: 'collapsed-inpaint-src',
+        bytes: _kTestPngBytes,
+        params: const NaiGenerationParams(
+          prompt: '1girl',
+          width: 1024,
+          height: 1024,
+        ),
+        seed: 42,
+        isOpusFree: true,
+        createdAt: DateTime(2026, 11, 16),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 记录顶部收起按钮位置，收起左侧栏与左卡片后校验展开按钮也在顶部对齐
+    final collapseRect = tester.getRect(
+      find.byKey(const Key('sidebar_collapse_button')),
+    );
+    await tester.tap(find.byKey(const Key('sidebar_collapse_button')));
+    await tester.pumpAndSettle();
+    expect(vm.isLeftSidebarCollapsed, isTrue);
+
+    final quickExpandRect = tester.getRect(
+      find.byKey(const Key('canvas_expand_sidebar_button')),
+    );
+    expect((quickExpandRect.top - collapseRect.top).abs(), lessThan(24));
+
+    // 画板保留快捷生图按钮与左上快捷悬浮条 (不含标签灵感库)
+    expect(
+      find.byKey(const Key('canvas_quick_generate_button')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('canvas_collapsed_quick_dock')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('canvas_collapsed_library_button')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('canvas_collapsed_tag_browser_button')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('canvas_collapsed_settings_button')),
+      findsOneWidget,
+    );
+
+    // 不拉出左卡片直接打开词库，左上角提供返回按钮且关闭词库后仍保持左侧收起
+    await tester.tap(find.byKey(const Key('canvas_collapsed_library_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PromptLibraryView), findsOneWidget);
+    expect(vm.isLeftSidebarCollapsed, isTrue);
+
+    final libExpandRect = tester.getRect(
+      find.byKey(const Key('library_expand_sidebar_button')),
+    );
+    final closeRect = tester.getRect(
+      find.byKey(const Key('library_close_button')),
+    );
+    expect(libExpandRect.right, lessThanOrEqualTo(closeRect.left));
+
+    await tester.tap(find.byKey(const Key('library_close_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PromptLibraryView), findsNothing);
+    expect(vm.isLeftSidebarCollapsed, isTrue);
+
+    // 进入修复模式并收起左侧栏：画板顶部工具坞避让展开按钮，右下提供退出修复与开始修复
+    vm.setActiveSidebarTab(StudioSidebarTab.inpaint);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('sidebar_collapse_button')));
+    await tester.pumpAndSettle();
+    expect(vm.isLeftSidebarCollapsed, isTrue);
+    expect(find.byKey(const Key('inpaint_exit_button')), findsOneWidget);
+    expect(
+      find.byKey(const Key('inpaint_canvas_start_button')),
+      findsOneWidget,
+    );
+
+    final expandRect = tester.getRect(
+      find.byKey(const Key('canvas_expand_sidebar_button')),
+    );
+    final dockRect = tester.getRect(find.byKey(const ValueKey('inpaint-dock')));
+    expect(dockRect.left, greaterThanOrEqualTo(expandRect.right));
+
+    // 在画板直接点击退出修复，切回参数页且保持左侧栏收起
+    await tester.tap(find.byKey(const Key('inpaint_exit_button')));
+    await tester.pumpAndSettle();
+    expect(vm.activeSidebarTab, StudioSidebarTab.parameters);
+    expect(vm.isLeftSidebarCollapsed, isTrue);
+    expect(
+      find.byKey(const Key('canvas_quick_generate_button')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('窄屏画板常驻快捷生图入口，从画板送修后点击退出修复自动返回画板', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+
+    final vm = StudioView.testViewModelHook!;
+    bool isNavSelected(String key) =>
+        tester.widget<AppNavTile>(find.byKey(Key(key))).isSelected;
+
+    // 切到画板页 (空画布状态)：仍存在快捷生图按钮
+    await tester.tap(find.byKey(const Key('segmented_pill_1')));
+    await tester.pumpAndSettle();
+    expect(isNavSelected('segmented_pill_1'), isTrue);
+    expect(
+      find.byKey(const Key('canvas_quick_generate_button')),
+      findsOneWidget,
+    );
+
+    // 注入测试图并选中，再从画板底部一键送入局部修复
+    final testImg = NaiGeneratedImage(
+      id: 'narrow-roll-img',
+      bytes: _kTestPngBytes,
+      params: const NaiGenerationParams(
+        prompt: '1girl',
+        width: 832,
+        height: 1216,
+      ),
+      seed: 999,
+      isOpusFree: true,
+      createdAt: DateTime(2026, 11, 16),
+    );
+    vm.setInpaintSourceImage(testImg);
+    vm.sendImageToInpaint(testImg);
+    await tester.pumpAndSettle();
+    expect(isNavSelected('segmented_pill_0'), isTrue);
+    expect(vm.activeSidebarTab, StudioSidebarTab.inpaint);
+    expect(find.byKey(const Key('inpaint_exit_button')), findsOneWidget);
+
+    // 点击退出修复：恢复参数页并自动回到画板页
+    await tester.tap(find.byKey(const Key('inpaint_exit_button')));
+    await tester.pumpAndSettle();
+    expect(vm.activeSidebarTab, StudioSidebarTab.parameters);
+    expect(isNavSelected('segmented_pill_1'), isTrue);
+    expect(
+      find.byKey(const Key('canvas_quick_generate_button')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 final Uint8List _kTestPngBytes = Uint8List.fromList([
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-  0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-  0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
-  0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
-  0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-  0x42, 0x60, 0x82,
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0A,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x63,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
 ]);

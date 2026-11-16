@@ -25,6 +25,7 @@ class ParameterCard extends StatelessWidget {
   final StudioSidebarTab activeTab;
   final bool compact;
   final bool connectedLeft;
+  final VoidCallback? onExitInpaint;
 
   const ParameterCard({
     super.key,
@@ -32,6 +33,7 @@ class ParameterCard extends StatelessWidget {
     this.activeTab = StudioSidebarTab.parameters,
     this.compact = false,
     this.connectedLeft = false,
+    this.onExitInpaint,
   });
 
   @override
@@ -71,7 +73,10 @@ class ParameterCard extends StatelessWidget {
                   0 => ParametersPage(viewModel: viewModel),
                   1 => PromptsPage(viewModel: viewModel),
                   _ => compact
-                      ? _MobileUnifiedInpaintWorkspace(viewModel: viewModel)
+                      ? _MobileUnifiedInpaintWorkspace(
+                          viewModel: viewModel,
+                          onExitInpaint: onExitInpaint,
+                        )
                       : InpaintPage(viewModel: viewModel),
                 },
               ),
@@ -89,8 +94,12 @@ class ParameterCard extends StatelessWidget {
 /// 窄屏端局部修复同屏工作台：上方蒙版画板 + 中部可折叠参数抽屉 + 底部共用生成坞
 class _MobileUnifiedInpaintWorkspace extends StatefulWidget {
   final StudioViewModel viewModel;
+  final VoidCallback? onExitInpaint;
 
-  const _MobileUnifiedInpaintWorkspace({required this.viewModel});
+  const _MobileUnifiedInpaintWorkspace({
+    required this.viewModel,
+    this.onExitInpaint,
+  });
 
   @override
   State<_MobileUnifiedInpaintWorkspace> createState() =>
@@ -166,7 +175,11 @@ class _MobileUnifiedInpaintWorkspaceState
             Expanded(
               child: ColoredBox(
                 color: colors.canvasBackground,
-                child: InpaintRepairCanvas(viewModel: widget.viewModel),
+                child: InpaintRepairCanvas(
+                  viewModel: widget.viewModel,
+                  compact: true,
+                  onExit: widget.onExitInpaint,
+                ),
               ),
             ),
 

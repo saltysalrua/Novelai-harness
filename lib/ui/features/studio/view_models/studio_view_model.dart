@@ -168,6 +168,7 @@ mixin _StudioCore on ChangeNotifier {
   double _splitLeftWidth = 320.0;
   double _splitRightWidth = 400.0;
   StudioSidebarTab _activeSidebarTab = StudioSidebarTab.parameters;
+  StudioSidebarTab _tabBeforeInpaint = StudioSidebarTab.parameters;
   bool _promptTabbedMode = false;
   int _promptActiveTab = 0;
   int _deckActiveTab = 0;
@@ -610,8 +611,11 @@ mixin _StudioCore on ChangeNotifier {
   /// 发送对话消息 (支持 Slash 命令行；[images] 为用户图片附件)
   Future<void> sendChatMessage(String text, {List<AgentMessageImage>? images});
 
-  /// 切换侧边栏激活页签 (修复分部右键发送后跳转用)
-  void setActiveSidebarTab(StudioSidebarTab tab);
+  /// 切换侧边栏激活页签 (修复分部右键发送后跳转用；expandSidebar=false 可在不展开收起栏时切页)
+  void setActiveSidebarTab(StudioSidebarTab tab, {bool expandSidebar = true});
+
+  /// 退出修复模式并切回进入修复前的主工作台页签
+  void exitInpaintMode({bool expandSidebar = false});
 
   /// 历史大图完整字节缓存通知器：避免大图加载逐帧触发 notifyListeners() 全局重建
   ValueNotifier<Map<String, Uint8List>> get imageBytesNotifier =>
@@ -778,6 +782,10 @@ class StudioViewModel extends ChangeNotifier
       'library' => StudioSidebarTab.library,
       _ => StudioSidebarTab.parameters,
     };
+    if (_activeSidebarTab == StudioSidebarTab.parameters ||
+        _activeSidebarTab == StudioSidebarTab.prompts) {
+      _tabBeforeInpaint = _activeSidebarTab;
+    }
 
     _promptTabbedMode = await _configService.loadPromptTabbedMode();
     _promptActiveTab = await _configService.loadPromptActiveTab();

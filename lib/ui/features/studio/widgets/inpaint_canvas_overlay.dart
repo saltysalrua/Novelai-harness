@@ -7,6 +7,7 @@ import '../../../../data/services/inpaint_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_floating_dock.dart';
 import '../../../core/widgets/app_tool_chip.dart';
@@ -26,8 +27,15 @@ import '../view_models/studio_view_model.dart';
 /// 布局要点：图片 contain 区域顶部预留工具坞高度，工具坞永不遮挡图片。
 class InpaintRepairCanvas extends StatefulWidget {
   final StudioViewModel viewModel;
+  final bool compact;
+  final VoidCallback? onExit;
 
-  const InpaintRepairCanvas({super.key, required this.viewModel});
+  const InpaintRepairCanvas({
+    super.key,
+    required this.viewModel,
+    this.compact = false,
+    this.onExit,
+  });
 
   @override
   State<InpaintRepairCanvas> createState() => _InpaintRepairCanvasState();
@@ -286,29 +294,41 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
         final vm = widget.viewModel;
         final inpaint = vm.inpaintParams;
         final image = vm.inpaintSourceImage;
+        final isAiEdit = inpaint.mode == InpaintMode.aiEdit;
+        final isExecuting = vm.isExecutingInpaint || vm.isExecutingAiEdit;
 
         if (image == null) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                l10n.inpaintOverlayEmptyHint,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: context.colors.textSecondary,
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    l10n.inpaintOverlayEmptyHint,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: context.colors.textSecondary,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              _buildBottomActionDock(
+                context,
+                vm,
+                isAiEdit: isAiEdit,
+                isExecuting: isExecuting,
+                showStartAction: false,
+              ),
+            ],
           );
         }
 
         final srcW = image.params.width > 0 ? image.params.width : 1024;
         final srcH = image.params.height > 0 ? image.params.height : 1024;
         final isFocus = inpaint.mode == InpaintMode.focus;
-        final isAiEdit = inpaint.mode == InpaintMode.aiEdit;
         final tool = vm.inpaintTool;
-        final isExecuting = vm.isExecutingInpaint || vm.isExecutingAiEdit;
         final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
 
         return LayoutBuilder(
@@ -600,11 +620,13 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                     ),
                   ),
 
-                // 7. 顶部浮动工具坞
+                // 7. 顶部浮动工具坞 (左侧栏收起时右移避让左上角展开按键)
                 Positioned(
                   key: const ValueKey('inpaint-dock'),
                   top: 14,
-                  left: 12,
+                  left: (!widget.compact && vm.isLeftSidebarCollapsed)
+                      ? 60
+                      : 12,
                   right: 12,
                   child: Center(child: _buildToolDock(context, vm, inpaint)),
                 ),
@@ -613,43 +635,49 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                 if (isExecuting)
                   Positioned(
                     key: const ValueKey('inpaint-status'),
-                    bottom: 18,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: AppFloatingDock(
-                        radius: 18,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              width: 13,
-                              height: 13,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  context.colors.primary,
-                                ),
+                    bottom: widget.compact ? 10 : 18,
+                    left: widget.compact ? 10 : 18,
+                    child: AppFloatingDock(
+                      radius: 18,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 13,
+                            height: 13,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                context.colors.primary,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              l10n.inpaintOverlayInProgress,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: context.colors.textPrimary,
-                              ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            l10n.inpaintOverlayInProgress,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: context.colors.textPrimary,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+
+                // 9. 右下角退出修复 / 快捷开始修复浮层 (收起左卡片与窄屏均直达)
+                _buildBottomActionDock(
+                  context,
+                  vm,
+                  isAiEdit: isAiEdit,
+                  isExecuting: isExecuting,
+                  showStartAction: !widget.compact && vm.isLeftSidebarCollapsed,
+                ),
               ],
             );
           },
@@ -977,9 +1005,68 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                     ? AppBadgeVariant.success
                     : AppBadgeVariant.warning,
               ),
-              // 执行修复统一由左侧生成坞的「开始修复」按钮触发，工具坞不再重复入口
+              // 左侧展开时由左侧生成坞执行修复；左侧收起时由画板右下角操作坞承接
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomActionDock(
+    BuildContext context,
+    StudioViewModel vm, {
+    required bool isAiEdit,
+    required bool isExecuting,
+    required bool showStartAction,
+  }) {
+    final l10n = context.l10n;
+    final edge = widget.compact ? 10.0 : 18.0;
+
+    return Positioned(
+      bottom: edge,
+      right: edge,
+      child: AppFloatingDock(
+        padding: const EdgeInsets.all(4),
+        enableBlur: true,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppActionButton(
+              key: const Key('inpaint_exit_button'),
+              icon: Icons.close_rounded,
+              label: l10n.inpaintExit,
+              variant: AppActionButtonVariant.ghost,
+              padding: widget.compact
+                  ? const EdgeInsets.symmetric(horizontal: 10, vertical: 7)
+                  : null,
+              onPressed: isExecuting
+                  ? null
+                  : (widget.onExit ??
+                        () => vm.exitInpaintMode(expandSidebar: false)),
+            ),
+            if (showStartAction) ...[
+              const SizedBox(width: 6),
+              AppActionButton(
+                key: const Key('inpaint_canvas_start_button'),
+                icon: isAiEdit
+                    ? Icons.auto_awesome
+                    : Icons.auto_fix_high_outlined,
+                label: isExecuting
+                    ? (isAiEdit ? l10n.dockAiEditing : l10n.dockInpainting)
+                    : (isAiEdit ? l10n.startAiEdit : l10n.startInpaint),
+                variant: AppActionButtonVariant.primary,
+                isLoading: isExecuting,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 9,
+                ),
+                onPressed: (isExecuting || vm.isGenerating)
+                    ? null
+                    : () => vm.executeInpaint(),
+              ),
+            ],
+          ],
         ),
       ),
     );

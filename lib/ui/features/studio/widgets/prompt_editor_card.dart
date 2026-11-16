@@ -11,6 +11,7 @@ import '../../../core/widgets/app_transitions.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import 'prompt_edit_actions.dart';
 import 'prompt_resize_handle.dart';
+import 'studio_shared.dart';
 import 'tag_browser_dialog.dart';
 
 /// 只读灰色标签数据 (PREFIX / SUFFIX / QUALITY / BG / UC 预设词展示)
@@ -96,11 +97,7 @@ class PromptEditorCard extends StatelessWidget {
       context,
       showTranslation: showTranslation,
       onTagSelected: (tag) {
-        final text = controller.text;
-        final trimmed = text.trim();
-        final newText = trimmed.isEmpty
-            ? tag
-            : (trimmed.endsWith(',') ? '$trimmed $tag' : '$trimmed, $tag');
+        final newText = appendTagToPromptText(controller.text, tag);
         controller.value = TextEditingValue(
           text: newText,
           selection: TextSelection.collapsed(offset: newText.length),

@@ -1645,5 +1645,9 @@
   "settingsFrameRateLimitSubtitle": "限制高刷新率显示器的最高渲染帧率，降低 GPU 光栅负载与卡顿",
   "frameRateUnlimited": "不限制（随显示器）",
   "frameRateFpsOption": "{fps} FPS",
-  "@frameRateFpsOption": {"placeholders": {"fps": {"type": "int"}}}
+  "@frameRateFpsOption": {"placeholders": {"fps": {"type": "int"}}},
+  "inpaintExit": "退出修复",
+  "canvasQuickGenerate": "生成",
+  "canvasQuickAbort": "终止",
+  "libraryReturn": "返回"
 }

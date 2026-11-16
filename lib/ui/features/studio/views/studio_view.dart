@@ -71,6 +71,7 @@ class _StudioViewState extends State<StudioView> {
   bool _wasAnnotating = false;
   StudioSidebarTab? _lastObservedSidebarTab;
   int? _pageBeforePositionEdit;
+  int? _pageBeforeInpaint;
   late Object _lastShellSig;
   int _outerBuildSeq = 0;
   int _cachedOuterBuildSeq = -1;
@@ -329,7 +330,7 @@ class _StudioViewState extends State<StudioView> {
     }
 
     if (_viewModel.activeSidebarTab == StudioSidebarTab.library) {
-      _viewModel.setActiveSidebarTab(_previousSidebarTab);
+      _viewModel.setActiveSidebarTab(_previousSidebarTab, expandSidebar: false);
       return;
     }
 
@@ -358,7 +359,8 @@ class _StudioViewState extends State<StudioView> {
   @override
   Widget build(BuildContext context) {
     _outerBuildSeq++;
-    final isLibraryTab = _viewModel.activeSidebarTab == StudioSidebarTab.library;
+    final isLibraryTab =
+        _viewModel.activeSidebarTab == StudioSidebarTab.library;
 
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
@@ -440,9 +442,15 @@ class _StudioViewState extends State<StudioView> {
                   onToggleCollapse: _viewModel.toggleLeftSidebarCollapsed,
                   onTabChanged: (tab) {
                     FocusManager.instance.primaryFocus?.unfocus();
-                    if (tab == StudioSidebarTab.library &&
-                        _viewModel.activeSidebarTab !=
-                            StudioSidebarTab.library) {
+                    if (tab == StudioSidebarTab.library) {
+                      if (_viewModel.activeSidebarTab ==
+                          StudioSidebarTab.library) {
+                        _viewModel.setActiveSidebarTab(
+                          _previousSidebarTab,
+                          expandSidebar: false,
+                        );
+                        return;
+                      }
                       _previousSidebarTab = _viewModel.activeSidebarTab;
                     }
                     _viewModel.setActiveSidebarTab(tab);
@@ -463,7 +471,10 @@ class _StudioViewState extends State<StudioView> {
                               ? _viewModel.toggleLeftSidebarCollapsed
                               : null,
                           onClose: () {
-                            _viewModel.setActiveSidebarTab(_previousSidebarTab);
+                            _viewModel.setActiveSidebarTab(
+                              _previousSidebarTab,
+                              expandSidebar: false,
+                            );
                           },
                         )
                       : ResizableThreeSplitView(
@@ -548,7 +559,9 @@ class _StudioViewState extends State<StudioView> {
             isEditingWatermarkPosition: _viewModel.isEditingWatermarkPosition,
             isAnnotating: _viewModel.board.isAnnotatingImage,
             hasSelectedImage: selectedImage != null,
-            onStudioTabSelected: _viewModel.setActiveSidebarTab,
+            onStudioTabSelected: (tab) {
+              _viewModel.setActiveSidebarTab(tab, expandSidebar: false);
+            },
             onOpenSettings: () => SettingsDialog.show(context, _viewModel),
             onQuickInpaint: selectedImage == null
                 ? null
@@ -589,6 +602,7 @@ class _StudioViewState extends State<StudioView> {
                           compact: true,
                           viewModel: _viewModel,
                           activeTab: _viewModel.activeSidebarTab,
+                          onExitInpaint: _exitInpaintFromNarrow,
                         ),
                       ),
                       // Page 1: 画板面板 (窄屏模式启用统一底栏与 ActionSheet)
@@ -629,7 +643,10 @@ class _StudioViewState extends State<StudioView> {
                     child: PromptLibraryView(
                       viewModel: _viewModel,
                       onClose: () {
-                        _viewModel.setActiveSidebarTab(_previousSidebarTab);
+                        _viewModel.setActiveSidebarTab(
+                          _previousSidebarTab,
+                          expandSidebar: false,
+                        );
                       },
                     ),
                   ),
@@ -675,15 +692,20 @@ class _StudioViewState extends State<StudioView> {
         }
       }
 
-      // 2. 由图片或批注触发「发送到修复」进入局部修复页签时，自动前往 Page 0 同屏工作台
+      // 2. 由图片或批注触发「发送到修复」进入局部修复页签时，记录来源页并自动前往 Page 0 同屏工作台
       if (_lastObservedSidebarTab != null &&
           _lastObservedSidebarTab != StudioSidebarTab.library &&
           _lastObservedSidebarTab != StudioSidebarTab.inpaint &&
           currentTab == StudioSidebarTab.inpaint &&
           !isEditingPositions) {
+        _pageBeforeInpaint = _mobilePageIndex;
         if (_mobilePageIndex != 0) {
           _setMobilePage(0);
         }
+      } else if (_lastObservedSidebarTab == StudioSidebarTab.inpaint &&
+          currentTab != StudioSidebarTab.inpaint &&
+          currentTab != StudioSidebarTab.library) {
+        _pageBeforeInpaint = null;
       }
 
       // 3. 在参数/提示词页开始生图时，自动切换到画板页观看去噪实时流
@@ -699,7 +721,9 @@ class _StudioViewState extends State<StudioView> {
         if (_mobilePageIndex != 1) {
           _setMobilePage(1);
         }
-      } else if (_wasAnnotating && !isAnnotating && _viewModel.isChatStreaming) {
+      } else if (_wasAnnotating &&
+          !isAnnotating &&
+          _viewModel.isChatStreaming) {
         _setMobilePage(2);
       }
     }
@@ -751,9 +775,22 @@ class _StudioViewState extends State<StudioView> {
   /// 切换底部一级主导航 (若处于词库覆盖层则先退出回到之前的创作子页签)
   void _selectMobilePrimaryTab(int index) {
     if (_viewModel.activeSidebarTab == StudioSidebarTab.library) {
-      _viewModel.setActiveSidebarTab(_previousSidebarTab);
+      _viewModel.setActiveSidebarTab(_previousSidebarTab, expandSidebar: false);
     }
     _setMobilePage(index);
+  }
+
+  /// 窄屏下退出局部修复模式：切回修复前子页签，若由画板跳转而来则返回原页
+  void _exitInpaintFromNarrow() {
+    final returnPage = _pageBeforeInpaint;
+    _pageBeforeInpaint = null;
+    _viewModel.exitInpaintMode(expandSidebar: false);
+    if (_isNarrowViewport &&
+        returnPage != null &&
+        returnPage != 0 &&
+        _mobilePageIndex == 0) {
+      _setMobilePage(returnPage);
+    }
   }
 
   /// 对话卡覆盖视图开合回写：canPop 判态在 build 中动态读取卡片 State，
@@ -773,16 +810,21 @@ class _StudioViewState extends State<StudioView> {
     if (_viewModel.board.isAnnotatingImage) return true;
     if (_viewModel.isEditingCharacterPositions) return true;
     if (_viewModel.isEditingWatermarkPosition) return true;
+    if (isNarrow &&
+        _mobilePageIndex == 0 &&
+        _viewModel.activeSidebarTab == StudioSidebarTab.inpaint) {
+      return true;
+    }
     if (isNarrow && _mobilePageIndex != 0) return true;
     return false;
   }
 
   /// 系统返回键 (Android 物理键/侧滑手势) 单一处理入口：
-  /// 词库覆盖层 → 对话卡覆盖视图 → 批注/定位编辑模式 → 窄屏三卡片回到第 0 卡片；
+  /// 词库覆盖层 → 对话卡覆盖视图 → 批注/定位编辑模式 → 窄屏修复模式 → 窄屏三卡片回到第 0 卡片；
   /// 以上均无命中时不动手，由 [PopScope] 的 canPop 交还系统。
   void _handleSystemBack({required bool isNarrow}) {
     if (_viewModel.activeSidebarTab == StudioSidebarTab.library) {
-      _viewModel.setActiveSidebarTab(_previousSidebarTab);
+      _viewModel.setActiveSidebarTab(_previousSidebarTab, expandSidebar: false);
       return;
     }
     if (_chatCardKey.currentState?.dismissOverlayView() ?? false) return;
@@ -796,6 +838,12 @@ class _StudioViewState extends State<StudioView> {
     }
     if (_viewModel.isEditingWatermarkPosition) {
       _viewModel.setEditingWatermarkPosition(false);
+      return;
+    }
+    if (isNarrow &&
+        _mobilePageIndex == 0 &&
+        _viewModel.activeSidebarTab == StudioSidebarTab.inpaint) {
+      _exitInpaintFromNarrow();
       return;
     }
     if (isNarrow && _mobilePageIndex != 0) {
@@ -876,9 +924,15 @@ class _StudioViewState extends State<StudioView> {
                   onTap: () {
                     if (!isLibraryTab) {
                       _previousSidebarTab = _viewModel.activeSidebarTab;
-                      _viewModel.setActiveSidebarTab(StudioSidebarTab.library);
+                      _viewModel.setActiveSidebarTab(
+                        StudioSidebarTab.library,
+                        expandSidebar: false,
+                      );
                     } else {
-                      _viewModel.setActiveSidebarTab(_previousSidebarTab);
+                      _viewModel.setActiveSidebarTab(
+                        _previousSidebarTab,
+                        expandSidebar: false,
+                      );
                     }
                   },
                 ),
@@ -1184,7 +1238,9 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
                 ),
 
               Padding(
-                padding: EdgeInsets.only(right: showCustomWindowControls ? 2 : 6),
+                padding: EdgeInsets.only(
+                  right: showCustomWindowControls ? 2 : 6,
+                ),
                 child: AppIconButton(
                   key: const Key('mobile_nav_settings'),
                   icon: Icons.settings_outlined,

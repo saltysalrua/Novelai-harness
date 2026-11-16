@@ -365,10 +365,10 @@ class _ImageCanvasCardState extends State<ImageCanvasCard>
                               ),
                             ),
 
-                          // 底部操作浮层：窄屏合并为统一胶囊条，宽屏拆分为左下参数徽章 + 右下保存按钮
-                          if (selectedImage != null &&
-                              !isEditingPositions &&
-                              !isAnnotating)
+                          // 底部操作浮层：窄屏合并为统一胶囊条+快捷生成，宽屏拆分为左下参数徽章 + 右下保存/快捷生成
+                          if (!isEditingPositions &&
+                              !isAnnotating &&
+                              !isInpaintTab)
                             if (widget.compact)
                               Positioned(
                                 bottom: 12,
@@ -377,58 +377,108 @@ class _ImageCanvasCardState extends State<ImageCanvasCard>
                                 child: Center(
                                   child: ConstrainedBox(
                                     constraints: const BoxConstraints(
-                                      maxWidth: 520,
+                                      maxWidth: 620,
                                     ),
-                                    child: MobileCanvasActionBar(
-                                      image: selectedImage,
-                                      viewModel: viewModel,
-                                      onInpaintPressed: widget.onSentToInpaint,
+                                    child: Row(
+                                      mainAxisAlignment: selectedImage != null
+                                          ? MainAxisAlignment.center
+                                          : MainAxisAlignment.end,
+                                      children: [
+                                        if (selectedImage != null) ...[
+                                          Expanded(
+                                            child: MobileCanvasActionBar(
+                                              image: selectedImage,
+                                              viewModel: viewModel,
+                                              onInpaintPressed:
+                                                  widget.onSentToInpaint,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                        ],
+                                        CanvasQuickGenerateButton(
+                                          viewModel: viewModel,
+                                          compact: true,
+                                          iconOnly: selectedImage != null,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
                               )
                             else ...[
-                              Positioned(
-                                bottom: 18,
-                                left: 18,
-                                child: CanvasParamBadges(
-                                  image: selectedImage,
-                                  viewModel: viewModel,
+                              if (selectedImage != null)
+                                Positioned(
+                                  bottom: 18,
+                                  left: 18,
+                                  child: CanvasParamBadges(
+                                    image: selectedImage,
+                                    viewModel: viewModel,
+                                  ),
                                 ),
-                              ),
                               Positioned(
                                 bottom: 18,
                                 right: 18,
-                                child: IgnorePointer(
-                                  ignoring: !selectedImage.isUnsaved,
-                                  child: AppPanelReveal(
-                                    visible: selectedImage.isUnsaved,
-                                    animateSize: false,
-                                    enableBlur: false,
-                                    slideOffset: AppMotionDistances.base,
-                                    child: CanvasSaveButton(
-                                      viewModel: viewModel,
-                                    ),
-                                  ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (selectedImage != null)
+                                      IgnorePointer(
+                                        ignoring: !selectedImage.isUnsaved,
+                                        child: AppPanelReveal(
+                                          visible: selectedImage.isUnsaved,
+                                          animateSize: true,
+                                          enableBlur: false,
+                                          slideOffset: AppMotionDistances.base,
+                                          child: Padding(
+                                            padding: EdgeInsets.only(
+                                              right:
+                                                  viewModel
+                                                      .isLeftSidebarCollapsed
+                                                  ? 8
+                                                  : 0,
+                                            ),
+                                            child: CanvasSaveButton(
+                                              viewModel: viewModel,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    if (viewModel.isLeftSidebarCollapsed)
+                                      CanvasQuickGenerateButton(
+                                        viewModel: viewModel,
+                                      ),
+                                  ],
                                 ),
                               ),
                             ],
 
-                          // 左上角浮动侧栏展开按键 (仅桌面端左侧栏完全收起时显示)
+                          // 左上角浮动操作栏 (仅桌面端左侧栏完全收起时显示：
+                          // 常规画板提供 展开 + 词库/标签/设置 直达；特殊模式仅保留轻量展开键)
                           if (!widget.compact &&
                               viewModel.isLeftSidebarCollapsed)
                             Positioned(
                               top: 14,
                               left: 14,
-                              child: AppIconButton(
-                                key: const Key('canvas_expand_sidebar_button'),
-                                icon: Icons.keyboard_double_arrow_right_rounded,
-                                size: 38,
-                                iconSize: 20,
-                                variant: AppIconButtonVariant.elevated,
-                                tooltip: context.l10n.sidebarExpandTooltip,
-                                onPressed: viewModel.toggleLeftSidebarCollapsed,
-                              ),
+                              child: (isInpaintTab ||
+                                      isEditingPositions ||
+                                      isAnnotating)
+                                  ? AppIconButton(
+                                      key: const Key(
+                                        'canvas_expand_sidebar_button',
+                                      ),
+                                      icon: Icons
+                                          .keyboard_double_arrow_right_rounded,
+                                      size: 38,
+                                      iconSize: 20,
+                                      variant: AppIconButtonVariant.elevated,
+                                      tooltip:
+                                          context.l10n.sidebarExpandTooltip,
+                                      onPressed:
+                                          viewModel.toggleLeftSidebarCollapsed,
+                                    )
+                                  : CanvasCollapsedQuickDock(
+                                      viewModel: viewModel,
+                                    ),
                             ),
 
                           // 顶部浮动：新图片生成提示气泡

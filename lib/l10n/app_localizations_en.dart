@@ -4073,4 +4073,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String frameRateFpsOption(int fps) {
     return '$fps FPS';
   }
+
+  @override
+  String get inpaintExit => 'Exit Inpaint';
+
+  @override
+  String get canvasQuickGenerate => 'Generate';
+
+  @override
+  String get canvasQuickAbort => 'Stop';
+
+  @override
+  String get libraryReturn => 'Back';
 }

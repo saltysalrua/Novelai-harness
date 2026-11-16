@@ -11,6 +11,7 @@ import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_progress_bar.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
+import 'studio_shared.dart';
 
 /// 左侧面板底部常驻操作坞：统一状态条 (账号等级/点数/V5 体力 或 ComfyUI 状态) + 主操作按钮
 ///
@@ -26,36 +27,21 @@ class GenerateDock extends StatelessWidget {
     this.compact = false,
   });
 
-  String _buildButtonLabel(BuildContext context, int cost) {
-    final l10n = context.l10n;
-    if (viewModel.isGenerating) {
-      if (viewModel.liveTotalSteps > 0 && viewModel.liveCurrentStep > 0) {
-        return l10n.dockAbortWithSteps(
-          viewModel.liveCurrentStep,
-          viewModel.liveTotalSteps,
-        );
-      }
-      return l10n.abortGeneration;
-    }
-    if (cost > 0) {
-      return l10n.dockGenerateWithCost(cost);
-    }
-    if (cost < 0) {
-      return l10n.dockGenerateNeedPoints;
-    }
-    return l10n.generateImage;
-  }
+  String _buildButtonLabel(BuildContext context, int cost) =>
+      resolveGenerateActionLabel(
+        context,
+        isGenerating: viewModel.isGenerating,
+        currentStep: viewModel.liveCurrentStep,
+        totalSteps: viewModel.liveTotalSteps,
+        estimatedCost: cost,
+      );
 
-  Color _buildButtonColor(BuildContext context, int cost) {
-    final colors = context.colors;
-    if (viewModel.isGenerating) {
-      return colors.error;
-    }
-    if (cost != 0) {
-      return colors.warning;
-    }
-    return colors.primary;
-  }
+  Color _buildButtonColor(BuildContext context, int cost) =>
+      resolveGenerateActionColor(
+        context,
+        isGenerating: viewModel.isGenerating,
+        estimatedCost: cost,
+      );
 
   @override
   Widget build(BuildContext context) {

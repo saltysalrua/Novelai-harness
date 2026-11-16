@@ -243,7 +243,9 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       message: message,
       tone: AppToastTone.success,
       duration: const Duration(milliseconds: 1400),
-      actionLabel: widget.onClose != null ? l10n.libraryReturnToWorkbench : null,
+      actionLabel: widget.onClose != null
+          ? l10n.libraryReturnToWorkbench
+          : null,
       onAction: widget.onClose,
     );
   }
@@ -284,76 +286,86 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         final filtered = _filterEntries(allEntries);
 
         return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 650;
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 650;
 
-        return Container(
-          margin: widget.connectedLeft
-              ? const EdgeInsets.fromLTRB(0, 8, 8, 8)
-              : const EdgeInsets.all(8),
-          decoration: ShapeDecoration(
-            color: colors.cardBackground,
-            shape: StudioPanelShapeBorder(
-              outerSide: BorderSide(color: colors.borderDefault),
-              radius: AppRadius.lg,
-              roundLeft: !widget.connectedLeft,
-              roundRight: true,
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. 顶部操作栏
-              _buildTopBar(context),
-              Divider(height: 1, color: colors.borderDefault),
-
-              // 2. 主体区：窄屏分类在顶部横向滚动，宽屏在左侧
-              if (isNarrow) ...[
-                _buildHorizontalCategoryBar(context, categories, allEntries),
-                Divider(height: 1, color: colors.borderDefault),
-                Expanded(
-                  child: Container(
-                    color: colors.canvasBackground,
-                    child: filtered.isEmpty
-                        ? _buildEmptyState(context, allEntries.isEmpty)
-                        : _buildGrid(filtered),
-                  ),
+            return Container(
+              margin: widget.connectedLeft
+                  ? const EdgeInsets.fromLTRB(0, 8, 8, 8)
+                  : const EdgeInsets.all(8),
+              decoration: ShapeDecoration(
+                color: colors.cardBackground,
+                shape: StudioPanelShapeBorder(
+                  outerSide: BorderSide(color: colors.borderDefault),
+                  radius: AppRadius.lg,
+                  roundLeft: !widget.connectedLeft,
+                  roundRight: true,
                 ),
-              ] else ...[
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 侧边分类标签栏 (固定宽度 200)
-                      SizedBox(
-                        width: 200,
-                        child: _buildCategorySidebar(
-                          context,
-                          categories,
-                          allEntries,
-                        ),
-                      ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. 顶部操作栏
+                  _buildTopBar(context),
+                  Divider(height: 1, color: colors.borderDefault),
 
-                      VerticalDivider(width: 1, color: colors.borderDefault),
-
-                      // 右侧词组合网格
-                      Expanded(
-                        child: Container(
-                          color: colors.canvasBackground,
-                          child: filtered.isEmpty
-                              ? _buildEmptyState(context, allEntries.isEmpty)
-                              : _buildGrid(filtered),
-                        ),
+                  // 2. 主体区：窄屏分类在顶部横向滚动，宽屏在左侧
+                  if (isNarrow) ...[
+                    _buildHorizontalCategoryBar(
+                      context,
+                      categories,
+                      allEntries,
+                    ),
+                    Divider(height: 1, color: colors.borderDefault),
+                    Expanded(
+                      child: Container(
+                        color: colors.canvasBackground,
+                        child: filtered.isEmpty
+                            ? _buildEmptyState(context, allEntries.isEmpty)
+                            : _buildGrid(filtered),
                       ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
+                    ),
+                  ] else ...[
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 侧边分类标签栏 (固定宽度 200)
+                          SizedBox(
+                            width: 200,
+                            child: _buildCategorySidebar(
+                              context,
+                              categories,
+                              allEntries,
+                            ),
+                          ),
+
+                          VerticalDivider(
+                            width: 1,
+                            color: colors.borderDefault,
+                          ),
+
+                          // 右侧词组合网格
+                          Expanded(
+                            child: Container(
+                              color: colors.canvasBackground,
+                              child: filtered.isEmpty
+                                  ? _buildEmptyState(
+                                      context,
+                                      allEntries.isEmpty,
+                                    )
+                                  : _buildGrid(filtered),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -418,6 +430,10 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 tooltip: l10n.sidebarExpandTooltip,
                 onPressed: widget.onExpandSidebar,
               ),
+              const SizedBox(width: 8),
+            ],
+            if (widget.onClose != null) ...[
+              _buildCloseButton(context, compact: isNarrow),
               const SizedBox(width: 8),
             ],
             Icon(
@@ -604,6 +620,34 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       variant: AppActionButtonVariant.primary,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       onPressed: openCreateDialog,
+    );
+  }
+
+  /// 返回原状态 / 退出词库覆盖层 (收起与窄屏时均可直接退回进入前页面)
+  Widget _buildCloseButton(BuildContext context, {required bool compact}) {
+    final l10n = context.l10n;
+    if (compact) {
+      return AppIconButton(
+        key: const Key('library_close_button'),
+        icon: Icons.arrow_back_rounded,
+        size: 32,
+        iconSize: 18,
+        variant: AppIconButtonVariant.outlined,
+        tooltip: l10n.libraryReturnToWorkbench,
+        onPressed: widget.onClose,
+      );
+    }
+    return Tooltip(
+      message: l10n.libraryReturnToWorkbench,
+      child: AppActionButton(
+        key: const Key('library_close_button'),
+        icon: Icons.arrow_back_rounded,
+        iconSize: 15,
+        label: l10n.libraryReturn,
+        variant: AppActionButtonVariant.outlined,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        onPressed: widget.onClose,
+      ),
     );
   }
 

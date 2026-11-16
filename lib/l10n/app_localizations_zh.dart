@@ -3779,4 +3779,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String frameRateFpsOption(int fps) {
     return '$fps FPS';
   }
+
+  @override
+  String get inpaintExit => '退出修复';
+
+  @override
+  String get canvasQuickGenerate => '生成';
+
+  @override
+  String get canvasQuickAbort => '终止';
+
+  @override
+  String get libraryReturn => '返回';
 }

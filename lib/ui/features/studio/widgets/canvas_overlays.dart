@@ -12,8 +12,10 @@ import '../../../core/widgets/app_floating_dock.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../settings/views/settings_dialog.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
+import 'studio_shared.dart';
 
 /// 画板浮层通用白底徽章装饰 (Notion 蓝白卡片，支持 context 语义色与无参回退)
 BoxDecoration canvasBadgeDecoration([BuildContext? context]) {
@@ -493,19 +495,13 @@ class MobileCanvasActionBar extends StatelessWidget {
               variant: AppToolChipVariant.tinted,
               fontSize: 11,
               iconSize: 13,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 5,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               radius: AppRadius.sm + 2,
               onTap: () {
                 if (viewModel.selectedImage?.id != image.id) {
                   viewModel.selectImage(image);
                 }
-                saveOrExportSelectedCanvasImage(
-                  context,
-                  viewModel,
-                );
+                saveOrExportSelectedCanvasImage(context, viewModel);
               },
             ),
           ],
@@ -541,6 +537,197 @@ class CanvasEmptyState extends StatelessWidget {
       title: l10n.canvasEmptyTitle,
       description: l10n.canvasEmptyDescription,
       iconSize: 54,
+    );
+  }
+}
+
+/// 画板快捷生成 / 终止按钮 (窄屏画板底栏与宽屏收起左卡片时复用，支持直接重复出图)
+class CanvasQuickGenerateButton extends StatelessWidget {
+  final StudioViewModel viewModel;
+  final bool compact;
+  final bool iconOnly;
+
+  const CanvasQuickGenerateButton({
+    super.key,
+    required this.viewModel,
+    this.compact = false,
+    this.iconOnly = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        viewModel,
+        viewModel.liveProgressController,
+      ]),
+      builder: (context, _) {
+        final isGenerating = viewModel.isGenerating;
+        final estimatedCost = viewModel.estimatedGenerationCost;
+        final bgColor = resolveGenerateActionColor(
+          context,
+          isGenerating: isGenerating,
+          estimatedCost: estimatedCost,
+        );
+        final fullTooltip = resolveGenerateActionLabel(
+          context,
+          isGenerating: isGenerating,
+          currentStep: viewModel.liveCurrentStep,
+          totalSteps: viewModel.liveTotalSteps,
+          estimatedCost: estimatedCost,
+          compact: false,
+        );
+        final label = resolveGenerateActionLabel(
+          context,
+          isGenerating: isGenerating,
+          currentStep: viewModel.liveCurrentStep,
+          totalSteps: viewModel.liveTotalSteps,
+          estimatedCost: estimatedCost,
+          compact: compact,
+        );
+        final height = compact ? 40.0 : 38.0;
+        final radius = compact ? AppRadius.lg : AppRadius.md;
+
+        return Tooltip(
+          message: fullTooltip,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: const Key('canvas_quick_generate_button'),
+              onTap: isGenerating
+                  ? () => viewModel.abortGeneration()
+                  : () => viewModel.generateImage(),
+              borderRadius: BorderRadius.circular(radius),
+              child: Container(
+                width: iconOnly ? height : null,
+                height: height,
+                padding: iconOnly
+                    ? EdgeInsets.zero
+                    : EdgeInsets.symmetric(
+                        horizontal: compact ? 12 : 14,
+                        vertical: 8,
+                      ),
+                alignment: iconOnly ? Alignment.center : null,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(radius),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.14),
+                  ),
+                  boxShadow: context.shadowElevated,
+                ),
+                child: iconOnly
+                    ? AppIconSwap(
+                        swapKey: isGenerating,
+                        enableBlur: false,
+                        child: Icon(
+                          isGenerating
+                              ? Icons.stop_circle_outlined
+                              : Icons.auto_awesome,
+                          key: ValueKey<bool>(isGenerating),
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AppIconSwap(
+                            swapKey: isGenerating,
+                            enableBlur: false,
+                            child: Icon(
+                              isGenerating
+                                  ? Icons.stop_circle_outlined
+                                  : Icons.auto_awesome,
+                              key: ValueKey<bool>(isGenerating),
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: compact ? 12.5 : 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              fontFeatures: isGenerating
+                                  ? const [FontFeature.tabularFigures()]
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 宽屏收起左侧栏与左卡片时，画板左上角的轻量快捷悬浮条：
+/// 展开左侧栏 + 不拉出左卡片直达「词库」「设置」。
+class CanvasCollapsedQuickDock extends StatelessWidget {
+  final StudioViewModel viewModel;
+
+  const CanvasCollapsedQuickDock({super.key, required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+
+    return AppFloatingDock(
+      key: const Key('canvas_collapsed_quick_dock'),
+      radius: AppRadius.lg,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      enableBlur: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppIconButton(
+            key: const Key('canvas_expand_sidebar_button'),
+            icon: Icons.keyboard_double_arrow_right_rounded,
+            size: 30,
+            iconSize: 17,
+            variant: AppIconButtonVariant.ghost,
+            tooltip: l10n.sidebarExpandTooltip,
+            onPressed: viewModel.toggleLeftSidebarCollapsed,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Container(width: 1, height: 18, color: colors.borderSubtle),
+          ),
+          AppToolChip(
+            key: const Key('canvas_collapsed_library_button'),
+            icon: Icons.collections_bookmark_outlined,
+            label: l10n.tabLibrary,
+            tooltip: l10n.tabLibrary,
+            variant: AppToolChipVariant.tinted,
+            fontSize: 12,
+            iconSize: 14,
+            height: 30,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            radius: AppRadius.md,
+            onTap: () => viewModel.setActiveSidebarTab(
+              StudioSidebarTab.library,
+              expandSidebar: false,
+            ),
+          ),
+          const SizedBox(width: 2),
+          AppIconButton(
+            key: const Key('canvas_collapsed_settings_button'),
+            icon: Icons.settings_outlined,
+            size: 30,
+            iconSize: 16,
+            variant: AppIconButtonVariant.ghost,
+            tooltip: l10n.settings,
+            onPressed: () => SettingsDialog.show(context, viewModel),
+          ),
+        ],
+      ),
     );
   }
 }

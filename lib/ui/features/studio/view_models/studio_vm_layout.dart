@@ -168,19 +168,38 @@ mixin _StudioLayoutMixin on _StudioCore {
   }
 
   @override
-  void setActiveSidebarTab(StudioSidebarTab tab) {
+  void setActiveSidebarTab(StudioSidebarTab tab, {bool expandSidebar = true}) {
     final tabChanged = _activeSidebarTab != tab;
-    final wasCollapsed = _leftSidebarCollapsed;
-    if (!tabChanged && !wasCollapsed) return;
+    final shouldExpand = expandSidebar && _leftSidebarCollapsed;
+    if (!tabChanged && !shouldExpand) return;
     if (tabChanged) {
+      if (tab == StudioSidebarTab.inpaint &&
+          (_activeSidebarTab == StudioSidebarTab.parameters ||
+              _activeSidebarTab == StudioSidebarTab.prompts)) {
+        _tabBeforeInpaint = _activeSidebarTab;
+      } else if (tab == StudioSidebarTab.parameters ||
+          tab == StudioSidebarTab.prompts) {
+        _tabBeforeInpaint = tab;
+      }
       _activeSidebarTab = tab;
       _configService.saveSidebarActiveTab(tab.name);
     }
-    if (wasCollapsed) {
+    if (shouldExpand) {
       _leftSidebarCollapsed = false;
       _configService.saveLeftSidebarCollapsed(false);
     }
     notifyListeners();
+  }
+
+  @override
+  void exitInpaintMode({bool expandSidebar = false}) {
+    if (_activeSidebarTab != StudioSidebarTab.inpaint) return;
+    final target =
+        (_tabBeforeInpaint == StudioSidebarTab.parameters ||
+            _tabBeforeInpaint == StudioSidebarTab.prompts)
+        ? _tabBeforeInpaint
+        : StudioSidebarTab.parameters;
+    setActiveSidebarTab(target, expandSidebar: expandSidebar);
   }
 
   void setPromptTabbedMode(bool isTabbed) {
