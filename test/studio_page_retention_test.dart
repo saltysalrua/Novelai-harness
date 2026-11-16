@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/types.dart';
@@ -13,6 +14,7 @@ import 'package:novelai_harness/ui/core/widgets/app_number_slider.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/views/studio_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_card.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/canvas_history_sidebar.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/canvas_overlays.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/freeform_annotation_board.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/generate_dock.dart';
@@ -691,6 +693,60 @@ void main() {
 
     vm.setChatStreamingForTesting(false);
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('画板历史侧栏展开时立即清除提示并收回按钮，无残留叠影', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = NovelAiRepository();
+    final vm = StudioViewModel(repository: repo);
+    addTearDown(vm.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        theme: AppTheme.darkThemeFor(AppAccentController.instance.state.value),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(body: ImageCanvasCard(viewModel: vm)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final openButton = find.byKey(const Key('canvas_open_history_button'));
+    expect(openButton, findsOneWidget);
+    expect(find.byType(CanvasHistorySidebar), findsNothing);
+
+    // 悬停唤出 Tooltip
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(openButton));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('展开历史记录'), findsOneWidget);
+
+    // 点击唤出历史：Tooltip 立即消失，90ms 后按钮已完全退出（早于 250ms 侧栏完成）
+    await tester.tap(openButton);
+    await tester.pump();
+    expect(find.text('展开历史记录'), findsNothing);
+    expect(vm.canvasHistoryOpen, isTrue);
+
+    await tester.pump(const Duration(milliseconds: 110));
+    expect(openButton, findsNothing);
+    expect(find.byType(CanvasHistorySidebar), findsOneWidget);
+
+    await tester.pumpAndSettle();
+    expect(openButton, findsNothing);
+    expect(find.byType(CanvasHistorySidebar), findsOneWidget);
+    expect(find.text('历史记录'), findsOneWidget);
+
+    // 点击收起按钮后恢复展开按钮且无残留
+    await tester.tap(find.byKey(const Key('canvas_collapse_history_button')));
+    await tester.pumpAndSettle();
+    expect(vm.canvasHistoryOpen, isFalse);
+    expect(find.byType(CanvasHistorySidebar), findsNothing);
+    expect(openButton, findsOneWidget);
+    await vm.flushPendingLayoutSave();
     expect(tester.takeException(), isNull);
   });
 }

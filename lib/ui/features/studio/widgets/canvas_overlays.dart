@@ -363,12 +363,16 @@ class HistoryToggleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppIconButton(
+      key: const Key('canvas_open_history_button'),
       icon: Icons.history_rounded,
       size: 38,
       iconSize: 20,
       variant: AppIconButtonVariant.elevated,
       tooltip: context.l10n.canvasOpenHistoryTooltip,
-      onPressed: onTap,
+      onPressed: () {
+        Tooltip.dismissAllToolTips();
+        onTap();
+      },
     );
   }
 }
