@@ -257,10 +257,13 @@ void main() {
             theme: AppTheme.lightTheme,
             home: Scaffold(
               body: SingleChildScrollView(
-                child: PromptExtensionDeck(
-                  viewModel: viewModel,
-                  prefixController: prefixController,
-                  suffixController: suffixController,
+                child: ListenableBuilder(
+                  listenable: viewModel,
+                  builder: (context, _) => PromptExtensionDeck(
+                    viewModel: viewModel,
+                    prefixController: prefixController,
+                    suffixController: suffixController,
+                  ),
                 ),
               ),
             ),
@@ -271,9 +274,17 @@ void main() {
         expect(find.text('多角色提示词'), findsOneWidget);
         expect(find.text('固定词缀'), findsOneWidget);
         expect(find.text('银发少女'), findsOneWidget);
+        expect(find.text('添加角色'), findsOneWidget);
+
+        // 点击「添加角色」弹出性别预设选项 (女 / 男 / 其他)
+        await tester.tap(find.text('添加角色'));
+        await tester.pumpAndSettle();
         expect(find.text('女'), findsOneWidget);
         expect(find.text('男'), findsOneWidget);
         expect(find.text('其他'), findsOneWidget);
+        await tester.tap(find.text('女'));
+        await tester.pumpAndSettle();
+        expect(find.text('2/22'), findsOneWidget);
 
         // 点击切换到 Fixed Affixes (固定词缀) 标签
         await tester.tap(find.text('固定词缀'));
@@ -310,7 +321,7 @@ void main() {
         expect(find.text('银发少女'), findsOneWidget);
 
         // 角色徽标数量上限展示
-        expect(find.text('1/22'), findsOneWidget);
+        expect(find.text('2/22'), findsOneWidget);
       },
     );
 
@@ -339,10 +350,13 @@ void main() {
             theme: AppTheme.lightTheme,
             home: Scaffold(
               body: SingleChildScrollView(
-                child: PromptExtensionDeck(
-                  viewModel: viewModel,
-                  prefixController: prefixController,
-                  suffixController: suffixController,
+                child: ListenableBuilder(
+                  listenable: viewModel,
+                  builder: (context, _) => PromptExtensionDeck(
+                    viewModel: viewModel,
+                    prefixController: prefixController,
+                    suffixController: suffixController,
+                  ),
                 ),
               ),
             ),

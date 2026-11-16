@@ -1013,6 +1013,7 @@ class _ModelThinkingPickerSheetState extends State<_ModelThinkingPickerSheet> {
                         ),
                       )
                     : ListView.builder(
+                        padding: EdgeInsets.zero,
                         shrinkWrap: true,
                         itemCount: filteredModels.length,
                         itemBuilder: (context, index) {

@@ -228,7 +228,16 @@ class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
                 boxShadow: layoutContext.shadowElevated,
               ),
               clipBehavior: Clip.antiAlias,
-              child: builder(layoutContext),
+              // 浮层已由 Positioned 限定在安全区内，剥离外层屏幕 SafeArea padding，
+              // 防止内部的 ListView 在安卓/iOS 上额外注入状态栏高度的顶部空白。
+              child: MediaQuery.removePadding(
+                context: layoutContext,
+                removeTop: true,
+                removeBottom: true,
+                removeLeft: true,
+                removeRight: true,
+                child: Builder(builder: builder),
+              ),
             ),
           ),
         );

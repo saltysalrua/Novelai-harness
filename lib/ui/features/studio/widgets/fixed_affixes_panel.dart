@@ -4,7 +4,7 @@ import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
-import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_resize_handle.dart';
@@ -38,95 +38,88 @@ class FixedAffixesCardContent extends StatelessWidget {
       borderColor: isEnabled
           ? colors.borderDefault
           : colors.borderDefault.withValues(alpha: 0.5),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _BannedWordsSection(viewModel: viewModel),
-          Divider(height: 1, thickness: 1, color: colors.borderSubtle),
-          AnimatedOpacity(
-            duration: AppMotion.resolveDuration(
-              context,
-              AppMotionDurations.quick,
+      child: AnimatedOpacity(
+        duration: AppMotion.resolveDuration(
+          context,
+          AppMotionDurations.quick,
+        ),
+        curve: AppMotionCurves.smoothOut,
+        opacity: isEnabled ? 1.0 : 0.55,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _AffixFieldHeader(badge: l10n.promptsPrefixBadge),
+            Divider(height: 1, thickness: 1, color: colors.borderSubtle),
+            ResizableTextField(
+              controller: prefixController,
+              onChanged: (val) => viewModel.updateParams(
+                params.copyWith(prefixPrompt: val),
+              ),
+              hintText: '<artist>\n0.7::artist_name::, year 2026...',
+              defaultHeight: _defaultPrefixHeight,
+              initialHeight: viewModel.prefixPromptHeight,
+              onHeightChanged: viewModel.updatePrefixPromptHeight,
+              minHeight: 44,
+              maxHeight: 400,
+              resizeTooltip: l10n.affixResizePrefixTooltip,
+              enableAutocomplete: viewModel.config.enableTagAutocomplete,
+              showTranslation: viewModel.config.showTagTranslations,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.48,
+                color: colors.textPrimary,
+              ),
+              hintStyle: TextStyle(
+                fontSize: 13,
+                height: 1.48,
+                color: colors.textMuted,
+              ),
             ),
-            curve: AppMotionCurves.smoothOut,
-            opacity: isEnabled ? 1.0 : 0.55,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _AffixFieldHeader(badge: l10n.promptsPrefixBadge),
-                Divider(height: 1, thickness: 1, color: colors.borderSubtle),
-                ResizableTextField(
-                  controller: prefixController,
-                  onChanged: (val) => viewModel.updateParams(
-                    params.copyWith(prefixPrompt: val),
-                  ),
-                  hintText: '<artist>\n0.7::artist_name::, year 2026...',
-                  defaultHeight: _defaultPrefixHeight,
-                  initialHeight: viewModel.prefixPromptHeight,
-                  onHeightChanged: viewModel.updatePrefixPromptHeight,
-                  minHeight: 44,
-                  maxHeight: 400,
-                  resizeTooltip: l10n.affixResizePrefixTooltip,
-                  enableAutocomplete: viewModel.config.enableTagAutocomplete,
-                  showTranslation: viewModel.config.showTagTranslations,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.48,
-                    color: colors.textPrimary,
-                  ),
-                  hintStyle: TextStyle(
-                    fontSize: 13,
-                    height: 1.48,
-                    color: colors.textMuted,
-                  ),
-                ),
-                _AffixFieldHeader(badge: l10n.promptsSuffixBadge),
-                Divider(height: 1, thickness: 1, color: colors.borderSubtle),
-                ResizableTextField(
-                  controller: suffixController,
-                  onChanged: (val) => viewModel.updateParams(
-                    params.copyWith(suffixPrompt: val),
-                  ),
-                  hintText: 'very aesthetic, masterpiece...',
-                  defaultHeight: _defaultSuffixHeight,
-                  initialHeight: viewModel.suffixPromptHeight,
-                  onHeightChanged: viewModel.updateSuffixPromptHeight,
-                  minHeight: 38,
-                  maxHeight: 300,
-                  resizeTooltip: l10n.affixResizeSuffixTooltip,
-                  enableAutocomplete: viewModel.config.enableTagAutocomplete,
-                  showTranslation: viewModel.config.showTagTranslations,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.48,
-                    color: colors.textPrimary,
-                  ),
-                  hintStyle: TextStyle(
-                    fontSize: 13,
-                    height: 1.48,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
+            _AffixFieldHeader(badge: l10n.promptsSuffixBadge),
+            Divider(height: 1, thickness: 1, color: colors.borderSubtle),
+            ResizableTextField(
+              controller: suffixController,
+              onChanged: (val) => viewModel.updateParams(
+                params.copyWith(suffixPrompt: val),
+              ),
+              hintText: 'very aesthetic, masterpiece...',
+              defaultHeight: _defaultSuffixHeight,
+              initialHeight: viewModel.suffixPromptHeight,
+              onHeightChanged: viewModel.updateSuffixPromptHeight,
+              minHeight: 38,
+              maxHeight: 300,
+              resizeTooltip: l10n.affixResizeSuffixTooltip,
+              enableAutocomplete: viewModel.config.enableTagAutocomplete,
+              showTranslation: viewModel.config.showTagTranslations,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.48,
+                color: colors.textPrimary,
+              ),
+              hintStyle: TextStyle(
+                fontSize: 13,
+                height: 1.48,
+                color: colors.textMuted,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-/// 固定词缀页上的违禁词开关和词表。只影响返回给 Agent 的文本。
-class _BannedWordsSection extends StatefulWidget {
+/// 排除违禁词独立卡片 (置于提示词管理页底部；只影响返回给 Agent 的参数文本，不影响实际生图)
+class BannedWordsCard extends StatefulWidget {
   final StudioViewModel viewModel;
 
-  const _BannedWordsSection({required this.viewModel});
+  const BannedWordsCard({super.key, required this.viewModel});
 
   @override
-  State<_BannedWordsSection> createState() => _BannedWordsSectionState();
+  State<BannedWordsCard> createState() => _BannedWordsCardState();
 }
 
-class _BannedWordsSectionState extends State<_BannedWordsSection> {
+class _BannedWordsCardState extends State<BannedWordsCard> {
   late final TextEditingController _controller;
 
   @override
@@ -138,7 +131,7 @@ class _BannedWordsSectionState extends State<_BannedWordsSection> {
   }
 
   @override
-  void didUpdateWidget(covariant _BannedWordsSection oldWidget) {
+  void didUpdateWidget(covariant BannedWordsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     final next = widget.viewModel.params.bannedWords;
     if (_controller.text != next) {
@@ -159,8 +152,8 @@ class _BannedWordsSectionState extends State<_BannedWordsSection> {
     final params = widget.viewModel.params;
     final enabled = params.stripBannedWords;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -168,29 +161,42 @@ class _BannedWordsSectionState extends State<_BannedWordsSection> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(
-                  l10n.bannedWordsTitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.bannedWordsTitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      l10n.bannedWordsSubtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                enabled ? l10n.charPromptEnabled : l10n.charPromptDisabled,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: enabled ? colors.primary : colors.textMuted,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 6),
-              AppSwitch(
-                value: enabled,
-                onChanged: (val) => widget.viewModel.updateParams(
-                  params.copyWith(stripBannedWords: val),
+              AppToolChip(
+                icon: enabled ? Icons.check_rounded : Icons.close_rounded,
+                label: enabled
+                    ? l10n.charPromptEnabled
+                    : l10n.charPromptDisabled,
+                isSelected: enabled,
+                height: 28,
+                radius: 6,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                unselectedBackgroundColor: colors.canvasBackground,
+                borderColor: colors.borderDefault,
+                onTap: () => widget.viewModel.updateParams(
+                  params.copyWith(stripBannedWords: !enabled),
                 ),
               ),
             ],
@@ -212,7 +218,7 @@ class _BannedWordsSectionState extends State<_BannedWordsSection> {
                   height: 1.4,
                   color: colors.textPrimary,
                 ),
-                decoration: const InputDecoration(),
+                decoration: InputDecoration(hintText: l10n.bannedWordsHint),
                 onChanged: (val) => widget.viewModel.updateParams(
                   widget.viewModel.params.copyWith(bannedWords: val),
                 ),

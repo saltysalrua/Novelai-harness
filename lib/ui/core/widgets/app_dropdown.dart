@@ -413,6 +413,7 @@ class _AppDropdownPopoverSheetState<T>
                     ),
                   )
                 : ListView.builder(
+                    padding: EdgeInsets.zero,
                     shrinkWrap: true,
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {

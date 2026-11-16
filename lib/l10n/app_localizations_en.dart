@@ -1513,7 +1513,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get charPromptEmptyDescription =>
-      'Click Female / Male / Other preset buttons above to start multi-character generation';
+      'Click Add Character above to choose a preset and start multi-character generation';
 
   @override
   String get charPromptExitCanvasEditTooltip => 'Exit canvas position editing';
@@ -1527,6 +1527,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get charPromptCanvasEdit => 'Canvas Edit';
+
+  @override
+  String get charPromptAddCharacter => 'Add Character';
 
   @override
   String get charPromptAddFemaleTooltip =>
@@ -1605,6 +1608,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bannedWordsTitle => 'Strip banned words';
+
+  @override
+  String get bannedWordsSubtitle =>
+      'Hidden from assistant only; still sent to generation';
+
+  @override
+  String get bannedWordsHint =>
+      'Comma-separated terms to hide from assistant...';
 
   @override
   String get annotHistoryTitle => 'History ';

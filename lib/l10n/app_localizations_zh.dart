@@ -1407,8 +1407,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get charPromptEmptyTitle => '暂无独立角色提示词';
 
   @override
-  String get charPromptEmptyDescription =>
-      '点击右上角「女 / 男 / 其他」预设按钮即可开启多角色防串色隔离生图';
+  String get charPromptEmptyDescription => '点击右上角「添加角色」按钮即可开启多角色防串色隔离生图';
 
   @override
   String get charPromptExitCanvasEditTooltip => '退出画板位置编辑';
@@ -1421,6 +1420,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get charPromptCanvasEdit => '画板编辑';
+
+  @override
+  String get charPromptAddCharacter => '添加角色';
 
   @override
   String get charPromptAddFemaleTooltip => '添加女角色 (初始提示词 girl)';
@@ -1491,6 +1493,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bannedWordsTitle => '排除违禁词';
+
+  @override
+  String get bannedWordsSubtitle => '仅对助手隐藏，不影响生图';
+
+  @override
+  String get bannedWordsHint => '输入要对助手隐藏的词条，用逗号分隔...';
 
   @override
   String get annotHistoryTitle => '历史记录 ';

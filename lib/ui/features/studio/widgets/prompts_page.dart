@@ -10,6 +10,7 @@ import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
+import 'fixed_affixes_panel.dart';
 import 'prompt_editor_card.dart';
 import 'prompt_extension_deck.dart';
 import 'rich_prompt_text_controller.dart';
@@ -312,6 +313,10 @@ class _PromptsPageState extends State<PromptsPage> {
               prefixController: _prefixController,
               suffixController: _suffixController,
             ),
+
+            // 排除违禁词：作用于全部提示词的助手读取脱敏，独立置于页尾
+            const SizedBox(height: 14),
+            BannedWordsCard(viewModel: viewModel),
           ],
         );
       },

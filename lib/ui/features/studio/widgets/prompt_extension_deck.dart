@@ -1,14 +1,16 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderEditable;
 import '../../../core/theme/app_motion.dart';
-import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
-import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../../core/widgets/overlay_anchor.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
@@ -226,15 +228,24 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     required NaiGenerationParams params,
     required AppLocalizations l10n,
   }) {
+    final addButton = _buildAddCharacterButtons(viewModel, supported, isFull);
+    if (characters.isEmpty) {
+      return KeyedSubtree(
+        key: const ValueKey('char_toolbar'),
+        child: Align(alignment: Alignment.centerRight, child: addButton),
+      );
+    }
+
     return KeyedSubtree(
       key: const ValueKey('char_toolbar'),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          if (characters.isNotEmpty) ...[
+      child: SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
             AppSegmentedCardBar<bool>(
               items: [
                 AppSegmentedItem(
@@ -249,27 +260,34 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
                 ),
               ],
               selectedValue: params.characterAiPosition,
+              fontSize: 12,
+              iconSize: 13,
               itemPadding: const EdgeInsets.symmetric(
                 horizontal: 8,
-                vertical: 5,
+                vertical: 4,
               ),
               onValueChanged: (isAi) => viewModel.setCharacterAiPosition(isAi),
             ),
-            _CanvasEditDeckButton(
-              isCanvasEditing: viewModel.isEditingCharacterPositions,
-              onTap: () => viewModel.setEditingCharacterPositions(
-                !viewModel.isEditingCharacterPositions,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _CanvasEditDeckButton(
+                  isCanvasEditing: viewModel.isEditingCharacterPositions,
+                  onTap: () => viewModel.setEditingCharacterPositions(
+                    !viewModel.isEditingCharacterPositions,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                addButton,
+              ],
             ),
-          ] else
-            const SizedBox.shrink(),
-          _buildAddCharacterButtons(viewModel, supported, isFull),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  /// 添加角色按钮组：官方三预设 (女/男/其他)，禁用时降级为单个上限胶囊
+  /// 添加角色入口：合并官方三预设 (女/男/其他) 为单个下拉选项按钮，禁用时降级为上限芯片
   Widget _buildAddCharacterButtons(
     StudioViewModel viewModel,
     bool supported,
@@ -279,35 +297,36 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     if (!enabled) {
       return const _AddCharacterLimitChip();
     }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final gender in NaiCharacterGender.values) ...[
-          _AddGenderDeckButton(
-            gender: gender,
-            onTap: () => viewModel.addCharacterPrompt(gender: gender),
-          ),
-          if (gender != NaiCharacterGender.values.last)
-            const SizedBox(width: 4),
-        ],
-      ],
+    return _AddCharacterMenuButton(
+      onSelected: (gender) => viewModel.addCharacterPrompt(gender: gender),
     );
   }
 
-  /// 固定词缀二级操作工具栏 (右侧总开关)
+  /// 固定词缀二级操作工具栏 (右侧统一芯片开关)
   Widget _buildFixedAffixesToolbar({
     required StudioViewModel viewModel,
     required bool isAffixesEnabled,
     required NaiGenerationParams params,
   }) {
+    final colors = context.colors;
+    final l10n = context.l10n;
     return KeyedSubtree(
       key: const ValueKey('affix_toolbar'),
       child: Align(
         alignment: Alignment.centerRight,
-        child: _AffixToggleSwitch(
-          isEnabled: isAffixesEnabled,
-          onChanged: (val) =>
-              viewModel.updateParams(params.copyWith(applyFixedPrompts: val)),
+        child: AppToolChip(
+          icon: isAffixesEnabled ? Icons.check_rounded : Icons.close_rounded,
+          label:
+              '${l10n.charPromptDeckTabAffixes}: ${isAffixesEnabled ? l10n.charPromptEnabled : l10n.charPromptDisabled}',
+          isSelected: isAffixesEnabled,
+          height: 28,
+          radius: 6,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          unselectedBackgroundColor: colors.cardBackground,
+          borderColor: colors.borderDefault,
+          onTap: () => viewModel.updateParams(
+            params.copyWith(applyFixedPrompts: !isAffixesEnabled),
+          ),
         ),
       ),
     );
@@ -377,7 +396,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
   }
 }
 
-/// 画板位置编辑独立胶囊按钮 (流式排版自适应)
+/// 画板位置编辑统一芯片按钮 (与其它工具栏芯片等高同圆角)
 class _CanvasEditDeckButton extends StatelessWidget {
   final bool isCanvasEditing;
   final VoidCallback onTap;
@@ -391,112 +410,200 @@ class _CanvasEditDeckButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
-    return Tooltip(
-      message: isCanvasEditing
+    return AppToolChip(
+      icon: Icons.control_camera_rounded,
+      label: isCanvasEditing
+          ? l10n.charPromptCanvasEditing
+          : l10n.charPromptCanvasEdit,
+      isSelected: isCanvasEditing,
+      height: 28,
+      radius: 6,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      unselectedBackgroundColor: colors.cardBackground,
+      borderColor: colors.borderDefault,
+      tooltip: isCanvasEditing
           ? l10n.charPromptExitCanvasEditTooltip
           : l10n.charPromptEnterCanvasEditTooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: AnimatedContainer(
-          duration: AppMotion.resolveDuration(
-            context,
-            AppMotionDurations.quick,
-          ),
-          curve: AppMotionCurves.smoothOut,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: isCanvasEditing ? colors.primary : colors.mutedBackground,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(
-              color: isCanvasEditing ? colors.primary : colors.borderSubtle,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.control_camera_rounded,
-                size: 12,
-                color: isCanvasEditing ? Colors.white : colors.textSecondary,
-              ),
-              const SizedBox(width: 3.5),
-              Text(
-                isCanvasEditing
-                    ? l10n.charPromptCanvasEditing
-                    : l10n.charPromptCanvasEdit,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isCanvasEditing
-                      ? FontWeight.w700
-                      : FontWeight.w500,
-                  color: isCanvasEditing ? Colors.white : colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      onTap: onTap,
     );
   }
 }
 
-/// 添加角色胶囊按钮 (官方三预设：女/男/其他，各带性别色)
-///
-/// 性别专属粉/蓝/紫三色为业务身份色 (跨主题恒定)，非主题语义色，故保留字面值。
-class _AddGenderDeckButton extends StatelessWidget {
-  final NaiCharacterGender gender;
-  final VoidCallback onTap;
+/// 合并后的添加角色下拉选项按钮 (点击弹出 女 / 男 / 其他 预设菜单)
+class _AddCharacterMenuButton extends StatefulWidget {
+  final ValueChanged<NaiCharacterGender> onSelected;
 
-  const _AddGenderDeckButton({required this.gender, required this.onTap});
+  const _AddCharacterMenuButton({required this.onSelected});
 
-  Color get _color => switch (gender) {
+  @override
+  State<_AddCharacterMenuButton> createState() =>
+      _AddCharacterMenuButtonState();
+}
+
+class _AddCharacterMenuButtonState extends State<_AddCharacterMenuButton> {
+  bool _isOpen = false;
+
+  static Color _genderColor(NaiCharacterGender gender) => switch (gender) {
     NaiCharacterGender.female => const Color(0xFFEC4899),
     NaiCharacterGender.male => const Color(0xFF3B82F6),
     NaiCharacterGender.other => const Color(0xFF8B5CF6),
   };
 
-  IconData get _icon => switch (gender) {
+  static IconData _genderIcon(NaiCharacterGender gender) => switch (gender) {
     NaiCharacterGender.female => Icons.female_rounded,
     NaiCharacterGender.male => Icons.male_rounded,
     NaiCharacterGender.other => Icons.transgender_rounded,
   };
 
-  String _tooltip(AppLocalizations l10n) => switch (gender) {
+  static String _genderTooltip(
+    AppLocalizations l10n,
+    NaiCharacterGender gender,
+  ) => switch (gender) {
     NaiCharacterGender.female => l10n.charPromptAddFemaleTooltip,
     NaiCharacterGender.male => l10n.charPromptAddMaleTooltip,
     NaiCharacterGender.other => l10n.charPromptAddOtherTooltip,
   };
 
+  Future<void> _openMenu(BuildContext triggerContext) async {
+    final l10n = context.l10n;
+    final renderBox = triggerContext.findRenderObject() as RenderBox?;
+    final triggerWidth = (renderBox != null && renderBox.hasSize)
+        ? renderBox.size.width
+        : 120.0;
+    final menuMinWidth = math.max(triggerWidth, 120.0);
+    final menuMaxWidth = math.max(triggerWidth, 180.0);
+
+    setState(() => _isOpen = true);
+    try {
+      final selected = await showAnchoredPopover<NaiCharacterGender>(
+        context: triggerContext,
+        preferAbove: false,
+        gap: 4,
+        minWidth: menuMinWidth,
+        maxWidth: menuMaxWidth,
+        builder: (popoverContext) {
+          final colors = popoverContext.colors;
+          return Padding(
+            padding: const EdgeInsets.all(6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final gender in NaiCharacterGender.values)
+                  Tooltip(
+                    message: _genderTooltip(l10n, gender),
+                    waitDuration: AppMotionDurations.verySlow,
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => Navigator.of(popoverContext).pop(gender),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _genderIcon(gender),
+                                size: 15,
+                                color: _genderColor(gender),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _genderLabel(l10n, gender),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: colors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      );
+      if (selected != null) {
+        widget.onSelected(selected);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isOpen = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final l10n = context.l10n;
-    return Tooltip(
-      message: _tooltip(l10n),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-          decoration: BoxDecoration(
-            color: _color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(color: _color.withValues(alpha: 0.45)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(_icon, size: 13, color: _color),
-              const SizedBox(width: 4),
-              Text(
-                _genderLabel(l10n, gender),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: _color,
+    final chevronDuration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.dropdownOpen,
+    );
+
+    return Material(
+      color: colors.cardBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: colors.borderDefault),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Builder(
+        builder: (triggerContext) => InkWell(
+          onTap: () => _openMenu(triggerContext),
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.person_add_alt_1_rounded,
+                  size: 14,
+                  color: colors.textMuted,
                 ),
-              ),
-            ],
+                const SizedBox(width: 4),
+                Text(
+                  l10n.charPromptAddCharacter,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(end: _isOpen ? -1.0 : 1.0),
+                  duration: chevronDuration,
+                  curve: AppMotionCurves.smoothOut,
+                  builder: (context, scaleY, child) {
+                    return Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.diagonal3Values(1.0, scaleY, 1.0),
+                      child: child,
+                    );
+                  },
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 16,
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -504,8 +611,7 @@ class _AddGenderDeckButton extends StatelessWidget {
   }
 }
 
-/// 不支持或已达上限时的禁用胶囊
-
+/// 不支持或已达上限时的禁用芯片 (与添加角色按钮同尺寸同圆角)
 class _AddCharacterLimitChip extends StatelessWidget {
   const _AddCharacterLimitChip();
 
@@ -514,56 +620,28 @@ class _AddCharacterLimitChip extends StatelessWidget {
     final colors = context.colors;
     final l10n = context.l10n;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: colors.mutedBackground,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: colors.borderDefault),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.person_add_alt_rounded, size: 13, color: colors.textMuted),
+          Icon(Icons.person_add_alt_rounded, size: 14, color: colors.textMuted),
           const SizedBox(width: 4),
           Text(
             l10n.charPromptLimitReached,
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
               color: colors.textMuted,
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-/// 词缀总开关控件
-class _AffixToggleSwitch extends StatelessWidget {
-  final bool isEnabled;
-  final ValueChanged<bool> onChanged;
-
-  const _AffixToggleSwitch({required this.isEnabled, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final l10n = context.l10n;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          isEnabled ? l10n.charPromptEnabled : l10n.charPromptDisabled,
-          style: TextStyle(
-            fontSize: 12,
-            color: isEnabled ? colors.primary : colors.textMuted,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(width: 6),
-        AppSwitch(value: isEnabled, onChanged: onChanged),
-      ],
     );
   }
 }

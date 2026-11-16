@@ -2687,7 +2687,7 @@ abstract class AppLocalizations {
   /// No description provided for @charPromptEmptyDescription.
   ///
   /// In zh, this message translates to:
-  /// **'点击右上角「女 / 男 / 其他」预设按钮即可开启多角色防串色隔离生图'**
+  /// **'点击右上角「添加角色」按钮即可开启多角色防串色隔离生图'**
   String get charPromptEmptyDescription;
 
   /// No description provided for @charPromptExitCanvasEditTooltip.
@@ -2713,6 +2713,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'画板编辑'**
   String get charPromptCanvasEdit;
+
+  /// No description provided for @charPromptAddCharacter.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加角色'**
+  String get charPromptAddCharacter;
 
   /// No description provided for @charPromptAddFemaleTooltip.
   ///
@@ -2845,6 +2851,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'排除违禁词'**
   String get bannedWordsTitle;
+
+  /// No description provided for @bannedWordsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅对助手隐藏，不影响生图'**
+  String get bannedWordsSubtitle;
+
+  /// No description provided for @bannedWordsHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入要对助手隐藏的词条，用逗号分隔...'**
+  String get bannedWordsHint;
 
   /// No description provided for @annotHistoryTitle.
   ///
