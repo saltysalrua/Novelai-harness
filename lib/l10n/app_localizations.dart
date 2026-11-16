@@ -7021,6 +7021,168 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'读取图片失败: {error}'**
   String metadataPickImageFailed(String error);
+
+  /// No description provided for @settingsSectionProviderBehavior.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求行为'**
+  String get settingsSectionProviderBehavior;
+
+  /// No description provided for @settingsModelSectionCapabilities.
+  ///
+  /// In zh, this message translates to:
+  /// **'模型能力'**
+  String get settingsModelSectionCapabilities;
+
+  /// No description provided for @settingsModelSectionParameters.
+  ///
+  /// In zh, this message translates to:
+  /// **'采样与限制'**
+  String get settingsModelSectionParameters;
+
+  /// No description provided for @settingsModelSectionCache.
+  ///
+  /// In zh, this message translates to:
+  /// **'提示词缓存'**
+  String get settingsModelSectionCache;
+
+  /// No description provided for @settingsConfirmDeleteProviderTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除供应商'**
+  String get settingsConfirmDeleteProviderTitle;
+
+  /// No description provided for @settingsConfirmDeleteProviderMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除供应商「{name}」及其下的模型配置吗？'**
+  String settingsConfirmDeleteProviderMessage(String name);
+
+  /// No description provided for @settingsEndpointCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制完整接口地址'**
+  String get settingsEndpointCopied;
+
+  /// No description provided for @presetDuplicateToEdit.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制并自定义'**
+  String get presetDuplicateToEdit;
+
+  /// No description provided for @presetCopyPrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制提示词'**
+  String get presetCopyPrompt;
+
+  /// No description provided for @presetCopiedPrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制系统提示词'**
+  String get presetCopiedPrompt;
+
+  /// No description provided for @presetConfirmDeleteTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除预设'**
+  String get presetConfirmDeleteTitle;
+
+  /// No description provided for @presetConfirmDeleteMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除预设「{name}」吗？'**
+  String presetConfirmDeleteMessage(String name);
+
+  /// No description provided for @presetEnableAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部启用'**
+  String get presetEnableAll;
+
+  /// No description provided for @presetDisableAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部停用'**
+  String get presetDisableAll;
+
+  /// No description provided for @skillSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索技能名称、标识或描述'**
+  String get skillSearchHint;
+
+  /// No description provided for @skillNoMatching.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有匹配的技能'**
+  String get skillNoMatching;
+
+  /// No description provided for @skillConfirmDeleteTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除技能'**
+  String get skillConfirmDeleteTitle;
+
+  /// No description provided for @skillConfirmDeleteMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除自定义技能「{name}」吗？此操作会立即生效。'**
+  String skillConfirmDeleteMessage(String name);
+
+  /// No description provided for @skillImportFileDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持 .zip、.skill 技能包或单个 SKILL.md 文件'**
+  String get skillImportFileDesc;
+
+  /// No description provided for @skillImportFolderDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入包含 SKILL.md 与配套资源的本地目录'**
+  String get skillImportFolderDesc;
+
+  /// No description provided for @skillImportPasteDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'直接粘贴 SKILL.md 文本内容并解析'**
+  String get skillImportPasteDesc;
+
+  /// No description provided for @toolSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索工具名称、标识或描述'**
+  String get toolSearchHint;
+
+  /// No description provided for @toolNoMatching.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有匹配的工具'**
+  String get toolNoMatching;
+
+  /// No description provided for @toolConfirmDeleteTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除自定义工具'**
+  String get toolConfirmDeleteTitle;
+
+  /// No description provided for @toolConfirmDeleteMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除自定义工具「{name}」吗？此操作会立即生效。'**
+  String toolConfirmDeleteMessage(String name);
+
+  /// No description provided for @toolFormatSchema.
+  ///
+  /// In zh, this message translates to:
+  /// **'格式化 JSON'**
+  String get toolFormatSchema;
+
+  /// No description provided for @toolFormatSchemaInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'JSON 格式无效，无法格式化'**
+  String get toolFormatSchemaInvalid;
 }
 
 class _AppLocalizationsDelegate

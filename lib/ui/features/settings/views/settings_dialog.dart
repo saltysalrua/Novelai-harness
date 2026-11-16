@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_nav_tile.dart';
@@ -205,75 +207,97 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final dialogHeight = isNarrow
         ? screenSize.height
         : (screenSize.height * 0.8).clamp(400.0, 1200.0);
-    final borderRadius = isNarrow ? 0.0 : 12.0;
+    final borderRadius = isNarrow ? 0.0 : AppRadius.lg;
 
-    return Dialog(
-      backgroundColor: colors.cardBackground,
-      insetPadding: isNarrow
-          ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(borderRadius),
-        side: isNarrow
-            ? BorderSide.none
-            : BorderSide(color: colors.borderDefault),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: SizedBox(
-          width: dialogWidth,
-          height: dialogHeight,
-          child: SafeArea(
-            top: isNarrow,
-            bottom: isNarrow,
-            child: isNarrow
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildContentHeader(context),
-                      _buildHorizontalTabs(context),
-                      Expanded(
-                        child: AppPageStack(
-                          index: _activeTabIndex,
-                          itemCount: _tabBuilders.length,
-                          itemBuilder: (context, index) =>
-                              _tabBuilders[index](),
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event.logicalKey != LogicalKeyboardKey.escape) {
+          return KeyEventResult.ignored;
+        }
+        if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+          return KeyEventResult.ignored;
+        }
+        // 内部输入框聚焦时首次 ESC 只退焦，不直接关闭丢草稿
+        final primary = FocusManager.instance.primaryFocus;
+        final primaryContext = primary?.context;
+        final bool editingText =
+            primaryContext?.findAncestorStateOfType<EditableTextState>() !=
+            null;
+        if (editingText) {
+          primary!.unfocus();
+          return KeyEventResult.handled;
+        }
+        Navigator.of(context).pop();
+        return KeyEventResult.handled;
+      },
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: dialogWidth,
+            height: dialogHeight,
+            decoration: BoxDecoration(
+              color: colors.cardBackground,
+              borderRadius: BorderRadius.circular(borderRadius),
+              border: isNarrow
+                  ? null
+                  : Border.all(color: colors.borderDefault),
+              boxShadow: isNarrow ? null : context.shadowDialog,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: SafeArea(
+              top: isNarrow,
+              bottom: isNarrow,
+              child: isNarrow
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildContentHeader(context, isNarrow: true),
+                        _buildHorizontalTabs(context),
+                        Expanded(
+                          child: AppPageStack(
+                            index: _activeTabIndex,
+                            itemCount: _tabBuilders.length,
+                            itemBuilder: (context, index) =>
+                                _tabBuilders[index](),
+                          ),
                         ),
-                      ),
-                      _buildFooter(context),
-                    ],
-                  )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 1. 左侧导航栏 (Settings Categories)
-                      _buildSidebar(context),
+                        _buildFooter(context, isNarrow: true),
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 1. 左侧导航栏 (Settings Categories)
+                        _buildSidebar(context),
 
-                      // 2. 右侧配置详情内容区
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // 右侧顶部标题栏与关闭按键
-                            _buildContentHeader(context),
+                        // 2. 右侧配置详情内容区
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // 右侧顶部标题栏与关闭按键
+                              _buildContentHeader(context, isNarrow: false),
 
-                            // 懒构建保活，切页只动画绘制层，不逐帧重建表单。
-                            Expanded(
-                              child: AppPageStack(
-                                index: _activeTabIndex,
-                                itemCount: _tabBuilders.length,
-                                itemBuilder: (context, index) =>
-                                    _tabBuilders[index](),
+                              // 懒构建保活，切页只动画绘制层，不逐帧重建表单。
+                              Expanded(
+                                child: AppPageStack(
+                                  index: _activeTabIndex,
+                                  itemCount: _tabBuilders.length,
+                                  itemBuilder: (context, index) =>
+                                      _tabBuilders[index](),
+                                ),
                               ),
-                            ),
 
-                            // 右侧底部保存 / 取消操作栏
-                            _buildFooter(context),
-                          ],
+                              // 右侧底部保存 / 取消操作栏
+                              _buildFooter(context, isNarrow: false),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+            ),
           ),
         ),
       ),
@@ -364,38 +388,62 @@ class _SettingsDialogState extends State<SettingsDialog> {
   }
 
   /// 右侧顶部标头
-  Widget _buildContentHeader(BuildContext context) {
+  Widget _buildContentHeader(BuildContext context, {required bool isNarrow}) {
     final colors = context.colors;
     final l10n = context.l10n;
-    final title = switch (_activeTabIndex) {
-      0 => l10n.settingsTabGeneral,
-      1 => l10n.settingsTabModels,
-      2 => l10n.settingsTabPresets,
-      3 => l10n.settingsTabDefaults,
-      4 => l10n.settingsTabBill,
-      _ => l10n.settings,
+    final title = _settingsTabLabel(l10n, _activeTabIndex);
+    final subtitle = switch (_activeTabIndex) {
+      0 => l10n.settingsSubtitleGeneral,
+      1 => l10n.settingsSubtitleModels,
+      2 => l10n.settingsSubtitlePresets,
+      3 => l10n.settingsSubtitleDefaults,
+      4 => l10n.settingsSubtitleBill,
+      _ => null,
     };
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 20, 20, 10),
+      padding: EdgeInsets.fromLTRB(isNarrow ? 16 : 28, 18, 18, 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: AppTextSwap(
-              text: title,
-              distance: AppMotionDistances.micro,
-              enableBlur: false,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-                letterSpacing: -0.5,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppTextSwap(
+                  text: title,
+                  distance: AppMotionDistances.micro,
+                  enableBlur: false,
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                if (subtitle != null && subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  ),
+                ],
+              ],
             ),
           ),
+          const SizedBox(width: 8),
           IconButton(
-            icon: Icon(Icons.close_rounded, size: 20, color: colors.textMuted),
+            icon: Icon(
+              Icons.close_rounded,
+              size: 19,
+              color: colors.textSecondary,
+            ),
+            splashRadius: 16,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 30, height: 30),
             tooltip: l10n.close,
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -405,13 +453,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
   }
 
   /// 底部操作栏
-  Widget _buildFooter(BuildContext context) {
+  Widget _buildFooter(BuildContext context, {required bool isNarrow}) {
     final colors = context.colors;
     final l10n = context.l10n;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: isNarrow ? 16 : 28,
+        vertical: 12,
+      ),
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: colors.borderDefault)),
+        color: colors.cardBackground,
+        border: Border(top: BorderSide(color: colors.borderSubtle)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,

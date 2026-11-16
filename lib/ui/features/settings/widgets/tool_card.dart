@@ -19,6 +19,7 @@ class ToolCard extends StatelessWidget {
   final ValueChanged<AgentTool> onInspectSchema;
   final ValueChanged<CustomAgentTool>? onEditCustomTool;
   final VoidCallback? onDelete;
+  final double? width;
 
   const ToolCard({
     super.key,
@@ -28,6 +29,7 @@ class ToolCard extends StatelessWidget {
     required this.onInspectSchema,
     this.onEditCustomTool,
     this.onDelete,
+    this.width = 270,
   });
 
   @override
@@ -35,16 +37,13 @@ class ToolCard extends StatelessWidget {
     final colors = context.colors;
     final l10n = context.l10n;
 
-
-    return SizedBox(
-      width: 270,
-      child: AppCard(
-        isSelected: isEnabled,
-        onTap: onToggle == null ? null : () => onToggle!(!isEnabled),
-        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-        radius: AppRadius.md,
-        selectedBackgroundColor: colors.primary.withValues(alpha: 0.05),
-        selectedBorderColor: colors.primary.withValues(alpha: 0.55),
+    final card = AppCard(
+      isSelected: isEnabled,
+      onTap: onToggle == null ? null : () => onToggle!(!isEnabled),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      radius: AppRadius.md,
+      selectedBackgroundColor: colors.primary.withValues(alpha: 0.05),
+      selectedBorderColor: colors.primary.withValues(alpha: 0.55),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -162,7 +161,7 @@ class ToolCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
+    return width != null ? SizedBox(width: width, child: card) : card;
   }
 }

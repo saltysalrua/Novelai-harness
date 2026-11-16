@@ -4097,4 +4097,95 @@ class AppLocalizationsEn extends AppLocalizations {
   String metadataPickImageFailed(String error) {
     return 'Failed to read image: $error';
   }
+
+  @override
+  String get settingsSectionProviderBehavior => 'Request Behavior';
+
+  @override
+  String get settingsModelSectionCapabilities => 'Capabilities';
+
+  @override
+  String get settingsModelSectionParameters => 'Parameters & Limits';
+
+  @override
+  String get settingsModelSectionCache => 'Prompt Cache';
+
+  @override
+  String get settingsConfirmDeleteProviderTitle => 'Delete Provider';
+
+  @override
+  String settingsConfirmDeleteProviderMessage(String name) {
+    return 'Delete provider \"$name\" and its model configurations?';
+  }
+
+  @override
+  String get settingsEndpointCopied => 'Endpoint URL copied';
+
+  @override
+  String get presetDuplicateToEdit => 'Duplicate to Edit';
+
+  @override
+  String get presetCopyPrompt => 'Copy Prompt';
+
+  @override
+  String get presetCopiedPrompt => 'System prompt copied';
+
+  @override
+  String get presetConfirmDeleteTitle => 'Delete Preset';
+
+  @override
+  String presetConfirmDeleteMessage(String name) {
+    return 'Delete preset \"$name\"?';
+  }
+
+  @override
+  String get presetEnableAll => 'Enable all';
+
+  @override
+  String get presetDisableAll => 'Disable all';
+
+  @override
+  String get skillSearchHint => 'Search skill name, ID, or description';
+
+  @override
+  String get skillNoMatching => 'No matching skills';
+
+  @override
+  String get skillConfirmDeleteTitle => 'Delete Skill';
+
+  @override
+  String skillConfirmDeleteMessage(String name) {
+    return 'Delete custom skill \"$name\"? This takes effect immediately.';
+  }
+
+  @override
+  String get skillImportFileDesc =>
+      'Supports .zip, .skill packages, or a single SKILL.md file';
+
+  @override
+  String get skillImportFolderDesc =>
+      'Import a local folder containing SKILL.md and resources';
+
+  @override
+  String get skillImportPasteDesc => 'Paste SKILL.md text directly and parse';
+
+  @override
+  String get toolSearchHint => 'Search tool name, ID, or description';
+
+  @override
+  String get toolNoMatching => 'No matching tools';
+
+  @override
+  String get toolConfirmDeleteTitle => 'Delete Custom Tool';
+
+  @override
+  String toolConfirmDeleteMessage(String name) {
+    return 'Delete custom tool \"$name\"? This takes effect immediately.';
+  }
+
+  @override
+  String get toolFormatSchema => 'Format JSON';
+
+  @override
+  String get toolFormatSchemaInvalid => 'Invalid JSON; cannot format';
 }

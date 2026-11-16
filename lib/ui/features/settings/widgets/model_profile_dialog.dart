@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
@@ -9,7 +10,9 @@ import '../../../core/widgets/app_number_slider.dart';
 import '../../../core/widgets/app_toggle_controls.dart';
 import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import 'model_cache_settings.dart';
+import 'settings_shared.dart';
 
 /// 模型设置弹窗的返回结果
 class ModelProfileResult {
@@ -28,8 +31,8 @@ class ModelProfileResult {
 
 /// 单个模型的详细设置弹窗
 ///
-/// 编辑显示名称、模型 ID、温度、深度思考、思考等级、多模态、
-/// 上下文窗口与最大输出 tokens；在线拉取的能力元数据对不上号时可手动修正。
+/// 采用 Notion 极简一体无分割线布局：柔底分组区块、低噪无框输入框、
+/// 能力开关与思考等级联动揭示。
 class ModelProfileDialog extends StatefulWidget {
   final LlmModelConfig model;
   final bool isNew;
@@ -64,6 +67,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
   late final TextEditingController _idController;
   late final TextEditingController _contextController;
   late final TextEditingController _maxTokensController;
+  late final SmoothWheelScrollController _scrollController;
   late bool _reasoning;
   late bool _supportsThinkingOff;
   late bool _multimodal;
@@ -86,6 +90,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
     _maxTokensController = TextEditingController(
       text: m.maxTokens > 0 ? '${m.maxTokens}' : '',
     );
+    _scrollController = SmoothWheelScrollController();
     _reasoning = m.reasoning || m.supportedThinkingLevels.isNotEmpty;
     _supportsThinkingOff = m.supportsThinkingOff;
     _multimodal = m.isMultimodal;
@@ -103,6 +108,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _nameController.dispose();
     _idController.dispose();
     _contextController.dispose();
@@ -179,151 +185,173 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
     final l10n = context.l10n;
 
     return AppDialogScaffold(
+      minimalChrome: true,
       title: widget.isNew ? l10n.settingsAddModel : l10n.settingsModelSettings,
-      width: 460,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildFieldRow(
-              label: l10n.settingsModelDisplayName,
-              child: _buildTextField(
-                controller: _nameController,
-                hint: l10n.settingsModelDisplayNameHint,
-              ),
-            ),
-            AppErrorShake(
-              trigger: _idShakeTrigger,
-              child: _buildFieldRow(
-                label: l10n.settingsModelId,
-                child: _buildTextField(
-                  controller: _idController,
-                  hint: l10n.settingsModelIdHint,
-                  errorText: _idError,
-                  mono: true,
-                ),
-              ),
-            ),
-            _buildFieldRow(
-              label: l10n.settingsModelTemperature,
-              child: AppNumberSlider(
-                value: _temperature,
-                min: 0.0,
-                max: 1.5,
-                step: 0.05,
-                fractionDigits: 2,
-                onChanged: (v) => setState(() => _temperature = v),
-              ),
-            ),
-            _buildFieldRow(
-              label: l10n.settingsModelReasoning,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: AppSwitch(
-                  value: _reasoning,
-                  onChanged: (v) => setState(() => _reasoning = v),
-                ),
-              ),
-            ),
-            AppPanelReveal(
-              visible: _reasoning,
-              enableBlur: false,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 0, bottom: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.settingsModelThinkingEffort,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textSecondary,
+      subtitle: !widget.isNew && widget.model.id.isNotEmpty
+          ? widget.model.id
+          : null,
+      width: 540,
+      maxHeight: 700,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 430;
+          return SingleChildScrollView(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. 基础标识 (名称 + 模型 ID)
+                _buildBasicFields(context, isNarrow: isNarrow),
+                const SizedBox(height: AppSpacing.lg),
+
+                // 2. 模型能力 (软底分组)
+                SettingsFieldLabel(label: l10n.settingsModelSectionCapabilities),
+                const SizedBox(height: 6),
+                SettingsSoftContainer(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _SwitchRow(
+                        label: l10n.settingsModelReasoning,
+                        value: _reasoning,
+                        onChanged: (v) => setState(() => _reasoning = v),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      children:
-                          [
-                                ThinkingEffort.none,
-                                ThinkingEffort.low,
-                                ThinkingEffort.medium,
-                                ThinkingEffort.high,
-                                ThinkingEffort.xhigh,
-                                ThinkingEffort.max,
-                              ]
-                              .map(
-                                (level) => _buildLevelChip(
-                                  level,
-                                  level == ThinkingEffort.none
-                                      ? _supportsThinkingOff
-                                      : _levels.contains(level),
+                      AppPanelReveal(
+                        visible: _reasoning,
+                        enableBlur: false,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.settingsModelThinkingEffort,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: colors.textMuted,
                                 ),
-                              )
-                              .toList(),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  for (final level in const [
+                                    ThinkingEffort.none,
+                                    ThinkingEffort.low,
+                                    ThinkingEffort.medium,
+                                    ThinkingEffort.high,
+                                    ThinkingEffort.xhigh,
+                                    ThinkingEffort.max,
+                                  ])
+                                    _buildLevelChip(
+                                      level,
+                                      level == ThinkingEffort.none
+                                          ? _supportsThinkingOff
+                                          : _levels.contains(level),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _SwitchRow(
+                        label: l10n.settingsModelMultimodal,
+                        value: _multimodal,
+                        onChanged: (v) => setState(() => _multimodal = v),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _SwitchRow(
+                        label: l10n.settingsModelImageOutput,
+                        value: _imageOutput,
+                        onChanged: (v) => setState(() => _imageOutput = v),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // 3. 采样与上下文限制
+                SettingsFieldLabel(label: l10n.settingsModelSectionParameters),
+                const SizedBox(height: 6),
+                SettingsSoftContainer(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        l10n.settingsModelTemperature,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      AppNumberSlider(
+                        value: _temperature,
+                        min: 0.0,
+                        max: 1.5,
+                        step: 0.05,
+                        fractionDigits: 2,
+                        onChanged: (v) => setState(() => _temperature = v),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _buildLimitFields(context, isNarrow: isNarrow),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // 4. 提示词缓存
+                SettingsFieldLabel(label: l10n.settingsModelSectionCache),
+                const SizedBox(height: 6),
+                ModelCacheSettings(
+                  value: _cacheConfig,
+                  embedded: true,
+                  onChanged: (value) => setState(() => _cacheConfig = value),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+      footerLeading: (!widget.isNew && widget.canDelete)
+          ? InkWell(
+              onTap: () =>
+                  Navigator.of(context).pop(const ModelProfileResult.deleted()),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.delete_outline_rounded,
+                      size: 15,
+                      color: colors.error,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      l10n.settingsDeleteModel,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: colors.error,
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-            _buildFieldRow(
-              label: l10n.settingsModelMultimodal,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: AppSwitch(
-                  value: _multimodal,
-                  onChanged: (v) => setState(() => _multimodal = v),
-                ),
-              ),
-            ),
-            _buildFieldRow(
-              label: l10n.settingsModelImageOutput,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: AppSwitch(
-                  value: _imageOutput,
-                  onChanged: (v) => setState(() => _imageOutput = v),
-                ),
-              ),
-            ),
-            _buildFieldRow(
-              label: l10n.settingsModelContextWindow,
-              child: _buildTextField(
-                controller: _contextController,
-                hint: '128000',
-                mono: true,
-                digitsOnly: true,
-                width: 160,
-              ),
-            ),
-            _buildFieldRow(
-              label: l10n.settingsModelMaxTokens,
-              child: _buildTextField(
-                controller: _maxTokensController,
-                hint: '8192',
-                mono: true,
-                digitsOnly: true,
-                width: 160,
-              ),
-            ),
-            ModelCacheSettings(
-              value: _cacheConfig,
-              onChanged: (value) => setState(() => _cacheConfig = value),
-            ),
-          ],
-        ),
-      ),
+            )
+          : null,
       actions: [
-        if (!widget.isNew && widget.canDelete)
-          TextButton(
-            onPressed: () =>
-                Navigator.of(context).pop(const ModelProfileResult.deleted()),
-            child: Text(
-              l10n.settingsDeleteModel,
-              style: TextStyle(color: colors.error, fontSize: 13),
-            ),
-          ),
         AppActionButton(
           label: l10n.cancel,
           variant: AppActionButtonVariant.ghost,
@@ -339,7 +367,113 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
     );
   }
 
+  Widget _buildBasicFields(BuildContext context, {required bool isNarrow}) {
+    final l10n = context.l10n;
+    final nameField = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SettingsFieldLabel(label: l10n.settingsModelDisplayName),
+        const SizedBox(height: 6),
+        _buildTextField(
+          controller: _nameController,
+          hint: l10n.settingsModelDisplayNameHint,
+        ),
+      ],
+    );
+
+    final idField = AppErrorShake(
+      trigger: _idShakeTrigger,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SettingsFieldLabel(label: l10n.settingsModelId),
+          const SizedBox(height: 6),
+          _buildTextField(
+            controller: _idController,
+            hint: l10n.settingsModelIdHint,
+            errorText: _idError,
+            mono: true,
+          ),
+        ],
+      ),
+    );
+
+    if (isNarrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [nameField, const SizedBox(height: 10), idField],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: nameField),
+        const SizedBox(width: 12),
+        Expanded(child: idField),
+      ],
+    );
+  }
+
+  Widget _buildLimitFields(BuildContext context, {required bool isNarrow}) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+
+    final contextField = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.settingsModelContextWindow,
+          style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
+        ),
+        const SizedBox(height: 5),
+        _buildTextField(
+          controller: _contextController,
+          hint: '128000',
+          mono: true,
+          digitsOnly: true,
+          fillColor: colors.cardBackground,
+        ),
+      ],
+    );
+
+    final maxTokensField = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.settingsModelMaxTokens,
+          style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
+        ),
+        const SizedBox(height: 5),
+        _buildTextField(
+          controller: _maxTokensController,
+          hint: '8192',
+          mono: true,
+          digitsOnly: true,
+          fillColor: colors.cardBackground,
+        ),
+      ],
+    );
+
+    if (isNarrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [contextField, const SizedBox(height: 10), maxTokensField],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: contextField),
+        const SizedBox(width: 12),
+        Expanded(child: maxTokensField),
+      ],
+    );
+  }
+
   Widget _buildLevelChip(ThinkingEffort level, bool selected) {
+    final colors = context.colors;
     final l10n = context.l10n;
     return AppToolChip(
       label: switch (level) {
@@ -352,27 +486,8 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
       },
       isSelected: selected,
       variant: AppToolChipVariant.tinted,
+      unselectedBackgroundColor: colors.cardBackground,
       onTap: () => _toggleLevel(level),
-    );
-  }
-
-  Widget _buildFieldRow({required String label, required Widget child}) {
-    final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              label,
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
-            ),
-          ),
-          Expanded(child: child),
-        ],
-      ),
     );
   }
 
@@ -382,27 +497,56 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
     String? errorText,
     bool mono = false,
     bool digitsOnly = false,
-    double? width,
+    Color? fillColor,
   }) {
-    return SizedBox(
-      height: 36,
-      width: width,
-      child: TextField(
-        controller: controller,
-        style: TextStyle(fontSize: 12, fontFamily: mono ? 'monospace' : null),
-        inputFormatters: digitsOnly
-            ? [FilteringTextInputFormatter.digitsOnly]
-            : null,
-        decoration: InputDecoration(
-          hintText: hint,
-          errorText: errorText,
-          errorStyle: const TextStyle(fontSize: 10, height: 1),
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 9,
-          ),
+    return TextField(
+      controller: controller,
+      style: TextStyle(fontSize: 12, fontFamily: mono ? 'monospace' : null),
+      inputFormatters: digitsOnly
+          ? [FilteringTextInputFormatter.digitsOnly]
+          : null,
+      decoration: settingsSoftInputDecoration(
+        context,
+        hintText: hint,
+        errorText: errorText,
+        fillColor: fillColor,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 11,
+          vertical: 9,
         ),
+      ),
+    );
+  }
+}
+
+class _SwitchRow extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _SwitchRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 12.5, color: colors.textPrimary),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          AppSwitch(value: value, onChanged: onChanged),
+        ],
       ),
     );
   }

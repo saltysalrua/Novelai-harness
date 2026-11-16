@@ -2,20 +2,26 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/harness/skills/skills.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/context_l10n.dart';
+import '../../../core/l10n/skill_error_l10n.dart';
 import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
-import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_collapsible_section.dart';
+import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_toggle_controls.dart';
 import '../../../core/widgets/app_transitions.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../core/context_l10n.dart';
-import '../../../core/l10n/skill_error_l10n.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
+import 'settings_shared.dart';
 
 /// Skill 查看 / 编辑 / 导入对话框 (支持 Pi 标准 SKILL.md 导入导出)
+///
+/// 采用 Notion 极简一体无分割线布局，柔底输入框与平滑滚轮。
 class SkillEditorDialog extends StatefulWidget {
   final Skill? skill;
   final bool isImportMode;
@@ -40,6 +46,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
   late final TextEditingController _descController;
   late final TextEditingController _promptController;
   late final TextEditingController _rawMdController;
+  late final SmoothWheelScrollController _structuredScrollController;
 
   bool _disableInvocation = false;
   bool _saving = false;
@@ -59,6 +66,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     _promptController = TextEditingController(text: s?.systemPrompt ?? '');
     _disableInvocation = s?.disableModelInvocation ?? false;
     _extraFrontmatter = s?.extraFrontmatter ?? const {};
+    _structuredScrollController = SmoothWheelScrollController();
 
     _rawMdController = TextEditingController(
       text: s != null ? s.toSkillMd() : '',
@@ -71,6 +79,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
   @override
   void dispose() {
     _copyResetTimer?.cancel();
+    _structuredScrollController.dispose();
     _idController.dispose();
     _nameController.dispose();
     _descController.dispose();
@@ -147,19 +156,21 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     final isBuiltin = widget.skill?.isBuiltin ?? false;
 
     return AppDialogScaffold(
+      minimalChrome: true,
       title: widget.isImportMode
           ? l10n.skillDialogImportTitle
           : (widget.skill == null
                 ? l10n.skillDialogNewTitle
                 : l10n.skillDialogEditTitle(widget.skill!.name)),
-      width: 680,
-      height: 640,
+      subtitle: widget.skill?.id,
+      width: 700,
+      height: 650,
       body: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(22, 8, 22, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 视图切换模式
+            // 视图切换模式 + 状态徽标
             Row(
               children: [
                 AppSegmentedCardBar<_SkillEditorViewMode>(
@@ -186,40 +197,58 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                   },
                 ),
                 const Spacer(),
-                Icon(
-                  widget.isImportMode
-                      ? Icons.file_upload_outlined
-                      : Icons.psychology_outlined,
-                  size: 20,
-                  color: colors.primary,
-                ),
+                if (widget.skill != null)
+                  AppBadge(
+                    label: isBuiltin
+                        ? l10n.settingsBadgeBuiltin
+                        : l10n.settingsBadgeCustom,
+                    variant: isBuiltin
+                        ? AppBadgeVariant.neutral
+                        : AppBadgeVariant.warning,
+                    fontSize: 10.5,
+                  ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             if (widget.skill?.resourcePaths.isNotEmpty == true) ...[
-              AppCollapsibleSection(
-                title: l10n.skillPackageFiles(
-                  widget.skill!.resourcePaths.length,
+              Container(
+                decoration: BoxDecoration(
+                  color: colors.elevatedBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
-                subtitle: l10n.skillPackageResourceHelp,
-                child: SizedBox(
-                  height: 100,
-                  child: ListView(
-                    children: widget.skill!.resourcePaths
-                        .map(
-                          (path) => Text(
-                            path,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontFamily: 'monospace',
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: AppCollapsibleSection(
+                  isCard: false,
+                  headerPadding: const EdgeInsets.symmetric(vertical: 8),
+                  contentPadding: const EdgeInsets.only(bottom: 10),
+                  title: l10n.skillPackageFiles(
+                    widget.skill!.resourcePaths.length,
+                  ),
+                  subtitle: l10n.skillPackageResourceHelp,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 96),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: widget.skill!.resourcePaths
+                          .map(
+                            (path) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 1),
+                              child: Text(
+                                path,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                  color: colors.textSecondary,
+                                ),
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
+                          )
+                          .toList(),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
             ],
 
             // 正文区
@@ -252,32 +281,23 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
           ],
         ),
       ),
+      footerLeading: AppActionButton(
+        label: l10n.skillCopySkillMd,
+        icon: _copiedSkillMd ? Icons.check_rounded : Icons.copy_rounded,
+        onPressed: () => _copySkillMd(l10n),
+      ),
       actions: [
-        Expanded(
-          child: Row(
-            children: [
-              AppActionButton(
-                label: l10n.skillCopySkillMd,
-                icon: _copiedSkillMd
-                    ? Icons.check_rounded
-                    : Icons.copy_rounded,
-                onPressed: () => _copySkillMd(l10n),
-              ),
-              const Spacer(),
-              AppActionButton(
-                label: l10n.cancel,
-                variant: AppActionButtonVariant.ghost,
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              const SizedBox(width: 8),
-              AppActionButton(
-                label: l10n.skillSave,
-                variant: AppActionButtonVariant.primary,
-                isLoading: _saving,
-                onPressed: _saving ? null : _save,
-              ),
-            ],
-          ),
+        AppActionButton(
+          label: l10n.cancel,
+          variant: AppActionButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        const SizedBox(width: 8),
+        AppActionButton(
+          label: l10n.skillSave,
+          variant: AppActionButtonVariant.primary,
+          isLoading: _saving,
+          onPressed: _saving ? null : _save,
         ),
       ],
     );
@@ -287,6 +307,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     final colors = context.colors;
 
     return SingleChildScrollView(
+      controller: _structuredScrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -296,25 +317,20 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      l10n.skillFieldId,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
+                    SettingsFieldLabel(label: l10n.skillFieldId),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _idController,
                       enabled: !isBuiltin,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontFamily: 'monospace',
+                        color: isBuiltin ? colors.textMuted : colors.textPrimary,
                       ),
-                      decoration: _fieldDecoration(
-                        hint: l10n.skillFieldIdHint,
-                        filled: isBuiltin,
+                      decoration: settingsSoftInputDecoration(
+                        context,
+                        hintText: l10n.skillFieldIdHint,
+                        readOnly: isBuiltin,
                       ),
                     ),
                   ],
@@ -325,20 +341,14 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      l10n.skillFieldName,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
+                    SettingsFieldLabel(label: l10n.skillFieldName),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _nameController,
                       style: const TextStyle(fontSize: 12),
-                      decoration: _fieldDecoration(
-                        hint: l10n.skillFieldNameHint,
+                      decoration: settingsSoftInputDecoration(
+                        context,
+                        hintText: l10n.skillFieldNameHint,
                       ),
                     ),
                   ],
@@ -347,65 +357,48 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            l10n.skillFieldDescription,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          ),
+          SettingsFieldLabel(label: l10n.skillFieldDescription),
           const SizedBox(height: 6),
           TextField(
             controller: _descController,
             minLines: 2,
             maxLines: 4,
             style: const TextStyle(fontSize: 12, height: 1.4),
-            decoration: _fieldDecoration(hint: l10n.skillFieldDescriptionHint),
+            decoration: settingsSoftInputDecoration(
+              context,
+              hintText: l10n.skillFieldDescriptionHint,
+            ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                l10n.skillFieldPrompt,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
-              ),
-              InkWell(
-                onTap: () =>
-                    setState(() => _disableInvocation = !_disableInvocation),
-                borderRadius: BorderRadius.circular(4),
+          SettingsFieldLabel(
+            label: l10n.skillFieldPrompt,
+            trailing: InkWell(
+              onTap: () =>
+                  setState(() => _disableInvocation = !_disableInvocation),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: Center(
-                        child: AppCheckbox(
-                          value: _disableInvocation,
-                          size: 16,
-                          onChanged: (v) =>
-                              setState(() => _disableInvocation = v),
-                        ),
-                      ),
+                    AppCheckbox(
+                      value: _disableInvocation,
+                      size: 15,
+                      onChanged: (v) =>
+                          setState(() => _disableInvocation = v),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Text(
                       l10n.skillFieldDisableInvocation,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11.5,
                         color: colors.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 6),
           TextField(
@@ -414,11 +407,12 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
             style: const TextStyle(
               fontSize: 12,
               fontFamily: 'monospace',
-              height: 1.4,
+              height: 1.48,
             ),
-            decoration: _fieldDecoration(
-              hint: l10n.skillFieldPromptHint,
-              subtleFill: true,
+            decoration: settingsSoftInputDecoration(
+              context,
+              hintText: l10n.skillFieldPromptHint,
+              contentPadding: const EdgeInsets.all(12),
             ),
           ),
         ],
@@ -434,7 +428,7 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
       children: [
         Text(
           l10n.skillRawEditorHelp,
-          style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          style: TextStyle(fontSize: 11.5, color: colors.textMuted),
         ),
         const SizedBox(height: 8),
         Expanded(
@@ -446,42 +440,17 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
             style: const TextStyle(
               fontSize: 12,
               fontFamily: 'monospace',
-              height: 1.4,
+              height: 1.48,
             ),
-            decoration: _fieldDecoration(
-              hint:
+            decoration: settingsSoftInputDecoration(
+              context,
+              hintText:
                   '---\nname: my-skill\ndescription: Skill description...\n---\n\nSkill prompt content...',
-              subtleFill: true,
+              contentPadding: const EdgeInsets.all(12),
             ),
           ),
         ),
       ],
-    );
-  }
-
-  InputDecoration _fieldDecoration({
-    required String hint,
-    bool filled = false,
-    bool subtleFill = false,
-  }) {
-    final colors = context.colors;
-    final fill = subtleFill
-        ? colors.mutedBackground.withValues(alpha: 0.3)
-        : (filled ? colors.mutedBackground : colors.cardBackground);
-    return InputDecoration(
-      hintText: hint,
-      isDense: true,
-      filled: true,
-      fillColor: fill,
-      hoverColor: fill,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: BorderSide(color: colors.borderDefault),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: BorderSide(color: colors.borderDefault),
-      ),
     );
   }
 

@@ -3,6 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'
+    show RenderProxyBox, Selectable, SelectionRegistrar;
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 // markdown 只作为 flutter_markdown_plus 的传递依赖出现，这里只用它的元素类型。
@@ -142,12 +145,187 @@ class _AgentChatMessageItemState extends State<AgentChatMessageItem>
           isActiveTool: widget.isActiveTool,
         );
     }
-    if (_entryController == null) return content;
+    if (_entryController == null) {
+      return _KeepAliveSafeSelectionScope(child: content);
+    }
     // FadeTransition 在 opacity == 1.0 时底层跳过 OpacityLayer，无需拆树即可实现零常驻 saveLayer。
-    return FadeTransition(
-      opacity: _entryOpacity!,
-      child: SlideTransition(position: _entryOffset!, child: content),
+    return _KeepAliveSafeSelectionScope(
+      child: FadeTransition(
+        opacity: _entryOpacity!,
+        child: SlideTransition(position: _entryOffset!, child: content),
+      ),
     );
+  }
+}
+
+/// 隔离 SliverList 离屏保活节点与外层 SelectionArea 的注册时序：
+/// 离屏 _keepAliveBucket 中的消息在依赖刷新时可能重建新 Text，但 SliverList 不会
+/// 对其执行 layout。本代理仅在子级实际完成 performLayout 且对应 RenderBox 具备
+/// hasSize 后，才将 Selectable 转发给上级 SelectionRegistrar，防止 SelectionArea
+/// 在帧末排序时读取未布局 RenderParagraph.size 触发断言。
+class _KeepAliveSafeSelectionScope extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveSafeSelectionScope({required this.child});
+
+  @override
+  State<_KeepAliveSafeSelectionScope> createState() =>
+      _KeepAliveSafeSelectionScopeState();
+}
+
+class _KeepAliveSafeSelectionScopeState
+    extends State<_KeepAliveSafeSelectionScope> {
+  final _DeferredSelectionRegistrar _proxyRegistrar =
+      _DeferredSelectionRegistrar();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _proxyRegistrar.updateParent(SelectionContainer.maybeOf(context));
+  }
+
+  @override
+  void deactivate() {
+    _proxyRegistrar.detachAllForwarded();
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _proxyRegistrar.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SelectionRegistrarScope(
+      registrar: _proxyRegistrar,
+      child: _LayoutFlushProxy(
+        onLayout: _scheduleFlushAfterLayout,
+        child: widget.child,
+      ),
+    );
+  }
+
+  void _scheduleFlushAfterLayout() {
+    if (!mounted || !_proxyRegistrar.hasPending) return;
+    _proxyRegistrar.scheduleFlush(() => mounted);
+  }
+}
+
+class _DeferredSelectionRegistrar implements SelectionRegistrar {
+  SelectionRegistrar? _parent;
+  final Set<Selectable> _pending = <Selectable>{};
+  final Set<Selectable> _forwarded = <Selectable>{};
+  bool _flushScheduled = false;
+
+  bool get hasPending => _pending.isNotEmpty;
+
+  void updateParent(SelectionRegistrar? nextParent) {
+    if (identical(_parent, nextParent)) return;
+    detachAllForwarded();
+    _parent = nextParent;
+  }
+
+  void detachAllForwarded() {
+    final parent = _parent;
+    if (parent != null && _forwarded.isNotEmpty) {
+      for (final s in _forwarded) {
+        parent.remove(s);
+      }
+      _pending.addAll(_forwarded);
+      _forwarded.clear();
+    }
+  }
+
+  @override
+  void add(Selectable selectable) {
+    if (_forwarded.contains(selectable)) return;
+    _pending.add(selectable);
+  }
+
+  @override
+  void remove(Selectable selectable) {
+    _pending.remove(selectable);
+    if (_forwarded.remove(selectable)) {
+      _parent?.remove(selectable);
+    }
+  }
+
+  void scheduleFlush(bool Function() isScopeMounted) {
+    if (_flushScheduled || _pending.isEmpty || _parent == null) return;
+    _flushScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _flushScheduled = false;
+      if (!isScopeMounted()) return;
+      flushLaidOut();
+    });
+  }
+
+  void flushLaidOut() {
+    final parent = _parent;
+    if (parent == null || _pending.isEmpty) return;
+    final ready = <Selectable>[];
+    for (final s in _pending) {
+      if (_isSelectableLaidOut(s)) {
+        ready.add(s);
+      }
+    }
+    for (final s in ready) {
+      _pending.remove(s);
+      if (_forwarded.add(s)) {
+        parent.add(s);
+      }
+    }
+  }
+
+  bool _isSelectableLaidOut(Selectable s) {
+    if (s is State) {
+      final state = s as State;
+      if (!state.mounted) return false;
+      final ctx = state.context;
+      if (ctx is Element && !ctx.mounted) return false;
+      final ro = ctx.findRenderObject();
+      return ro is RenderBox && ro.attached && ro.hasSize;
+    }
+    return true;
+  }
+
+  void dispose() {
+    detachAllForwarded();
+    _forwarded.clear();
+    _pending.clear();
+    _parent = null;
+  }
+}
+
+class _LayoutFlushProxy extends SingleChildRenderObjectWidget {
+  final VoidCallback onLayout;
+
+  const _LayoutFlushProxy({required this.onLayout, required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderLayoutFlushProxy(onLayout);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderLayoutFlushProxy renderObject,
+  ) {
+    renderObject.onLayout = onLayout;
+  }
+}
+
+class _RenderLayoutFlushProxy extends RenderProxyBox {
+  VoidCallback onLayout;
+
+  _RenderLayoutFlushProxy(this.onLayout);
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    onLayout();
   }
 }
 
@@ -639,11 +817,13 @@ class ToolCallBlock extends StatelessWidget {
               if (summary.isNotEmpty) ...[
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text(
-                    summary,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  child: SelectionContainer.disabled(
+                    child: Text(
+                      summary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: colors.textMuted),
+                    ),
                   ),
                 ),
               ],

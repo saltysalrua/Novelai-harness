@@ -745,6 +745,63 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('长对话滚至底部后切换主题不触发 SelectionArea 未布局异常', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final vm = StudioViewModel();
+    addTearDown(vm.dispose);
+
+    vm.setMessagesForTesting([
+      for (var i = 0; i < 30; i++)
+        AgentMessage(
+          id: 'm_$i',
+          role: AgentRole.assistant,
+          content: 'Paragraph 1 of $i\n\nParagraph 2 of $i',
+        ),
+    ]);
+
+    var useDark = false;
+    late StateSetter outerSetState;
+
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          outerSetState = setState;
+          return MaterialApp(
+            theme: useDark ? AppTheme.darkTheme : AppTheme.lightTheme,
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 600,
+                child: AgentChatCard(viewModel: vm),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final list = tester.widget<ListView>(find.byType(ListView));
+    list.controller!.jumpTo(list.controller!.position.maxScrollExtent);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    outerSetState(() => useDark = true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('画板历史侧栏展开时立即清除提示并收回按钮，无残留叠影', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final repo = NovelAiRepository();

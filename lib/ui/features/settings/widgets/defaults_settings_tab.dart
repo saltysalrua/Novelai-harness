@@ -8,6 +8,7 @@ import '../../../core/widgets/app_number_slider.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 
 /// Defaults 页草稿状态 (父级 SettingsDialog 持有，保存时统一聚合)
 class DefaultsSettingsDraft {
@@ -60,6 +61,14 @@ class DefaultsSettingsTab extends StatefulWidget {
 
 class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
   DefaultsSettingsDraft get _draft => widget.draft;
+  late final SmoothWheelScrollController _scrollController =
+      SmoothWheelScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,9 +79,13 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
         .where((p) => p.id == _draft.compactionProviderId)
         .firstOrNull;
     final models = summaryProvider?.models ?? const <LlmModelConfig>[];
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
-      child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hPad = constraints.maxWidth < 560 ? 16.0 : 28.0;
+        return SingleChildScrollView(
+          controller: _scrollController,
+          padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 20),
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppSectionHeader(title: l10n.settingsSectionModelAndSampler),
@@ -199,6 +212,8 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 }

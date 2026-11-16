@@ -785,10 +785,10 @@ class AgentChatCardState extends State<AgentChatCard> {
     final presets = widget.viewModel.presets;
 
     return Container(
-      height: 42,
+      height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.borderDefault)),
+        border: Border(bottom: BorderSide(color: colors.borderSubtle)),
       ),
       child: Row(
         children: [

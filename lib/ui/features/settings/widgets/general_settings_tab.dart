@@ -19,6 +19,7 @@ import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import 'settings_shared.dart';
 import 'image_save_template_settings.dart';
 
@@ -188,6 +189,8 @@ class GeneralSettingsTab extends StatefulWidget {
 
 class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
   GeneralSettingsDraft get _draft => widget.draft;
+  late final SmoothWheelScrollController _scrollController =
+      SmoothWheelScrollController();
 
   TagDictMeta? _dictMeta;
   bool _dictUpdating = false;
@@ -198,6 +201,12 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
     super.initState();
     _refreshDictInfo();
     _refreshExportFolderName();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   /// 启动时校验已选导出目录的授权与显示名 (授权被撤销则清空展示)。
@@ -304,12 +313,13 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 600;
+        final isNarrow = constraints.maxWidth < 560;
         return SingleChildScrollView(
+          controller: _scrollController,
           padding: EdgeInsets.fromLTRB(
-            isNarrow ? 14 : 28,
+            isNarrow ? 16 : 28,
             8,
-            isNarrow ? 14 : 28,
+            isNarrow ? 16 : 28,
             20,
           ),
           child: Column(

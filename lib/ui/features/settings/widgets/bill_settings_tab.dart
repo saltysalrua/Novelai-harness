@@ -11,6 +11,7 @@ import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../../studio/view_models/studio_view_model.dart';
 
 /// Bill 页：按周期统计各模型的 Token 用量账单 (只读)
@@ -28,6 +29,14 @@ class BillSettingsTab extends StatefulWidget {
 
 class _BillSettingsTabState extends State<BillSettingsTab> {
   BillPeriod _billPeriod = BillPeriod.today;
+  late final SmoothWheelScrollController _scrollController =
+      SmoothWheelScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   /// 缓存命中率单元格文案 (无数据时显示 -)
   String _hitRateLabel(TokenUsage usage) {
@@ -53,9 +62,13 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
     final l10n = context.l10n;
     final summary = widget.viewModel.buildBillSummary(_billPeriod);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
-      child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hPad = constraints.maxWidth < 560 ? 16.0 : 28.0;
+        return SingleChildScrollView(
+          controller: _scrollController,
+          padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 20),
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppSectionHeader(title: l10n.settingsSectionUsageBill),
@@ -120,6 +133,8 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 

@@ -3802,4 +3802,93 @@ class AppLocalizationsZh extends AppLocalizations {
   String metadataPickImageFailed(String error) {
     return '读取图片失败: $error';
   }
+
+  @override
+  String get settingsSectionProviderBehavior => '请求行为';
+
+  @override
+  String get settingsModelSectionCapabilities => '模型能力';
+
+  @override
+  String get settingsModelSectionParameters => '采样与限制';
+
+  @override
+  String get settingsModelSectionCache => '提示词缓存';
+
+  @override
+  String get settingsConfirmDeleteProviderTitle => '删除供应商';
+
+  @override
+  String settingsConfirmDeleteProviderMessage(String name) {
+    return '确定删除供应商「$name」及其下的模型配置吗？';
+  }
+
+  @override
+  String get settingsEndpointCopied => '已复制完整接口地址';
+
+  @override
+  String get presetDuplicateToEdit => '复制并自定义';
+
+  @override
+  String get presetCopyPrompt => '复制提示词';
+
+  @override
+  String get presetCopiedPrompt => '已复制系统提示词';
+
+  @override
+  String get presetConfirmDeleteTitle => '删除预设';
+
+  @override
+  String presetConfirmDeleteMessage(String name) {
+    return '确定删除预设「$name」吗？';
+  }
+
+  @override
+  String get presetEnableAll => '全部启用';
+
+  @override
+  String get presetDisableAll => '全部停用';
+
+  @override
+  String get skillSearchHint => '搜索技能名称、标识或描述';
+
+  @override
+  String get skillNoMatching => '没有匹配的技能';
+
+  @override
+  String get skillConfirmDeleteTitle => '删除技能';
+
+  @override
+  String skillConfirmDeleteMessage(String name) {
+    return '确定删除自定义技能「$name」吗？此操作会立即生效。';
+  }
+
+  @override
+  String get skillImportFileDesc => '支持 .zip、.skill 技能包或单个 SKILL.md 文件';
+
+  @override
+  String get skillImportFolderDesc => '导入包含 SKILL.md 与配套资源的本地目录';
+
+  @override
+  String get skillImportPasteDesc => '直接粘贴 SKILL.md 文本内容并解析';
+
+  @override
+  String get toolSearchHint => '搜索工具名称、标识或描述';
+
+  @override
+  String get toolNoMatching => '没有匹配的工具';
+
+  @override
+  String get toolConfirmDeleteTitle => '删除自定义工具';
+
+  @override
+  String toolConfirmDeleteMessage(String name) {
+    return '确定删除自定义工具「$name」吗？此操作会立即生效。';
+  }
+
+  @override
+  String get toolFormatSchema => '格式化 JSON';
+
+  @override
+  String get toolFormatSchemaInvalid => 'JSON 格式无效，无法格式化';
 }

@@ -30,6 +30,13 @@ class AppDialogScaffold extends StatelessWidget {
   /// 左侧双栏槽位宽度 (默认 200，对齐设置弹窗侧栏规格)
   final double sidebarWidth;
 
+  /// 是否采用 Notion 极简一体无分割线样式 (参考 MetadataReaderDialog)：
+  /// 去除顶栏/底栏分割线与底栏异色条，视觉更轻盈低噪。
+  final bool minimalChrome;
+
+  /// 底部操作栏左侧附加槽位 (如删除模型、复制源码等次级动作)
+  final Widget? footerLeading;
+
   const AppDialogScaffold({
     super.key,
     required this.title,
@@ -43,6 +50,8 @@ class AppDialogScaffold extends StatelessWidget {
     this.barrierDismissible = true,
     this.sidebar,
     this.sidebarWidth = 200.0,
+    this.minimalChrome = false,
+    this.footerLeading,
   });
 
   /// 唤起居中弹窗便捷静态方法 (`06-modal` 动效)
@@ -115,19 +124,26 @@ class AppDialogScaffold extends StatelessWidget {
               children: [
                 // 顶部标题栏
                 Container(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.xl,
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.md,
-                  ),
+                  padding: minimalChrome
+                      ? const EdgeInsets.fromLTRB(22, 18, 16, 8)
+                      : const EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          AppSpacing.lg,
+                          AppSpacing.lg,
+                          AppSpacing.md,
+                        ),
                   decoration: BoxDecoration(
                     color: colors.cardBackground,
-                    border: Border(
-                      bottom: BorderSide(color: colors.borderDefault),
-                    ),
+                    border: minimalChrome
+                        ? null
+                        : Border(
+                            bottom: BorderSide(color: colors.borderDefault),
+                          ),
                   ),
                   child: Row(
+                    crossAxisAlignment: minimalChrome
+                        ? CrossAxisAlignment.start
+                        : CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: Column(
@@ -152,7 +168,9 @@ class AppDialogScaffold extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: colors.textSecondary,
+                                  color: minimalChrome
+                                      ? colors.textMuted
+                                      : colors.textSecondary,
                                 ),
                               ),
                             ],
@@ -165,7 +183,14 @@ class AppDialogScaffold extends StatelessWidget {
                           size: 18,
                           color: colors.textSecondary,
                         ),
-                        splashRadius: 18,
+                        splashRadius: minimalChrome ? 16 : 18,
+                        padding: minimalChrome ? EdgeInsets.zero : null,
+                        constraints: minimalChrome
+                            ? const BoxConstraints.tightFor(
+                                width: 28,
+                                height: 28,
+                              )
+                            : null,
                         onPressed: onClose ?? () => Navigator.of(context).pop(),
                       ),
                     ],
@@ -196,19 +221,33 @@ class AppDialogScaffold extends StatelessWidget {
                 // 可选底部操作栏
                 if (actions != null && actions!.isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xl,
-                      vertical: AppSpacing.md,
-                    ),
+                    padding: minimalChrome
+                        ? const EdgeInsets.fromLTRB(22, 10, 22, 18)
+                        : const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xl,
+                            vertical: AppSpacing.md,
+                          ),
                     decoration: BoxDecoration(
-                      color: colors.elevatedBackground,
-                      border: Border(
-                        top: BorderSide(color: colors.borderDefault),
-                      ),
+                      color: minimalChrome
+                          ? colors.cardBackground
+                          : colors.elevatedBackground,
+                      border: minimalChrome
+                          ? null
+                          : Border(
+                              top: BorderSide(color: colors.borderDefault),
+                            ),
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: actions!,
+                      mainAxisAlignment: footerLeading != null
+                          ? MainAxisAlignment.spaceBetween
+                          : MainAxisAlignment.end,
+                      children: [
+                        if (footerLeading != null) ...[
+                          footerLeading!,
+                          const SizedBox(width: AppSpacing.md),
+                        ],
+                        Row(mainAxisSize: MainAxisSize.min, children: actions!),
+                      ],
                     ),
                   ),
               ],
