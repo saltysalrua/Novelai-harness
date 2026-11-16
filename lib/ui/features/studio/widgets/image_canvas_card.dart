@@ -350,7 +350,9 @@ class _ImageCanvasCardState extends State<ImageCanvasCard>
                               : (isInpaintTab
                                     ? InpaintRepairCanvas(viewModel: viewModel)
                                     : (showEmptyState
-                                          ? const CanvasEmptyState()
+                                          ? CanvasEmptyState(
+                                              viewModel: viewModel,
+                                            )
                                           : ImageStreamView(
                                               viewModel: viewModel,
                                               controller: _stream,

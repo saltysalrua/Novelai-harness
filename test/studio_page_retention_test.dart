@@ -347,6 +347,14 @@ void main() {
     expect(find.byType(PromptLibraryView), findsNothing);
     expect(isNavSelected('segmented_pill_1'), isTrue);
     expect(find.byKey(const Key('mobile_nav_settings')), findsOneWidget);
+    expect(
+      find.byKey(const Key('mobile_topbar_read_metadata_button')),
+      findsOneWidget,
+    );
+    final canvasEmptyFinder = find.byType(CanvasEmptyState);
+    expect(canvasEmptyFinder, findsOneWidget);
+    final canvasL10n = AppLocalizations.of(tester.element(canvasEmptyFinder));
+    expect(find.text(canvasL10n.canvasActionReadMetadata), findsOneWidget);
 
     // 再进词库后点击底部「助手」应退出词库并切到助手页
     await tester.tap(find.byKey(const Key('mobile_nav_library')));

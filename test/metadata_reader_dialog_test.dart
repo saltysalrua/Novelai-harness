@@ -393,5 +393,46 @@ void main() {
 
       expect(find.text('未检测到盲水印'), findsOneWidget);
     });
+
+    testWidgets(
+      'Narrow mobile viewport renders MetadataReaderDialog and empty metadata notice cleanly',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: MetadataReaderDialog(
+                metadata: const ImageMetadataResult(
+                  software: '',
+                  width: 48,
+                  height: 48,
+                ),
+                imageBytes: testImageBytes,
+                fileName: 'plain_android.png',
+                viewModel: viewModel,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('plain_android.png'), findsOneWidget);
+        expect(
+          find.text('未检测到生成参数，可尝试提取盲水印或作为参考图导入'),
+          findsOneWidget,
+        );
+        final apply = find.widgetWithText(AppActionButton, '填入选中参数');
+        expect(tester.widget<AppActionButton>(apply).onPressed, isNull);
+        expect(find.text('提取盲水印'), findsOneWidget);
+        expect(find.text('作为参考图导入'), findsOneWidget);
+      },
+    );
   });
 }

@@ -7,7 +7,9 @@ import 'package:pasteboard/pasteboard.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/services/image_metadata_service.dart';
 import '../../../../data/services/media_store_service.dart';
+import '../../../../data/services/prompt_image_probe.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
@@ -16,6 +18,7 @@ import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_lightbox.dart';
+import 'metadata_reader_dialog.dart';
 import 'palette_inspector_dialog.dart';
 
 /// 画板图片的安全纵横比 (宽高非法时回退 1:1)
@@ -90,6 +93,20 @@ Future<void> copyImageToClipboard(
   );
 }
 
+Future<Uint8List?> _readPickedFileBytes(PlatformFile file) async {
+  final inMemory = file.bytes;
+  if (inMemory != null && inMemory.isNotEmpty) return inMemory;
+  final path = file.path;
+  if (path != null && path.isNotEmpty) {
+    final f = File(path);
+    if (await f.exists()) {
+      final diskBytes = await f.readAsBytes();
+      if (diskBytes.isNotEmpty) return diskBytes;
+    }
+  }
+  return null;
+}
+
 /// 弹出文件选择器导入外部参考图到大画布 (画板、批注画布、批注历史条共用)
 Future<void> pickAndImportReferenceImage(
   BuildContext context,
@@ -97,13 +114,14 @@ Future<void> pickAndImportReferenceImage(
   Offset? dropPosition,
 }) async {
   final result = await FilePicker.platform.pickFiles(
-    type: FileType.image,
+    type: FileType.custom,
+    allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
     allowMultiple: false,
     withData: true,
   );
   if (result == null || result.files.isEmpty) return;
   final file = result.files.first;
-  final bytes = file.bytes;
+  final bytes = await _readPickedFileBytes(file);
   if (bytes == null || bytes.isEmpty) return;
 
   await viewModel.board.importReferenceImageFromBytes(
@@ -116,6 +134,59 @@ Future<void> pickAndImportReferenceImage(
       context,
       context.l10n.canvasImportedReference(file.name),
     );
+  }
+}
+
+/// 弹出系统文件选择器读取图片参数（Android / 桌面通用：走 SAF 文档选择器保留原始 PNG Chunks 与 LSB 隐写）
+Future<void> pickAndInspectImageMetadata(
+  BuildContext context,
+  StudioViewModel viewModel,
+) async {
+  try {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final bytes = await _readPickedFileBytes(file);
+    if (bytes == null || bytes.isEmpty) {
+      if (context.mounted) {
+        showCanvasSnackBar(
+          context,
+          context.l10n.metadataPickImageFailed('empty file'),
+          tone: AppToastTone.error,
+        );
+      }
+      return;
+    }
+    final parsed = await ImageMetadataService.parseMetadataAsync(bytes);
+    final dims = PromptImageProbe.probeDimensions(bytes);
+    final resolvedMeta = (parsed != null && parsed.hasData)
+        ? parsed
+        : ImageMetadataResult(
+            software: '',
+            width: dims?.$1,
+            height: dims?.$2,
+          );
+    if (!context.mounted) return;
+    await MetadataReaderDialog.show(
+      context,
+      metadata: resolvedMeta,
+      imageBytes: bytes,
+      fileName: file.name,
+      viewModel: viewModel,
+    );
+  } catch (e) {
+    if (context.mounted) {
+      showCanvasSnackBar(
+        context,
+        context.l10n.metadataPickImageFailed(e.toString()),
+        tone: AppToastTone.error,
+      );
+    }
   }
 }
 
@@ -385,11 +456,31 @@ Future<void> showMobileImageActionSheet(
   required StudioViewModel viewModel,
   required NaiGeneratedImage image,
 }) {
-  final actions = buildImageContextMenuActions(
+  final l10n = context.l10n;
+  final baseActions = buildImageContextMenuActions(
     context,
     viewModel: viewModel,
     image: image,
   );
+  // 移动端额外在底部面板提供「读取图片参数」选图入口，避免桌面右键菜单过长溢出
+  final insertIndex = baseActions.lastIndexWhere(
+    (a) => a is ContextMenuDivider,
+  );
+  final readMetadataItem = ContextMenuItem(
+    icon: Icons.image_search_outlined,
+    label: l10n.canvasActionReadMetadata,
+    onTap: () => pickAndInspectImageMetadata(context, viewModel),
+  );
+  final actions = [
+    if (insertIndex >= 0) ...[
+      ...baseActions.take(insertIndex),
+      readMetadataItem,
+      ...baseActions.skip(insertIndex),
+    ] else ...[
+      ...baseActions,
+      readMetadataItem,
+    ],
+  ];
   final colors = context.colors;
 
   return showModalBottomSheet<void>(

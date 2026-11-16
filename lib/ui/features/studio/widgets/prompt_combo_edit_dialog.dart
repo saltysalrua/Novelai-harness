@@ -1,24 +1,24 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../../data/services/prompt_image_probe.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
-import '../../../core/widgets/app_dialog_scaffold.dart';
-import '../../../core/widgets/app_dropdown.dart';
-import '../../../core/widgets/app_empty_state.dart';
-import '../../../core/widgets/app_image_detail_layout.dart';
-import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../view_models/studio_view_model.dart';
 
-/// 词组合预设新建/编辑弹窗：完整大图与独立表单分区，操作不覆盖图片。
+/// 词组合预设新建/编辑弹窗：
+/// Notion 极简一体布局，零内部分割线、零图像空边框。
 class PromptComboEditDialog extends StatefulWidget {
   final StudioViewModel viewModel;
   final PromptComboEntry? initialEntry;
@@ -34,8 +34,10 @@ class PromptComboEditDialog extends StatefulWidget {
     required StudioViewModel viewModel,
     PromptComboEntry? initialEntry,
   }) {
-    return AppDialogScaffold.show(
+    return showAppModalDialog<void>(
       context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) => PromptComboEditDialog(
         viewModel: viewModel,
         initialEntry: initialEntry,
@@ -48,17 +50,22 @@ class PromptComboEditDialog extends StatefulWidget {
 }
 
 class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
+  static const String _customCategorySentinel = '自定义...';
+
   late final TextEditingController _titleController;
   late final TextEditingController _customCategoryController;
   late final TextEditingController _promptController;
   late final TextEditingController _negativePromptController;
   late final TextEditingController _tagsController;
+  late final SmoothWheelScrollController _formScrollController;
 
   late String _selectedCategory;
   bool _isCustomCategory = false;
   String? _previewImagePath;
   Uint8List? _previewBytes;
+  double? _previewAspectRatio;
   bool _isSaving = false;
+  bool _isDraggingOver = false;
   int _titleShakeTrigger = 0;
   int _promptShakeTrigger = 0;
 
@@ -79,6 +86,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       text: entry?.negativePrompt ?? '',
     );
     _tagsController = TextEditingController(text: entry?.tags.join(', ') ?? '');
+    _formScrollController = SmoothWheelScrollController();
 
     final cat = entry?.category ?? PromptComboCategories.character;
     if (PromptComboCategories.defaults.contains(cat)) {
@@ -86,14 +94,30 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       _isCustomCategory = false;
       _customCategoryController = TextEditingController();
     } else {
-      _selectedCategory = '自定义...';
+      _selectedCategory = _customCategorySentinel;
       _isCustomCategory = true;
       _customCategoryController = TextEditingController(text: cat);
     }
 
     _previewImagePath = entry?.previewImagePath;
+    _resolveInitialAspectRatio();
     _customCategoryController.addListener(() {
-      setState(() {});
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _resolveInitialAspectRatio() {
+    final path = _previewImagePath?.trim();
+    if (path == null || path.isEmpty) return;
+    final cached = PromptImageProbe.getCachedAspectRatio(path);
+    if (cached != null) {
+      _previewAspectRatio = cached;
+      return;
+    }
+    PromptImageProbe.probeFile(path).then((ratio) {
+      if (mounted && ratio != null) {
+        setState(() => _previewAspectRatio = ratio);
+      }
     });
   }
 
@@ -104,7 +128,16 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     _promptController.dispose();
     _negativePromptController.dispose();
     _tagsController.dispose();
+    _formScrollController.dispose();
     super.dispose();
+  }
+
+  void _setPreviewBytes(Uint8List bytes, {String? path}) {
+    setState(() {
+      _previewBytes = bytes;
+      _previewImagePath = path;
+      _previewAspectRatio = PromptImageProbe.probeBytes(bytes);
+    });
   }
 
   Future<void> _pickLocalImage() async {
@@ -118,17 +151,11 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
         if (file.bytes != null) {
-          setState(() {
-            _previewBytes = file.bytes;
-            _previewImagePath = file.path;
-          });
+          _setPreviewBytes(file.bytes!, path: file.path);
         } else if (file.path != null) {
           final bytes = await File(file.path!).readAsBytes();
           if (!mounted) return;
-          setState(() {
-            _previewBytes = bytes;
-            _previewImagePath = file.path;
-          });
+          _setPreviewBytes(bytes, path: file.path);
         }
       }
     } catch (e) {
@@ -142,13 +169,31 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     }
   }
 
+  Future<void> _handleDroppedFiles(DropDoneDetails details) async {
+    for (final file in details.files) {
+      final lower = file.name.toLowerCase();
+      if (!lower.endsWith('.png') &&
+          !lower.endsWith('.jpg') &&
+          !lower.endsWith('.jpeg') &&
+          !lower.endsWith('.webp')) {
+        continue;
+      }
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      if (bytes.isNotEmpty) {
+        _setPreviewBytes(
+          bytes,
+          path: file.path.isNotEmpty ? file.path : null,
+        );
+        break;
+      }
+    }
+  }
+
   void _useCurrentCanvasImage() {
     final bytes = widget.viewModel.getCurrentCanvasImageBytes();
     if (bytes != null && bytes.isNotEmpty) {
-      setState(() {
-        _previewBytes = bytes;
-        _previewImagePath = null; // 标记由内存字节保存
-      });
+      _setPreviewBytes(bytes);
       showAppToast(
         context,
         message: context.l10n.libraryEditAdoptedCanvasImage,
@@ -169,6 +214,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     setState(() {
       _previewBytes = null;
       _previewImagePath = null;
+      _previewAspectRatio = null;
     });
   }
 
@@ -240,8 +286,6 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           : _selectedCategory;
 
       final isChar = PromptComboEntry.isCharacterCategory(finalCategory);
-
-      // 仅在角色分类时保存负面词
       final negativePrompt = isChar
           ? _negativePromptController.text.trim()
           : '';
@@ -252,7 +296,6 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           .where((e) => e.isNotEmpty)
           .toList();
 
-      // 处理预览图保存
       String? savedImagePath = _previewImagePath;
       if (_previewBytes != null) {
         savedImagePath = await widget.viewModel.savePromptPreviewFromBytes(
@@ -316,59 +359,539 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     }
   }
 
+  InputDecoration _softFieldDecoration(
+    BuildContext context, {
+    required String hintText,
+    EdgeInsetsGeometry contentPadding = const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 10,
+    ),
+  }) {
+    final colors = context.colors;
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+      filled: true,
+      fillColor: colors.elevatedBackground,
+      hoverColor: colors.mutedBackground.withValues(alpha: 0.7),
+      contentPadding: contentPadding,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide(color: colors.primary, width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final l10n = context.l10n;
     final screenSize = MediaQuery.sizeOf(context);
-    final hasImage = _previewBytes != null || _previewImagePath != null;
+    final dialogWidth = (screenSize.width * 0.74).clamp(620.0, 1020.0);
+    final dialogHeight = (screenSize.height * 0.80).clamp(480.0, 720.0);
+
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event.logicalKey != LogicalKeyboardKey.escape) {
+          return KeyEventResult.ignored;
+        }
+        if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+          return KeyEventResult.ignored;
+        }
+        final primary = FocusManager.instance.primaryFocus;
+        final editingText =
+            primary?.context?.findAncestorStateOfType<EditableTextState>() !=
+            null;
+        if (editingText) {
+          primary!.unfocus();
+          return KeyEventResult.handled;
+        }
+        Navigator.of(context).pop();
+        return KeyEventResult.handled;
+      },
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: dialogWidth,
+            height: dialogHeight,
+            constraints: BoxConstraints(
+              maxWidth: screenSize.width - 48,
+              maxHeight: screenSize.height - 48,
+            ),
+            decoration: BoxDecoration(
+              color: colors.cardBackground,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(color: colors.borderDefault),
+              boxShadow: context.shadowDialog,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 720;
+                if (isNarrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 10, 0),
+                        child: _buildDialogTopRow(context, l10n),
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          controller: _formScrollController,
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight: (constraints.maxHeight * 0.34)
+                                      .clamp(140.0, 240.0),
+                                ),
+                                child: _buildPreviewStage(context),
+                              ),
+                              const SizedBox(height: 8),
+                              _buildPreviewActions(context),
+                              const SizedBox(height: 14),
+                              ..._buildFormFields(context),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
+                        child: _buildFooterButtons(context),
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 左侧纯净完整图片展示区 (无空底框、无垂直分隔线)
+                    Expanded(
+                      flex: 9,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 22, 10, 18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: _buildPreviewStage(context)),
+                            const SizedBox(height: 10),
+                            _buildPreviewActions(context),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // 右侧一体化 Notion 表单
+                    Expanded(
+                      flex: 11,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 16, 20, 18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildDialogTopRow(context, l10n),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                controller: _formScrollController,
+                                padding: const EdgeInsets.only(
+                                  top: 4,
+                                  bottom: 12,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: _buildFormFields(context),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            _buildFooterButtons(context),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDialogTopRow(BuildContext context, dynamic l10n) {
+    final colors = context.colors;
+    return Row(
+      children: [
+        Text(
+          _isEdit
+              ? context.l10n.libraryEditDialogTitleEdit
+              : context.l10n.libraryEditDialogTitleNew,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textMuted,
+          ),
+        ),
+        const Spacer(),
+        IconButton(
+          icon: Icon(
+            Icons.close_rounded,
+            size: 18,
+            color: colors.textSecondary,
+          ),
+          splashRadius: 16,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPreviewStage(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final rawPath = _previewImagePath?.trim();
+    final hasImage =
+        _previewBytes != null || (rawPath != null && rawPath.isNotEmpty);
+
     final ImageProvider<Object>? image = _previewBytes != null
         ? MemoryImage(_previewBytes!)
-        : _previewImagePath != null
-        ? FileImage(File(_previewImagePath!))
+        : (rawPath != null && rawPath.isNotEmpty)
+        ? FileImage(File(rawPath))
         : null;
 
-    return AppDialogScaffold(
-      title: _isEdit
-          ? l10n.libraryEditDialogTitleEdit
-          : l10n.libraryEditDialogTitleNew,
-      width: 1440,
-      height: (screenSize.height - 64).clamp(0.0, 1040.0),
-      maxHeight: screenSize.height - 48,
-      body: AppImageDetailLayout(
-        image: image,
-        placeholder: AppEmptyState(
-          icon: Icons.image_outlined,
-          title: l10n.libraryEditPosterTitle,
-          isCompact: true,
-        ),
-        previewFooter: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            AppActionButton(
-              label: l10n.libraryEditPickLocalImage,
-              icon: Icons.file_upload_outlined,
-              onPressed: _pickLocalImage,
-            ),
-            AppActionButton(
-              label: l10n.libraryEditUseCanvasImage,
-              icon: Icons.image_outlined,
-              onPressed: _useCurrentCanvasImage,
-            ),
-            if (hasImage)
-              AppActionButton(
-                label: l10n.libraryEditRemovePreviewImage,
-                icon: Icons.delete_outline,
-                onPressed: _clearPreviewImage,
+    Widget emptyStage = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
+        child: Material(
+          color: _isDraggingOver
+              ? colors.primaryTint.withValues(alpha: 0.65)
+              : colors.elevatedBackground,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          child: InkWell(
+            onTap: _pickLocalImage,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.add_photo_alternate_outlined,
+                      size: 32,
+                      color: colors.textMuted.withValues(alpha: 0.7),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.libraryEditPosterTitle,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Widget buildFittedImage() {
+      final imgWidget = Image(
+        image: image!,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => emptyStage,
+      );
+      final ratio = _previewAspectRatio;
+      final framed = ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: ratio != null
+            ? AspectRatio(aspectRatio: ratio, child: imgWidget)
+            : imgWidget,
+      );
+      return InteractiveViewer(
+        key: ValueKey(image),
+        minScale: 1,
+        maxScale: 5,
+        child: Center(child: framed),
+      );
+    }
+
+    return DropTarget(
+      onDragEntered: (_) => setState(() => _isDraggingOver = true),
+      onDragExited: (_) => setState(() => _isDraggingOver = false),
+      onDragDone: (details) async {
+        setState(() => _isDraggingOver = false);
+        await _handleDroppedFiles(details);
+      },
+      child: AnimatedContainer(
+        duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+        curve: AppMotionCurves.smoothOut,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: _isDraggingOver
+              ? Border.all(color: colors.primary, width: 1.5)
+              : null,
+        ),
+        child: !hasImage || image == null ? emptyStage : buildFittedImage(),
+      ),
+    );
+  }
+
+  Widget _buildPreviewActions(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final rawPath = _previewImagePath?.trim();
+    final hasImage =
+        _previewBytes != null || (rawPath != null && rawPath.isNotEmpty);
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        AppToolChip(
+          icon: Icons.file_upload_outlined,
+          label: l10n.libraryEditPickLocalImage,
+          variant: AppToolChipVariant.tinted,
+          unselectedBackgroundColor: colors.elevatedBackground,
+          onTap: _pickLocalImage,
+        ),
+        AppToolChip(
+          icon: Icons.image_outlined,
+          label: l10n.libraryEditUseCanvasImage,
+          variant: AppToolChipVariant.tinted,
+          unselectedBackgroundColor: colors.elevatedBackground,
+          onTap: _useCurrentCanvasImage,
+        ),
+        if (hasImage)
+          AppToolChip(
+            icon: Icons.delete_outline,
+            label: l10n.libraryEditRemovePreviewImage,
+            variant: AppToolChipVariant.tinted,
+            unselectedBackgroundColor: colors.errorSurface,
+            onTap: _clearPreviewImage,
+          ),
+      ],
+    );
+  }
+
+  List<Widget> _buildFormFields(BuildContext context) {
+    final l10n = context.l10n;
+    final colors = context.colors;
+
+    return [
+      // 1. 标题 (Notion 页面大标题风格，无外框)
+      _FieldLabel(text: '${l10n.libraryEditFieldTitle} *'),
+      AppErrorShake(
+        trigger: _titleShakeTrigger,
+        child: TextField(
+          controller: _titleController,
+          style: TextStyle(
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
+            color: colors.textPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: l10n.libraryEditFieldTitleHint,
+            hintStyle: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: colors.textMuted.withValues(alpha: 0.75),
+            ),
+            filled: false,
+            hoverColor: Colors.transparent,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 4),
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+
+      // 2. 分类 (无框一键胶囊)
+      _FieldLabel(text: '${l10n.libraryEditFieldCategory} *'),
+      const SizedBox(height: 6),
+      _buildCategoryChips(context),
+      AppPanelReveal(
+        visible: _isCustomCategory,
+        openDuration: AppMotionDurations.fast,
+        closeDuration: AppMotionDurations.quick,
+        slideOffset: AppMotionDistances.base,
+        enableBlur: false,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: TextField(
+            controller: _customCategoryController,
+            style: TextStyle(fontSize: 13, color: colors.textPrimary),
+            decoration: _softFieldDecoration(
+              context,
+              hintText: l10n.libraryEditFieldCustomCategoryHint,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // 3. 主提示词
+      SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            _FieldLabel(text: '${l10n.libraryEditFieldPrompt} *'),
+            AppToolChip(
+              icon: Icons.input_rounded,
+              label: l10n.libraryEditFillFromPrompt,
+              variant: AppToolChipVariant.tinted,
+              fontSize: 11.5,
+              iconSize: 13,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              onTap: _fillFromCurrentWorkspacePrompt,
+            ),
           ],
         ),
-        details: _buildForm(context),
       ),
-      actions: [
-        TextButton(
+      const SizedBox(height: 6),
+      AppErrorShake(
+        trigger: _promptShakeTrigger,
+        child: TextField(
+          controller: _promptController,
+          minLines: 5,
+          maxLines: 10,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.5,
+            color: colors.textPrimary,
+          ),
+          decoration: _softFieldDecoration(
+            context,
+            hintText: l10n.libraryEditFieldPromptHint,
+            contentPadding: const EdgeInsets.all(12),
+          ),
+        ),
+      ),
+
+      // 4. 负面提示词 (仅角色分类时平滑展开)
+      AppPanelReveal(
+        visible: _isCharacterCategory,
+        openDuration: AppMotionDurations.fast,
+        closeDuration: AppMotionDurations.quick,
+        slideOffset: AppMotionDistances.base,
+        enableBlur: false,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _FieldLabel(text: l10n.libraryEditFieldNegative),
+                        const SizedBox(width: 8),
+                        Text(
+                          l10n.libraryEditCharacterOnlyBadge,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: colors.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                    AppToolChip(
+                      icon: Icons.input_rounded,
+                      label: l10n.libraryEditFillFromNegative,
+                      variant: AppToolChipVariant.tinted,
+                      fontSize: 11.5,
+                      iconSize: 13,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      onTap: _fillFromCurrentWorkspaceNegative,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _negativePromptController,
+                minLines: 3,
+                maxLines: 6,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.5,
+                  color: colors.textPrimary,
+                ),
+                decoration: _softFieldDecoration(
+                  context,
+                  hintText: l10n.libraryEditFieldNegativeHint,
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // 5. 检索标签
+      _FieldLabel(text: l10n.libraryEditFieldTags),
+      const SizedBox(height: 6),
+      TextField(
+        controller: _tagsController,
+        style: TextStyle(fontSize: 13, color: colors.textPrimary),
+        decoration: _softFieldDecoration(
+          context,
+          hintText: l10n.libraryEditFieldTagsHint,
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildFooterButtons(BuildContext context) {
+    final l10n = context.l10n;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        AppActionButton(
+          label: l10n.cancel,
+          variant: AppActionButtonVariant.ghost,
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.cancel),
         ),
         const SizedBox(width: 8),
         if (_isSaving) ...[
@@ -391,138 +914,69 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     );
   }
 
-  Widget _buildForm(BuildContext context) {
-    final l10n = context.l10n;
+  Widget _buildCategoryChips(BuildContext context) {
     final colors = context.colors;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AppSectionHeader(title: '${l10n.libraryEditFieldTitle} *'),
-          AppErrorShake(
-            trigger: _titleShakeTrigger,
-            child: TextField(
-              controller: _titleController,
-              style: TextStyle(fontSize: 13, color: colors.textPrimary),
-              decoration: InputDecoration(
-                hintText: l10n.libraryEditFieldTitleHint,
-              ),
-            ),
+    final l10n = context.l10n;
+    final options = [...PromptComboCategories.defaults, _customCategorySentinel];
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final category in options)
+          AppToolChip(
+            icon: _categoryIcon(category),
+            label: category == _customCategorySentinel
+                ? l10n.libraryEditCustomCategoryOption
+                : comboCategoryLabelOf(l10n, category),
+            isSelected: _isCustomCategory
+                ? category == _customCategorySentinel
+                : _selectedCategory == category,
+            variant: AppToolChipVariant.tinted,
+            unselectedBackgroundColor: colors.elevatedBackground,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            radius: AppRadius.md,
+            onTap: () {
+              setState(() {
+                _isCustomCategory = category == _customCategorySentinel;
+                if (!_isCustomCategory) {
+                  _selectedCategory = category;
+                }
+              });
+            },
           ),
-          const SizedBox(height: AppSpacing.lg),
-          AppSectionHeader(title: '${l10n.libraryEditFieldCategory} *'),
-          _buildCategoryDropdown(context),
-          AppPanelReveal(
-            visible: _isCustomCategory,
-            openDuration: AppMotionDurations.fast,
-            closeDuration: AppMotionDurations.quick,
-            slideOffset: AppMotionDistances.base,
-            enableBlur: false,
-            child: Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: TextField(
-                controller: _customCategoryController,
-                decoration: InputDecoration(
-                  hintText: l10n.libraryEditFieldCustomCategoryHint,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppSectionHeader(
-            title: '${l10n.libraryEditFieldPrompt} *',
-            trailing: AppActionButton(
-              label: l10n.libraryEditFillFromPrompt,
-              icon: Icons.input_rounded,
-              onPressed: _fillFromCurrentWorkspacePrompt,
-            ),
-          ),
-          AppErrorShake(
-            trigger: _promptShakeTrigger,
-            child: TextField(
-              controller: _promptController,
-              minLines: 6,
-              maxLines: 12,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.5,
-                color: colors.textPrimary,
-              ),
-              decoration: InputDecoration(
-                hintText: l10n.libraryEditFieldPromptHint,
-                contentPadding: const EdgeInsets.all(12),
-              ),
-            ),
-          ),
-          AppPanelReveal(
-            visible: _isCharacterCategory,
-            openDuration: AppMotionDurations.fast,
-            closeDuration: AppMotionDurations.quick,
-            slideOffset: AppMotionDistances.base,
-            enableBlur: false,
-            child: Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AppSectionHeader(
-                    title: l10n.libraryEditFieldNegative,
-                    subtitle: l10n.libraryEditCharacterOnlyBadge,
-                    trailing: AppActionButton(
-                      label: l10n.libraryEditFillFromNegative,
-                      icon: Icons.input_rounded,
-                      onPressed: _fillFromCurrentWorkspaceNegative,
-                    ),
-                  ),
-                  TextField(
-                    controller: _negativePromptController,
-                    minLines: 3,
-                    maxLines: 8,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.5,
-                      color: colors.textPrimary,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: l10n.libraryEditFieldNegativeHint,
-                      contentPadding: const EdgeInsets.all(12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppSectionHeader(title: l10n.libraryEditFieldTags),
-          TextField(
-            controller: _tagsController,
-            decoration: InputDecoration(
-              hintText: l10n.libraryEditFieldTagsHint,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
-  Widget _buildCategoryDropdown(BuildContext context) {
-    final l10n = context.l10n;
-    return AppDropdown<String>.simple(
-      value: _isCustomCategory ? '自定义...' : _selectedCategory,
-      items: [...PromptComboCategories.defaults, '自定义...'],
-      labelOf: (category) => category == '自定义...'
-          ? l10n.libraryEditCustomCategoryOption
-          : comboCategoryLabelOf(l10n, category),
-      iconOf: (category) => category == PromptComboCategories.character
-          ? Icons.person_outline
-          : Icons.label_outline,
-      onChanged: (category) {
-        setState(() {
-          _isCustomCategory = category == '自定义...';
-          if (!_isCustomCategory) _selectedCategory = category;
-        });
-      },
+  IconData _categoryIcon(String category) {
+    return switch (category) {
+      PromptComboCategories.character => Icons.person_outline,
+      PromptComboCategories.style => Icons.palette_outlined,
+      PromptComboCategories.attire => Icons.checkroom_outlined,
+      PromptComboCategories.composition => Icons.crop_free_outlined,
+      PromptComboCategories.environment => Icons.landscape_outlined,
+      PromptComboCategories.effect => Icons.auto_awesome_outlined,
+      _customCategorySentinel => Icons.edit_outlined,
+      _ => Icons.label_outline,
+    };
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String text;
+
+  const _FieldLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w600,
+        color: context.colors.textMuted,
+      ),
     );
   }
 }

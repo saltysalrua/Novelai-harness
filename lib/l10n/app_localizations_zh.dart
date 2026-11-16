@@ -3791,4 +3791,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get libraryReturn => '返回';
+
+  @override
+  String get canvasActionReadMetadata => '读取图片参数';
+
+  @override
+  String get metadataNoParamsNotice => '未检测到生成参数，可尝试提取盲水印或作为参考图导入';
+
+  @override
+  String metadataPickImageFailed(String error) {
+    return '读取图片失败: $error';
+  }
 }

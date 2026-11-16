@@ -1649,5 +1649,9 @@
   "inpaintExit": "Exit Inpaint",
   "canvasQuickGenerate": "Generate",
   "canvasQuickAbort": "Stop",
-  "libraryReturn": "Back"
+  "libraryReturn": "Back",
+  "canvasActionReadMetadata": "Read Image Metadata",
+  "metadataNoParamsNotice": "No generation metadata detected. You can try extracting a blind watermark or importing as a reference.",
+  "metadataPickImageFailed": "Failed to read image: {error}",
+  "@metadataPickImageFailed": {"placeholders": {"error": {"type": "String"}}}
 }

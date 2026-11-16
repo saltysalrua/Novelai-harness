@@ -2,15 +2,16 @@ part of 'studio_view_model.dart';
 
 /// 词组合预设库分部 (Prompt Combo Library)
 mixin _StudioLibraryMixin on _StudioCore {
-  /// 当前词组合条目列表
+  /// 当前词组合条目列表 (返回已冻结快照，避免每次读取分配新列表)
   @override
-  List<PromptComboEntry> get promptLibraryEntries =>
-      List.unmodifiable(_promptLibraryEntries);
+  List<PromptComboEntry> get promptLibraryEntries => _promptLibraryEntries;
 
   /// 加载词组合列表
   Future<void> loadPromptLibrary() async {
     try {
-      _promptLibraryEntries = await _promptLibraryService.loadEntries();
+      final entries = await _promptLibraryService.loadEntries();
+      _promptLibraryEntries = List.unmodifiable(entries);
+      promptLibraryNotifier.value++;
       notifyListeners();
     } catch (_) {}
   }
@@ -18,9 +19,10 @@ mixin _StudioLibraryMixin on _StudioCore {
   /// 词库内容变更后同步刷新内存与自动补全缓存
   Future<List<PromptComboEntry>> _reloadPromptLibrary() async {
     final entries = await _promptLibraryService.loadEntries();
-    _promptLibraryEntries = entries;
+    _promptLibraryEntries = List.unmodifiable(entries);
     // 词组合会注入标签自动补全建议，清掉查询缓存避免陈旧条目残留
     TagDictionaryService.instance.clearQueryCache();
+    promptLibraryNotifier.value++;
     notifyListeners();
     return entries;
   }

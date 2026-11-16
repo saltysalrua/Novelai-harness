@@ -527,7 +527,9 @@ class MobileCanvasActionBar extends StatelessWidget {
 
 /// 画板空状态占位 (无历史图且未在生成时展示)
 class CanvasEmptyState extends StatelessWidget {
-  const CanvasEmptyState({super.key});
+  final StudioViewModel? viewModel;
+
+  const CanvasEmptyState({super.key, this.viewModel});
 
   @override
   Widget build(BuildContext context) {
@@ -537,6 +539,11 @@ class CanvasEmptyState extends StatelessWidget {
       title: l10n.canvasEmptyTitle,
       description: l10n.canvasEmptyDescription,
       iconSize: 54,
+      actionLabel: viewModel != null ? l10n.canvasActionReadMetadata : null,
+      actionIcon: viewModel != null ? Icons.image_search_outlined : null,
+      onActionPressed: viewModel != null
+          ? () => pickAndInspectImageMetadata(context, viewModel!)
+          : null,
     );
   }
 }

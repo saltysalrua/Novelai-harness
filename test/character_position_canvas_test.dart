@@ -32,17 +32,20 @@ void main() {
       await tester.drag(promptsTitle, const Offset(0, -450));
       await tester.pumpAndSettle();
 
-      // 3. 找到添加角色三预设按钮并添加两个角色
-      final addBtn = find.text('女');
-      expect(addBtn, findsOneWidget);
-      await tester.ensureVisible(addBtn);
-      await tester.pumpAndSettle();
-      await tester.tap(addBtn);
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(addBtn);
-      await tester.pumpAndSettle();
-      await tester.tap(addBtn);
-      await tester.pumpAndSettle();
+      // 3. 打开「添加角色」下拉菜单并添加两个女角色
+      for (var i = 0; i < 2; i++) {
+        final addMenuBtn = find.text('添加角色');
+        expect(addMenuBtn, findsOneWidget);
+        await tester.ensureVisible(addMenuBtn);
+        await tester.pumpAndSettle();
+        await tester.tap(addMenuBtn);
+        await tester.pumpAndSettle();
+
+        final femaleOption = find.text('女');
+        expect(femaleOption, findsOneWidget);
+        await tester.tap(femaleOption);
+        await tester.pumpAndSettle();
+      }
 
       // 验证添加了 2 个角色卡片
       expect(find.byType(CharacterCardItem), findsNWidgets(2));

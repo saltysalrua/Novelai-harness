@@ -563,6 +563,8 @@ class _StudioViewState extends State<StudioView> {
               _viewModel.setActiveSidebarTab(tab, expandSidebar: false);
             },
             onOpenSettings: () => SettingsDialog.show(context, _viewModel),
+            onReadImageMetadata: () =>
+                pickAndInspectImageMetadata(context, _viewModel),
             onQuickInpaint: selectedImage == null
                 ? null
                 : () {
@@ -1180,6 +1182,7 @@ class _MobileTopBar extends StatefulWidget {
   final bool hasSelectedImage;
   final ValueChanged<StudioSidebarTab> onStudioTabSelected;
   final VoidCallback onOpenSettings;
+  final VoidCallback? onReadImageMetadata;
   final VoidCallback? onQuickInpaint;
 
   const _MobileTopBar({
@@ -1192,6 +1195,7 @@ class _MobileTopBar extends StatefulWidget {
     required this.hasSelectedImage,
     required this.onStudioTabSelected,
     required this.onOpenSettings,
+    this.onReadImageMetadata,
     this.onQuickInpaint,
   });
 
@@ -1221,6 +1225,20 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
           child: Row(
             children: [
               Expanded(child: _buildLeadingContext(context, l10n)),
+
+              if (!widget.isLibraryTab &&
+                  widget.activeIndex == 1 &&
+                  !widget.isEditingPositions &&
+                  !widget.isAnnotating &&
+                  widget.onReadImageMetadata != null)
+                AppIconButton(
+                  key: const Key('mobile_topbar_read_metadata_button'),
+                  icon: Icons.image_search_outlined,
+                  variant: AppIconButtonVariant.ghost,
+                  size: btnSize,
+                  tooltip: l10n.canvasActionReadMetadata,
+                  onPressed: widget.onReadImageMetadata,
+                ),
 
               if (!widget.isLibraryTab &&
                   widget.activeIndex == 1 &&

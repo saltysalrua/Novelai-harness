@@ -98,7 +98,10 @@ mixin _StudioCore on ChangeNotifier {
   late final AgentHarness _harness;
 
   /// 本地词组合库条目列表
-  List<PromptComboEntry> _promptLibraryEntries = [];
+  List<PromptComboEntry> _promptLibraryEntries = const [];
+
+  /// 词库条目列表独立通知器：避免工作台打字、对话流或生图进度触发词库全量重建
+  final ValueNotifier<int> promptLibraryNotifier = ValueNotifier<int>(0);
 
   /// 本会话内各模型 (provider/model) 的累计 Token 用量 (悬停模型选择器时展示)
   Map<String, TokenUsage> _sessionModelUsage = {};
@@ -1577,6 +1580,7 @@ class StudioViewModel extends ChangeNotifier
     // 瞬态控制器随宿主一起释放
     _streamingText.dispose();
     _liveProgressController.dispose();
+    promptLibraryNotifier.dispose();
     // 大画布领域控制器：内部取消防抖并立即落盘一次 (对齐旧 dispose 契约)
     board.dispose();
     unawaited(_sessionLog.flush());

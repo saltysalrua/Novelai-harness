@@ -7003,6 +7003,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'返回'**
   String get libraryReturn;
+
+  /// No description provided for @canvasActionReadMetadata.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取图片参数'**
+  String get canvasActionReadMetadata;
+
+  /// No description provided for @metadataNoParamsNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'未检测到生成参数，可尝试提取盲水印或作为参考图导入'**
+  String get metadataNoParamsNotice;
+
+  /// No description provided for @metadataPickImageFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取图片失败: {error}'**
+  String metadataPickImageFailed(String error);
 }
 
 class _AppLocalizationsDelegate

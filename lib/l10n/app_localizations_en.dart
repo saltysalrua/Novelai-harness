@@ -4085,4 +4085,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libraryReturn => 'Back';
+
+  @override
+  String get canvasActionReadMetadata => 'Read Image Metadata';
+
+  @override
+  String get metadataNoParamsNotice =>
+      'No generation metadata detected. You can try extracting a blind watermark or importing as a reference.';
+
+  @override
+  String metadataPickImageFailed(String error) {
+    return 'Failed to read image: $error';
+  }
 }

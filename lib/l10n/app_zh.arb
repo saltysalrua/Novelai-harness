@@ -1649,5 +1649,9 @@
   "inpaintExit": "退出修复",
   "canvasQuickGenerate": "生成",
   "canvasQuickAbort": "终止",
-  "libraryReturn": "返回"
+  "libraryReturn": "返回",
+  "canvasActionReadMetadata": "读取图片参数",
+  "metadataNoParamsNotice": "未检测到生成参数，可尝试提取盲水印或作为参考图导入",
+  "metadataPickImageFailed": "读取图片失败: {error}",
+  "@metadataPickImageFailed": {"placeholders": {"error": {"type": "String"}}}
 }

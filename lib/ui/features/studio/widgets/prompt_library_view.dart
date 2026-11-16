@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../../data/services/prompt_image_probe.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -10,16 +11,17 @@ import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_icon_button.dart';
-import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_search_field.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_combo_card.dart';
 import 'prompt_combo_edit_dialog.dart';
 import 'studio_shared.dart';
 
-/// 词库全屏沉浸式管理器视图
+/// 词库全屏沉浸式管理器视图：
+/// 单一开放画布 + 顶部内联分类筛选 + 原始比例瀑布流，彻底消除冗余框与分割线。
 class PromptLibraryView extends StatefulWidget {
   final StudioViewModel viewModel;
   final VoidCallback? onClose;
@@ -40,64 +42,109 @@ class PromptLibraryView extends StatefulWidget {
 
 class _PromptLibraryViewState extends State<PromptLibraryView> {
   final TextEditingController _searchController = TextEditingController();
+  late final SmoothWheelScrollController _gridScrollController;
+  final ValueNotifier<int> _scrollBucket = ValueNotifier<int>(0);
+
   String _selectedCategory = '全部';
   String _searchQuery = '';
+
+  // 派生状态缓存：避免每次 build 对全量词库重复统计与过滤
+  List<PromptComboEntry>? _cachedSourceEntries;
+  String? _cachedCategoryFilter;
+  String? _cachedQueryFilter;
+  List<String> _cachedCategories = const [];
+  Map<String, int> _cachedCategoryCounts = const {};
+  List<PromptComboEntry> _cachedFilteredEntries = const [];
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(() {
-      final q = _searchController.text.trim();
-      if (q != _searchQuery) {
-        setState(() => _searchQuery = q);
-      }
-    });
+    _gridScrollController = SmoothWheelScrollController()
+      ..addListener(_onGridScrolled);
+    _searchController.addListener(_onSearchControllerChanged);
+  }
+
+  void _onGridScrolled() {
+    if (!_gridScrollController.hasClients) return;
+    final nextBucket = (_gridScrollController.offset / 320.0).floor();
+    if (nextBucket != _scrollBucket.value) {
+      _scrollBucket.value = nextBucket;
+    }
+  }
+
+  void _onSearchControllerChanged() {
+    final q = _searchController.text.trim();
+    if (q != _searchQuery) {
+      setState(() => _searchQuery = q);
+    }
   }
 
   @override
   void dispose() {
+    _gridScrollController.removeListener(_onGridScrolled);
+    _gridScrollController.dispose();
+    _scrollBucket.dispose();
+    _searchController.removeListener(_onSearchControllerChanged);
     _searchController.dispose();
     super.dispose();
   }
 
-  List<String> _getAllCategories(List<PromptComboEntry> entries) {
-    final set = <String>{'全部', ...PromptComboCategories.defaults};
-    for (final e in entries) {
-      if (e.category.trim().isNotEmpty) {
-        set.add(e.category.trim());
+  void _ensureDerivedData(List<PromptComboEntry> entries) {
+    final entriesChanged = !identical(_cachedSourceEntries, entries);
+    if (entriesChanged) {
+      final counts = <String, int>{'全部': entries.length};
+      final catSet = <String>{'全部', ...PromptComboCategories.defaults};
+      for (final entry in entries) {
+        final cat = entry.category.trim();
+        if (cat.isNotEmpty) {
+          catSet.add(cat);
+          counts[cat] = (counts[cat] ?? 0) + 1;
+        }
       }
+      _cachedCategories = catSet.toList(growable: false);
+      _cachedCategoryCounts = counts;
     }
-    return set.toList();
-  }
 
-  List<PromptComboEntry> _filterEntries(List<PromptComboEntry> entries) {
-    return entries.where((e) {
-      // 1. 分类过滤
-      if (_selectedCategory != '全部') {
-        if (e.category.trim() != _selectedCategory) {
-          return false;
-        }
+    if (entriesChanged ||
+        _cachedCategoryFilter != _selectedCategory ||
+        _cachedQueryFilter != _searchQuery) {
+      final q = _searchQuery.toLowerCase();
+      final filterByCategory = _selectedCategory != '全部';
+      final filterByQuery = q.isNotEmpty;
+
+      if (!filterByCategory && !filterByQuery) {
+        _cachedFilteredEntries = entries;
+      } else {
+        _cachedFilteredEntries = entries
+            .where((e) {
+              if (filterByCategory && e.category.trim() != _selectedCategory) {
+                return false;
+              }
+              if (filterByQuery) {
+                final matchTitle = e.title.toLowerCase().contains(q);
+                final matchPrompt = e.prompt.toLowerCase().contains(q);
+                final matchNegative = e.negativePrompt.toLowerCase().contains(
+                  q,
+                );
+                final matchCategory = e.category.toLowerCase().contains(q);
+                final matchTags = e.tags.any((t) => t.toLowerCase().contains(q));
+                if (!matchTitle &&
+                    !matchPrompt &&
+                    !matchNegative &&
+                    !matchCategory &&
+                    !matchTags) {
+                  return false;
+                }
+              }
+              return true;
+            })
+            .toList(growable: false);
       }
 
-      // 2. 搜索关键词过滤
-      if (_searchQuery.isNotEmpty) {
-        final q = _searchQuery.toLowerCase();
-        final matchTitle = e.title.toLowerCase().contains(q);
-        final matchPrompt = e.prompt.toLowerCase().contains(q);
-        final matchNegative = e.negativePrompt.toLowerCase().contains(q);
-        final matchCategory = e.category.toLowerCase().contains(q);
-        final matchTags = e.tags.any((t) => t.toLowerCase().contains(q));
-        if (!matchTitle &&
-            !matchPrompt &&
-            !matchNegative &&
-            !matchCategory &&
-            !matchTags) {
-          return false;
-        }
-      }
-
-      return true;
-    }).toList();
+      _cachedSourceEntries = entries;
+      _cachedCategoryFilter = _selectedCategory;
+      _cachedQueryFilter = _searchQuery;
+    }
   }
 
   Future<void> _handleExport() async {
@@ -126,92 +173,98 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   Future<void> _handleImport() async {
     final l10n = context.l10n;
     final controller = TextEditingController();
-    final result = await AppDialogScaffold.show<bool>(
-      context: context,
-      builder: (ctx) => AppDialogScaffold(
-        title: l10n.libraryImportDialogTitle,
-        width: 480,
-        body: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.libraryImportPrompt,
-                style: TextStyle(fontSize: 12, color: ctx.colors.textSecondary),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: controller,
-                maxLines: 6,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  color: ctx.colors.textPrimary,
+    try {
+      final result = await AppDialogScaffold.show<bool>(
+        context: context,
+        builder: (ctx) => AppDialogScaffold(
+          title: l10n.libraryImportDialogTitle,
+          width: 480,
+          body: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.libraryImportPrompt,
+                  style: TextStyle(fontSize: 12, color: ctx.colors.textSecondary),
                 ),
-                decoration: InputDecoration(
-                  hintText: '[{"title": "...", "prompt": "..."}]',
-                  hintStyle: TextStyle(
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  maxLines: 6,
+                  style: TextStyle(
                     fontSize: 12,
-                    color: ctx.colors.textMuted,
+                    fontFamily: 'monospace',
+                    color: ctx.colors.textPrimary,
                   ),
-                  filled: true,
-                  fillColor: ctx.colors.mutedBackground,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: BorderSide(color: ctx.colors.borderDefault),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: BorderSide(color: ctx.colors.borderDefault),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: BorderSide(
-                      color: ctx.colors.primary,
-                      width: 1.5,
+                  decoration: InputDecoration(
+                    hintText: '[{"title": "...", "prompt": "..."}]',
+                    hintStyle: TextStyle(
+                      fontSize: 12,
+                      color: ctx.colors.textMuted,
+                    ),
+                    filled: true,
+                    fillColor: ctx.colors.elevatedBackground,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(
+                        color: ctx.colors.primary,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          actions: [
+            AppActionButton(
+              label: l10n.cancel,
+              variant: AppActionButtonVariant.ghost,
+              onPressed: () => Navigator.of(ctx).pop(false),
+            ),
+            const SizedBox(width: 8),
+            AppActionButton(
+              label: l10n.import,
+              variant: AppActionButtonVariant.primary,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.import),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (result == true && controller.text.trim().isNotEmpty) {
-      try {
-        final count = await widget.viewModel.importPromptLibraryJson(
-          controller.text.trim(),
-        );
-        if (!mounted) return;
-        showAppToast(
-          context,
-          message: l10n.libraryImportSuccess(count),
-          tone: AppToastTone.success,
-          duration: const Duration(seconds: 2),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        showAppToast(
-          context,
-          message: l10n.libraryImportFailed(e.toString()),
-          tone: AppToastTone.error,
-          duration: const Duration(seconds: 2),
-        );
+      final text = controller.text.trim();
+      if (result == true && text.isNotEmpty) {
+        try {
+          final count = await widget.viewModel.importPromptLibraryJson(text);
+          if (!mounted) return;
+          showAppToast(
+            context,
+            message: l10n.libraryImportSuccess(count),
+            tone: AppToastTone.success,
+            duration: const Duration(seconds: 2),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          showAppToast(
+            context,
+            message: l10n.libraryImportFailed(e.toString()),
+            tone: AppToastTone.error,
+            duration: const Duration(seconds: 2),
+          );
+        }
       }
+    } finally {
+      controller.dispose();
     }
   }
 
@@ -277,145 +330,58 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: Listenable.merge([
-        if (TickerMode.valuesOf(context).enabled) widget.viewModel,
+        if (TickerMode.valuesOf(context).enabled)
+          widget.viewModel.promptLibraryNotifier,
       ]),
       builder: (context, _) {
         final colors = context.colors;
         final allEntries = widget.viewModel.promptLibraryEntries;
-        final categories = _getAllCategories(allEntries);
-        final filtered = _filterEntries(allEntries);
+        _ensureDerivedData(allEntries);
+        final categories = _cachedCategories;
+        final counts = _cachedCategoryCounts;
+        final filtered = _cachedFilteredEntries;
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final isNarrow = constraints.maxWidth < 650;
+        return Container(
+          margin: widget.connectedLeft
+              ? const EdgeInsets.fromLTRB(0, 8, 8, 8)
+              : const EdgeInsets.all(8),
+          decoration: ShapeDecoration(
+            color: colors.canvasBackground,
+            shape: StudioPanelShapeBorder(
+              outerSide: BorderSide(color: colors.borderDefault),
+              radius: AppRadius.lg,
+              roundLeft: !widget.connectedLeft,
+              roundRight: true,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. 开放式顶栏与内联分类筛选 (同一画布，零分隔线、零套壳)
+              _buildHeader(context, allEntries.length),
+              _buildCategoryBar(context, categories, counts),
 
-            return Container(
-              margin: widget.connectedLeft
-                  ? const EdgeInsets.fromLTRB(0, 8, 8, 8)
-                  : const EdgeInsets.all(8),
-              decoration: ShapeDecoration(
-                color: colors.cardBackground,
-                shape: StudioPanelShapeBorder(
-                  outerSide: BorderSide(color: colors.borderDefault),
-                  radius: AppRadius.lg,
-                  roundLeft: !widget.connectedLeft,
-                  roundRight: true,
-                ),
+              // 2. 瀑布流画廊主体
+              Expanded(
+                child: filtered.isEmpty
+                    ? _buildEmptyState(context, allEntries.isEmpty)
+                    : _buildMasonryGallery(filtered),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 1. 顶部操作栏
-                  _buildTopBar(context),
-                  Divider(height: 1, color: colors.borderDefault),
-
-                  // 2. 主体区：窄屏分类在顶部横向滚动，宽屏在左侧
-                  if (isNarrow) ...[
-                    _buildHorizontalCategoryBar(
-                      context,
-                      categories,
-                      allEntries,
-                    ),
-                    Divider(height: 1, color: colors.borderDefault),
-                    Expanded(
-                      child: Container(
-                        color: colors.canvasBackground,
-                        child: filtered.isEmpty
-                            ? _buildEmptyState(context, allEntries.isEmpty)
-                            : _buildGrid(filtered),
-                      ),
-                    ),
-                  ] else ...[
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // 侧边分类标签栏 (固定宽度 200)
-                          SizedBox(
-                            width: 200,
-                            child: _buildCategorySidebar(
-                              context,
-                              categories,
-                              allEntries,
-                            ),
-                          ),
-
-                          VerticalDivider(
-                            width: 1,
-                            color: colors.borderDefault,
-                          ),
-
-                          // 右侧词组合网格
-                          Expanded(
-                            child: Container(
-                              color: colors.canvasBackground,
-                              child: filtered.isEmpty
-                                  ? _buildEmptyState(
-                                      context,
-                                      allEntries.isEmpty,
-                                    )
-                                  : _buildGrid(filtered),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          },
+            ],
+          ),
         );
       },
     );
   }
 
-  /// 窄屏顶部横向滚动分类胶囊栏 (复用 AppSegmentedPillBar，与全应用观感一致)
-  Widget _buildHorizontalCategoryBar(
-    BuildContext context,
-    List<String> categories,
-    List<PromptComboEntry> allEntries,
-  ) {
-    final colors = context.colors;
-    final l10n = context.l10n;
-
-    return Container(
-      color: colors.cardBackground,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: AppSegmentedPillBar<String>(
-        scrollable: true,
-        variant: AppPillVariant.soft,
-        itemPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        selectedValue: _selectedCategory,
-        onValueChanged: (cat) => setState(() => _selectedCategory = cat),
-        items: [
-          for (final cat in categories)
-            AppSegmentedItem<String>(
-              value: cat,
-              label: comboCategoryLabelOf(l10n, cat),
-              tooltip: comboCategoryLabelOf(l10n, cat),
-              icon: _getCategoryIcon(cat),
-              activeColor: PromptComboEntry.isCharacterCategory(cat)
-                  ? colors.error
-                  : null,
-              badgeLabel:
-                  '${cat == '全部' ? allEntries.length : allEntries.where((e) => e.category.trim() == cat).length}',
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// 顶部操作栏：宽屏单行完整排布；窄屏 (移动端 / 小窗口) 收成两行
-  /// (标题+图标化操作钮 / 整宽搜索框)，彻底避开固定子项溢出让「新建词组合」被裁到屏外。
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildHeader(BuildContext context, int totalCount) {
     final colors = context.colors;
     final l10n = context.l10n;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 560;
+        final isNarrow = constraints.maxWidth < 600;
 
         final title = Row(
           mainAxisSize: MainAxisSize.min,
@@ -426,19 +392,19 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 icon: Icons.keyboard_double_arrow_right_rounded,
                 size: 30,
                 iconSize: 17,
-                variant: AppIconButtonVariant.outlined,
+                variant: AppIconButtonVariant.ghost,
                 tooltip: l10n.sidebarExpandTooltip,
                 onPressed: widget.onExpandSidebar,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 2),
             ],
             if (widget.onClose != null) ...[
               _buildCloseButton(context, compact: isNarrow),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
             ],
             Icon(
               Icons.collections_bookmark_outlined,
-              size: 20,
+              size: 18,
               color: colors.primary,
             ),
             const SizedBox(width: 8),
@@ -448,10 +414,20 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 17,
                   fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
                   color: colors.textPrimary,
                 ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$totalCount',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: colors.textMuted,
               ),
             ),
           ],
@@ -473,9 +449,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         );
 
         if (isNarrow) {
-          return Container(
-            color: colors.cardBackground,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -483,40 +458,32 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                   children: [
                     Expanded(child: title),
                     _buildManageMenu(context, compact: true),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     _buildNewComboButton(context, compact: true),
                   ],
                 ),
                 const SizedBox(height: 8),
-                SizedBox(height: 36, child: searchField),
+                SizedBox(height: 34, child: searchField),
               ],
             ),
           );
         }
 
-        return Container(
-          color: colors.cardBackground,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
           child: Row(
             children: [
               Expanded(child: title),
-
-              const SizedBox(width: 20),
-
-              // 搜索框
+              const SizedBox(width: 16),
               Expanded(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
+                  constraints: const BoxConstraints(maxWidth: 320),
                   child: searchField,
                 ),
               ),
-
-              const SizedBox(width: 16),
-
-              _buildManageMenu(context, compact: false),
-
               const SizedBox(width: 10),
-
+              _buildManageMenu(context, compact: false),
+              const SizedBox(width: 8),
               _buildNewComboButton(context, compact: false),
             ],
           ),
@@ -525,7 +492,52 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
-  /// 导入/导出菜单 (compact 时仅图标)
+  Widget _buildCategoryBar(
+    BuildContext context,
+    List<String> categories,
+    Map<String, int> counts,
+  ) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 600;
+        return Padding(
+          padding: isNarrow
+              ? const EdgeInsets.fromLTRB(12, 0, 12, 8)
+              : const EdgeInsets.fromLTRB(20, 0, 20, 8),
+          child: AppSegmentedPillBar<String>(
+            scrollable: true,
+            variant: AppPillVariant.soft,
+            itemPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            selectedValue: _selectedCategory,
+            onValueChanged: (cat) {
+              setState(() => _selectedCategory = cat);
+              if (_gridScrollController.hasClients) {
+                _gridScrollController.jumpTo(0);
+              }
+            },
+            items: [
+              for (final cat in categories)
+                AppSegmentedItem<String>(
+                  value: cat,
+                  label: comboCategoryLabelOf(l10n, cat),
+                  tooltip: comboCategoryLabelOf(l10n, cat),
+                  icon: _getCategoryIcon(cat),
+                  activeColor: PromptComboEntry.isCharacterCategory(cat)
+                      ? colors.error
+                      : null,
+                  badgeLabel: '${counts[cat] ?? 0}',
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 导入/导出菜单 (轻量底色，无边框)
   Widget _buildManageMenu(BuildContext context, {required bool compact}) {
     final colors = context.colors;
     final l10n = context.l10n;
@@ -576,9 +588,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
             ? const EdgeInsets.symmetric(horizontal: 8, vertical: 7)
             : const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: colors.mutedBackground,
+          color: colors.cardBackground,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: colors.borderDefault),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -588,7 +599,11 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               const SizedBox(width: 4),
               Text(
                 l10n.libraryManageButton,
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: colors.textPrimary,
+                ),
               ),
             ],
           ],
@@ -597,7 +612,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
-  /// + 新建词组合 (compact 时仅图标 + Tooltip)
+  /// + 新建词组合
   Widget _buildNewComboButton(BuildContext context, {required bool compact}) {
     final l10n = context.l10n;
     void openCreateDialog() =>
@@ -606,7 +621,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     if (compact) {
       return AppIconButton(
         icon: Icons.add_rounded,
-        size: 36,
+        size: 34,
         iconSize: 18,
         variant: AppIconButtonVariant.primary,
         tooltip: l10n.libraryNewCombo,
@@ -618,21 +633,21 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       iconSize: 16,
       label: l10n.libraryNewCombo,
       variant: AppActionButtonVariant.primary,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
       onPressed: openCreateDialog,
     );
   }
 
-  /// 返回原状态 / 退出词库覆盖层 (收起与窄屏时均可直接退回进入前页面)
+  /// 返回工作台
   Widget _buildCloseButton(BuildContext context, {required bool compact}) {
     final l10n = context.l10n;
     if (compact) {
       return AppIconButton(
         key: const Key('library_close_button'),
         icon: Icons.arrow_back_rounded,
-        size: 32,
-        iconSize: 18,
-        variant: AppIconButtonVariant.outlined,
+        size: 30,
+        iconSize: 17,
+        variant: AppIconButtonVariant.ghost,
         tooltip: l10n.libraryReturnToWorkbench,
         onPressed: widget.onClose,
       );
@@ -644,8 +659,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         icon: Icons.arrow_back_rounded,
         iconSize: 15,
         label: l10n.libraryReturn,
-        variant: AppActionButtonVariant.outlined,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        variant: AppActionButtonVariant.ghost,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         onPressed: widget.onClose,
       ),
     );
@@ -664,119 +679,120 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     };
   }
 
-  Widget _buildCategorySidebar(
-    BuildContext context,
-    List<String> categories,
-    List<PromptComboEntry> allEntries,
-  ) {
-    final colors = context.colors;
-    final l10n = context.l10n;
-    return Container(
-      color: colors.cardBackground,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.label_outline,
-                  size: 14,
-                  color: colors.textSecondary,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    l10n.libraryCategorySidebarTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: colors.borderDefault),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              children: categories.map((cat) {
-                final isSelected = _selectedCategory == cat;
-                final isChar = PromptComboEntry.isCharacterCategory(cat);
-                final count = cat == '全部'
-                    ? allEntries.length
-                    : allEntries.where((e) => e.category.trim() == cat).length;
-                final icon = _getCategoryIcon(cat);
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: AppNavTile(
-                    title: comboCategoryLabelOf(l10n, cat),
-                    icon: icon,
-                    badgeCount: count,
-                    isSelected: isSelected,
-                    onTap: () => setState(() => _selectedCategory = cat),
-                    activeColor: isChar ? colors.error : colors.primary,
-                    activeBackgroundColor: isChar
-                        ? colors.errorSurface
-                        : colors.primaryTint,
-                    activeBorderColor: isChar
-                        ? colors.error.withValues(alpha: 0.35)
-                        : colors.primary.withValues(alpha: 0.35),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGrid(List<PromptComboEntry> entries) {
+  Widget _buildMasonryGallery(List<PromptComboEntry> entries) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 控制单卡宽度，避免宽窗口或列数切换时卡片被过度拉大。
-        final crossAxisCount = ((constraints.maxWidth - 20) / 292).ceil().clamp(
-          1,
-          100,
+        final isNarrow = constraints.maxWidth < 600;
+        final hPad = isNarrow ? 12.0 : 20.0;
+        const spacing = 14.0;
+        final usableWidth = (constraints.maxWidth - hPad * 2).clamp(
+          200.0,
+          double.infinity,
         );
+        final columnCount = (usableWidth / 264.0).floor().clamp(1, 8);
+        final columnWidth =
+            (usableWidth - (columnCount - 1) * spacing) / columnCount;
 
-        return GridView.builder(
-          padding: const EdgeInsets.all(10),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            mainAxisExtent: 320, // 大图 + 单行摘要 + 紧凑操作栏
+        // 按估算高度贪心分列，使瀑布流各列高度保持均衡
+        final columns = List.generate(
+          columnCount,
+          (_) => <_MasonrySlot>[],
+          growable: false,
+        );
+        final colHeights = List<double>.filled(columnCount, 0.0);
+
+        for (final entry in entries) {
+          var targetCol = 0;
+          for (var c = 1; c < columnCount; c++) {
+            if (colHeights[c] < colHeights[targetCol]) {
+              targetCol = c;
+            }
+          }
+          final topY = colHeights[targetCol];
+          final estHeight = _estimateCardHeight(entry, columnWidth);
+          columns[targetCol].add(
+            _MasonrySlot(
+              entry: entry,
+              topY: topY,
+              bottomY: topY + estHeight,
+            ),
+          );
+          colHeights[targetCol] = topY + estHeight + spacing;
+        }
+
+        final viewportH = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 800.0;
+
+        return SingleChildScrollView(
+          controller: _gridScrollController,
+          padding: EdgeInsets.fromLTRB(hPad, 4, hPad, 20),
+          child: ValueListenableBuilder<int>(
+            valueListenable: _scrollBucket,
+            builder: (context, bucket, _) {
+              final approxOffset = bucket * 320.0;
+              final visibleTop = approxOffset - 900.0;
+              final visibleBottom = approxOffset + viewportH + 900.0;
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var c = 0; c < columnCount; c++) ...[
+                    if (c > 0) const SizedBox(width: spacing),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < columns[c].length; i++) ...[
+                            if (i > 0) const SizedBox(height: spacing),
+                            RepaintBoundary(
+                              key: ValueKey(columns[c][i].entry.id),
+                              child: PromptComboCard(
+                                combo: columns[c][i].entry,
+                                loadImage:
+                                    columns[c][i].bottomY >= visibleTop &&
+                                    columns[c][i].topY <= visibleBottom,
+                                onApply: (replace, asChar) => _applyCombo(
+                                  columns[c][i].entry,
+                                  replace: replace,
+                                  asCharacter: asChar,
+                                ),
+                                onEdit: () {
+                                  PromptComboEditDialog.show(
+                                    context,
+                                    viewModel: widget.viewModel,
+                                    initialEntry: columns[c][i].entry,
+                                  );
+                                },
+                                onDelete: () =>
+                                    _confirmDelete(columns[c][i].entry),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
-          itemCount: entries.length,
-          itemBuilder: (context, index) {
-            final item = entries[index];
-            return PromptComboCard(
-              key: ValueKey(item.id),
-              combo: item,
-              onApply: (replace, asChar) =>
-                  _applyCombo(item, replace: replace, asCharacter: asChar),
-              onEdit: () {
-                PromptComboEditDialog.show(
-                  context,
-                  viewModel: widget.viewModel,
-                  initialEntry: item,
-                );
-              },
-              onDelete: () => _confirmDelete(item),
-            );
-          },
         );
       },
     );
+  }
+
+  double _estimateCardHeight(PromptComboEntry entry, double columnWidth) {
+    final path = entry.previewImagePath?.trim();
+    if (path == null || path.isEmpty || PromptImageProbe.isKnownMissing(path)) {
+      return 96.0;
+    }
+    final ratio = (PromptImageProbe.getCachedAspectRatio(path) ?? 1.0).clamp(
+      0.45,
+      2.2,
+    );
+    return columnWidth / ratio + 96.0;
   }
 
   Widget _buildEmptyState(BuildContext context, bool isCompletelyEmpty) {
@@ -805,4 +821,16 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       },
     );
   }
+}
+
+class _MasonrySlot {
+  final PromptComboEntry entry;
+  final double topY;
+  final double bottomY;
+
+  const _MasonrySlot({
+    required this.entry,
+    required this.topY,
+    required this.bottomY,
+  });
 }

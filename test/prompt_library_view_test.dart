@@ -6,7 +6,6 @@ import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/widgets/app_action_button.dart';
-import 'package:novelai_harness/ui/core/widgets/app_dropdown.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/views/studio_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/character_card_item.dart';
@@ -71,16 +70,10 @@ void main() {
         expect(find.text('设置预览图'), findsOneWidget);
         expect(find.text('选择本地图片'), findsOneWidget);
 
-        // 打开分类下拉框并选择“风格”
-        final dropdown = find.byType(AppDropdown<String>);
-        expect(dropdown, findsOneWidget);
-        // 窄窗口为上下分区，表单独立滚动，先滚动到分类控件。
-        await tester.ensureVisible(dropdown);
-        await tester.tap(dropdown);
-        await tester.pumpAndSettle();
-
-        final styleItem = find.text('风格').last;
-        await tester.tap(styleItem);
+        // 直接点击一键分类胶囊选择“风格”
+        final styleChip = find.text('风格');
+        await tester.ensureVisible(styleChip);
+        await tester.tap(styleChip);
         await tester.pumpAndSettle();
 
         // 负面提示词输入框应完全消失
@@ -88,12 +81,9 @@ void main() {
         expect(find.text('仅角色分类可用'), findsNothing);
 
         // 重新切回“角色”
-        await tester.ensureVisible(dropdown);
-        await tester.tap(dropdown);
-        await tester.pumpAndSettle();
-
-        final charItem = find.text('角色').last;
-        await tester.tap(charItem);
+        final charChip = find.text('角色');
+        await tester.ensureVisible(charChip);
+        await tester.tap(charChip);
         await tester.pumpAndSettle();
 
         expect(find.text('负面提示词'), findsOneWidget);
@@ -315,9 +305,10 @@ void main() {
       await tester.tap(libraryTab);
       await tester.pumpAndSettle();
 
-      // 现在应渲染全屏 PromptLibraryView（包含新建词组合按钮和侧边标签栏）
+      // 现在应渲染全屏 PromptLibraryView（包含新建词组合按钮和内联分类胶囊）
       expect(find.text('新建词组合'), findsWidgets);
-      expect(find.text('标签分类'), findsOneWidget);
+      expect(find.text('全部'), findsOneWidget);
+      expect(find.text('风格'), findsWidgets);
 
       // 点击常驻侧边栏“参数”按钮切回三栏工作台
       final paramsTab = find.text('参数').first;
@@ -381,7 +372,8 @@ void main() {
 
       expect(find.text('Library'), findsWidgets);
       expect(find.text('New Prompt Combo'), findsOneWidget);
-      expect(find.text('Categories'), findsOneWidget);
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Style'), findsWidgets);
       expect(find.text('Apply to Workbench'), findsWidgets);
       expect(find.text('+ Character'), findsWidgets);
     });

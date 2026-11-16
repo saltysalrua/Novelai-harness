@@ -3,31 +3,32 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../../data/services/prompt_image_probe.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
-import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/context_menu.dart';
 
-/// 词库单条词组合画廊卡片。
-///
-/// 自身不持有 ViewModel，全部动作经回调上抛：
-/// - [onApply]: (replace, asCharacter) 应用到工作台提示词
-/// - [onEdit] / [onDelete]: 编辑与删除
-/// - 复制提示词为组件内置行为 (仅依赖剪贴板)
-///
-/// 卡片主体支持右键菜单 (追加 / 替换 / 作为角色 / 复制 / 编辑 / 删除)。
+/// 词库词组合瀑布流卡片：
+/// - 图片按原始比例完整呈现 (`BoxFit.contain` + 真实宽高比)，零裁切、零留白边框
+/// - 无预览图时自动收起为紧凑文本卡，不占空块
+/// - 全卡无内部分隔线、无描边按钮堆砌
 class PromptComboCard extends StatelessWidget {
+  static const int _previewDecodeMaxSide = 560;
+
   final PromptComboEntry combo;
   final void Function(bool replace, bool asCharacter) onApply;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+
+  /// 是否挂载图片解码 (瀑布流视口惰性裁剪用，默认为 true)
+  final bool loadImage;
 
   const PromptComboCard({
     super.key,
@@ -35,6 +36,7 @@ class PromptComboCard extends StatelessWidget {
     required this.onApply,
     required this.onEdit,
     required this.onDelete,
+    this.loadImage = true,
   });
 
   void _copyToClipboard(BuildContext context) {
@@ -95,255 +97,362 @@ class PromptComboCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = context.l10n;
     final isChar = combo.isCharacter;
     final hasNegative = isChar && combo.negativePrompt.trim().isNotEmpty;
-    final hasPreview =
-        combo.previewImagePath != null &&
-        File(combo.previewImagePath!).existsSync();
+    final rawPath = combo.previewImagePath?.trim();
+    final hasPreviewPath = rawPath != null && rawPath.isNotEmpty;
 
     return AppCard(
+      onTap: onEdit,
       onContextMenu: (position) => _showContextMenu(context, position),
-      elevated: true,
       radius: AppRadius.lg,
+      borderColor: colors.borderSubtle,
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // 图片优先占满剩余空间，文字与操作区保持紧凑。
-          Expanded(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                hasPreview
-                    ? Image.file(
-                        File(combo.previewImagePath!),
-                        fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
-                        gaplessPlayback: true,
-                        errorBuilder: (_, _, _) =>
-                            _buildPlaceholderBanner(context, isChar),
-                      )
-                    : _buildPlaceholderBanner(context, isChar),
-                // 底部渐变条上的应用按钮：一键追加到工作台
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _buildApplyOverlay(context),
-                ),
-              ],
+          if (hasPreviewPath)
+            _ComboNaturalImage(
+              path: rawPath,
+              decodeMaxSide: _previewDecodeMaxSide,
+              loadImage: loadImage,
             ),
-          ),
-
-          Divider(height: 1, color: colors.borderDefault),
 
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Tooltip(
-                  message: combo.title,
-                  child: Text(
-                    combo.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
+                // 标题 + 极简无框分类标识
+                Row(
+                  children: [
+                    Expanded(
+                      child: Tooltip(
+                        message: combo.title,
+                        child: Text(
+                          combo.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    _QuietCategoryLabel(
+                      label: comboCategoryLabelOf(l10n, combo.category),
+                      isCharacter: isChar,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 3),
+
+                // 提示词摘要 (两行更清晰，悬停看完整)
                 Tooltip(
                   message: hasNegative
                       ? '${combo.prompt}\nUC: ${combo.negativePrompt}'
                       : combo.prompt,
                   child: Text(
                     combo.prompt,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 3. 底部操作栏 (醒目分类胶囊 + 快捷操作按钮)
-          _buildBottomBar(context, isChar),
-        ],
-      ),
-    );
-  }
-
-  /// 预览图底部半透明渐变应用条：点击即追加到工作台提示词
-  Widget _buildApplyOverlay(BuildContext context) {
-    final l10n = context.l10n;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => onApply(false, false),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withValues(alpha: 0.0),
-                Colors.black.withValues(alpha: 0.45),
-              ],
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              children: [
-                const Icon(Icons.bolt_outlined, size: 13, color: Colors.white),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    l10n.libraryCardApply,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.38,
+                      color: colors.textMuted,
                     ),
                   ),
                 ),
-                if (combo.isCharacter)
-                  Tooltip(
-                    message: l10n.libraryCardAddAsCharacterTooltip,
-                    child: InkWell(
-                      onTap: () => onApply(false, true),
-                      borderRadius: BorderRadius.circular(4),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 2,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.person_add_alt_1_outlined,
-                              size: 13,
-                              color: Colors.white,
+                const SizedBox(height: 8),
+
+                // 底部无边框操作行
+                Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            flex: 3,
+                            child: _SoftActionPill(
+                              icon: Icons.bolt_outlined,
+                              label: l10n.libraryCardApply,
+                              backgroundColor: colors.primaryTint,
+                              foregroundColor: colors.primary,
+                              onTap: () => onApply(false, false),
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              l10n.libraryCardAddCharacter,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                          ),
+                          if (isChar) ...[
+                            const SizedBox(width: 4),
+                            Flexible(
+                              flex: 2,
+                              child: _SoftActionPill(
+                                icon: Icons.person_add_alt_1_outlined,
+                                label: l10n.libraryCardAddCharacter,
+                                tooltip: l10n.libraryCardAddAsCharacterTooltip,
+                                backgroundColor: colors.errorSurface,
+                                foregroundColor: colors.error,
+                                onTap: () => onApply(false, true),
                               ),
                             ),
                           ],
-                        ),
+                        ],
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    _ComboCopyButton(
+                      tooltip: l10n.libraryMenuCopyPrompt,
+                      onCopy: () => _copyToClipboard(context),
+                    ),
+                    const SizedBox(width: 2),
+                    AppIconButton(
+                      icon: Icons.edit_outlined,
+                      tooltip: l10n.libraryMenuEdit,
+                      size: 24,
+                      iconSize: 14,
+                      radius: AppRadius.sm,
+                      iconColor: colors.textSecondary,
+                      variant: AppIconButtonVariant.ghost,
+                      onPressed: onEdit,
+                    ),
+                    const SizedBox(width: 2),
+                    AppIconButton(
+                      icon: Icons.delete_outline,
+                      tooltip: l10n.delete,
+                      size: 24,
+                      iconSize: 14,
+                      radius: AppRadius.sm,
+                      iconColor: colors.error.withValues(alpha: 0.85),
+                      variant: AppIconButtonVariant.ghost,
+                      onPressed: onDelete,
+                    ),
+                  ],
+                ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomBar(BuildContext context, bool isChar) {
-    final colors = context.colors;
-    final l10n = context.l10n;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      color: colors.elevatedBackground,
-      child: Row(
-        children: [
-          // 醒目的左侧分类胶囊
-          Expanded(
-            child: Tooltip(
-              message: comboCategoryLabelOf(l10n, combo.category),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: AppBadge(
-                  label: comboCategoryLabelOf(l10n, combo.category),
-                  icon: isChar ? Icons.person_outline : Icons.label_outline,
-                  variant: isChar
-                      ? AppBadgeVariant.error
-                      : AppBadgeVariant.neutral,
-                  shape: AppBadgeShape.rounded,
-                  fontSize: 11,
-                  iconSize: 13,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-
-          // 复制按钮
-          _ComboCopyButton(
-            tooltip: l10n.libraryMenuCopyPrompt,
-            onCopy: () => _copyToClipboard(context),
-          ),
-          const SizedBox(width: 4),
-
-          // 编辑按钮
-          AppIconButton(
-            icon: Icons.edit_outlined,
-            tooltip: l10n.libraryMenuEdit,
-            size: 28,
-            iconSize: 15,
-            iconColor: colors.primary,
-            variant: AppIconButtonVariant.outlined,
-            onPressed: onEdit,
-          ),
-          const SizedBox(width: 4),
-
-          // 删除按钮
-          AppIconButton(
-            icon: Icons.delete_outline,
-            tooltip: l10n.delete,
-            size: 28,
-            iconSize: 15,
-            iconColor: colors.error,
-            variant: AppIconButtonVariant.outlined,
-            onPressed: onDelete,
           ),
         ],
       ),
     );
   }
+}
 
-  /// 极简纯净占位图
-  Widget _buildPlaceholderBanner(BuildContext context, bool isChar) {
+/// 按真实宽高比展示完整图片：零留白边框、零裁切；文件不存在时静默收起。
+class _ComboNaturalImage extends StatefulWidget {
+  final String path;
+  final int decodeMaxSide;
+  final bool loadImage;
+
+  const _ComboNaturalImage({
+    required this.path,
+    required this.decodeMaxSide,
+    required this.loadImage,
+  });
+
+  @override
+  State<_ComboNaturalImage> createState() => _ComboNaturalImageState();
+}
+
+class _ComboNaturalImageState extends State<_ComboNaturalImage> {
+  double? _aspectRatio;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncProbe();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ComboNaturalImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path) {
+      _failed = false;
+      _syncProbe();
+    }
+  }
+
+  void _syncProbe() {
+    if (PromptImageProbe.isKnownMissing(widget.path)) {
+      _aspectRatio = null;
+      _failed = true;
+      return;
+    }
+    final cached = PromptImageProbe.getCachedAspectRatio(widget.path);
+    if (cached != null) {
+      _aspectRatio = cached;
+      return;
+    }
+    _aspectRatio = null;
+    PromptImageProbe.probeFile(widget.path).then((ratio) {
+      if (!mounted) return;
+      if (ratio == null) {
+        setState(() => _failed = true);
+      } else if (_aspectRatio != ratio) {
+        setState(() => _aspectRatio = ratio);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_failed) return const SizedBox.shrink();
+
     final colors = context.colors;
-    final l10n = context.l10n;
-    return Container(
-      color: colors.mutedBackground,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isChar ? Icons.person_outline : Icons.collections_outlined,
-              size: 32,
-              color: colors.textMuted.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              l10n.libraryCardNoPreview,
+    final ratio = (_aspectRatio ?? 1.0).clamp(0.45, 2.2);
+
+    if (!widget.loadImage) {
+      return AspectRatio(
+        aspectRatio: ratio,
+        child: ColoredBox(color: colors.elevatedBackground),
+      );
+    }
+
+    // 已知精确比例时用 BoxFit.contain + 等比 AspectRatio，零留白且绝不裁切；
+    // 极端超长/超宽比例被钳制到 [0.45, 2.2] 时同样保持 BoxFit.contain 展示全貌。
+    return AspectRatio(
+      aspectRatio: ratio,
+      child: Image(
+        image: ResizeImage(
+          FileImage(File(widget.path)),
+          width: widget.decodeMaxSide,
+          height: widget.decodeMaxSide,
+          policy: ResizeImagePolicy.fit,
+        ),
+        fit: BoxFit.contain,
+        width: double.infinity,
+        height: double.infinity,
+        alignment: Alignment.center,
+        gaplessPlayback: true,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded || frame != null) {
+            return child;
+          }
+          return ColoredBox(color: colors.elevatedBackground);
+        },
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
+/// 极简无框分类文字标识 (仅以小圆点 + 文字呈现，不套外框)
+class _QuietCategoryLabel extends StatelessWidget {
+  final String label;
+  final bool isCharacter;
+
+  const _QuietCategoryLabel({required this.label, required this.isCharacter});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final color = isCharacter ? colors.error : colors.textMuted;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 74),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
-                color: colors.textMuted,
+                color: color,
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 无边框柔和动作胶囊
+class _SoftActionPill extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final String? tooltip;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final VoidCallback onTap;
+
+  const _SoftActionPill({
+    required this.icon,
+    required this.label,
+    this.tooltip,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.onTap,
+  });
+
+  @override
+  State<_SoftActionPill> createState() => _SoftActionPillState();
+}
+
+class _SoftActionPillState extends State<_SoftActionPill> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = _hovered
+        ? widget.foregroundColor.withValues(alpha: 0.16)
+        : widget.backgroundColor;
+
+    Widget pill = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: 24,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 12, color: widget.foregroundColor),
+              const SizedBox(width: 3),
+              Flexible(
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: widget.foregroundColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+
+    if (widget.tooltip != null) {
+      pill = Tooltip(message: widget.tooltip!, child: pill);
+    }
+    return pill;
   }
 }
 
@@ -359,6 +468,7 @@ class _ComboCopyButton extends StatefulWidget {
 
 class _ComboCopyButtonState extends State<_ComboCopyButton> {
   bool _copied = false;
+  bool _hovered = false;
   Timer? _resetTimer;
 
   @override
@@ -381,37 +491,39 @@ class _ComboCopyButtonState extends State<_ComboCopyButton> {
     final colors = context.colors;
     return Tooltip(
       message: widget.tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
           onTap: _handleTap,
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          behavior: HitTestBehavior.opaque,
           child: AnimatedContainer(
             duration: AppMotion.resolveDuration(
               context,
               AppMotionDurations.quick,
             ),
             curve: AppMotionCurves.smoothOut,
-            width: 28,
-            height: 28,
+            width: 24,
+            height: 24,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(
-                color: _copied
-                    ? colors.success.withValues(alpha: 0.45)
-                    : colors.borderDefault,
-              ),
+              color: _copied
+                  ? colors.success.withValues(alpha: 0.14)
+                  : (_hovered
+                        ? colors.mutedBackground
+                        : Colors.transparent),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: AppIconSwap(
               swapKey: _copied,
               enableBlur: false,
               child: _copied
-                  ? AppSuccessCheck(size: 15, color: colors.success)
+                  ? AppSuccessCheck(size: 14, color: colors.success)
                   : Icon(
                       Icons.copy_outlined,
-                      size: 15,
-                      color: colors.textPrimary,
+                      size: 14,
+                      color: colors.textSecondary,
                     ),
             ),
           ),

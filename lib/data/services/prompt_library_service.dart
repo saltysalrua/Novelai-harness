@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -6,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../models/prompt_library_models.dart';
 import '../models/tag_models.dart';
+import 'prompt_image_probe.dart';
 
 /// 词组合预设库持久化与管理服务
 class PromptLibraryService {
@@ -76,6 +78,9 @@ class PromptLibraryService {
           }
         }
         _cachedEntries = list;
+        unawaited(
+          PromptImageProbe.warmUpPaths(list.map((e) => e.previewImagePath)),
+        );
         return list;
       }
     } catch (_) {}
@@ -171,6 +176,7 @@ class PromptLibraryService {
       if (imgFile.existsSync()) {
         imgFile.deleteSync();
       }
+      PromptImageProbe.invalidate(path);
     } catch (_) {}
   }
 
@@ -213,6 +219,7 @@ class PromptLibraryService {
           'preview_${DateTime.now().millisecondsSinceEpoch}_$hash.$extension';
       final file = File(p.join(previewDir.path, filename));
       await file.writeAsBytes(bytes);
+      PromptImageProbe.recordBytes(file.path, bytes);
       return file.path;
     } catch (_) {
       return null;
