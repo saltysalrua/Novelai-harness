@@ -13,6 +13,7 @@ import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_keep_alive_page.dart';
 import '../../../core/widgets/app_nav_tile.dart';
+import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
@@ -818,10 +819,20 @@ class _StudioViewState extends State<StudioView> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 2, 4, 0),
+          padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
           child: SizedBox(
-            height: 48,
-            child: Row(
+            height: 46,
+            child: AppSlidingSelectionBar(
+              selectedIndex: isLibraryTab ? 3 : _mobilePageIndex.clamp(0, 2),
+              expand: true,
+              indicatorDecorationBuilder: (context, _) => BoxDecoration(
+                color: colors.primaryTint,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: colors.primary.withValues(alpha: 0.35),
+                  width: 1.0,
+                ),
+              ),
               children: [
                 // 1. 生图 (工作台参数/提示词/局部修复)
                 _buildBottomBarItem(
@@ -888,39 +899,41 @@ class _StudioViewState extends State<StudioView> {
     String? badgeText,
     required VoidCallback onTap,
   }) {
-    return Expanded(
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            child: AppNavTile(
-              key: key,
-              title: label,
-              icon: icon,
-              isSelected: isSelected,
-              onTap: onTap,
-              axis: Axis.vertical,
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-            ),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(
+          child: AppNavTile(
+            key: key,
+            title: label,
+            icon: icon,
+            isSelected: isSelected,
+            activeBackgroundColor: Colors.transparent,
+            activeBorderColor: Colors.transparent,
+            margin: EdgeInsets.zero,
+            enableSplash: false,
+            onTap: onTap,
+            axis: Axis.vertical,
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
           ),
-          if (badgeText != null)
-            Positioned(
-              top: 4,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: ExcludeSemantics(
-                  child: Center(
-                    child: Transform.translate(
-                      offset: const Offset(11, 0),
-                      child: const _BottomBarPopDot(),
-                    ),
+        ),
+        if (badgeText != null)
+          Positioned(
+            top: 4,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: ExcludeSemantics(
+                child: Center(
+                  child: Transform.translate(
+                    offset: const Offset(11, 0),
+                    child: const _BottomBarPopDot(),
                   ),
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -1229,47 +1242,39 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
           horizontal: 8,
           vertical: isDesktopWindow ? 3 : 5,
         ),
-        child: Container(
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: colors.mutedBackground,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: colors.borderSubtle),
+        child: AppSegmentedCardBar<StudioSidebarTab>(
+          items: [
+            AppSegmentedItem(
+              key: const Key('mobile_nav_parameters'),
+              value: StudioSidebarTab.parameters,
+              icon: Icons.tune_outlined,
+              label: l10n.sidebarTabParameters,
+            ),
+            AppSegmentedItem(
+              key: const Key('mobile_nav_prompts'),
+              value: StudioSidebarTab.prompts,
+              icon: Icons.edit_note_outlined,
+              label: l10n.tabPrompts,
+            ),
+            AppSegmentedItem(
+              key: const Key('mobile_nav_inpaint'),
+              value: StudioSidebarTab.inpaint,
+              icon: Icons.auto_fix_high_outlined,
+              label: l10n.sidebarTabInpaint,
+            ),
+          ],
+          selectedValue: widget.activeSidebarTab,
+          expand: true,
+          spacing: 2,
+          trackPadding: const EdgeInsets.all(2),
+          itemPadding: EdgeInsets.symmetric(
+            horizontal: 6,
+            vertical: isDesktopWindow ? 1 : 3,
           ),
-          child: Row(
-            children: [
-              _MobileStudioSubTab(
-                key: const Key('mobile_nav_parameters'),
-                icon: Icons.tune_outlined,
-                label: l10n.sidebarTabParameters,
-                isActive:
-                    widget.activeSidebarTab == StudioSidebarTab.parameters,
-                compact: isDesktopWindow,
-                onTap: () =>
-                    widget.onStudioTabSelected(StudioSidebarTab.parameters),
-              ),
-              const SizedBox(width: 2),
-              _MobileStudioSubTab(
-                key: const Key('mobile_nav_prompts'),
-                icon: Icons.edit_note_outlined,
-                label: l10n.tabPrompts,
-                isActive: widget.activeSidebarTab == StudioSidebarTab.prompts,
-                compact: isDesktopWindow,
-                onTap: () =>
-                    widget.onStudioTabSelected(StudioSidebarTab.prompts),
-              ),
-              const SizedBox(width: 2),
-              _MobileStudioSubTab(
-                key: const Key('mobile_nav_inpaint'),
-                icon: Icons.auto_fix_high_outlined,
-                label: l10n.sidebarTabInpaint,
-                isActive: widget.activeSidebarTab == StudioSidebarTab.inpaint,
-                compact: isDesktopWindow,
-                onTap: () =>
-                    widget.onStudioTabSelected(StudioSidebarTab.inpaint),
-              ),
-            ],
-          ),
+          fontSize: isDesktopWindow ? 11.5 : 12.5,
+          iconSize: isDesktopWindow ? 13 : 14,
+          highlightSelectedIcon: true,
+          onValueChanged: widget.onStudioTabSelected,
         ),
       );
     }
@@ -1326,65 +1331,6 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _MobileStudioSubTab extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final bool compact;
-  final VoidCallback onTap;
-
-  const _MobileStudioSubTab({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    required this.compact,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final fg = isActive ? colors.primary : colors.textSecondary;
-
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.md - 2),
-        child: AnimatedContainer(
-          duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
-          curve: AppMotionCurves.smoothOut,
-          alignment: Alignment.center,
-          padding: EdgeInsets.symmetric(horizontal: 6, vertical: compact ? 2 : 4),
-          decoration: BoxDecoration(
-            color: isActive ? colors.cardBackground : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.md - 2),
-            boxShadow: isActive ? context.shadowSubtle : null,
-          ),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: compact ? 13 : 14, color: fg),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: compact ? 11.5 : 12.5,
-                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                    color: isActive ? colors.textPrimary : colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

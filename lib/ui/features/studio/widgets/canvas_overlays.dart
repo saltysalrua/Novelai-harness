@@ -377,8 +377,8 @@ class HistoryToggleButton extends StatelessWidget {
   }
 }
 
-/// 窄屏/移动端画板底部统一操作栏：左侧分辨率/可复制种子 + 右侧快捷操作 (修复 / 批注 / 保存 / 更多)
-/// 替代宽屏分散的左下参数徽章与右下保存按钮，彻底消除窄屏底栏碰撞重叠。
+/// 窄屏/移动端画板底部统一操作栏：左侧分辨率/可复制种子 + 快捷操作 (修复 / 批注) + 固定右侧主要操作 (保存 / 更多)
+/// 替代宽屏分散的左下参数徽章与右下保存按钮，彻底消除窄屏底栏碰撞重叠，并确保保存按钮在窄屏下始终前置可见无需滑动。
 class MobileCanvasActionBar extends StatelessWidget {
   final NaiGeneratedImage image;
   final StudioViewModel viewModel;
@@ -474,32 +474,6 @@ class MobileCanvasActionBar extends StatelessWidget {
                                 targetImageId: image.id,
                               ),
                             ),
-                            if (image.isUnsaved) ...[
-                              const SizedBox(width: 4),
-                              AppToolChip(
-                                key: const Key('mobile_canvas_save_button'),
-                                icon: Icons.save_rounded,
-                                label: l10n.save,
-                                isSelected: true,
-                                variant: AppToolChipVariant.tinted,
-                                fontSize: 11,
-                                iconSize: 13,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 5,
-                                ),
-                                radius: AppRadius.sm + 2,
-                                onTap: () {
-                                  if (viewModel.selectedImage?.id != image.id) {
-                                    viewModel.selectImage(image);
-                                  }
-                                  saveOrExportSelectedCanvasImage(
-                                    context,
-                                    viewModel,
-                                  );
-                                },
-                              ),
-                            ],
                           ],
                         ),
                       ],
@@ -509,6 +483,32 @@ class MobileCanvasActionBar extends StatelessWidget {
               },
             ),
           ),
+          if (image.isUnsaved) ...[
+            const SizedBox(width: 6),
+            AppToolChip(
+              key: const Key('mobile_canvas_save_button'),
+              icon: Icons.save_rounded,
+              label: l10n.save,
+              isSelected: true,
+              variant: AppToolChipVariant.tinted,
+              fontSize: 11,
+              iconSize: 13,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 5,
+              ),
+              radius: AppRadius.sm + 2,
+              onTap: () {
+                if (viewModel.selectedImage?.id != image.id) {
+                  viewModel.selectImage(image);
+                }
+                saveOrExportSelectedCanvasImage(
+                  context,
+                  viewModel,
+                );
+              },
+            ),
+          ],
           const SizedBox(width: 6),
           AppIconButton(
             key: const Key('mobile_canvas_more_button'),

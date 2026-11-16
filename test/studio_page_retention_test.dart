@@ -540,6 +540,59 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('窄屏 360px 下未保存图像的保存按钮固定前置可见，无需滑动即可点击', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repo = NovelAiRepository();
+    final vm = StudioViewModel(repository: repo);
+    addTearDown(vm.dispose);
+
+    final unsavedImage = NaiGeneratedImage(
+      id: 'mobile-canvas-unsaved-img',
+      bytes: _kTestPngBytes,
+      params: const NaiGenerationParams(
+        prompt: '1girl, solo',
+        width: 832,
+        height: 1216,
+      ),
+      seed: 1523962644,
+      isOpusFree: true,
+      isUnsaved: true,
+      createdAt: DateTime(2026, 11, 15, 12),
+    );
+    repo.addImageForTesting(unsavedImage);
+    vm.selectImage(unsavedImage);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        theme: AppTheme.darkThemeFor(AppAccentController.instance.state.value),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: ImageCanvasCard(
+            viewModel: vm,
+            compact: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final barRect = tester.getRect(
+      find.byKey(const Key('mobile_canvas_action_bar')),
+    );
+    final saveFinder = find.byKey(const Key('mobile_canvas_save_button'));
+    expect(saveFinder.hitTestable(), findsOneWidget);
+    final saveRect = tester.getRect(saveFinder);
+    expect(saveRect.left, greaterThanOrEqualTo(barRect.left));
+    expect(saveRect.right, lessThanOrEqualTo(barRect.right));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('侧边栏导航项等宽对齐且空闲持有参考图时不常驻修复红蓝点', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(1400, 900);

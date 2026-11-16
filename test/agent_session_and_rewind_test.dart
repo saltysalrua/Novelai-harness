@@ -10,6 +10,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:novelai_harness/core/harness/tools/ask_user_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
+import 'package:novelai_harness/ui/core/widgets/app_badge.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_card.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_rewind_view.dart';
@@ -460,4 +461,60 @@ Paragraph two''',
     final result = await completer.future;
     expect(result, equals(['确认生成']));
   });
+
+  testWidgets(
+    'AgentSessionListView keeps current session badge mounted across initial reveal completion',
+    (WidgetTester tester) async {
+      late Directory sessionDir;
+      late StudioViewModel localVm;
+      await tester.runAsync(() async {
+        sessionDir = await Directory.systemTemp.createTemp(
+          'session_badge_once_',
+        );
+        localVm = StudioViewModel(sessionLogBaseDir: sessionDir.path);
+        await localVm.init();
+        await localVm.createNewSession(title: '当前会话测试');
+      });
+      addTearDown(() async {
+        localVm.dispose();
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          if (sessionDir.existsSync()) {
+            sessionDir.deleteSync(recursive: true);
+          }
+        });
+      });
+
+      await tester.pumpWidget(
+        buildTestApp(
+          SizedBox(
+            width: 400,
+            height: 800,
+            child: ListenableBuilder(
+              listenable: localVm,
+              builder: (_, _) =>
+                  AgentSessionListView(viewModel: localVm, onBack: () {}),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(localVm.refreshSessions);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final badgeFinder = find.ancestor(
+        of: find.text('当前'),
+        matching: find.byType(AppBadge),
+      );
+      expect(badgeFinder, findsOneWidget);
+      final initialState = tester.state(badgeFinder);
+
+      // 推进超过 550ms 初始入场计时器，确认不会因卸载 AppStaggerReveal 而重建徽章并二次触发动画
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+
+      expect(badgeFinder, findsOneWidget);
+      expect(identical(tester.state(badgeFinder), initialState), isTrue);
+    },
+  );
 }

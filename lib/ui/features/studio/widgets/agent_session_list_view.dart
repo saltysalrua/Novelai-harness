@@ -95,7 +95,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
     });
     // 打开时刷新最新列表
     widget.viewModel.refreshSessions();
-    _revealTimer = Timer(const Duration(milliseconds: 450), () {
+    _revealTimer = Timer(const Duration(milliseconds: 550), () {
       if (mounted) setState(() => _initialRevealDone = true);
     });
   }
@@ -340,13 +340,18 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                       final item = filtered[index];
                       final isCurrent = item.id == currentId;
                       final card = _buildSessionCard(item, isCurrent);
-                      if (_initialRevealDone || index >= 8) return card;
+                      final skipReveal = _initialRevealDone || index >= 8;
                       return AppStaggerReveal(
                         key: ValueKey('session_reveal_${item.id}'),
                         index: index,
                         maxStaggerIndex: 8,
                         distance: AppMotionDistances.base,
-                        duration: AppMotionDurations.fast,
+                        duration: skipReveal
+                            ? Duration.zero
+                            : AppMotionDurations.fast,
+                        staggerDelay: skipReveal
+                            ? Duration.zero
+                            : AppMotionDurations.stagger,
                         enableBlur: false,
                         child: card,
                       );

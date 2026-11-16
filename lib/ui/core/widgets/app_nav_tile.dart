@@ -56,6 +56,12 @@ class AppNavTile extends StatefulWidget {
   /// 内边距，默认水平 10，垂直 8
   final EdgeInsetsGeometry padding;
 
+  /// 外边距，默认底部留白 2px
+  final EdgeInsetsGeometry margin;
+
+  /// 是否显示点击水波纹与按下高亮，默认 true (配合外部滑动指示器使用时可设为 false)
+  final bool enableSplash;
+
   /// 横向列表项或紧凑底部导航 (图标在文字上方)。
   final Axis axis;
 
@@ -75,6 +81,8 @@ class AppNavTile extends StatefulWidget {
     this.trailing,
     this.radius = AppRadius.md,
     this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    this.margin = const EdgeInsets.only(bottom: 2),
+    this.enableSplash = true,
     this.axis = Axis.horizontal,
   });
 
@@ -115,7 +123,7 @@ class _AppNavTileState extends State<AppNavTile> {
         (widget.badgeCount != null ? '${widget.badgeCount}' : null);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: widget.margin,
       child: Material(
         color: Colors.transparent,
         child: MouseRegion(
@@ -128,7 +136,14 @@ class _AppNavTileState extends State<AppNavTile> {
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(widget.radius),
             hoverColor: Colors.transparent,
-            splashColor: resolvedActiveBg.withValues(alpha: 0.3),
+            splashFactory: widget.enableSplash ? null : NoSplash.splashFactory,
+            splashColor: widget.enableSplash
+                ? (resolvedActiveBg.a == 0
+                          ? colors.primaryTint
+                          : resolvedActiveBg)
+                      .withValues(alpha: 0.3)
+                : Colors.transparent,
+            highlightColor: widget.enableSplash ? null : Colors.transparent,
             child: Container(
               padding: widget.padding,
               decoration: BoxDecoration(

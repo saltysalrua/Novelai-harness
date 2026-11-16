@@ -1538,13 +1538,17 @@ class _AppStaggerRevealState extends State<AppStaggerReveal>
   @override
   void initState() {
     super.initState();
+    final skipInitialEnter =
+        widget.visible &&
+        widget.duration == Duration.zero &&
+        widget.staggerDelay == Duration.zero;
     _controller = AnimationController(
       vsync: this,
       duration: widget.duration,
       reverseDuration: widget.exitDuration,
-      value: 0.0,
+      value: skipInitialEnter ? 1.0 : 0.0,
     );
-    if (widget.visible) {
+    if (widget.visible && !skipInitialEnter) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && widget.visible) _scheduleEnter();
       });

@@ -7,6 +7,9 @@ import 'app_badge.dart';
 
 /// 胶囊按钮项配置
 class AppSegmentedItem<T> {
+  /// 可选控件 Key (透传给单个分段按钮，便于测试定位)
+  final Key? key;
+
   /// 对应的值
   final T value;
 
@@ -29,6 +32,7 @@ class AppSegmentedItem<T> {
   final Color? activeColor;
 
   const AppSegmentedItem({
+    this.key,
     required this.value,
     required this.label,
     this.icon,
@@ -553,98 +557,101 @@ class _PillSlotsBackgroundPainter extends CustomPainter {
   }
 }
 
-/// 统一水平圆角矩形分段单选条 (AppSegmentedCardBar)
+/// 通用弹性滑动选择指示器容器 (`AppSlidingSelectionBar`)
 ///
-/// 核心职责：
-/// 覆盖横向选项切换、模式选择与标签页切换场景，外层以柔和灰底圆角矩形 (`AppRadius.md`)
-/// 作为轨道容器包裹所有选项，选中项指示器在轨道内以弹性滑动 (`AppMotionCurves.bounce`)
-/// 跟随切换，未选中项透明融入灰底轨道。
-class AppSegmentedCardBar<T> extends StatefulWidget {
-  /// 分段项列表
-  final List<AppSegmentedItem<T>> items;
+/// 负责测量选中子项的边界矩形，并以弹性曲线 (`AppMotionCurves.bounce`)
+/// 将背景指示器平滑滑动到目标项位置；供 [AppSegmentedCardBar] 与移动端导航栏复用。
+class AppSlidingSelectionBar extends StatefulWidget {
+  /// 当前选中的子项索引；小于 0 或越界时隐藏指示器
+  final int selectedIndex;
 
-  /// 当前选中的值
-  final T? selectedValue;
+  /// 子项列表
+  final List<Widget> children;
 
-  /// 选中值改变回调
-  final ValueChanged<T>? onValueChanged;
-
-  /// 是否允许横向滚动 (项较多时适用)，默认 false
-  final bool scrollable;
-
-  /// 选项之间的水平间距，默认 3.0
+  /// 子项之间的水平间距，默认 0.0
   final double spacing;
 
-  /// 轨道容器内边距，默认全向 3.0
-  final EdgeInsetsGeometry trackPadding;
-
-  /// 单个选项的内边距，默认水平 12，垂直 6
-  final EdgeInsetsGeometry itemPadding;
-
-  /// 是否均分满宽排布 (每项等宽拉伸)，默认 false
+  /// 是否均分满宽排布，默认 false
   final bool expand;
 
-  /// 外层轨道圆角大小，默认 [AppRadius.md] (8.0)；内层选项自动按同心圆角收敛
-  final double radius;
+  /// 是否允许横向滚动 (仅 [expand] 为 false 时生效)，默认 false
+  final bool scrollable;
 
-  /// 最小点击高度，默认 0
-  final double minHeight;
+  /// 指示器装饰构建器 (传入当前选中的索引)
+  final BoxDecoration Function(BuildContext context, int selectedIndex)
+  indicatorDecorationBuilder;
 
-  const AppSegmentedCardBar({
+  /// 滑移动画时长，默认 [AppMotionDurations.fast]
+  final Duration duration;
+
+  /// 滑移动画曲线，默认 [AppMotionCurves.bounce]
+  final Curve curve;
+
+  const AppSlidingSelectionBar({
     super.key,
-    required this.items,
-    required this.selectedValue,
-    this.onValueChanged,
-    this.scrollable = false,
-    this.spacing = 3.0,
-    this.trackPadding = const EdgeInsets.all(3),
-    this.itemPadding = const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    required this.selectedIndex,
+    required this.children,
+    required this.indicatorDecorationBuilder,
+    this.spacing = 0.0,
     this.expand = false,
-    this.radius = AppRadius.md,
-    this.minHeight = 0,
+    this.scrollable = false,
+    this.duration = AppMotionDurations.fast,
+    this.curve = AppMotionCurves.bounce,
   });
 
   @override
-  State<AppSegmentedCardBar<T>> createState() => _AppSegmentedCardBarState<T>();
+  State<AppSlidingSelectionBar> createState() => _AppSlidingSelectionBarState();
 }
 
-class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
+class _AppSlidingSelectionBarState extends State<AppSlidingSelectionBar>
     with SingleTickerProviderStateMixin {
   final GlobalKey _stackKey = GlobalKey();
   late List<GlobalKey> _itemKeys;
   late final AnimationController _slideController;
-  late final CurvedAnimation _curvedAnimation;
+  late CurvedAnimation _curvedAnimation;
 
   Rect? _fromRect;
   Rect? _toRect;
   bool _measureScheduled = false;
+  bool _pendingAnimate = false;
+  Rect? _pendingFromOverride;
 
   @override
   void initState() {
     super.initState();
-    _itemKeys = List.generate(widget.items.length, (_) => GlobalKey());
+    _itemKeys = List.generate(widget.children.length, (_) => GlobalKey());
     _slideController = AnimationController(
       vsync: this,
-      duration: AppMotionDurations.fast,
+      duration: widget.duration,
     );
     _curvedAnimation = CurvedAnimation(
       parent: _slideController,
-      curve: AppMotionCurves.bounce,
+      curve: widget.curve,
     );
     _scheduleMeasure(animate: false);
   }
 
   @override
-  void didUpdateWidget(covariant AppSegmentedCardBar<T> oldWidget) {
+  void didUpdateWidget(covariant AppSlidingSelectionBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.items.length != _itemKeys.length) {
-      _itemKeys = List.generate(widget.items.length, (_) => GlobalKey());
+    if (widget.duration != oldWidget.duration) {
+      _slideController.duration = widget.duration;
+    }
+    if (widget.curve != oldWidget.curve) {
+      _curvedAnimation.dispose();
+      _curvedAnimation = CurvedAnimation(
+        parent: _slideController,
+        curve: widget.curve,
+      );
+    }
+    if (widget.children.length != _itemKeys.length) {
+      _itemKeys = List.generate(widget.children.length, (_) => GlobalKey());
     }
 
-    if (widget.selectedValue != oldWidget.selectedValue) {
+    if (widget.selectedIndex != oldWidget.selectedIndex) {
       final currentVisualRect = _currentVisualRect();
       _scheduleMeasure(animate: true, fromOverride: currentVisualRect);
-    } else if (widget.items.length != oldWidget.items.length ||
+    } else if (widget.children.length != oldWidget.children.length ||
         widget.expand != oldWidget.expand ||
         widget.spacing != oldWidget.spacing) {
       _scheduleMeasure(animate: false);
@@ -666,27 +673,36 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
   }
 
   void _scheduleMeasure({required bool animate, Rect? fromOverride}) {
-    if (_measureScheduled && !animate) return;
+    if (_measureScheduled) {
+      if (animate) {
+        _pendingAnimate = true;
+        _pendingFromOverride = fromOverride;
+      }
+      return;
+    }
     _measureScheduled = true;
+    _pendingAnimate = animate;
+    _pendingFromOverride = fromOverride;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final shouldAnimate = _pendingAnimate;
+      final overrideRect = _pendingFromOverride;
       _measureScheduled = false;
+      _pendingAnimate = false;
+      _pendingFromOverride = null;
       if (!mounted) return;
-      _syncIndicator(animate: animate, fromOverride: fromOverride);
+      _syncIndicator(animate: shouldAnimate, fromOverride: overrideRect);
     });
   }
 
   Rect? _measureSelectedRect() {
-    final selectedIndex = widget.items.indexWhere(
-      (item) => item.value == widget.selectedValue,
-    );
-    if (selectedIndex < 0 || selectedIndex >= _itemKeys.length) {
+    final index = widget.selectedIndex;
+    if (index < 0 || index >= _itemKeys.length) {
       return null;
     }
 
     final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
     final itemBox =
-        _itemKeys[selectedIndex].currentContext?.findRenderObject()
-            as RenderBox?;
+        _itemKeys[index].currentContext?.findRenderObject() as RenderBox?;
     if (stackBox == null ||
         itemBox == null ||
         !stackBox.hasSize ||
@@ -734,38 +750,21 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final innerRadius = (widget.radius - 2).clamp(2.0, widget.radius);
-    final disableAnimations = AppMotion.shouldReduceMotion(context);
-
-    final selectedIndex = widget.items.indexWhere(
-      (item) => item.value == widget.selectedValue,
-    );
-    final selectedItem = selectedIndex >= 0
-        ? widget.items[selectedIndex]
-        : null;
-    final accent = selectedItem?.activeColor ?? colors.primary;
-    final selectedBg = selectedItem?.activeColor != null
-        ? accent.withValues(alpha: 0.14)
-        : (isDark
-              ? Color.alphaBlend(
-                  Colors.white.withValues(alpha: 0.08),
-                  colors.mutedBackground,
-                )
-              : colors.cardBackground);
-
-    final children = <Widget>[
-      for (int i = 0; i < widget.items.length; i++) ...[
-        if (i > 0) SizedBox(width: widget.spacing),
-        _wrapItem(
-          context,
-          colors,
-          innerRadius,
-          disableAnimations,
-          widget.items[i],
-          _itemKeys[i],
-        ),
+    final rowChildren = <Widget>[
+      for (int i = 0; i < widget.children.length; i++) ...[
+        if (i > 0 && widget.spacing > 0) SizedBox(width: widget.spacing),
+        if (widget.expand)
+          Expanded(
+            child: KeyedSubtree(
+              key: _itemKeys[i],
+              child: widget.children[i],
+            ),
+          )
+        else
+          KeyedSubtree(
+            key: _itemKeys[i],
+            child: widget.children[i],
+          ),
       ],
     ];
 
@@ -793,22 +792,9 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
                   height: rect.height.clamp(0.0, double.infinity),
                   child: IgnorePointer(
                     child: Container(
-                      decoration: BoxDecoration(
-                        color: selectedBg,
-                        borderRadius: BorderRadius.circular(innerRadius),
-                        border: selectedItem?.activeColor != null
-                            ? Border.all(color: accent.withValues(alpha: 0.35))
-                            : null,
-                        boxShadow:
-                            selectedItem?.activeColor == null && !isDark
-                            ? [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.06),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ]
-                            : null,
+                      decoration: widget.indicatorDecorationBuilder(
+                        context,
+                        widget.selectedIndex,
                       ),
                     ),
                   ),
@@ -817,49 +803,151 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
             ),
             Row(
               mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
-              children: children,
+              children: rowChildren,
             ),
           ],
         ),
       ),
     );
 
-    final Widget content = widget.scrollable
-        ? SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: stack,
-          )
-        : stack;
+    if (widget.scrollable && !widget.expand) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: stack,
+      );
+    }
+    return stack;
+  }
+}
+
+/// 统一水平圆角矩形分段单选条 (AppSegmentedCardBar)
+///
+/// 核心职责：
+/// 覆盖横向选项切换、模式选择与标签页切换场景，外层以柔和灰底圆角矩形 (`AppRadius.md`)
+/// 作为轨道容器包裹所有选项，选中项指示器在轨道内以弹性滑动 (`AppMotionCurves.bounce`)
+/// 跟随切换，未选中项透明融入灰底轨道。
+class AppSegmentedCardBar<T> extends StatelessWidget {
+  /// 分段项列表
+  final List<AppSegmentedItem<T>> items;
+
+  /// 当前选中的值
+  final T? selectedValue;
+
+  /// 选中值改变回调
+  final ValueChanged<T>? onValueChanged;
+
+  /// 是否允许横向滚动 (项较多时适用)，默认 false
+  final bool scrollable;
+
+  /// 选项之间的水平间距，默认 3.0
+  final double spacing;
+
+  /// 轨道容器内边距，默认全向 3.0
+  final EdgeInsetsGeometry trackPadding;
+
+  /// 单个选项的内边距，默认水平 12，垂直 6
+  final EdgeInsetsGeometry itemPadding;
+
+  /// 是否均分满宽排布 (每项等宽拉伸)，默认 false
+  final bool expand;
+
+  /// 外层轨道圆角大小，默认 [AppRadius.md] (8.0)；内层选项自动按同心圆角收敛
+  final double radius;
+
+  /// 最小点击高度，默认 0
+  final double minHeight;
+
+  /// 文字字号，默认 13.0
+  final double fontSize;
+
+  /// 图标尺寸，默认 14.0
+  final double iconSize;
+
+  /// 是否在未指定 [AppSegmentedItem.activeColor] 时，为选中项图标叠加主题主色高亮
+  final bool highlightSelectedIcon;
+
+  const AppSegmentedCardBar({
+    super.key,
+    required this.items,
+    required this.selectedValue,
+    this.onValueChanged,
+    this.scrollable = false,
+    this.spacing = 3.0,
+    this.trackPadding = const EdgeInsets.all(3),
+    this.itemPadding = const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    this.expand = false,
+    this.radius = AppRadius.md,
+    this.minHeight = 0,
+    this.fontSize = 13.0,
+    this.iconSize = 14.0,
+    this.highlightSelectedIcon = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final innerRadius = (radius - 2).clamp(2.0, radius);
+    final disableAnimations = AppMotion.shouldReduceMotion(context);
+    final selectedIndex = items.indexWhere(
+      (item) => item.value == selectedValue,
+    );
 
     return Container(
-      padding: widget.trackPadding,
+      padding: trackPadding,
       decoration: BoxDecoration(
         color: colors.mutedBackground,
-        borderRadius: BorderRadius.circular(widget.radius),
+        borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: colors.borderSubtle),
       ),
-      child: content,
-    );
-  }
+      child: AppSlidingSelectionBar(
+        selectedIndex: selectedIndex,
+        spacing: spacing,
+        expand: expand,
+        scrollable: scrollable,
+        indicatorDecorationBuilder: (context, index) {
+          final item = (index >= 0 && index < items.length)
+              ? items[index]
+              : null;
+          final accent = item?.activeColor ?? colors.primary;
+          final selectedBg = item?.activeColor != null
+              ? accent.withValues(alpha: 0.14)
+              : (isDark
+                    ? Color.alphaBlend(
+                        Colors.white.withValues(alpha: 0.08),
+                        colors.mutedBackground,
+                      )
+                    : colors.cardBackground);
 
-  Widget _wrapItem(
-    BuildContext context,
-    AppColorsExtension colors,
-    double innerRadius,
-    bool disableAnimations,
-    AppSegmentedItem<T> item,
-    GlobalKey itemKey,
-  ) {
-    final card = _buildCardItem(
-      context,
-      colors,
-      innerRadius,
-      disableAnimations,
-      item,
-      itemKey,
+          return BoxDecoration(
+            color: selectedBg,
+            borderRadius: BorderRadius.circular(innerRadius),
+            border: item?.activeColor != null
+                ? Border.all(color: accent.withValues(alpha: 0.35))
+                : null,
+            boxShadow: item?.activeColor == null && !isDark
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          );
+        },
+        children: [
+          for (final item in items)
+            _buildCardItem(
+              context,
+              colors,
+              innerRadius,
+              disableAnimations,
+              item,
+            ),
+        ],
+      ),
     );
-    if (!widget.expand) return card;
-    return Expanded(child: card);
   }
 
   Widget _buildCardItem(
@@ -868,33 +956,34 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
     double innerRadius,
     bool disableAnimations,
     AppSegmentedItem<T> item,
-    GlobalKey itemKey,
   ) {
-    final isSelected = item.value == widget.selectedValue;
+    final isSelected = item.value == selectedValue;
     final accent = item.activeColor ?? colors.primary;
     final fg = isSelected
         ? (item.activeColor != null ? accent : colors.textPrimary)
         : colors.textSecondary;
+    final iconFg = (isSelected && highlightSelectedIcon && item.activeColor == null)
+        ? colors.primary
+        : fg;
     final colorDuration = disableAnimations
         ? Duration.zero
         : AppMotionDurations.fast;
 
     Widget card = InkWell(
-      key: Key('segmented_card_${item.value}'),
-      onTap: () => widget.onValueChanged?.call(item.value),
+      key: item.key ?? Key('segmented_card_${item.value}'),
+      onTap: () => onValueChanged?.call(item.value),
       borderRadius: BorderRadius.circular(innerRadius),
       hoverColor: colors.textPrimary.withValues(alpha: 0.04),
       splashColor: Colors.transparent,
       child: Container(
-        key: itemKey,
-        constraints: BoxConstraints(minHeight: widget.minHeight),
-        padding: widget.itemPadding,
+        constraints: BoxConstraints(minHeight: minHeight),
+        padding: itemPadding,
         child: Row(
-          mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (item.icon != null) ...[
-              Icon(item.icon, size: 14, color: fg),
+              Icon(item.icon, size: iconSize, color: iconFg),
               if (item.label.isNotEmpty) const SizedBox(width: 5),
             ],
             if (item.label.isNotEmpty)
@@ -903,7 +992,7 @@ class _AppSegmentedCardBarState<T> extends State<AppSegmentedCardBar<T>>
                   duration: colorDuration,
                   curve: AppMotionCurves.smoothOut,
                   style: DefaultTextStyle.of(context).style.copyWith(
-                    fontSize: 13,
+                    fontSize: fontSize,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: fg,
                   ),
