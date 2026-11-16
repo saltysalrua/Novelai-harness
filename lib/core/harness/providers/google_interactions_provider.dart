@@ -148,6 +148,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
       reasoning: reasoning,
       thinkingEffort: thinkingEffort,
       promptToolUse: promptToolUse,
+      temperature: temperature,
       stream: streaming,
     );
 
@@ -166,8 +167,8 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     request.headers['x-goog-api-key'] = trimmedKey;
     if (!isOfficialGoogle) {
       request.headers['Authorization'] = 'Bearer $trimmedKey';
+      request.headers.addAll(cachePolicy.headers(promptCacheKey));
     }
-    request.headers.addAll(cachePolicy.headers(promptCacheKey));
     request.body = jsonEncode(requestBody);
 
     try {
@@ -209,6 +210,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     required bool reasoning,
     required String thinkingEffort,
     required bool promptToolUse,
+    double? temperature,
     bool stream = true,
   }) {
     final normalizedMessages = normalizeToolCallIds(messages);
@@ -365,6 +367,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
         reasoning: reasoning,
       ),
       'thinking_summaries': reasoning ? 'auto' : 'none',
+      'temperature': ?temperature,
       if (tools.isNotEmpty && !promptToolUse) 'tool_choice': 'auto',
     };
 
@@ -686,6 +689,37 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
           final uMap = _asMap(interactionMap['usage']);
           if (uMap != null) {
             latestUsage = parseInteractionsUsage(uMap);
+          }
+          final status = interactionMap['status']?.toString();
+          final failed =
+              status == 'failed' ||
+              status == 'cancelled' ||
+              interactionMap['error'] is Map;
+          final incomplete = status == 'incomplete';
+          if (failed || incomplete) {
+            final reason =
+                interactionMap['incomplete_reason'] ??
+                interactionMap['status_reason'] ??
+                _formatErrorObject(interactionMap['error']);
+            final reasonText = '${reason ?? status}';
+            final lowerReason = reasonText.toLowerCase();
+            final transient =
+                lowerReason.contains('rate') ||
+                lowerReason.contains('overload') ||
+                lowerReason.contains('timeout') ||
+                lowerReason.contains('503') ||
+                lowerReason.contains('429');
+            yield ErrorEvent(
+              incomplete
+                  ? 'Interactions API 响应被截断或未完成: $reasonText'
+                  : (_formatErrorObject(interactionMap['error']) ??
+                        'Interactions API 请求失败: $reasonText'),
+              transient: transient,
+            );
+            if (latestUsage != null) {
+              yield UsageEvent(latestUsage);
+            }
+            return;
           }
           yield* _emitRemainingFromInteractionMap(
             interactionMap,

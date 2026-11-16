@@ -16,6 +16,7 @@ class PromptCachePolicy {
   LlmCacheMode get mode {
     if (config.mode != LlmCacheMode.auto) return config.mode;
     if (endpoint.host == 'api.openai.com') return LlmCacheMode.openai;
+    if (endpoint.host == 'api.anthropic.com') return LlmCacheMode.anthropic;
     if (endpoint.host == 'openrouter.ai' &&
         model.trim().startsWith('anthropic/')) {
       return LlmCacheMode.anthropic;

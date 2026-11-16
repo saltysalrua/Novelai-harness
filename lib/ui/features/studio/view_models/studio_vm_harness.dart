@@ -189,12 +189,22 @@ mixin _StudioHarnessMixin on _StudioCore {
         getCharacterPrompts: () => _params.characterPrompts,
         updateCharacterPrompts: _setCharacterPrompts,
         getCharacterLimit: () => _params.model.maxCharacterPrompts,
+        onCustomPositionUsed: () {
+          if (_params.characterAiPosition) {
+            updateParams(_params.copyWith(characterAiPosition: false));
+          }
+        },
       ),
     );
     _toolRegistry.register(
       NovelAiUpdateCharacterPromptTool(
         getCharacterPrompts: () => _params.characterPrompts,
         updateCharacterPrompts: _setCharacterPrompts,
+        onCustomPositionUsed: () {
+          if (_params.characterAiPosition) {
+            updateParams(_params.copyWith(characterAiPosition: false));
+          }
+        },
       ),
     );
     _toolRegistry.register(
@@ -295,6 +305,20 @@ mixin _StudioHarnessMixin on _StudioCore {
       ),
     );
 
+    _toolRegistry.register(
+      RunPipelineTool(
+        registry: _toolRegistry,
+        isToolAllowed: _harness.isToolExecutionAllowed,
+        isCancelled: () => _harness.isRunCancelled,
+      ),
+    );
+    _toolRegistry.register(
+      DescribeToolsTool(
+        registry: _toolRegistry,
+        isToolAllowed: _harness.isToolExecutionAllowed,
+      ),
+    );
+
     // 注册自定义扩展工具
     for (final customTool in _config.customTools) {
       _toolRegistry.register(customTool);
@@ -342,6 +366,10 @@ mixin _StudioHarnessMixin on _StudioCore {
       ),
     );
     _harness.setPreset(activePreset);
+
+    // 启用双轨精简工具表面：只将高频核心工具展开为完整 JSON Schema，
+    // 其余已授权二级工具以单行索引附于系统提示词，由 run_pipeline / describe_tools 调度。
+    _harness.compactToolSurface = true;
 
     // 长程配置：单次对话最大工具轮数 (设置页 Defaults 可调)
     _harness.maxTurns = _config.agentMaxTurns;

@@ -117,11 +117,13 @@ class NovelAiAddCharacterPromptTool extends AgentTool {
   final CharacterPromptsGetter getCharacterPrompts;
   final CharacterPromptsUpdater updateCharacterPrompts;
   final CharacterLimitGetter? getCharacterLimit;
+  final void Function()? onCustomPositionUsed;
 
   NovelAiAddCharacterPromptTool({
     required this.getCharacterPrompts,
     required this.updateCharacterPrompts,
     this.getCharacterLimit,
+    this.onCustomPositionUsed,
   }) : super(
          name: 'add_character_prompt',
          label: '添加角色',
@@ -246,6 +248,10 @@ class NovelAiAddCharacterPromptTool extends AgentTool {
     }
 
     updateCharacterPrompts([...characters, ...created]);
+    final usedCustomCoords = created.any((c) => c.useCustomPosition);
+    if (usedCustomCoords) {
+      onCustomPositionUsed?.call();
+    }
 
     final total = characters.length + created.length;
     final details = created
@@ -258,9 +264,12 @@ class NovelAiAddCharacterPromptTool extends AgentTool {
               '• 定位: ${c.useCustomPosition ? '手动 (${c.positionX}, ${c.positionY})' : '自动布局 (跟随全局 AI 自动 / 自定义模式)'}',
         )
         .join('\n');
+    final coordNote = usedCustomCoords && onCustomPositionUsed != null
+        ? ' 已自动将全局角色位置模式切换为自定义定位。'
+        : '';
     final tail = batch
-        ? '当前共 $total 个角色。后续修改或删除角色请引用上述 ID。'
-        : '当前共 $total 个角色。后续修改或删除该角色请引用 ID: ${created.first.id}。';
+        ? '当前共 $total 个角色。后续修改或删除角色请引用上述 ID。$coordNote'
+        : '当前共 $total 个角色。后续修改或删除该角色请引用 ID: ${created.first.id}。$coordNote';
     return ToolResult(
       toolCallId: toolCallId,
       content:
@@ -274,10 +283,12 @@ class NovelAiAddCharacterPromptTool extends AgentTool {
 class NovelAiUpdateCharacterPromptTool extends AgentTool {
   final CharacterPromptsGetter getCharacterPrompts;
   final CharacterPromptsUpdater updateCharacterPrompts;
+  final void Function()? onCustomPositionUsed;
 
   NovelAiUpdateCharacterPromptTool({
     required this.getCharacterPrompts,
     required this.updateCharacterPrompts,
+    this.onCustomPositionUsed,
   }) : super(
          name: 'update_character_prompt',
          label: '修改角色',
@@ -365,6 +376,7 @@ class NovelAiUpdateCharacterPromptTool extends AgentTool {
     final newList = [...characters];
     final applied = <String>[];
     final failed = <String>[];
+    var usedCustomCoords = false;
     for (final spec in specs) {
       final id = (spec['id'] as String?)?.trim() ?? '';
       if (id.isEmpty) {
@@ -380,6 +392,10 @@ class NovelAiUpdateCharacterPromptTool extends AgentTool {
       if (result.changes.isEmpty) {
         failed.add('ID $id 未传入有效修改字段');
         continue;
+      }
+      if ((spec['position_x'] != null || spec['position_y'] != null) &&
+          result.character.useCustomPosition) {
+        usedCustomCoords = true;
       }
       newList[index] = result.character;
       applied.add(
@@ -399,7 +415,13 @@ class NovelAiUpdateCharacterPromptTool extends AgentTool {
     }
 
     updateCharacterPrompts(newList);
+    if (usedCustomCoords) {
+      onCustomPositionUsed?.call();
+    }
     final buffer = StringBuffer(applied.join('\n'));
+    if (usedCustomCoords && onCustomPositionUsed != null) {
+      buffer.write('\n已自动将全局角色位置模式切换为自定义定位。');
+    }
     if (failed.isNotEmpty) {
       buffer.write('\n未修改：${failed.join('；')}。');
     }

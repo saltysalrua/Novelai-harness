@@ -120,14 +120,85 @@ class AgentHarness {
       '[图片附件已折叠: 图片数据已在当时的轮次展示过，此处不再重复发送。'
       '如需再次查看画板图片，请调用 view_canvas_image 工具]';
 
+  /// 是否启用精简工具表面（CodeMode 双轨模式）：
+  /// 开启后仅向模型发送高频核心工具的完整 JSON Schema，其余预设已启用的
+  /// 二级工具以单行索引附于系统提示词，由 `run_pipeline` 批量编排或
+  /// `describe_tools` 按需展开，显著降低每轮 Schema Token 开销并稳定前缀缓存。
+  bool compactToolSurface = false;
+
+  static const Set<String> defaultPrimaryToolNames = {
+    'update_studio_parameters',
+    'novelai_generate',
+    'novelai_inpaint',
+    'view_canvas_image',
+    'ask_user',
+    'load_skill',
+    'run_pipeline',
+    'describe_tools',
+  };
+
+  Set<String>? _activeAllowedToolNames;
+
+  /// 当前运行周期内的工具执行许可检查（兼顾轮次起始权限冻结与当前预设白名单）
+  bool isToolExecutionAllowed(String toolName) {
+    if (!currentPreset.isToolEnabled(toolName)) return false;
+    final active = _activeAllowedToolNames;
+    if (active != null && !active.contains(toolName)) return false;
+    return true;
+  }
+
+  /// 当前调度循环是否已被中断
+  bool get isRunCancelled => _activeRun?.isCancelled ?? false;
+
   /// 切换当前激活的预设
   void setPreset(AgentPreset preset) {
     currentPreset = preset;
     memoryChanged();
   }
 
+  List<AgentTool> _enabledToolsForPreset(AgentPreset preset) => tools
+      .getAll()
+      .where((tool) => preset.isToolEnabled(tool.name))
+      .toList();
+
+  bool _shouldUseCompactToolSurface(List<AgentTool> enabledTools) {
+    if (!compactToolSurface) return false;
+    final hasBridge = enabledTools.any(
+      (t) => t.name == 'run_pipeline' || t.name == 'describe_tools',
+    );
+    if (!hasBridge) return false;
+    return enabledTools.any(
+      (t) => t.isBuiltin && !defaultPrimaryToolNames.contains(t.name),
+    );
+  }
+
+  List<AgentTool> _resolveProviderTools(List<AgentTool> enabledTools) {
+    if (!_shouldUseCompactToolSurface(enabledTools)) return enabledTools;
+    return enabledTools
+        .where((t) => !t.isBuiltin || defaultPrimaryToolNames.contains(t.name))
+        .toList();
+  }
+
+  static String _formatCompactToolSignature(AgentTool tool) {
+    final props = tool.parameters['properties'];
+    final requiredList = tool.parameters['required'];
+    final requiredSet = requiredList is List
+        ? requiredList.map((e) => e.toString()).toSet()
+        : const <String>{};
+    if (props is! Map || props.isEmpty) {
+      return '${tool.name}(): ${tool.label}';
+    }
+    final args = props.keys
+        .map((k) {
+          final name = k.toString();
+          return requiredSet.contains(name) ? name : '$name?';
+        })
+        .join(', ');
+    return '${tool.name}($args): ${tool.label}';
+  }
+
   /// 构建本轮对话的完整系统提示词
-  /// (预设人设/工作流 + Pi 标准 available_skills 按需加载声明)
+  /// (预设人设/工作流 + Pi 标准 available_skills 按需加载声明 + 精简二级工具索引)
   String buildSystemPrompt(AgentPreset preset) {
     final buffer = StringBuffer(preset.systemPrompt.trim());
     final enabledSkills = preset.enabledSkillIds
@@ -142,6 +213,22 @@ class AgentHarness {
       final skillsXml = Skill.formatSkillsForSystemPrompt(enabledSkills);
       if (skillsXml.isNotEmpty) {
         buffer.writeln('\n\n$skillsXml');
+      }
+    }
+    final enabledTools = _enabledToolsForPreset(preset);
+    if (_shouldUseCompactToolSurface(enabledTools)) {
+      final secondary = enabledTools
+          .where((t) => t.isBuiltin && !defaultPrimaryToolNames.contains(t.name))
+          .toList();
+      if (secondary.isNotEmpty) {
+        buffer.writeln('\n<secondary_tools>');
+        buffer.writeln(
+          '以下二级工具已启用但未展开完整 Schema。请优先用 `run_pipeline` 直接编排执行（支持 @step.tags、vars.join 拼装与 filter 过滤），或先调用 `describe_tools` 查看精确参数：',
+        );
+        for (final tool in secondary) {
+          buffer.writeln('- ${_formatCompactToolSignature(tool)}');
+        }
+        buffer.write('</secondary_tools>');
       }
     }
     buffer.writeln(
@@ -202,12 +289,11 @@ class AgentHarness {
 
       // 2. 一次性构建本轮上下文：系统提示词与工具白名单在循环内保持不变
       final systemPrompt = buildSystemPrompt(currentPreset);
-      final activeTools = tools
-          .getAll()
-          .where((tool) => currentPreset.isToolEnabled(tool.name))
-          .toList();
+      final enabledTools = _enabledToolsForPreset(currentPreset);
+      final activeTools = _resolveProviderTools(enabledTools);
 
-      final allowedToolNames = activeTools.map((tool) => tool.name).toSet();
+      final allowedToolNames = enabledTools.map((tool) => tool.name).toSet();
+      _activeAllowedToolNames = allowedToolNames;
 
       // 长程执行循环：
       // - 每轮流式请求对瞬态错误 (网络抖动 / 429 / 5xx / 流中断 / 空响应)
@@ -520,6 +606,7 @@ class AgentHarness {
         // 继续下一轮循环，让 LLM 根据工具结果生成最终回答
       }
     } finally {
+      _activeAllowedToolNames = null;
       run.cancel();
       if (identical(_activeRun, run)) _activeRun = null;
       onContextChanged?.call();
@@ -554,15 +641,6 @@ class AgentHarness {
       );
     }
 
-    if (memory.prompt.isNotEmpty) {
-      result.add(
-        AgentMessage(
-          id: 'context_notes',
-          role: AgentRole.user,
-          content: memory.prompt,
-        ),
-      );
-    }
     final forgottenToolIds = <String>{};
     for (var i = _contextStartIndex; i < _messages.length; i++) {
       var m = _messages[i];
@@ -599,6 +677,16 @@ class AgentHarness {
         result.add(m.withVisionImagesCollapsed(_kCollapsedImagePlaceholder));
       }
     }
+    // 会话笔记放在消息窗口末尾，避免增删笔记击穿历史消息的 KV 前缀缓存。
+    if (memory.prompt.isNotEmpty) {
+      result.add(
+        AgentMessage(
+          id: 'context_notes',
+          role: AgentRole.user,
+          content: memory.prompt,
+        ),
+      );
+    }
     return result;
   }
 
@@ -610,27 +698,27 @@ class AgentHarness {
   static const int _estimatedImageTokens = 1200;
 
   int _estimateMessageTokens(AgentMessage m) {
-    var chars = m.content.length + m.thoughts.length;
+    var tokens =
+        _estimateTextTokens(m.content) + _estimateTextTokens(m.thoughts);
     // 跨轮回放的推理项也随请求原样重发，必须计入估算：
-    // 明文按 chars/4；加密载荷是 base64，先反推原始字节数再除 4。
+    // 明文按文本估算；加密载荷是 base64，先反推原始字节数再除 4。
     for (final record in m.reasoningRecords) {
       final encrypted = record.encryptedContent;
       if (encrypted != null && encrypted.isNotEmpty) {
-        chars += (encrypted.length * 3 / 4).round();
+        tokens += ((encrypted.length * 3 / 4) / 4).ceil();
       } else {
-        chars += record.plaintext.length;
+        tokens += _estimateTextTokens(record.plaintext);
       }
     }
     if (m.hasVisionImages) {
-      chars += _estimatedImageTokens * 4 * m.images.length;
-      if (m.role == AgentRole.tool) chars += _estimatedImageTokens * 4;
+      tokens += _estimatedImageTokens * m.images.length;
+      if (m.role == AgentRole.tool) tokens += _estimatedImageTokens;
     }
     for (final tc in m.toolCalls ?? const <ToolCall>[]) {
-      chars += tc.name.length + jsonEncode(tc.arguments).length;
+      tokens += _estimateTextTokens(tc.name) +
+          _estimateTextTokens(jsonEncode(tc.arguments));
     }
-    return (chars / 4).ceil() +
-        _estimateTextTokens(m.content) -
-        (m.content.length / 4).ceil();
+    return tokens;
   }
 
   /// 估算当前请求上下文的 Token 总量。
@@ -656,14 +744,12 @@ class AgentHarness {
     }
     final prompt = systemPrompt ?? buildSystemPrompt(currentPreset);
     final request = _buildRequestMessages(prompt);
-    final toolTokens = tools
-        .getAll()
-        .where((t) => currentPreset.isToolEnabled(t.name))
-        .fold<int>(
-          0,
-          (sum, t) =>
-              sum + _estimateTextTokens(jsonEncode(t.toOpenAiFunction())),
-        );
+    final toolTokens = _resolveProviderTools(
+      _enabledToolsForPreset(currentPreset),
+    ).fold<int>(
+      0,
+      (sum, t) => sum + _estimateTextTokens(jsonEncode(t.toOpenAiFunction())),
+    );
     final protocolTokens = switch (provider) {
       LlmRequestOverhead(:final requestProtocolPrompt) => _estimateTextTokens(
         requestProtocolPrompt,
@@ -781,8 +867,8 @@ class AgentHarness {
       '## 关键决定\n- **[决定]**: [原因]\n'
       '## 下一步\n1. ...\n'
       '## 关键上下文\n[接续工作必需的具体信息]\n\n'
-      '要求：每节保持精炼；完整保留提示词文本、生图参数、图片索引、批注坐标、'
-      '报错原文等关键细节；不要遗漏未完成的请求。';
+      '要求：每节保持精炼；用中性客观的概括保留创意意图、生图参数、图片索引、批注坐标、'
+      '报错原文与回复编号（如需引用原提示词直接标注可在工作台查询或保留关键标签，避免大段复述敏感细节）；不要遗漏未完成的请求。';
 
   /// 调用当前 LLM 生成 (或迭代更新) 压缩摘要。
   /// 失败或空摘要返回 null，此时放弃压缩 (绝不破坏现有上下文)。

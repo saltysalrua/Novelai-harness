@@ -299,11 +299,13 @@ class AnthropicMessages {
         usage: parsedUsage,
       );
     }
-    if (stop == 'refusal' && visible.isEmpty) {
+    if ((stop == 'refusal' || stop == 'content_filter' || stop == 'safety') &&
+        visible.isEmpty &&
+        calls.isEmpty) {
       return AnthropicMessagesCompletion(
         reasoning: reasoning.toString(),
         reasoningRecords: records,
-        error: '模型拒绝回答',
+        error: stop == 'refusal' ? '模型拒绝回答' : '模型响应被安全策略拦截 ($stop)',
         usage: parsedUsage,
       );
     }
@@ -434,6 +436,7 @@ class AnthropicMessagesStreamParser {
   final Map<int, _AnthropicBlock> _blocks = {};
   TokenUsage? _usage;
   bool _usageEmitted = false;
+  String? _stopReason;
 
   List<HarnessEvent> add(Map<String, dynamic> json, {String? eventType}) {
     _captureUsage(json);
@@ -453,7 +456,17 @@ class AnthropicMessagesStreamParser {
           ),
         ];
       case 'message_start':
+        final message = json['message'];
+        if (message is Map && message['stop_reason'] is String) {
+          _stopReason = message['stop_reason'] as String;
+        }
+        return const [];
       case 'message_delta':
+        final delta = json['delta'];
+        if (delta is Map && delta['stop_reason'] is String) {
+          _stopReason = delta['stop_reason'] as String;
+        }
+        return const [];
       case 'message_stop':
       case 'ping':
         return const [];
@@ -474,17 +487,40 @@ class AnthropicMessagesStreamParser {
     final events = <HarnessEvent>[];
     final records = <ReasoningRecord>[];
     final indexes = _blocks.keys.toList()..sort();
+    var hasTextOrTool = false;
     for (final index in indexes) {
       final block = _blocks[index]!;
       final record = block.toRecord();
       if (record != null && !record.isEmpty) records.add(record);
-      if (block.type == 'tool_use' && !block.emitted) {
-        final event = block.emitCall(index, strict: false);
-        if (event != null) events.add(event);
+      if (block.type == 'text' && block.text.isNotEmpty) {
+        hasTextOrTool = true;
+      }
+      if (block.type == 'tool_use') {
+        if (block.emitted) {
+          hasTextOrTool = true;
+        } else {
+          final event = block.emitCall(index, strict: false);
+          if (event != null) {
+            if (event is ToolCallEvent) hasTextOrTool = true;
+            events.add(event);
+          }
+        }
       }
     }
     if (records.isNotEmpty) {
       events.insert(0, ReasoningSnapshotEvent(records));
+    }
+    final stop = _stopReason?.trim();
+    if (!hasTextOrTool &&
+        (stop == 'refusal' || stop == 'content_filter' || stop == 'safety')) {
+      events.add(
+        ErrorEvent(
+          stop == 'refusal' ? '模型拒绝回答' : '模型响应被安全策略拦截 ($stop)',
+          code: HarnessErrorCode.modelRequestFailed,
+        ),
+      );
+    } else if (!hasTextOrTool && records.isEmpty && stop == 'max_tokens') {
+      events.add(const ErrorEvent('Anthropic 响应不完整: max_tokens'));
     }
     if (!_usageEmitted && _usage != null && _usage!.total > 0) {
       _usageEmitted = true;

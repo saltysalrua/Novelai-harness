@@ -84,7 +84,25 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
   String get _normalizedModelLower =>
       model.trim().toLowerCase().replaceFirst(RegExp(r'^models/'), '');
 
-  bool get _isGeminiModel => _normalizedModelLower.startsWith('gemini-');
+  bool get _isGeminiModel {
+    final lower = _normalizedModelLower;
+    final bare = lower.split('/').last;
+    return bare.startsWith('gemini-') ||
+        RegExp(r'(^|[/:\[\]\s_-])gemini-').hasMatch(lower);
+  }
+
+  static bool _isSafetyFinishReason(String? reason) {
+    final lower = reason?.trim().toLowerCase();
+    if (lower == null || lower.isEmpty) return false;
+    return const {
+      'content_filter',
+      'safety',
+      'prohibited_content',
+      'recitation',
+      'blocklist',
+      'spii',
+    }.contains(lower);
+  }
 
   bool get _isGoogleHost =>
       Uri.tryParse(baseUrl.trim())?.host == 'generativelanguage.googleapis.com';
@@ -457,8 +475,10 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       model: model,
     );
     final cacheHeaders = <String, String>{};
-    if (streaming && endpoint.endsWith('/chat/completions')) {
-      requestBody['stream_options'] = {'include_usage': true};
+    if (endpoint.endsWith('/chat/completions')) {
+      if (streaming) {
+        requestBody['stream_options'] = {'include_usage': true};
+      }
       cachePolicy.apply(requestBody, promptCacheKey);
       cacheHeaders.addAll(cachePolicy.headers(promptCacheKey));
       for (final field in const [
@@ -516,13 +536,18 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     String pendingTagBuffer = '';
     bool streamCompleted = false;
     String? finishReason;
+    bool emittedContent = false;
+    bool emittedThoughts = false;
+    final StringBuffer refusalBuffer = StringBuffer();
     FormatException? promptParseError;
 
     // 格式错误后仍消费 SSE 尾部，以保留真实 usage；任何调用都不提交。
     List<ContentDeltaEvent> contentEvents(String text) {
       if (promptParseError != null) return const [];
       try {
-        return promptParser?.add(text) ?? [ContentDeltaEvent(text)];
+        final events = promptParser?.add(text) ?? [ContentDeltaEvent(text)];
+        if (events.isNotEmpty) emittedContent = true;
+        return events;
       } on FormatException catch (error) {
         promptParseError = error;
         return const [];
@@ -601,12 +626,17 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         ]) {
           final raw = delta[key];
           if (raw is String && raw.isNotEmpty) {
+            emittedThoughts = true;
             yield ThoughtDeltaEvent(raw);
             break;
           }
         }
 
         // 2. 处理标准 content (内嵌思考标签容错: 标签可能被流式拆分到多个 chunk)
+        final deltaRefusal = delta['refusal'];
+        if (deltaRefusal is String && deltaRefusal.isNotEmpty) {
+          refusalBuffer.write(deltaRefusal);
+        }
         if (delta.containsKey('content') && delta['content'] != null) {
           final contentDelta = delta['content'] as String;
           if (contentDelta.isNotEmpty) {
@@ -622,6 +652,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
                 if (emitLen > 0) {
                   final emit = rest.substring(0, emitLen);
                   if (inThinkTag) {
+                    emittedThoughts = true;
                     yield ThoughtDeltaEvent(emit);
                   } else {
                     yield* Stream.fromIterable(contentEvents(emit));
@@ -635,6 +666,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
               if (idx > 0) {
                 final emit = rest.substring(0, idx);
                 if (inThinkTag) {
+                  emittedThoughts = true;
                   yield ThoughtDeltaEvent(emit);
                 } else {
                   yield* Stream.fromIterable(contentEvents(emit));
@@ -689,6 +721,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       // 流结束: 冲刷残缺标签缓冲 (没等到完整标签出现，按当前状态原文输出)
       if (pendingTagBuffer.isNotEmpty) {
         if (inThinkTag) {
+          emittedThoughts = true;
           yield ThoughtDeltaEvent(pendingTagBuffer);
         } else {
           yield* Stream.fromIterable(contentEvents(pendingTagBuffer));
@@ -701,7 +734,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         if (!streamCompleted) {
           throw StateError('提示词工具调用响应流提前结束，未执行。');
         }
-        if (finishReason == 'length' || finishReason == 'content_filter') {
+        if (finishReason == 'length' || _isSafetyFinishReason(finishReason)) {
           throw FormatException('提示词工具调用响应未完整生成 ($finishReason)，未执行。');
         }
         yield* Stream.fromIterable(promptParser.finish());
@@ -731,6 +764,32 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
             ),
           );
         }
+      }
+      final refusal = refusalBuffer.toString().trim();
+      if (refusal.isNotEmpty &&
+          completedCalls.isEmpty &&
+          !emittedContent) {
+        yield ErrorEvent(
+          '模型拒绝回答: $refusal',
+          code: HarnessErrorCode.modelRequestFailed,
+        );
+        if (latestUsage != null) {
+          yield UsageEvent(latestUsage);
+        }
+        return;
+      }
+      if (_isSafetyFinishReason(finishReason) &&
+          completedCalls.isEmpty &&
+          !emittedContent &&
+          !emittedThoughts) {
+        yield ErrorEvent(
+          '模型响应被安全策略拦截 ($finishReason)。建议将敏感提示词或细节描述放入工具参数（如 update_studio_parameters / run_pipeline）执行，正文中只保留中性回复。',
+          code: HarnessErrorCode.modelRequestFailed,
+        );
+        if (latestUsage != null) {
+          yield UsageEvent(latestUsage);
+        }
+        return;
       }
       if (completedCalls.isNotEmpty) {
         final normalized = normalizeToolCallIds([
@@ -942,7 +1001,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         : null;
 
     if (message is! Map) {
-      if (finish == 'length' || finish == 'content_filter') {
+      if (finish == 'length' || _isSafetyFinishReason(finish)) {
         return _ChatCompletion(fatalError: '模型响应不完整: $finish', usage: usage);
       }
       return _ChatCompletion(usage: usage);
@@ -1029,12 +1088,12 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         usage: usage,
       );
     }
-    if (finish == 'content_filter' &&
+    if (_isSafetyFinishReason(finish) &&
         visible.isEmpty &&
         calls.isEmpty &&
         reasoning.isEmpty) {
       return _ChatCompletion(
-        fatalError: '模型响应不完整: content_filter',
+        fatalError: '模型响应不完整: $finish',
         usage: usage,
       );
     }

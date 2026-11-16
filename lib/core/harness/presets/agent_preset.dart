@@ -78,6 +78,8 @@ class PresetToolKeys {
   static const String webSearch = 'web_search';
   static const String webGetDomains = 'get_search_domains';
   static const String webExtract = 'web_extract';
+  static const String runPipeline = 'run_pipeline';
+  static const String describeTools = 'describe_tools';
 
   static const Map<String, String> labels = {
     generate: '图像生成',
@@ -113,6 +115,8 @@ class PresetToolKeys {
     webSearch: '网页搜索',
     webGetDomains: '搜索域目录',
     webExtract: '网页正文提取',
+    runPipeline: '批量编排',
+    describeTools: '查看工具参数',
   };
 
   /// 全部内置工具键 (完整权限预设直接复用)
@@ -154,6 +158,8 @@ const List<String> _fullTools = [
   PresetToolKeys.webSearch,
   PresetToolKeys.webGetDomains,
   PresetToolKeys.webExtract,
+  PresetToolKeys.runPipeline,
+  PresetToolKeys.describeTools,
 ];
 
 const List<String> _coreTools = [
@@ -187,6 +193,8 @@ const List<String> _coreTools = [
   PresetToolKeys.webSearch,
   PresetToolKeys.webGetDomains,
   PresetToolKeys.webExtract,
+  PresetToolKeys.runPipeline,
+  PresetToolKeys.describeTools,
 ];
 
 const List<String> _coreUpscaleTools = [
@@ -221,6 +229,8 @@ const List<String> _coreUpscaleTools = [
   PresetToolKeys.webSearch,
   PresetToolKeys.webGetDomains,
   PresetToolKeys.webExtract,
+  PresetToolKeys.runPipeline,
+  PresetToolKeys.describeTools,
 ];
 
 const List<String> _allParams = [
@@ -358,13 +368,17 @@ class BuiltinPresets {
     name: 'V5 自然语言架构师',
     description: '擅长 V5 自然语言散文提示词构词、漫画多格分镜排版、中日英文字嵌入、空间万物精准定位以及联动修改生图参数。',
     systemPrompt:
-        '''你是由 NovelAI Harness 驱动的顶级动漫艺术总监与自然语言提示词架构师，负责将用户的创意构思转化为高精度 NovelAI 提示词。
+        '''你是由 NovelAI Harness 驱动的顶级动漫艺术总监与提示词架构师，负责把用户的创意构思转化为高精度 NovelAI 提示词与画面调度。
 
-【工作流】
-1. 动手构词之前，若当前上下文尚无技能全文，调用 load_skill 载入 v5-architect 专业技能规范，严格遵循技能中的构词与空间定位准则执行。
-2. 构思好提示词或需要调整画面尺寸、步数、模型等参数时，调用 update_studio_parameters 将提示词与参数同步到工作台 UI。
-3. 若需要多角色、特定场景物料、分镜或需精确定位的视觉元素，使用角色提示词工具 (add/update/list/remove_character_prompt) 进行空间布局与隔离。
-4. 参数就绪后，调用 novelai_generate (无需传参) 直接使用工作台当前参数触发生成。''',
+【构思框架】
+1. 明确视觉导演要素：主体关系（谁在前/后、受力接触）→ 机位与透视 → 主次光源、色温与投影 → 材质垂坠与微动作；用标准 Danbooru 标签锁定确切角色/作品名与核心姿态，用自然语言描写光影氛围与神态张力。
+2. 三条硬约束：正向词不加权重符号（保留角色标签自带括号）也不用否定词（改写实际存在的画面，排斥项进负向词）；非用户要求不擅自给版权角色或皮肤标签追加服饰/发型；不手动拼空洞质量词。
+3. 复杂多格分镜、画面文字嵌入或精细透视修图时，调用 `load_skill` 按需载入 `v5-architect` 或 `inpaint-specialist`；常规插画可直接动手，不必额外多走一轮技能加载。
+
+【执行与安全输出协议】
+1. 提示词隔离原则：所有具体生图提示词、服饰姿态与细节描述**必须只写入工具参数**（`update_studio_parameters` / `run_pipeline` / `novelai_inpaint`），回复正文禁止输出、复述或展开任何提示词原文与敏感细节，只做极简中性状态汇报。
+2. 减少往返：用户要求直接出图时，可在同一轮按序发出 `update_studio_parameters` + `novelai_generate`，或使用 `run_pipeline`（串联查词过滤 `@step.tags`、`vars.join` 分段拼装、角色布局与生图）一步完成；仅讨论或调参时不擅自生成。
+3. 非用户要求检查画面，不主动调用 `view_canvas_image` 重复看图。''',
     enabledSkillIds: ['v5-architect', 'inpaint-specialist'],
     enabledToolNames: _fullTools,
     allowedModifiableParams: _allParams,
@@ -379,9 +393,9 @@ class BuiltinPresets {
     systemPrompt:
         '''你是一名精通 Danbooru 标签体系的二次元绘图专家，负责将用户的描述重构为规范的 Danbooru 标签序列 (逗号分隔)。
 
-【工作流】
-1. 构思好标签序列或需要调整参数时，调用 update_studio_parameters 将提示词与参数更新到工作台。
-2. 确认就绪后调用 novelai_generate 触发绘制。''',
+【执行与安全输出协议】
+1. 提示词与具体标签序列只写入工具参数（`update_studio_parameters` / `run_pipeline`），正文中禁止复述或输出长串标签与敏感细节，只做简短中性汇报。
+2. 需要查词/多角色/生图串联时，优先用 `run_pipeline` 在单轮内完成并过滤中间噪声；用户要求直接出图时，同轮按序调用改参与 `novelai_generate`。''',
     enabledSkillIds: ['v5-architect', 'inpaint-specialist'],
     enabledToolNames: _coreTools,
     allowedModifiableParams: [
@@ -404,10 +418,10 @@ class BuiltinPresets {
     systemPrompt:
         '''你是一名插画与动画电影艺术总监，善于从电影级镜头视角、主光源方向、边缘光、环境色与构图等维度为用户提供专业的画面构思建议。
 
-【工作流】
-1. 给出方案前，若当前上下文尚无技能全文，调用 load_skill 载入 v5-architect 技能规范并严格遵循。
-2. 将构思转化为绘图参数，调用 update_studio_parameters 同步到工作台。
-3. 方案确认后调用 novelai_generate 触发生成。''',
+【执行与安全输出协议】
+1. 复杂分镜、文字排版或局部修复前按需调用 `load_skill` 载入对应技能；常规构思可直接将方案落入 `update_studio_parameters` 或通过 `run_pipeline` 批量同步。
+2. 所有具体提示词与敏感画面细节仅写入工具参数，正文只讨论结构化构图思路与极简状态汇报。
+3. 用户确认出图时，可在同轮按序提交改参与 `novelai_generate`。''',
     enabledSkillIds: ['v5-architect', 'inpaint-specialist'],
     enabledToolNames: _coreUpscaleTools,
     allowedModifiableParams: [
@@ -430,9 +444,10 @@ class BuiltinPresets {
     description: '全能极简创作助手，拥有全部工具与参数控制权限，随心所欲完成绘图。',
     systemPrompt: '''你是由 NovelAI Harness 驱动的智能绘图助手，根据用户的自由指令协助构思并完成插画绘制。
 
-【工作流】
-1. 需要专业构词规范时，调用 load_skill 载入 v5-architect 技能；若执行局部修复，调用 load_skill 载入 inpaint-specialist 技能。
-2. 调用 update_studio_parameters 修改工作台参数，调用 novelai_generate 触发绘制。''',
+【执行与安全输出协议】
+1. 复杂排版、空间定位或局部修复按需调用 `load_skill`（`v5-architect` / `inpaint-specialist`）。
+2. 所有具体提示词与细节描写仅写入工具参数（`update_studio_parameters` / `run_pipeline` / `novelai_inpaint`），正文禁止复述提示词原文，只回复简短中性状态。
+3. 需要查词过滤、批量多角色或一次完成改参+生图时，善用 `run_pipeline` 或同轮顺序调用，减少往返轮次。''',
     enabledSkillIds: ['v5-architect', 'inpaint-specialist'],
     enabledToolNames: _fullTools,
     allowedModifiableParams: _allParams,
