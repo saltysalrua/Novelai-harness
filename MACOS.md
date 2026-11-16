@@ -16,9 +16,9 @@ codesign --verify --deep --strict build/macos/Build/Products/Release/novelai_har
 
 如需指定 Xcode，可在单次构建前设置 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`。构建保留正常 pub 准备阶段：测试阶段生成的 SwiftPM 清单可能不包含原生插件，直接跳过 pub 阶段会导致模块解析失败。
 
-现有 Windows / Android 发布工作流使用另一 Flutter 版本。本变更保留其工具链与仓库锁文件；macOS 的 `flutter pub get` 会按固定的 Flutter SDK 解析 SDK 所绑定的依赖。本地生成的锁文件变化不应误混入其他功能 PR。Flutter 3.47 也会自动迁移分析配置以排除生成的平台目录；该本地工具链变化不属于应用功能补丁。SwiftPM 的 `Package.resolved` 则用于本原生构建。
+现有 Windows / Android / macOS 发布工作流统一使用同一个 Flutter 版本。本变更保留其工具链与仓库锁文件；macOS 的 `flutter pub get` 会按固定的 Flutter SDK 解析 SDK 所绑定的依赖。本地生成的锁文件变化不应误混入其他功能 PR。Flutter 3.47 也会自动迁移分析配置以排除生成的平台目录；该本地工具链变化不属于应用功能补丁。SwiftPM 的 `Package.resolved` 则用于本原生构建。
 
-`.github/workflows/macos-test.yml` 在指向 master 的 PR、master 或 `codex/pr-macos-*` 分支推送、手动触发时执行分析、测试、release 构建及签名/沙盒权限检查。产物名从 `pubspec.yaml` 读取版本，保留七天。此流程上传 Actions artifact，不创建 GitHub Release；远端执行结果需在实际运行后报告。
+`.github/workflows/release.yml` 在 `master` 分支更新 `pubspec.yaml` 或手动触发时执行分析/测试门禁、Windows/Android/macOS 三端 release 构建及 macOS 签名/沙盒权限检查（手动触发支持 `build_only` 仅上传 Actions artifact 而不创建 Release）。产物名从 `pubspec.yaml` 读取版本，Actions artifact 保留七天，正式触发时统一打包创建 GitHub Release。
 
 ZIP 可用 `ditto -c -k --sequesterRsrc --keepParent` 打包 `.app`，解压后再次运行签名检查。本地 ad-hoc 签名不等于 Developer ID 签名或 Apple 公证。
 
