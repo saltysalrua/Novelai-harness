@@ -3,6 +3,7 @@ import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
@@ -203,63 +204,55 @@ class _PromptsPageState extends State<PromptsPage> {
     ];
   }
 
-  /// 正向提示词底部工具条：左 Transparent BG (仅 V5 模型)，右 Quality Tags 预设胶囊 (全宽自适应省略)；
+  /// 正向提示词底部工具条：Transparent BG (仅 V5 模型) + Quality Tags 预设芯片，统一右对齐紧凑排布；
   /// ComfyUI 模式下质量预设与透明背景均不生效，不渲染工具条
   Widget? _promptToolbar(NaiGenerationParams params) {
     if (viewModelIsComfyUi) return null;
+    final colors = context.colors;
     final quality = AppDropdown<String>.simple(
       value: _currentQualityPreset(params),
       items: NovelAiQualityTagsHelper.getAvailablePresets(params.model),
       labelOf: (p) => '${context.l10n.promptsQualityTags}: ${_presetLabel(p)}',
-      variant: AppDropdownVariant.pill,
+      variant: AppDropdownVariant.chip,
+      isExpanded: false,
       onChanged: _applyQualityPreset,
     );
-    if (!params.model.isV5) return quality;
     final transparent = AppToolChip(
       isSelected: params.transparentBg,
       icon: params.transparentBg ? Icons.check_rounded : Icons.close_rounded,
       label: context.l10n.promptsTransparentBackground,
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      unselectedBackgroundColor: colors.canvasBackground,
+      borderColor: colors.borderDefault,
       onTap: _toggleTransparentBg,
     );
-    return LayoutBuilder(
-      builder: (context, constraints) => constraints.maxWidth < 420
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Align(alignment: Alignment.centerLeft, child: transparent),
-                const SizedBox(height: 4),
-                quality,
-              ],
-            )
-          : Row(
-              children: [
-                Flexible(child: transparent),
-                const SizedBox(width: 8),
-                Expanded(child: quality),
-              ],
-            ),
+    return Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 6,
+      children: [if (params.model.isV5) transparent, quality],
     );
   }
 
-  /// 负面提示词底部工具条：UC Preset 下拉 (胶囊全宽右对齐，超长标签自动省略)；
+  /// 负面提示词底部工具条：UC Preset 预设芯片，与正向工具条保持一致的右对齐紧凑排布；
   /// ComfyUI 模式下 UC 预设不生效，不渲染工具条。
   /// 节约档固定 Heavy，不提供预设切换。
   Widget? _negativeToolbar(NaiGenerationParams params) {
     if (viewModelIsComfyUi || params.isMediumEffort) return null;
     final presets = NovelAiUndesiredContentHelper.availablePresets;
-    return Row(
-      children: [
-        Expanded(
-          child: AppDropdown<String>.simple(
-            value: presets.contains(_ucPreset) ? _ucPreset : presets.first,
-            items: presets,
-            labelOf: (p) =>
-                '${context.l10n.promptsUcPreset}: ${_presetLabel(p)}',
-            variant: AppDropdownVariant.pill,
-            onChanged: _applyUcPreset,
-          ),
-        ),
-      ],
+    return Align(
+      alignment: Alignment.centerRight,
+      child: AppDropdown<String>.simple(
+        value: presets.contains(_ucPreset) ? _ucPreset : presets.first,
+        items: presets,
+        labelOf: (p) =>
+            '${context.l10n.promptsUcPreset}: ${_presetLabel(p)}',
+        variant: AppDropdownVariant.chip,
+        isExpanded: false,
+        onChanged: _applyUcPreset,
+      ),
     );
   }
 

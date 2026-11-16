@@ -13,8 +13,11 @@ enum AppDropdownVariant {
   /// 标准表单形态 (高 38px，带轻边框，圆角 8px，适合模型/采样器等主要表单)
   standard,
 
-  /// 药丸胶囊形态 (高 28px，圆角 9999px，适合 Quality / UC 等行内紧凑切换)
+  /// 药丸胶囊形态 (高 28px，圆角 9999px，适合行内椭圆切换)
   pill,
+
+  /// 紧凑芯片形态 (高 28px，圆角 6px，暖纸/深灰底轻描边，适合提示词卡工具条与 AppToolChip 并排)
+  chip,
 
   /// 紧凑形态 (高 32px，圆角 8px，适合标题栏/工具条内嵌)
   compact,
@@ -146,10 +149,14 @@ class _AppDropdownState<T> extends State<AppDropdown<T>> {
     final triggerWidth = (renderBox != null && renderBox.hasSize)
         ? renderBox.size.width
         : 160.0;
-    final defaultMin = widget.variant == AppDropdownVariant.pill
-        ? 220.0
+    final defaultMin =
+        (widget.variant == AppDropdownVariant.pill ||
+            widget.variant == AppDropdownVariant.chip)
+        ? 200.0
         : 160.0;
-    final defaultMax = widget.variant == AppDropdownVariant.pill
+    final defaultMax =
+        (widget.variant == AppDropdownVariant.pill ||
+            widget.variant == AppDropdownVariant.chip)
         ? 240.0
         : 320.0;
     final effectiveMinWidth =
@@ -229,6 +236,12 @@ class _AppDropdownState<T> extends State<AppDropdown<T>> {
         12.0,
         const EdgeInsets.symmetric(horizontal: 9),
       ),
+      AppDropdownVariant.chip => (
+        28.0,
+        6.0,
+        12.0,
+        const EdgeInsets.symmetric(horizontal: 8),
+      ),
       AppDropdownVariant.compact => (
         32.0,
         AppRadius.md,
@@ -267,9 +280,11 @@ class _AppDropdownState<T> extends State<AppDropdown<T>> {
     );
 
     final triggerContent = Material(
-      color: widget.variant == AppDropdownVariant.inline
-          ? Colors.transparent
-          : colors.cardBackground,
+      color: switch (widget.variant) {
+        AppDropdownVariant.inline => Colors.transparent,
+        AppDropdownVariant.chip => colors.canvasBackground,
+        _ => colors.cardBackground,
+      },
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),
         side: widget.variant == AppDropdownVariant.inline
@@ -289,7 +304,7 @@ class _AppDropdownState<T> extends State<AppDropdown<T>> {
               minHeight: widget.minHeight > height ? widget.minHeight : height,
             ),
             padding: padding,
-            alignment: Alignment.centerLeft,
+            alignment: widget.isExpanded ? Alignment.centerLeft : null,
             child: Row(
               mainAxisSize: widget.isExpanded
                   ? MainAxisSize.max
