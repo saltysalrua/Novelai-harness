@@ -1253,7 +1253,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsModelSortDefault.
   ///
   /// In zh, this message translates to:
-  /// **'默认顺序'**
+  /// **'原始顺序'**
   String get settingsModelSortDefault;
 
   /// No description provided for @settingsModelSortNameAsc.
@@ -1267,6 +1267,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'名称 Z-A'**
   String get settingsModelSortNameDesc;
+
+  /// No description provided for @settingsModelSortContextDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'上下文从大到小'**
+  String get settingsModelSortContextDesc;
+
+  /// No description provided for @settingsModelSortMaxTokensDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'最大输出从大到小'**
+  String get settingsModelSortMaxTokensDesc;
+
+  /// No description provided for @settingsModelSortThinkingFirst.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持思考优先'**
+  String get settingsModelSortThinkingFirst;
+
+  /// No description provided for @settingsModelSortMultimodalFirst.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持多模态优先'**
+  String get settingsModelSortMultimodalFirst;
+
+  /// No description provided for @settingsModelSortImageOutputFirst.
+  ///
+  /// In zh, this message translates to:
+  /// **'绘图模型优先'**
+  String get settingsModelSortImageOutputFirst;
 
   /// No description provided for @settingsFilterImageOnly.
   ///

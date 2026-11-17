@@ -636,13 +636,28 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsSearchModelHint => '搜索模型名称或 ID';
 
   @override
-  String get settingsModelSortDefault => '默认顺序';
+  String get settingsModelSortDefault => '原始顺序';
 
   @override
   String get settingsModelSortNameAsc => '名称 A-Z';
 
   @override
   String get settingsModelSortNameDesc => '名称 Z-A';
+
+  @override
+  String get settingsModelSortContextDesc => '上下文从大到小';
+
+  @override
+  String get settingsModelSortMaxTokensDesc => '最大输出从大到小';
+
+  @override
+  String get settingsModelSortThinkingFirst => '支持思考优先';
+
+  @override
+  String get settingsModelSortMultimodalFirst => '支持多模态优先';
+
+  @override
+  String get settingsModelSortImageOutputFirst => '绘图模型优先';
 
   @override
   String get settingsFilterImageOnly => '仅绘图模型';

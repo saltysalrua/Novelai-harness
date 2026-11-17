@@ -6,11 +6,13 @@ import 'package:novelai_harness/core/harness/skills/skills.dart';
 import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
+import 'package:novelai_harness/data/services/llm_model_fetcher.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/theme/app_theme.dart';
 import 'package:novelai_harness/ui/core/widgets/app_dialog_scaffold.dart';
 import 'package:novelai_harness/ui/core/widgets/app_search_field.dart';
 import 'package:novelai_harness/ui/features/settings/views/settings_dialog.dart';
+import 'package:novelai_harness/ui/features/settings/widgets/model_card.dart';
 import 'package:novelai_harness/ui/features/settings/widgets/models_settings_tab.dart';
 import 'package:novelai_harness/ui/features/settings/widgets/presets_settings_tab.dart';
 import 'package:novelai_harness/ui/features/settings/widgets/tool_editor_dialog.dart';
@@ -133,6 +135,239 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Second Model'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'ModelsSettingsTab defaults to alphabetical A-Z sort and switches sort modes',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final draft = ModelsSettingsDraft(
+        const AppConfig(
+          activeLlmProviderId: 'p1',
+          llmProviders: [
+            LlmProviderConfig(
+              id: 'p1',
+              name: 'Provider One',
+              baseUrl: 'https://api.example.com/v1',
+              activeModelId: 'zeta',
+              models: [
+                LlmModelConfig(
+                  id: 'zeta',
+                  name: 'Zeta Chat',
+                  contextWindow: 32000,
+                ),
+                LlmModelConfig(
+                  id: 'alpha',
+                  name: 'Alpha Small',
+                  contextWindow: 16000,
+                ),
+                LlmModelConfig(
+                  id: 'beta',
+                  name: 'Beta Long',
+                  contextWindow: 1000000,
+                  reasoning: true,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpWidget(
+        _wrapApp(
+          ModelsSettingsTab(viewModel: _FakeStudioViewModel(), draft: draft),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      List<String> renderedModelIds() => tester
+          .widgetList<ModelCard>(find.byType(ModelCard))
+          .map((card) => card.model.id)
+          .toList();
+
+      // 默认按名称首字母 A-Z 排序
+      expect(renderedModelIds(), ['alpha', 'beta', 'zeta']);
+      expect(find.text('名称 A-Z'), findsOneWidget);
+
+      // 切换为「上下文从大到小」
+      await tester.tap(find.text('名称 A-Z'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('上下文从大到小').last);
+      await tester.pumpAndSettle();
+
+      expect(renderedModelIds(), ['beta', 'zeta', 'alpha']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  test('sortLlmModels sorts by all supported modes with A-Z tie-breaker', () {
+    const models = [
+      LlmModelConfig(
+        id: 'm-zeta',
+        name: 'Zeta',
+        contextWindow: 64000,
+        maxTokens: 4096,
+      ),
+      LlmModelConfig(
+        id: 'm-alpha',
+        name: 'Alpha',
+        contextWindow: 128000,
+        maxTokens: 8192,
+        reasoning: true,
+      ),
+      LlmModelConfig(
+        id: 'm-beta',
+        name: 'beta',
+        contextWindow: 256000,
+        maxTokens: 16384,
+        input: ['text', 'image'],
+        imageOutput: true,
+      ),
+    ];
+
+    expect(
+      sortLlmModels(models, ModelSortMode.defaultOrder).map((m) => m.id),
+      ['m-zeta', 'm-alpha', 'm-beta'],
+    );
+    expect(
+      sortLlmModels(models, ModelSortMode.nameAsc).map((m) => m.id),
+      ['m-alpha', 'm-beta', 'm-zeta'],
+    );
+    expect(
+      sortLlmModels(models, ModelSortMode.nameDesc).map((m) => m.id),
+      ['m-zeta', 'm-beta', 'm-alpha'],
+    );
+    expect(
+      sortLlmModels(models, ModelSortMode.contextDesc).map((m) => m.id),
+      ['m-beta', 'm-alpha', 'm-zeta'],
+    );
+    expect(
+      sortLlmModels(models, ModelSortMode.maxTokensDesc).map((m) => m.id),
+      ['m-beta', 'm-alpha', 'm-zeta'],
+    );
+    expect(
+      sortLlmModels(models, ModelSortMode.thinkingFirst).map((m) => m.id),
+      ['m-alpha', 'm-beta', 'm-zeta'],
+    );
+    expect(
+      sortLlmModels(models, ModelSortMode.multimodalFirst).map((m) => m.id),
+      ['m-beta', 'm-alpha', 'm-zeta'],
+    );
+    expect(
+      sortLlmModels(models, ModelSortMode.imageOutputFirst).map((m) => m.id),
+      ['m-beta', 'm-alpha', 'm-zeta'],
+    );
+  });
+
+  test(
+    'ModelsSettingsDraft.applyFetchResult drops deleted models and revalidates selections',
+    () {
+      final draft = ModelsSettingsDraft(
+        const AppConfig(
+          activeLlmProviderId: 'p1',
+          imageEditProviderId: 'p1',
+          imageEditModelId: 'deleted-img',
+          llmProviders: [
+            LlmProviderConfig(
+              id: 'p1',
+              name: 'Relay',
+              activeModelId: 'deleted-chat',
+              models: [
+                LlmModelConfig(id: 'deleted-chat', name: 'Deleted Chat'),
+                LlmModelConfig(
+                  id: 'deleted-img',
+                  name: 'Deleted Image',
+                  imageOutput: true,
+                ),
+                LlmModelConfig(id: 'kept-chat', name: 'Kept Chat'),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      draft.applyFetchResult(
+        const RemoteModelFetchResult(
+          models: [
+            LlmModelConfig(id: 'kept-chat', name: 'Kept Chat'),
+            LlmModelConfig(
+              id: 'new-img',
+              name: 'New Image',
+              imageOutput: true,
+            ),
+          ],
+          enrichedCount: 0,
+        ),
+      );
+
+      expect(draft.currentProvider.models.map((m) => m.id), [
+        'kept-chat',
+        'new-img',
+      ]);
+      expect(draft.currentProvider.activeModelId, 'kept-chat');
+      expect(draft.imageEditModelId, 'new-img');
+    },
+  );
+
+  testWidgets(
+    'ModelsSettingsTab keeps normal cards compact while expanding multi-row badge cards without overflow',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(620, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final draft = ModelsSettingsDraft(
+        const AppConfig(
+          activeLlmProviderId: 'p1',
+          llmProviders: [
+            LlmProviderConfig(
+              id: 'p1',
+              name: 'Provider One',
+              baseUrl: 'https://api.example.com/v1',
+              activeModelId: 'alpha-1',
+              models: [
+                LlmModelConfig(
+                  id: 'alpha-1',
+                  name: 'Alpha Compact',
+                  contextWindow: 128000,
+                ),
+                LlmModelConfig(
+                  id: 'beta-2',
+                  name: 'Beta Compact',
+                  reasoning: true,
+                  contextWindow: 128000,
+                ),
+                LlmModelConfig(
+                  id: 'zeta-omni',
+                  name: 'Zeta Omni Reasoning Image Model',
+                  reasoning: true,
+                  input: ['text', 'image'],
+                  imageOutput: true,
+                  contextWindow: 1048576,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpWidget(
+        _wrapApp(
+          ModelsSettingsTab(viewModel: _FakeStudioViewModel(), draft: draft),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final cards = find.byType(ModelCard);
+      expect(cards, findsNWidgets(3));
+      // 第一行普通卡片保持紧凑高度，不留多余空白
+      final firstRowHeight = tester.getSize(cards.at(0)).height;
+      final omniCardHeight = tester.getSize(cards.at(2)).height;
+      expect(firstRowHeight, lessThanOrEqualTo(108));
+      expect(omniCardHeight, greaterThanOrEqualTo(firstRowHeight));
       expect(tester.takeException(), isNull);
     },
   );

@@ -211,11 +211,12 @@ class ModelsSettingsDraft {
     final previousId = providers[idx].activeModelId;
     final targetActiveId = result.models.any((m) => m.id == previousId)
         ? previousId
-        : result.models.first.id;
+        : (result.models.isNotEmpty ? result.models.first.id : '');
     providers[idx] = providers[idx].copyWith(
       models: result.models,
       activeModelId: targetActiveId,
     );
+    _validateImageEditSelection();
   }
 
   void dispose() {
@@ -261,7 +262,55 @@ class ModelsSettingsDraft {
 }
 
 /// 模型网格排序方式
-enum _ModelSortMode { defaultOrder, nameAsc, nameDesc }
+enum ModelSortMode {
+  nameAsc,
+  nameDesc,
+  contextDesc,
+  maxTokensDesc,
+  thinkingFirst,
+  multimodalFirst,
+  imageOutputFirst,
+  defaultOrder,
+}
+
+int _compareModelNameAsc(LlmModelConfig a, LlmModelConfig b) {
+  final nameCmp = a.name.trim().toLowerCase().compareTo(
+    b.name.trim().toLowerCase(),
+  );
+  if (nameCmp != 0) return nameCmp;
+  return a.id.toLowerCase().compareTo(b.id.toLowerCase());
+}
+
+/// 按指定排序方式整理模型列表，不修改原列表
+List<LlmModelConfig> sortLlmModels(
+  List<LlmModelConfig> models,
+  ModelSortMode mode,
+) {
+  if (mode == ModelSortMode.defaultOrder) {
+    return List<LlmModelConfig>.of(models);
+  }
+  final sorted = List<LlmModelConfig>.of(models);
+  sorted.sort((a, b) {
+    final primary = switch (mode) {
+      ModelSortMode.defaultOrder => 0,
+      ModelSortMode.nameAsc => _compareModelNameAsc(a, b),
+      ModelSortMode.nameDesc => _compareModelNameAsc(b, a),
+      ModelSortMode.contextDesc => b.contextWindow.compareTo(a.contextWindow),
+      ModelSortMode.maxTokensDesc => b.maxTokens.compareTo(a.maxTokens),
+      ModelSortMode.thinkingFirst => (b.supportsThinking ? 1 : 0).compareTo(
+        a.supportsThinking ? 1 : 0,
+      ),
+      ModelSortMode.multimodalFirst => (b.isMultimodal ? 1 : 0).compareTo(
+        a.isMultimodal ? 1 : 0,
+      ),
+      ModelSortMode.imageOutputFirst => (b.imageOutput ? 1 : 0).compareTo(
+        a.imageOutput ? 1 : 0,
+      ),
+    };
+    return primary != 0 ? primary : _compareModelNameAsc(a, b);
+  });
+  return sorted;
+}
 
 /// Models 页：多供应商管理、端点配置与模型卡片网格
 class ModelsSettingsTab extends StatefulWidget {
@@ -1138,7 +1187,7 @@ class _ModelGridSection extends StatefulWidget {
 
 class _ModelGridSectionState extends State<_ModelGridSection> {
   final TextEditingController _searchController = TextEditingController();
-  _ModelSortMode _sortMode = _ModelSortMode.defaultOrder;
+  ModelSortMode _sortMode = ModelSortMode.nameAsc;
 
   /// 仅显示绘图模型 (图像输出能力) 过滤开关
   bool _imageOnly = false;
@@ -1164,27 +1213,41 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
   List<LlmModelConfig> get _visibleModels {
     final query = _searchController.text.trim().toLowerCase();
     var filtered = query.isEmpty
-        ? List<LlmModelConfig>.of(widget.provider.models)
-        : widget.provider.models
-              .where(
-                (m) =>
-                    m.name.toLowerCase().contains(query) ||
-                    m.id.toLowerCase().contains(query),
-              )
-              .toList();
+        ? widget.provider.models
+        : widget.provider.models.where(
+            (m) =>
+                m.name.toLowerCase().contains(query) ||
+                m.id.toLowerCase().contains(query),
+          );
     if (_imageOnly) {
-      filtered = filtered.where((m) => m.imageOutput).toList();
+      filtered = filtered.where((m) => m.imageOutput);
     }
-    return switch (_sortMode) {
-      _ModelSortMode.defaultOrder => filtered,
-      _ModelSortMode.nameAsc => [
-        ...filtered,
-      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())),
-      _ModelSortMode.nameDesc => [
-        ...filtered,
-      ]..sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase())),
-    };
+    return sortLlmModels(filtered.toList(), _sortMode);
   }
+
+  String _sortModeLabel(AppLocalizations l10n, ModelSortMode mode) =>
+      switch (mode) {
+        ModelSortMode.nameAsc => l10n.settingsModelSortNameAsc,
+        ModelSortMode.nameDesc => l10n.settingsModelSortNameDesc,
+        ModelSortMode.contextDesc => l10n.settingsModelSortContextDesc,
+        ModelSortMode.maxTokensDesc => l10n.settingsModelSortMaxTokensDesc,
+        ModelSortMode.thinkingFirst => l10n.settingsModelSortThinkingFirst,
+        ModelSortMode.multimodalFirst => l10n.settingsModelSortMultimodalFirst,
+        ModelSortMode.imageOutputFirst =>
+          l10n.settingsModelSortImageOutputFirst,
+        ModelSortMode.defaultOrder => l10n.settingsModelSortDefault,
+      };
+
+  IconData _sortModeIcon(ModelSortMode mode) => switch (mode) {
+    ModelSortMode.nameAsc => Icons.sort_by_alpha_rounded,
+    ModelSortMode.nameDesc => Icons.sort_by_alpha_rounded,
+    ModelSortMode.contextDesc => Icons.straighten_outlined,
+    ModelSortMode.maxTokensDesc => Icons.notes_rounded,
+    ModelSortMode.thinkingFirst => Icons.psychology_outlined,
+    ModelSortMode.multimodalFirst => Icons.visibility_outlined,
+    ModelSortMode.imageOutputFirst => Icons.auto_awesome,
+    ModelSortMode.defaultOrder => Icons.format_list_bulleted_rounded,
+  };
 
   Widget _buildToolbar(int visibleCount) {
     final colors = context.colors;
@@ -1200,19 +1263,18 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
         onChanged: (_) {},
       ),
     );
-    final sortDropdown = AppDropdown<_ModelSortMode>(
+    final sortDropdown = AppDropdown<ModelSortMode>(
       value: _sortMode,
       variant: AppDropdownVariant.compact,
-      width: 140,
-      items: _ModelSortMode.values
+      width: 164,
+      menuWidth: 204,
+      searchable: false,
+      items: ModelSortMode.values
           .map(
             (m) => AppDropdownItem(
               value: m,
-              label: switch (m) {
-                _ModelSortMode.defaultOrder => l10n.settingsModelSortDefault,
-                _ModelSortMode.nameAsc => l10n.settingsModelSortNameAsc,
-                _ModelSortMode.nameDesc => l10n.settingsModelSortNameDesc,
-              },
+              icon: _sortModeIcon(m),
+              label: _sortModeLabel(l10n, m),
             ),
           )
           .toList(),
@@ -1237,7 +1299,7 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
       padding: const EdgeInsets.only(bottom: 12),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          if (constraints.maxWidth >= 620) {
+          if (constraints.maxWidth >= 640) {
             return Row(
               children: [
                 buildSearch(fillWidth: false),
@@ -1281,13 +1343,11 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
               crossAxisCount: crossAxisCount,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
-              mainAxisExtent: 108,
+              mainAxisExtent: 98,
             ),
             itemCount: 3,
-            itemBuilder: (context, _) => const AppSkeletonBox(
-              height: 108,
-              radius: AppRadius.md,
-            ),
+            itemBuilder: (context, _) =>
+                const AppSkeletonBox(height: 98, radius: AppRadius.md),
           );
         },
       );
@@ -1326,25 +1386,44 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
               final crossAxisCount = (constraints.crossAxisExtent / 276)
                   .floor()
                   .clamp(1, 8);
-              return SliverGrid.builder(
+              final rowCount = (visible.length / crossAxisCount).ceil();
+              // 按行虚拟化并自适应内容高度：普通卡片保持紧凑，多徽章折行卡片按行撑开不溢出
+              return SliverList.builder(
                 addAutomaticKeepAlives: false,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  mainAxisExtent: 108,
-                ),
-                itemCount: visible.length,
-                itemBuilder: (context, index) {
-                  final model = visible[index];
-                  return ModelCard(
-                    model: model,
-                    isSelected: model.id == widget.provider.activeModelId,
-                    onSelect: widget.onSelect,
-                    onEdit: widget.onEdit,
-                    onDelete: canDelete
-                        ? () => widget.onDelete(model.id)
-                        : null,
+                itemCount: rowCount,
+                itemBuilder: (context, rowIndex) {
+                  final startIndex = rowIndex * crossAxisCount;
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      bottom: rowIndex < rowCount - 1 ? 10 : 0,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var col = 0; col < crossAxisCount; col++) ...[
+                            if (col > 0) const SizedBox(width: 10),
+                            Expanded(
+                              child: startIndex + col < visible.length
+                                  ? ModelCard(
+                                      model: visible[startIndex + col],
+                                      isSelected:
+                                          visible[startIndex + col].id ==
+                                          widget.provider.activeModelId,
+                                      onSelect: widget.onSelect,
+                                      onEdit: widget.onEdit,
+                                      onDelete: canDelete
+                                          ? () => widget.onDelete(
+                                              visible[startIndex + col].id,
+                                            )
+                                          : null,
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   );
                 },
               );

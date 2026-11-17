@@ -697,13 +697,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSearchModelHint => 'Search model name or ID';
 
   @override
-  String get settingsModelSortDefault => 'Default Order';
+  String get settingsModelSortDefault => 'Original Order';
 
   @override
   String get settingsModelSortNameAsc => 'Name A-Z';
 
   @override
   String get settingsModelSortNameDesc => 'Name Z-A';
+
+  @override
+  String get settingsModelSortContextDesc => 'Context: High to Low';
+
+  @override
+  String get settingsModelSortMaxTokensDesc => 'Max Output: High to Low';
+
+  @override
+  String get settingsModelSortThinkingFirst => 'Thinking First';
+
+  @override
+  String get settingsModelSortMultimodalFirst => 'Multimodal First';
+
+  @override
+  String get settingsModelSortImageOutputFirst => 'Drawing Models First';
 
   @override
   String get settingsFilterImageOnly => 'Drawing Models Only';

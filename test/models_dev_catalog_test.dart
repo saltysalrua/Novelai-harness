@@ -263,12 +263,13 @@ void main() {
       expect(mystery.temperature, 1.0);
     });
 
-    test('合并既有配置：保留用户名称温度，追加本地自定义模型', () async {
+    test('合并既有配置：保留用户名称温度，移除渠道已删除的旧模型并去重', () async {
       final fetcher = LlmModelFetcher(
         client: MockClient(
           (request) async => http.Response(
             jsonEncode({
               'data': [
+                {'id': 'openai/gpt-4o'},
                 {'id': 'openai/gpt-4o'},
               ],
             }),
@@ -286,8 +287,8 @@ void main() {
           contextWindow: 1000,
         ),
         const LlmModelConfig(
-          id: 'my-custom-model',
-          name: '本地自定义',
+          id: 'removed-remote-model',
+          name: '渠道已删除模型',
           temperature: 0.5,
         ),
       ];
@@ -299,18 +300,20 @@ void main() {
         existingModels: existing,
       );
 
-      expect(result.models.length, 2);
-      final gpt4o = result.models.firstWhere((m) => m.id == 'openai/gpt-4o');
+      expect(result.models.length, 1);
+      final gpt4o = result.models.single;
       // 用户设置保留，能力被远端刷新
+      expect(gpt4o.id, 'openai/gpt-4o');
       expect(gpt4o.name, '我的定制 GPT');
       expect(gpt4o.temperature, 0.3);
       expect(gpt4o.contextWindow, 128000);
       expect(gpt4o.isMultimodal, isTrue);
 
-      // 远端不存在的本地自定义模型被追加保留
-      final custom = result.models.firstWhere((m) => m.id == 'my-custom-model');
-      expect(custom.name, '本地自定义');
-      expect(custom.temperature, 0.5);
+      // 渠道已删除的模型不再保留
+      expect(
+        result.models.any((m) => m.id == 'removed-remote-model'),
+        isFalse,
+      );
     });
 
     test('刷新模型保留仍受支持的默认思考档位并清理失效档位', () async {

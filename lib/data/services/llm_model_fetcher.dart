@@ -201,7 +201,7 @@ class LlmModelFetcher {
   /// 发起在线网络请求获取远程供应商模型列表
   ///
   /// [existingModels] 为当前已配置的模型列表：同 id 模型保留用户设置的
-  /// 名称与温度，仅刷新能力元数据；远端不存在的本地自定义模型会追加保留。
+  /// 名称与温度，仅刷新能力元数据；远端已删除的旧模型不再保留。
   Future<RemoteModelFetchResult> fetchRemoteModels({
     required String baseUrl,
     required LlmProtocol protocol,
@@ -264,13 +264,15 @@ class LlmModelFetcher {
       throw Exception('未能在返回数据中解析出模型列表');
     }
 
-    // 合成能力元数据并统计 models.dev 命中数
+    // 合成能力元数据并统计 models.dev 命中数 (以远端最新列表为准，自动去重并移除渠道已删模型)
     var enrichedCount = 0;
     final models = <LlmModelConfig>[];
+    final seenIds = <String>{};
     final suppressAnthropicCompatibilityReasoning =
         protocol == LlmProtocol.openAiChat &&
         Uri.tryParse(baseUrl)?.host == 'api.anthropic.com';
     for (final raw in rawModels) {
+      if (!seenIds.add(raw.id)) continue;
       final dev = await _lookupDev(raw.id);
       if (dev != null) enrichedCount++;
       models.add(
@@ -281,14 +283,6 @@ class LlmModelFetcher {
           suppressReasoning: suppressAnthropicCompatibilityReasoning,
         ),
       );
-    }
-
-    // 远端不存在的本地自定义模型追加保留
-    final remoteIds = models.map((m) => m.id).toSet();
-    for (final existing in existingModels) {
-      if (!remoteIds.contains(existing.id)) {
-        models.add(existing);
-      }
     }
 
     return RemoteModelFetchResult(models: models, enrichedCount: enrichedCount);
