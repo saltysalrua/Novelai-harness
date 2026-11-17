@@ -28,12 +28,16 @@ class PromptLibraryView extends StatefulWidget {
   final bool connectedLeft;
   final VoidCallback? onExpandSidebar;
 
+  /// 窄屏移动端紧凑模式：贴边全屏画布、合并顶部工具条并与双列高密度瀑布流协同。
+  final bool compact;
+
   const PromptLibraryView({
     super.key,
     required this.viewModel,
     this.onClose,
     this.connectedLeft = false,
     this.onExpandSidebar,
+    this.compact = false,
   });
 
   @override
@@ -342,18 +346,22 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         final filtered = _cachedFilteredEntries;
 
         return Container(
-          margin: widget.connectedLeft
-              ? const EdgeInsets.fromLTRB(0, 8, 8, 8)
-              : const EdgeInsets.all(8),
-          decoration: ShapeDecoration(
-            color: colors.canvasBackground,
-            shape: StudioPanelShapeBorder(
-              outerSide: BorderSide(color: colors.borderDefault),
-              radius: AppRadius.lg,
-              roundLeft: !widget.connectedLeft,
-              roundRight: true,
-            ),
-          ),
+          margin: widget.compact
+              ? EdgeInsets.zero
+              : (widget.connectedLeft
+                    ? const EdgeInsets.fromLTRB(0, 8, 8, 8)
+                    : const EdgeInsets.all(8)),
+          decoration: widget.compact
+              ? BoxDecoration(color: colors.canvasBackground)
+              : ShapeDecoration(
+                  color: colors.canvasBackground,
+                  shape: StudioPanelShapeBorder(
+                    outerSide: BorderSide(color: colors.borderDefault),
+                    radius: AppRadius.lg,
+                    roundLeft: !widget.connectedLeft,
+                    roundRight: true,
+                  ),
+                ),
           clipBehavior: Clip.antiAlias,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -448,9 +456,37 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
           },
         );
 
+        // 移动端紧凑壳层：顶部栏已展示「词库」标题，此处合并为单行搜索+操作条释放纵向空间
+        if (widget.compact) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+            child: Row(
+              children: [
+                if (widget.onExpandSidebar != null) ...[
+                  AppIconButton(
+                    key: const Key('library_expand_sidebar_button'),
+                    icon: Icons.keyboard_double_arrow_right_rounded,
+                    size: 30,
+                    iconSize: 17,
+                    variant: AppIconButtonVariant.ghost,
+                    tooltip: l10n.sidebarExpandTooltip,
+                    onPressed: widget.onExpandSidebar,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Expanded(child: SizedBox(height: 34, child: searchField)),
+                const SizedBox(width: 6),
+                _buildManageMenu(context, compact: true),
+                const SizedBox(width: 6),
+                _buildNewComboButton(context, compact: true),
+              ],
+            ),
+          );
+        }
+
         if (isNarrow) {
           return Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -505,12 +541,15 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         final isNarrow = constraints.maxWidth < 600;
         return Padding(
           padding: isNarrow
-              ? const EdgeInsets.fromLTRB(12, 0, 12, 8)
+              ? const EdgeInsets.fromLTRB(10, 0, 10, 6)
               : const EdgeInsets.fromLTRB(20, 0, 20, 8),
           child: AppSegmentedPillBar<String>(
             scrollable: true,
             variant: AppPillVariant.soft,
-            itemPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            spacing: isNarrow ? 4.0 : 6.0,
+            itemPadding: isNarrow
+                ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
+                : const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             selectedValue: _selectedCategory,
             onValueChanged: (cat) {
               setState(() => _selectedCategory = cat);
@@ -679,19 +718,29 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     };
   }
 
+  int _resolveColumnCount(double usableWidth, {required bool isNarrow}) {
+    if (!isNarrow) {
+      return (usableWidth / 264.0).floor().clamp(1, 8);
+    }
+    if (usableWidth >= 480) return 3;
+    if (usableWidth >= 280) return 2;
+    return 1;
+  }
+
   Widget _buildMasonryGallery(List<PromptComboEntry> entries) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 600;
-        final hPad = isNarrow ? 12.0 : 20.0;
-        const spacing = 14.0;
+        final hPad = isNarrow ? 8.0 : 20.0;
+        final spacing = isNarrow ? 8.0 : 14.0;
         final usableWidth = (constraints.maxWidth - hPad * 2).clamp(
           200.0,
           double.infinity,
         );
-        final columnCount = (usableWidth / 264.0).floor().clamp(1, 8);
+        final columnCount = _resolveColumnCount(usableWidth, isNarrow: isNarrow);
         final columnWidth =
             (usableWidth - (columnCount - 1) * spacing) / columnCount;
+        final isCompactCard = isNarrow || columnWidth < 230.0;
 
         // 按估算高度贪心分列，使瀑布流各列高度保持均衡
         final columns = List.generate(
@@ -709,7 +758,11 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
             }
           }
           final topY = colHeights[targetCol];
-          final estHeight = _estimateCardHeight(entry, columnWidth);
+          final estHeight = _estimateCardHeight(
+            entry,
+            columnWidth,
+            compact: isCompactCard,
+          );
           columns[targetCol].add(
             _MasonrySlot(
               entry: entry,
@@ -726,7 +779,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
 
         return SingleChildScrollView(
           controller: _gridScrollController,
-          padding: EdgeInsets.fromLTRB(hPad, 4, hPad, 20),
+          padding: EdgeInsets.fromLTRB(hPad, 2, hPad, isNarrow ? 14 : 20),
           child: ValueListenableBuilder<int>(
             valueListenable: _scrollBucket,
             builder: (context, bucket, _) {
@@ -738,18 +791,19 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   for (var c = 0; c < columnCount; c++) ...[
-                    if (c > 0) const SizedBox(width: spacing),
+                    if (c > 0) SizedBox(width: spacing),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           for (var i = 0; i < columns[c].length; i++) ...[
-                            if (i > 0) const SizedBox(height: spacing),
+                            if (i > 0) SizedBox(height: spacing),
                             RepaintBoundary(
                               key: ValueKey(columns[c][i].entry.id),
                               child: PromptComboCard(
                                 combo: columns[c][i].entry,
+                                compact: isCompactCard,
                                 loadImage:
                                     columns[c][i].bottomY >= visibleTop &&
                                     columns[c][i].topY <= visibleBottom,
@@ -783,16 +837,21 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
-  double _estimateCardHeight(PromptComboEntry entry, double columnWidth) {
+  double _estimateCardHeight(
+    PromptComboEntry entry,
+    double columnWidth, {
+    required bool compact,
+  }) {
     final path = entry.previewImagePath?.trim();
+    final textSectionHeight = compact ? 108.0 : 96.0;
     if (path == null || path.isEmpty || PromptImageProbe.isKnownMissing(path)) {
-      return 96.0;
+      return textSectionHeight;
     }
     final ratio = (PromptImageProbe.getCachedAspectRatio(path) ?? 1.0).clamp(
       0.45,
       2.2,
     );
-    return columnWidth / ratio + 96.0;
+    return columnWidth / ratio + textSectionHeight;
   }
 
   Widget _buildEmptyState(BuildContext context, bool isCompletelyEmpty) {

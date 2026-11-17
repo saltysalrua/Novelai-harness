@@ -30,6 +30,9 @@ class PromptComboCard extends StatelessWidget {
   /// 是否挂载图片解码 (瀑布流视口惰性裁剪用，默认为 true)
   final bool loadImage;
 
+  /// 窄屏/多列高密度模式：缩减内边距与字号，将操作区拆分为「应用」与「分类+工具」两行以避免按钮挤压截断。
+  final bool compact;
+
   const PromptComboCard({
     super.key,
     required this.combo,
@@ -37,6 +40,7 @@ class PromptComboCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     this.loadImage = true,
+    this.compact = false,
   });
 
   void _copyToClipboard(BuildContext context) {
@@ -94,6 +98,114 @@ class PromptComboCard extends StatelessWidget {
     );
   }
 
+  Widget _buildTitle(BuildContext context) {
+    final colors = context.colors;
+    return Tooltip(
+      message: combo.title,
+      child: Text(
+        combo.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: compact ? 12.5 : 13.5,
+          fontWeight: FontWeight.w600,
+          color: colors.textPrimary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPromptSnippet(BuildContext context, {required bool hasNegative}) {
+    final colors = context.colors;
+    return Tooltip(
+      message: hasNegative
+          ? '${combo.prompt}\nUC: ${combo.negativePrompt}'
+          : combo.prompt,
+      child: Text(
+        combo.prompt,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: compact ? 10.5 : 11.5,
+          height: compact ? 1.32 : 1.38,
+          color: colors.textMuted,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApplyPills(BuildContext context, {required bool isChar}) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    return Row(
+      children: [
+        Flexible(
+          flex: 3,
+          child: _SoftActionPill(
+            icon: Icons.bolt_outlined,
+            label: l10n.libraryCardApply,
+            backgroundColor: colors.primaryTint,
+            foregroundColor: colors.primary,
+            compact: compact,
+            onTap: () => onApply(false, false),
+          ),
+        ),
+        if (isChar) ...[
+          const SizedBox(width: 4),
+          Flexible(
+            flex: 2,
+            child: _SoftActionPill(
+              icon: Icons.person_add_alt_1_outlined,
+              label: l10n.libraryCardAddCharacter,
+              tooltip: l10n.libraryCardAddAsCharacterTooltip,
+              backgroundColor: colors.errorSurface,
+              foregroundColor: colors.error,
+              compact: compact,
+              onTap: () => onApply(false, true),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  List<Widget> _buildUtilityActions(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final btnSize = compact ? 22.0 : 24.0;
+    final iconSize = compact ? 13.0 : 14.0;
+    return [
+      _ComboCopyButton(
+        tooltip: l10n.libraryMenuCopyPrompt,
+        size: btnSize,
+        iconSize: iconSize,
+        onCopy: () => _copyToClipboard(context),
+      ),
+      const SizedBox(width: 2),
+      AppIconButton(
+        icon: Icons.edit_outlined,
+        tooltip: l10n.libraryMenuEdit,
+        size: btnSize,
+        iconSize: iconSize,
+        radius: AppRadius.sm,
+        iconColor: colors.textSecondary,
+        variant: AppIconButtonVariant.ghost,
+        onPressed: onEdit,
+      ),
+      const SizedBox(width: 2),
+      AppIconButton(
+        icon: Icons.delete_outline,
+        tooltip: l10n.delete,
+        size: btnSize,
+        iconSize: iconSize,
+        radius: AppRadius.sm,
+        iconColor: colors.error.withValues(alpha: 0.85),
+        variant: AppIconButtonVariant.ghost,
+        onPressed: onDelete,
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -102,11 +214,16 @@ class PromptComboCard extends StatelessWidget {
     final hasNegative = isChar && combo.negativePrompt.trim().isNotEmpty;
     final rawPath = combo.previewImagePath?.trim();
     final hasPreviewPath = rawPath != null && rawPath.isNotEmpty;
+    final categoryLabel = _QuietCategoryLabel(
+      label: comboCategoryLabelOf(l10n, combo.category),
+      isCharacter: isChar,
+      compact: compact,
+    );
 
     return AppCard(
       onTap: onEdit,
       onContextMenu: (position) => _showContextMenu(context, position),
-      radius: AppRadius.lg,
+      radius: compact ? AppRadius.md : AppRadius.lg,
       borderColor: colors.borderSubtle,
       padding: EdgeInsets.zero,
       child: Column(
@@ -121,118 +238,52 @@ class PromptComboCard extends StatelessWidget {
             ),
 
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+            padding: compact
+                ? const EdgeInsets.fromLTRB(8, 7, 8, 7)
+                : const EdgeInsets.fromLTRB(12, 10, 10, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 标题 + 极简无框分类标识
-                Row(
-                  children: [
-                    Expanded(
-                      child: Tooltip(
-                        message: combo.title,
-                        child: Text(
-                          combo.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _QuietCategoryLabel(
-                      label: comboCategoryLabelOf(l10n, combo.category),
-                      isCharacter: isChar,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
+                if (compact)
+                  _buildTitle(context)
+                else
+                  Row(
+                    children: [
+                      Expanded(child: _buildTitle(context)),
+                      const SizedBox(width: 8),
+                      categoryLabel,
+                    ],
+                  ),
+                SizedBox(height: compact ? 2 : 3),
 
                 // 提示词摘要 (两行更清晰，悬停看完整)
-                Tooltip(
-                  message: hasNegative
-                      ? '${combo.prompt}\nUC: ${combo.negativePrompt}'
-                      : combo.prompt,
-                  child: Text(
-                    combo.prompt,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      height: 1.38,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
+                _buildPromptSnippet(context, hasNegative: hasNegative),
+                SizedBox(height: compact ? 6 : 8),
 
-                // 底部无边框操作行
-                Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Flexible(
-                            flex: 3,
-                            child: _SoftActionPill(
-                              icon: Icons.bolt_outlined,
-                              label: l10n.libraryCardApply,
-                              backgroundColor: colors.primaryTint,
-                              foregroundColor: colors.primary,
-                              onTap: () => onApply(false, false),
-                            ),
-                          ),
-                          if (isChar) ...[
-                            const SizedBox(width: 4),
-                            Flexible(
-                              flex: 2,
-                              child: _SoftActionPill(
-                                icon: Icons.person_add_alt_1_outlined,
-                                label: l10n.libraryCardAddCharacter,
-                                tooltip: l10n.libraryCardAddAsCharacterTooltip,
-                                backgroundColor: colors.errorSurface,
-                                foregroundColor: colors.error,
-                                onTap: () => onApply(false, true),
-                              ),
-                            ),
-                          ],
-                        ],
+                // 底部无边框操作区：紧凑两列模式下拆分为「应用」与「分类+工具」两行，避免挤压截断
+                if (compact) ...[
+                  _buildApplyPills(context, isChar: isChar),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: categoryLabel,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    _ComboCopyButton(
-                      tooltip: l10n.libraryMenuCopyPrompt,
-                      onCopy: () => _copyToClipboard(context),
-                    ),
-                    const SizedBox(width: 2),
-                    AppIconButton(
-                      icon: Icons.edit_outlined,
-                      tooltip: l10n.libraryMenuEdit,
-                      size: 24,
-                      iconSize: 14,
-                      radius: AppRadius.sm,
-                      iconColor: colors.textSecondary,
-                      variant: AppIconButtonVariant.ghost,
-                      onPressed: onEdit,
-                    ),
-                    const SizedBox(width: 2),
-                    AppIconButton(
-                      icon: Icons.delete_outline,
-                      tooltip: l10n.delete,
-                      size: 24,
-                      iconSize: 14,
-                      radius: AppRadius.sm,
-                      iconColor: colors.error.withValues(alpha: 0.85),
-                      variant: AppIconButtonVariant.ghost,
-                      onPressed: onDelete,
-                    ),
-                  ],
-                ),
+                      ..._buildUtilityActions(context),
+                    ],
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(child: _buildApplyPills(context, isChar: isChar)),
+                      const SizedBox(width: 4),
+                      ..._buildUtilityActions(context),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -345,8 +396,13 @@ class _ComboNaturalImageState extends State<_ComboNaturalImage> {
 class _QuietCategoryLabel extends StatelessWidget {
   final String label;
   final bool isCharacter;
+  final bool compact;
 
-  const _QuietCategoryLabel({required this.label, required this.isCharacter});
+  const _QuietCategoryLabel({
+    required this.label,
+    required this.isCharacter,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -358,8 +414,8 @@ class _QuietCategoryLabel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 5,
-            height: 5,
+            width: compact ? 4.5 : 5,
+            height: compact ? 4.5 : 5,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 4),
@@ -369,7 +425,7 @@ class _QuietCategoryLabel extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: compact ? 10.5 : 11,
                 fontWeight: FontWeight.w500,
                 color: color,
               ),
@@ -388,6 +444,7 @@ class _SoftActionPill extends StatefulWidget {
   final String? tooltip;
   final Color backgroundColor;
   final Color foregroundColor;
+  final bool compact;
   final VoidCallback onTap;
 
   const _SoftActionPill({
@@ -396,6 +453,7 @@ class _SoftActionPill extends StatefulWidget {
     this.tooltip,
     required this.backgroundColor,
     required this.foregroundColor,
+    this.compact = false,
     required this.onTap,
   });
 
@@ -421,7 +479,7 @@ class _SoftActionPillState extends State<_SoftActionPill> {
         behavior: HitTestBehavior.opaque,
         child: Container(
           height: 24,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
+          padding: EdgeInsets.symmetric(horizontal: widget.compact ? 5 : 6),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -429,15 +487,19 @@ class _SoftActionPillState extends State<_SoftActionPill> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(widget.icon, size: 12, color: widget.foregroundColor),
-              const SizedBox(width: 3),
+              Icon(
+                widget.icon,
+                size: widget.compact ? 11 : 12,
+                color: widget.foregroundColor,
+              ),
+              SizedBox(width: widget.compact ? 2 : 3),
               Flexible(
                 child: Text(
                   widget.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: widget.compact ? 10.5 : 11,
                     fontWeight: FontWeight.w600,
                     color: widget.foregroundColor,
                   ),
@@ -458,9 +520,16 @@ class _SoftActionPillState extends State<_SoftActionPill> {
 
 class _ComboCopyButton extends StatefulWidget {
   final String tooltip;
+  final double size;
+  final double iconSize;
   final VoidCallback onCopy;
 
-  const _ComboCopyButton({required this.tooltip, required this.onCopy});
+  const _ComboCopyButton({
+    required this.tooltip,
+    this.size = 24.0,
+    this.iconSize = 14.0,
+    required this.onCopy,
+  });
 
   @override
   State<_ComboCopyButton> createState() => _ComboCopyButtonState();
@@ -504,8 +573,8 @@ class _ComboCopyButtonState extends State<_ComboCopyButton> {
               AppMotionDurations.quick,
             ),
             curve: AppMotionCurves.smoothOut,
-            width: 24,
-            height: 24,
+            width: widget.size,
+            height: widget.size,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: _copied
@@ -519,10 +588,10 @@ class _ComboCopyButtonState extends State<_ComboCopyButton> {
               swapKey: _copied,
               enableBlur: false,
               child: _copied
-                  ? AppSuccessCheck(size: 14, color: colors.success)
+                  ? AppSuccessCheck(size: widget.iconSize, color: colors.success)
                   : Icon(
                       Icons.copy_outlined,
-                      size: 14,
+                      size: widget.iconSize,
                       color: colors.textSecondary,
                     ),
             ),

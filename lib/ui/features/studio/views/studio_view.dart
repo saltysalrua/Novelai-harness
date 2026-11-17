@@ -643,6 +643,7 @@ class _StudioViewState extends State<StudioView> {
                     slideOffset: AppMotionDistances.medium,
                     enableBlur: false,
                     child: PromptLibraryView(
+                      compact: true,
                       viewModel: _viewModel,
                       onClose: () {
                         _viewModel.setActiveSidebarTab(

@@ -377,5 +377,31 @@ void main() {
       expect(find.text('Apply to Workbench'), findsWidgets);
       expect(find.text('+ Character'), findsWidgets);
     });
+
+    testWidgets(
+      'Narrow mobile PromptLibraryView renders 2-column masonry without overflow',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        await tester.pumpWidget(
+          buildTestApp(PromptLibraryView(viewModel: viewModel, compact: true)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        final cards = find.byType(PromptComboCard);
+        expect(cards, findsAtLeastNWidgets(2));
+
+        final firstRect = tester.getRect(cards.at(0));
+        final secondRect = tester.getRect(cards.at(1));
+        expect(secondRect.left, greaterThan(firstRect.right));
+        expect(firstRect.width, lessThan(220));
+      },
+    );
   });
 }

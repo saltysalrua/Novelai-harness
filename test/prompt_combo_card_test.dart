@@ -135,4 +135,59 @@ void main() {
     expect(find.byType(Image), findsNothing);
     expect(tester.getSize(find.byType(PromptComboCard)).height, lessThan(140));
   });
+
+  testWidgets('compact card at 170px renders two-row footer cleanly', (
+    tester,
+  ) async {
+    await tester.runAsync(() => PromptImageProbe.probeFile(portraitPngPath));
+    final applied = <(bool, bool)>[];
+    var edits = 0;
+    var deletes = 0;
+    final entry = PromptComboEntry(
+      id: 'compact_mobile',
+      title: '窄屏双列角色卡片标题长度验证',
+      prompt: 'long hair, golden eyes, white stockings',
+      negativePrompt: 'lowres',
+      previewImagePath: portraitPngPath,
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: Center(
+              child: SizedBox(
+                width: 170,
+                child: PromptComboCard(
+                  combo: entry,
+                  compact: true,
+                  onApply: (replace, character) =>
+                      applied.add((replace, character)),
+                  onEdit: () => edits++,
+                  onDelete: () => deletes++,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    await tester.ensureVisible(find.byIcon(Icons.bolt_outlined));
+    await tester.tap(find.byIcon(Icons.bolt_outlined));
+    await tester.tap(find.byIcon(Icons.person_add_alt_1_outlined));
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    expect(applied, [(false, false), (false, true)]);
+    expect(edits, 1);
+    expect(deletes, 1);
+    expect(tester.takeException(), isNull);
+  });
 }
