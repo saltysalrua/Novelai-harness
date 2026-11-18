@@ -6,11 +6,24 @@ mixin _StudioLibraryMixin on _StudioCore {
   @override
   List<PromptComboEntry> get promptLibraryEntries => _promptLibraryEntries;
 
+  /// 云同步状态与配置
+  bool get isSyncingPromptLibrary => _isSyncingPromptLibrary;
+  String? get promptSyncStage => _promptSyncStage;
+  DateTime? get lastPromptSyncAt => _lastPromptSyncAt;
+  PromptLibrarySyncResult? get lastPromptSyncResult => _lastPromptSyncResult;
+  PromptLibrarySyncConfig get promptLibrarySyncConfig => PromptLibrarySyncConfig(
+    endpoint: _config.promptSyncEndpoint,
+    token: _config.promptSyncToken,
+    namespace: _config.promptSyncNamespace,
+  );
+
   /// 加载词组合列表
   Future<void> loadPromptLibrary() async {
     try {
       final entries = await _promptLibraryService.loadEntries();
+      final syncState = await _promptLibraryService.loadSyncState();
       _promptLibraryEntries = List.unmodifiable(entries);
+      _lastPromptSyncAt = syncState.lastSyncAt;
       promptLibraryNotifier.value++;
       notifyListeners();
     } catch (_) {}
@@ -155,5 +168,62 @@ mixin _StudioLibraryMixin on _StudioCore {
     );
     await _reloadPromptLibrary();
     return count;
+  }
+
+  /// 保存词库云同步配置
+  Future<void> savePromptSyncConfig(PromptLibrarySyncConfig syncConfig) async {
+    final nextNs = syncConfig.normalizedNamespace;
+    await updateConfig(
+      _config.copyWith(
+        promptSyncEndpoint: syncConfig.endpoint.trim(),
+        promptSyncToken: syncConfig.token.trim(),
+        promptSyncNamespace: nextNs,
+      ),
+    );
+    promptLibraryNotifier.value++;
+  }
+
+  /// 测试 Cloudflare 词库云同步连接
+  Future<PromptLibrarySyncHealth> testPromptLibrarySyncConnection([
+    PromptLibrarySyncConfig? overrideConfig,
+  ]) {
+    return _promptLibrarySyncService.testConnection(
+      overrideConfig ?? promptLibrarySyncConfig,
+    );
+  }
+
+  /// 执行词库云同步 (支持双向增量合并 / 强制上传覆盖 / 强制拉取覆盖)
+  Future<PromptLibrarySyncResult> syncPromptLibrary({
+    PromptLibrarySyncMode mode = PromptLibrarySyncMode.merge,
+    PromptLibrarySyncConfig? overrideConfig,
+  }) async {
+    final targetConfig = overrideConfig ?? promptLibrarySyncConfig;
+    _isSyncingPromptLibrary = true;
+    _promptSyncStage = null;
+    promptLibraryNotifier.value++;
+    notifyListeners();
+
+    try {
+      final result = await _promptLibrarySyncService.sync(
+        targetConfig,
+        mode: mode,
+        onStatus: (stage) {
+          if (_disposed) return;
+          _promptSyncStage = stage;
+          promptLibraryNotifier.value++;
+        },
+      );
+      _lastPromptSyncAt = result.syncedAt;
+      _lastPromptSyncResult = result;
+      await _reloadPromptLibrary();
+      return result;
+    } finally {
+      if (!_disposed) {
+        _isSyncingPromptLibrary = false;
+        _promptSyncStage = null;
+        promptLibraryNotifier.value++;
+        notifyListeners();
+      }
+    }
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../../data/models/prompt_library_sync_models.dart';
 import '../../../../data/services/prompt_image_probe.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
@@ -14,10 +15,13 @@ import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_search_field.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/context_menu.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
+import '../../settings/widgets/settings_shared.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_combo_card.dart';
 import 'prompt_combo_edit_dialog.dart';
+import 'prompt_library_sync_dialog.dart';
 import 'studio_shared.dart';
 
 /// 词库全屏沉浸式管理器视图：
@@ -183,8 +187,9 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         builder: (ctx) => AppDialogScaffold(
           title: l10n.libraryImportDialogTitle,
           width: 480,
+          minimalChrome: true,
           body: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,29 +207,10 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                     fontFamily: 'monospace',
                     color: ctx.colors.textPrimary,
                   ),
-                  decoration: InputDecoration(
+                  decoration: settingsSoftInputDecoration(
+                    ctx,
                     hintText: '[{"title": "...", "prompt": "..."}]',
-                    hintStyle: TextStyle(
-                      fontSize: 12,
-                      color: ctx.colors.textMuted,
-                    ),
-                    filled: true,
-                    fillColor: ctx.colors.elevatedBackground,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      borderSide: BorderSide(
-                        color: ctx.colors.primary,
-                        width: 1.5,
-                      ),
-                    ),
+                    contentPadding: const EdgeInsets.all(12),
                   ),
                 ),
               ],
@@ -305,6 +291,38 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
           : null,
       onAction: widget.onClose,
     );
+  }
+
+  Future<void> _handleSync(PromptLibrarySyncMode mode) async {
+    final vm = widget.viewModel;
+    if (!vm.promptLibrarySyncConfig.isConfigured) {
+      await PromptLibrarySyncDialog.show(context, viewModel: vm);
+      return;
+    }
+    if (vm.isSyncingPromptLibrary) return;
+
+    final confirmed = await confirmPromptLibrarySyncMode(context, mode);
+    if (!confirmed || !mounted) return;
+
+    final l10n = context.l10n;
+    try {
+      final result = await vm.syncPromptLibrary(mode: mode);
+      if (!mounted) return;
+      showAppToast(
+        context,
+        message: formatPromptLibrarySyncSummary(l10n, result),
+        tone: AppToastTone.success,
+        duration: const Duration(seconds: 3),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showAppToast(
+        context,
+        message: l10n.librarySyncFailed(e.toString()),
+        tone: AppToastTone.error,
+        duration: const Duration(seconds: 3),
+      );
+    }
   }
 
   Future<void> _confirmDelete(PromptComboEntry combo) async {
@@ -476,6 +494,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 ],
                 Expanded(child: SizedBox(height: 34, child: searchField)),
                 const SizedBox(width: 6),
+                _buildSyncButton(context, compact: true),
+                const SizedBox(width: 6),
                 _buildManageMenu(context, compact: true),
                 const SizedBox(width: 6),
                 _buildNewComboButton(context, compact: true),
@@ -493,6 +513,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 Row(
                   children: [
                     Expanded(child: title),
+                    _buildSyncButton(context, compact: true),
+                    const SizedBox(width: 6),
                     _buildManageMenu(context, compact: true),
                     const SizedBox(width: 6),
                     _buildNewComboButton(context, compact: true),
@@ -513,11 +535,13 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               const SizedBox(width: 16),
               Expanded(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 320),
-                  child: searchField,
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: SizedBox(height: 34, child: searchField),
                 ),
               ),
               const SizedBox(width: 10),
+              _buildSyncButton(context, compact: false),
+              const SizedBox(width: 8),
               _buildManageMenu(context, compact: false),
               const SizedBox(width: 8),
               _buildNewComboButton(context, compact: false),
@@ -576,78 +600,116 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
-  /// 导入/导出菜单 (轻量底色，无边框)
-  Widget _buildManageMenu(BuildContext context, {required bool compact}) {
-    final colors = context.colors;
+  /// 快捷云同步按钮 (已配置则触发双向合并，未配置则打开设置弹窗)
+  Widget _buildSyncButton(BuildContext context, {required bool compact}) {
     final l10n = context.l10n;
-    return PopupMenuButton<String>(
-      tooltip: l10n.libraryDataManagement,
-      onSelected: (val) {
-        if (val == 'export') _handleExport();
-        if (val == 'import') _handleImport();
-      },
-      itemBuilder: (ctx) => [
-        PopupMenuItem(
-          value: 'export',
-          child: Row(
-            children: [
-              Icon(
-                Icons.file_download_outlined,
-                size: 16,
-                color: colors.textPrimary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                l10n.libraryExportJson,
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'import',
-          child: Row(
-            children: [
-              Icon(
-                Icons.file_upload_outlined,
-                size: 16,
-                color: colors.textPrimary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                l10n.libraryImportJson,
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      ],
-      child: Container(
-        padding: compact
-            ? const EdgeInsets.symmetric(horizontal: 8, vertical: 7)
-            : const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: colors.cardBackground,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.more_horiz, size: 16, color: colors.textSecondary),
-            if (!compact) ...[
-              const SizedBox(width: 4),
-              Text(
-                l10n.libraryManageButton,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: colors.textPrimary,
-                ),
-              ),
-            ],
-          ],
+    final vm = widget.viewModel;
+    final syncing = vm.isSyncingPromptLibrary;
+    final stage = vm.promptSyncStage;
+    final tooltip = syncing
+        ? (stage ?? l10n.librarySyncingLabel)
+        : l10n.librarySyncButton;
+
+    if (compact) {
+      return AppIconButton(
+        key: const Key('library_cloud_sync_button'),
+        icon: syncing ? Icons.sync_rounded : Icons.cloud_sync_outlined,
+        size: 34,
+        iconSize: 17,
+        variant: AppIconButtonVariant.outlined,
+        tooltip: tooltip,
+        onPressed: syncing
+            ? null
+            : () => _handleSync(PromptLibrarySyncMode.merge),
+      );
+    }
+
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        height: 34,
+        child: AppActionButton(
+          key: const Key('library_cloud_sync_button'),
+          icon: Icons.cloud_sync_outlined,
+          iconSize: 15,
+          label: syncing ? l10n.librarySyncingLabel : l10n.librarySyncButton,
+          variant: AppActionButtonVariant.outlined,
+          isLoading: syncing,
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 0),
+          onPressed: syncing
+              ? null
+              : () => _handleSync(PromptLibrarySyncMode.merge),
         ),
       ),
+    );
+  }
+
+  /// 统一 Notion 风格管理弹出菜单 (导出 / 导入 / 云同步设置与恢复)
+  Widget _buildManageMenu(BuildContext context, {required bool compact}) {
+    final l10n = context.l10n;
+
+    void openMenu(BuildContext btnContext) {
+      final renderObj = btnContext.findRenderObject();
+      if (renderObj is! RenderBox) return;
+      final bottomLeft = renderObj.localToGlobal(
+        Offset(0, renderObj.size.height + 6),
+      );
+      showStudioContextMenu(
+        btnContext,
+        position: bottomLeft,
+        actions: [
+          ContextMenuItem(
+            icon: Icons.tune_outlined,
+            label: l10n.librarySyncSettingsMenu,
+            onTap: () => PromptLibrarySyncDialog.show(
+              context,
+              viewModel: widget.viewModel,
+            ),
+          ),
+          const ContextMenuDivider(),
+          ContextMenuItem(
+            icon: Icons.file_download_outlined,
+            label: l10n.libraryExportJson,
+            onTap: _handleExport,
+          ),
+          ContextMenuItem(
+            icon: Icons.file_upload_outlined,
+            label: l10n.libraryImportJson,
+            onTap: _handleImport,
+          ),
+        ],
+      );
+    }
+
+    return Builder(
+      builder: (btnContext) {
+        if (compact) {
+          return AppIconButton(
+            key: const Key('library_manage_menu_button'),
+            icon: Icons.more_horiz_rounded,
+            size: 34,
+            iconSize: 18,
+            variant: AppIconButtonVariant.outlined,
+            tooltip: l10n.libraryDataManagement,
+            onPressed: () => openMenu(btnContext),
+          );
+        }
+        return Tooltip(
+          message: l10n.libraryDataManagement,
+          child: SizedBox(
+            height: 34,
+            child: AppActionButton(
+              key: const Key('library_manage_menu_button'),
+              icon: Icons.more_horiz_rounded,
+              iconSize: 16,
+              label: l10n.libraryManageButton,
+              variant: AppActionButtonVariant.outlined,
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 0),
+              onPressed: () => openMenu(btnContext),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -667,13 +729,16 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
         onPressed: openCreateDialog,
       );
     }
-    return AppActionButton(
-      icon: Icons.add_rounded,
-      iconSize: 16,
-      label: l10n.libraryNewCombo,
-      variant: AppActionButtonVariant.primary,
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-      onPressed: openCreateDialog,
+    return SizedBox(
+      height: 34,
+      child: AppActionButton(
+        icon: Icons.add_rounded,
+        iconSize: 16,
+        label: l10n.libraryNewCombo,
+        variant: AppActionButtonVariant.primary,
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 0),
+        onPressed: openCreateDialog,
+      ),
     );
   }
 

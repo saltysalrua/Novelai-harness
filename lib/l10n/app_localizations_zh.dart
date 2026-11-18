@@ -3906,4 +3906,169 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get toolFormatSchemaInvalid => 'JSON 格式无效，无法格式化';
+
+  @override
+  String get settingsSectionLibrarySync => '词库云同步';
+
+  @override
+  String get settingsLibrarySyncEndpointTitle => '同步服务地址';
+
+  @override
+  String get settingsLibrarySyncEndpointHint =>
+      'https://your-worker.workers.dev';
+
+  @override
+  String get settingsLibrarySyncTokenTitle => '访问密钥 (Token)';
+
+  @override
+  String get settingsLibrarySyncTokenHint => '在 Worker 中配置的 SYNC_TOKEN';
+
+  @override
+  String get settingsLibrarySyncNamespaceTitle => '命名空间';
+
+  @override
+  String get settingsLibrarySyncNamespaceHint => 'default';
+
+  @override
+  String get librarySyncButton => '云同步';
+
+  @override
+  String get librarySyncingLabel => '同步中...';
+
+  @override
+  String get librarySyncSettingsMenu => '云同步设置...';
+
+  @override
+  String get librarySyncMergeMenu => '立即云同步 (双向合并)';
+
+  @override
+  String get librarySyncForcePushMenu => '强制上传覆盖云端';
+
+  @override
+  String get librarySyncForcePullMenu => '强制拉取覆盖本地';
+
+  @override
+  String get librarySyncDialogTitle => '词库云同步';
+
+  @override
+  String get librarySyncDialogSubtitle =>
+      '通过 Cloudflare Workers + D1 免费同步词组合与去重预览图。';
+
+  @override
+  String get librarySyncTestConnection => '测试连接';
+
+  @override
+  String get librarySyncTesting => '测试中...';
+
+  @override
+  String librarySyncTestSuccess(int entries, int images, int revision) {
+    return '连接成功：云端 $entries 条词条 · $images 张预览图 (版本 r$revision)';
+  }
+
+  @override
+  String librarySyncTestFailed(String error) {
+    return '连接失败：$error';
+  }
+
+  @override
+  String get librarySyncSaveConfig => '保存配置';
+
+  @override
+  String get librarySyncConfigSaved => '已保存云同步配置';
+
+  @override
+  String librarySyncLastSynced(String time) {
+    return '上次同步：$time';
+  }
+
+  @override
+  String get librarySyncNeverSynced => '尚未同步过';
+
+  @override
+  String librarySyncDoneUpToDate(int revision) {
+    return '云同步完成，本地与云端已一致 (r$revision)';
+  }
+
+  @override
+  String librarySyncDoneSummary(
+    int pushed,
+    int pulled,
+    int deletedLocal,
+    int deletedRemote,
+    int uploadedImages,
+    int downloadedImages,
+  ) {
+    return '同步完成：上传 $pushed · 拉取 $pulled · 删本地 $deletedLocal · 删云端 $deletedRemote · 图 ↑$uploadedImages/↓$downloadedImages';
+  }
+
+  @override
+  String librarySyncForcePushDone(int count, int images) {
+    return '已强制上传覆盖云端 ($count 条，上传图片 $images 张)';
+  }
+
+  @override
+  String librarySyncForcePullDone(int count, int images) {
+    return '已强制拉取覆盖本地 ($count 条，下载图片 $images 张)';
+  }
+
+  @override
+  String librarySyncFailed(String error) {
+    return '云同步失败：$error';
+  }
+
+  @override
+  String get librarySyncForcePushConfirmTitle => '强制上传覆盖云端';
+
+  @override
+  String get librarySyncForcePushConfirmMessage =>
+      '将用本地当前全部词条覆盖云端命名空间中的记录（云端多余条目会被标记删除）。确定继续吗？';
+
+  @override
+  String get librarySyncForcePullConfirmTitle => '强制拉取覆盖本地';
+
+  @override
+  String get librarySyncForcePullConfirmMessage =>
+      '将用云端词库完全替换本地当前词库，本地未同步的新增或修改将被覆盖且无法撤销。确定继续吗？';
+
+  @override
+  String get librarySyncStatusUnconfigured => '未配置';
+
+  @override
+  String get librarySyncStatusConfigured => '已配置';
+
+  @override
+  String get librarySyncStatusConnected => '已连接';
+
+  @override
+  String get librarySyncStatusError => '连接异常';
+
+  @override
+  String get librarySyncConfigSection => '连接配置';
+
+  @override
+  String get librarySyncConfigCollapsedHint => '展开可修改 Worker 地址、密钥或命名空间';
+
+  @override
+  String get librarySyncOverwriteSection => '强制覆盖与恢复';
+
+  @override
+  String get librarySyncOverwriteSectionHint => '仅在冲突无法合并或需要整库重置时使用';
+
+  @override
+  String get librarySyncForcePushHint => '以本地为准覆盖云端（云端多余条目将标记为已删除）';
+
+  @override
+  String get librarySyncForcePullHint => '以云端为准替换本地（本地未同步的修改会丢失）';
+
+  @override
+  String get librarySyncOverwriteConfirmButton => '确认覆盖';
+
+  @override
+  String get librarySyncEndpointSubtitle => '已部署的 Cloudflare Worker 访问地址';
+
+  @override
+  String get librarySyncTokenSubtitle => '与 Worker 中配置的 SYNC_TOKEN Secret 一致';
+
+  @override
+  String get librarySyncNamespaceSubtitle => '用于隔离多套词库（默认 default）';
 }

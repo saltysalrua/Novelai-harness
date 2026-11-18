@@ -33,6 +33,7 @@ import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/models/comfyui_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
+import '../../../../data/models/prompt_library_sync_models.dart';
 import '../../../../data/models/skill_package.dart';
 import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
@@ -48,6 +49,7 @@ import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../data/services/inpaint_service.dart';
 import '../../../../data/services/watermark_service.dart';
 import '../../../../data/services/prompt_library_service.dart';
+import '../../../../data/services/prompt_library_sync_service.dart';
 import '../../../../data/services/session_log_service.dart';
 import '../../../../data/services/skill_package_service.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
@@ -92,6 +94,7 @@ mixin _StudioCore on ChangeNotifier {
   late final ConfigService _configService;
   late final NovelAiRepository _repository;
   PromptLibraryService _promptLibraryService = PromptLibraryService.instance;
+  late final PromptLibrarySyncService _promptLibrarySyncService;
   late final SkillPackageService _skillPackageService;
   Future<void> _skillWriteQueue = Future<void>.value();
   final SessionLogService _sessionLog = SessionLogService();
@@ -101,6 +104,12 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 本地词组合库条目列表
   List<PromptComboEntry> _promptLibraryEntries = const [];
+
+  /// 词库云同步状态
+  bool _isSyncingPromptLibrary = false;
+  String? _promptSyncStage;
+  DateTime? _lastPromptSyncAt;
+  PromptLibrarySyncResult? _lastPromptSyncResult;
 
   /// 词库条目列表独立通知器：避免工作台打字、对话流或生图进度触发词库全量重建
   final ValueNotifier<int> promptLibraryNotifier = ValueNotifier<int>(0);
@@ -680,6 +689,7 @@ class StudioViewModel extends ChangeNotifier
     ConfigService? configService,
     NovelAiRepository? repository,
     PromptLibraryService? promptLibraryService,
+    PromptLibrarySyncService? promptLibrarySyncService,
     SkillPackageService? skillPackageService,
     String? sessionLogBaseDir,
   }) {
@@ -688,6 +698,11 @@ class StudioViewModel extends ChangeNotifier
     _repository = repository ?? NovelAiRepository();
     _promptLibraryService =
         promptLibraryService ?? PromptLibraryService.instance;
+    _promptLibrarySyncService =
+        promptLibrarySyncService ??
+        (promptLibraryService == null
+            ? PromptLibrarySyncService.instance
+            : PromptLibrarySyncService(libraryService: _promptLibraryService));
     _skillPackageService = skillPackageService ?? SkillPackageService();
     _sessionLogBaseDir = sessionLogBaseDir;
     _toolRegistry = ToolRegistry();

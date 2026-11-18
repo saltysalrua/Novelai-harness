@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../models/prompt_library_models.dart';
+import '../models/prompt_library_sync_models.dart';
 import '../models/tag_models.dart';
 import 'prompt_image_probe.dart';
 
@@ -18,13 +19,19 @@ class PromptLibraryService {
 
   String? _customStorageDir;
   List<PromptComboEntry>? _cachedEntries;
+  PromptLibrarySyncState? _cachedSyncState;
 
   /// 获取当前已加载的词库条目内存缓存 (未显式加载时视为空)
   List<PromptComboEntry> get cachedEntries => _cachedEntries ?? const [];
 
+  /// 获取当前已加载的同步状态内存缓存
+  PromptLibrarySyncState? get cachedSyncState => _cachedSyncState;
+
   /// 用于测试或自定义设置的存储根目录
   void setCustomStorageDirectory(String? dir) {
     _customStorageDir = dir;
+    _cachedEntries = null;
+    _cachedSyncState = null;
   }
 
   /// 获取存储词库数据的目标文件
@@ -37,6 +44,16 @@ class PromptLibraryService {
     return File(p.join(baseDir, 'prompt_library.json'));
   }
 
+  /// 获取同步状态持久化文件 (删除墓碑与图片哈希缓存)
+  Future<File> _getSyncStateFile() async {
+    final baseDir = _customStorageDir ?? (await _getAppSupportDir()).path;
+    final dir = Directory(baseDir);
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+    return File(p.join(baseDir, 'prompt_library_sync_state.json'));
+  }
+
   /// 获取本地预览图存储目录
   Future<Directory> _getPreviewDir() async {
     final baseDir = _customStorageDir ?? (await _getAppSupportDir()).path;
@@ -46,6 +63,9 @@ class PromptLibraryService {
     }
     return dir;
   }
+
+  /// 获取托管预览图目录 (供同步服务复用或清理孤儿缓存)
+  Future<Directory> getPreviewDirectory() => _getPreviewDir();
 
   Future<Directory> _getAppSupportDir() async {
     try {
@@ -157,11 +177,95 @@ class PromptLibraryService {
     return results;
   }
 
+  /// 加载同步状态 (墓碑与本地预览图哈希缓存)
+  Future<PromptLibrarySyncState> loadSyncState() async {
+    if (_cachedSyncState != null) return _cachedSyncState!;
+    final file = await _getSyncStateFile();
+    if (!file.existsSync()) {
+      _cachedSyncState = const PromptLibrarySyncState();
+      return _cachedSyncState!;
+    }
+    try {
+      final raw = await file.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        _cachedSyncState = PromptLibrarySyncState.fromJson(decoded);
+        return _cachedSyncState!;
+      }
+    } catch (_) {}
+    _cachedSyncState = const PromptLibrarySyncState();
+    return _cachedSyncState!;
+  }
+
+  /// 持久化保存同步状态
+  Future<void> saveSyncState(PromptLibrarySyncState state) async {
+    _cachedSyncState = state;
+    final file = await _getSyncStateFile();
+    await file.writeAsString(jsonEncode(state.toJson()), flush: true);
+  }
+
+  /// 一次性提交云同步产物并清理孤儿托管预览图
+  Future<void> applySyncOutcome({
+    required List<PromptComboEntry> entries,
+    required PromptLibrarySyncState syncState,
+  }) async {
+    await saveEntries(entries);
+    await saveSyncState(syncState);
+    final activePaths = entries
+        .map((e) => e.previewImagePath?.trim())
+        .whereType<String>()
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    await pruneOrphanedManagedPreviews(activePaths);
+  }
+
+  /// 清理托管预览目录中不再被任何活跃条目引用的文件
+  Future<void> pruneOrphanedManagedPreviews(Set<String> activePaths) async {
+    try {
+      final previewDir = await _getPreviewDir();
+      if (!previewDir.existsSync()) return;
+      final normalizedActive = activePaths.map(p.normalize).toSet();
+      await for (final entity in previewDir.list(followLinks: false)) {
+        if (entity is! File) continue;
+        final normalized = p.normalize(entity.path);
+        if (!normalizedActive.contains(normalized)) {
+          try {
+            await entity.delete();
+            PromptImageProbe.invalidate(entity.path);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _clearTombstonesForIds(Iterable<String> ids) async {
+    final targetIds = ids.where((id) => id.isNotEmpty).toSet();
+    if (targetIds.isEmpty) return;
+    final state = await loadSyncState();
+    if (!targetIds.any(state.tombstones.containsKey)) return;
+    final nextTombstones = Map<String, DateTime>.from(state.tombstones)
+      ..removeWhere((key, _) => targetIds.contains(key));
+    await saveSyncState(state.copyWith(tombstones: nextTombstones));
+  }
+
+  Future<void> _recordTombstones(Iterable<String> ids) async {
+    final targetIds = ids.where((id) => id.isNotEmpty).toSet();
+    if (targetIds.isEmpty) return;
+    final state = await loadSyncState();
+    final now = DateTime.now().toUtc();
+    final nextTombstones = Map<String, DateTime>.from(state.tombstones);
+    for (final id in targetIds) {
+      nextTombstones[id] = now;
+    }
+    await saveSyncState(state.copyWith(tombstones: nextTombstones));
+  }
+
   /// 添加词组合条目
   Future<PromptComboEntry> addEntry(PromptComboEntry entry) async {
     final list = await loadEntries();
     list.insert(0, entry);
     await saveEntries(list);
+    await _clearTombstonesForIds([entry.id]);
     return entry;
   }
 
@@ -188,13 +292,16 @@ class PromptLibraryService {
       final oldPath = list[idx].previewImagePath;
       list[idx] = entry;
       await saveEntries(list);
-      if (oldPath != null && oldPath != entry.previewImagePath) {
+      await _clearTombstonesForIds([entry.id]);
+      if (oldPath != null &&
+          oldPath != entry.previewImagePath &&
+          !list.any((e) => e.previewImagePath == oldPath)) {
         await _deleteManagedPreviewFile(oldPath);
       }
     }
   }
 
-  /// 删除词组合条目
+  /// 删除词组合条目 (同时记录删除墓碑，供多端云同步感知删除)
   Future<void> deleteEntry(String id) async {
     final list = await loadEntries();
     final idx = list.indexWhere((e) => e.id == id);
@@ -202,7 +309,11 @@ class PromptLibraryService {
       final item = list[idx];
       list.removeAt(idx);
       await saveEntries(list);
-      await _deleteManagedPreviewFile(item.previewImagePath);
+      await _recordTombstones([id]);
+      final oldPath = item.previewImagePath;
+      if (oldPath != null && !list.any((e) => e.previewImagePath == oldPath)) {
+        await _deleteManagedPreviewFile(oldPath);
+      }
     }
   }
 
@@ -265,19 +376,30 @@ class PromptLibraryService {
     if (imported.isEmpty) return 0;
 
     if (replaceAll) {
+      final prevList = await loadEntries();
+      final importedIds = imported.map((e) => e.id).toSet();
+      final removedIds = prevList
+          .map((e) => e.id)
+          .where((id) => !importedIds.contains(id))
+          .toList();
       await saveEntries(imported);
+      await _recordTombstones(removedIds);
+      await _clearTombstonesForIds(importedIds);
       return imported.length;
     } else {
       final currentList = await loadEntries();
       final currentIds = currentList.map((e) => e.id).toSet();
+      final addedIds = <String>[];
       int added = 0;
       for (final item in imported) {
         if (!currentIds.contains(item.id)) {
           currentList.add(item);
+          addedIds.add(item.id);
           added++;
         }
       }
       await saveEntries(currentList);
+      await _clearTombstonesForIds(addedIds);
       return added;
     }
   }

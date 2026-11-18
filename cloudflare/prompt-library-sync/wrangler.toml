@@ -1,0 +1,14 @@
+name = "novelai-prompt-library-sync"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+
+# 部署步骤：
+# 1. 运行 `npx wrangler d1 create prompt_library_sync`
+# 2. 将输出的 database_id 填入下方
+# 3. 运行 `npx wrangler d1 execute prompt_library_sync --remote --file=./schema.sql`
+# 4. 运行 `npx wrangler secret put SYNC_TOKEN` 设置你的访问密钥
+# 5. 运行 `npx wrangler deploy`
+[[d1_databases]]
+binding = "DB"
+database_name = "prompt_library_sync"
+database_id = "ba9aed7f-f337-4cd9-b0a1-38fcd7b7874f"

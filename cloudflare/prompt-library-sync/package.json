@@ -1,0 +1,16 @@
+{
+  "name": "novelai-prompt-library-sync",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init:local": "wrangler d1 execute prompt_library_sync --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute prompt_library_sync --remote --file=./schema.sql",
+    "test": "node --test test/worker.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

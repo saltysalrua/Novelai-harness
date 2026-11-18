@@ -173,6 +173,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
       comfyUiResolutionNodeId: _generalDraft.comfyResolutionNodeController.text
           .trim(),
       comfyUiParamsNodeId: _generalDraft.comfyParamsNodeController.text.trim(),
+      promptSyncEndpoint: _generalDraft.promptSyncEndpointController.text
+          .trim(),
+      promptSyncToken: _generalDraft.promptSyncTokenController.text.trim(),
+      promptSyncNamespace:
+          _generalDraft.promptSyncNamespaceController.text.trim().isEmpty
+          ? 'default'
+          : _generalDraft.promptSyncNamespaceController.text.trim(),
       llmProviders: _modelsDraft.providers,
       activeLlmProviderId: _modelsDraft.selectedProviderId,
       imageEditProviderId: _modelsDraft.imageEditProviderId,

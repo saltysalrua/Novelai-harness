@@ -1,0 +1,311 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { handleRequest } from '../src/worker.js';
+
+const schemaSql = fs.readFileSync(
+  path.resolve(import.meta.dirname, '../schema.sql'),
+  'utf8',
+);
+
+function createD1Mock() {
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec(schemaSql);
+
+  class BoundStmt {
+    constructor(sql, params) {
+      this.sql = sql;
+      this.params = params;
+    }
+
+    async first() {
+      const stmt = sqlite.prepare(this.sql);
+      const row = stmt.get(...this.params);
+      return row ?? null;
+    }
+
+    async all() {
+      const stmt = sqlite.prepare(this.sql);
+      const results = stmt.all(...this.params);
+      return { results };
+    }
+
+    async run() {
+      const stmt = sqlite.prepare(this.sql);
+      const info = stmt.run(...this.params);
+      return { success: true, meta: info };
+    }
+  }
+
+  return {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          return new BoundStmt(sql, params);
+        },
+        first() {
+          return new BoundStmt(sql, []).first();
+        },
+        all() {
+          return new BoundStmt(sql, []).all();
+        },
+        run() {
+          return new BoundStmt(sql, []).run();
+        },
+      };
+    },
+    async batch(statements) {
+      const results = [];
+      sqlite.exec('BEGIN');
+      try {
+        for (const s of statements) {
+          results.push(await s.run());
+        }
+        sqlite.exec('COMMIT');
+      } catch (err) {
+        sqlite.exec('ROLLBACK');
+        throw err;
+      }
+      return results;
+    },
+  };
+}
+
+async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+const TEST_TOKEN = 'unit-test-sync-token-value';
+
+function makeEnv(db) {
+  return {
+    DB: db,
+    SYNC_TOKEN: TEST_TOKEN,
+  };
+}
+
+function authedRequest(urlPath, init = {}) {
+  const headers = new Headers(init.headers || {});
+  headers.set('Authorization', `Bearer ${TEST_TOKEN}`);
+  return new Request(`https://sync.example.com${urlPath}`, {
+    ...init,
+    headers,
+  });
+}
+
+test('rejects unauthenticated requests and missing server token', async () => {
+  const db = createD1Mock();
+  const resNoConfig = await handleRequest(
+    new Request('https://sync.example.com/api/health'),
+    { DB: db, SYNC_TOKEN: '' },
+  );
+  assert.equal(resNoConfig.status, 500);
+
+  const resUnauth = await handleRequest(
+    new Request('https://sync.example.com/api/health'),
+    makeEnv(db),
+  );
+  assert.equal(resUnauth.status, 401);
+
+  const resBadToken = await handleRequest(
+    new Request('https://sync.example.com/api/health', {
+      headers: { Authorization: 'Bearer wrong-token' },
+    }),
+    makeEnv(db),
+  );
+  assert.equal(resBadToken.status, 401);
+});
+
+test('health, push merge, timestamp guard, tombstone and replace mode', async () => {
+  const env = makeEnv(createD1Mock());
+
+  const health0 = await (await handleRequest(authedRequest('/api/health'), env)).json();
+  assert.equal(health0.ok, true);
+  assert.equal(health0.activeEntries, 0);
+  assert.equal(health0.revision, 0);
+
+  // Push two entries
+  const pushRes = await handleRequest(
+    authedRequest('/api/sync/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        namespace: 'default',
+        mode: 'merge',
+        entries: [
+          {
+            id: 'c1',
+            title: 'Miku',
+            category: '角色',
+            prompt: '1girl, hatsune miku',
+            negativePrompt: 'bad hands',
+            tags: ['vocaloid'],
+            isFavorite: true,
+            isBuiltin: false,
+            createdAt: '2026-11-18T10:00:00.000Z',
+            updatedAt: '2026-11-18T10:00:00.000Z',
+          },
+          {
+            id: 'c2',
+            title: 'Watercolor',
+            category: '风格',
+            prompt: 'watercolor style',
+            negativePrompt: 'ignored for non-char',
+            tags: [],
+            createdAt: '2026-11-18T10:00:00.000Z',
+            updatedAt: '2026-11-18T10:00:00.000Z',
+          },
+        ],
+      }),
+    }),
+    env,
+  );
+  assert.equal(pushRes.status, 200);
+  const pushJson = await pushRes.json();
+  assert.equal(pushJson.revision, 1);
+  assert.equal(pushJson.appliedCount, 2);
+
+  // Stale merge update must NOT overwrite newer server entry
+  const staleRes = await handleRequest(
+    authedRequest('/api/sync/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        namespace: 'default',
+        mode: 'merge',
+        entries: [
+          {
+            id: 'c1',
+            title: 'Old Miku',
+            category: '角色',
+            prompt: 'stale prompt',
+            createdAt: '2026-11-18T09:00:00.000Z',
+            updatedAt: '2026-11-18T09:00:00.000Z',
+          },
+        ],
+      }),
+    }),
+    env,
+  );
+  const staleJson = await staleRes.json();
+  assert.equal(staleJson.appliedCount, 0);
+
+  const syncAfterStale = await (await handleRequest(authedRequest('/api/sync'), env)).json();
+  assert.equal(syncAfterStale.entries.find((e) => e.id === 'c1').title, 'Miku');
+  assert.equal(syncAfterStale.entries.find((e) => e.id === 'c2').negativePrompt, '');
+
+  // Replace mode marks missing active entry as tombstone
+  const replaceRes = await handleRequest(
+    authedRequest('/api/sync/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        namespace: 'default',
+        mode: 'replace',
+        entries: [
+          {
+            id: 'c1',
+            title: 'Miku Replaced',
+            category: '角色',
+            prompt: '1girl, hatsune miku, v5',
+            createdAt: '2026-11-18T10:00:00.000Z',
+            updatedAt: '2026-11-18T11:00:00.000Z',
+          },
+        ],
+      }),
+    }),
+    env,
+  );
+  assert.equal(replaceRes.status, 200);
+
+  const syncAfterReplace = await (await handleRequest(authedRequest('/api/sync'), env)).json();
+  const c1 = syncAfterReplace.entries.find((e) => e.id === 'c1');
+  const c2 = syncAfterReplace.entries.find((e) => e.id === 'c2');
+  assert.equal(c1.title, 'Miku Replaced');
+  assert.equal(c1.deletedAt, null);
+  assert.ok(c2.deletedAt);
+});
+
+test('chunked image upload, deduplication, download, and GC', async () => {
+  const env = makeEnv(createD1Mock());
+
+  // Build > 256 KiB synthetic PNG payload (triggers multi-chunk D1 storage!)
+  const payload = new Uint8Array(300 * 1024);
+  payload.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  for (let i = 8; i < payload.length; i++) {
+    payload[i] = i % 251;
+  }
+  const hash = await sha256Hex(payload);
+
+  // Check missing
+  const check1 = await (
+    await handleRequest(
+      authedRequest('/api/images/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hashes: [hash] }),
+      }),
+      env,
+    )
+  ).json();
+  assert.deepEqual(check1.missing, [hash]);
+  assert.deepEqual(check1.existing, []);
+
+  // Reject hash mismatch
+  const mismatch = await handleRequest(
+    authedRequest(`/api/images/${'0'.repeat(64)}`, {
+      method: 'PUT',
+      body: payload,
+    }),
+    env,
+  );
+  assert.equal(mismatch.status, 400);
+
+  // Upload valid chunked image
+  const putRes = await handleRequest(
+    authedRequest(`/api/images/${hash}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/png', 'X-Image-Ext': 'png' },
+      body: payload,
+    }),
+    env,
+  );
+  assert.equal(putRes.status, 200);
+  const putJson = await putRes.json();
+  assert.equal(putJson.chunkCount, 2);
+  assert.equal(putJson.deduplicated, false);
+
+  // Deduplicated second upload
+  const putDup = await (
+    await handleRequest(
+      authedRequest(`/api/images/${hash}`, {
+        method: 'PUT',
+        body: payload,
+      }),
+      env,
+    )
+  ).json();
+  assert.equal(putDup.deduplicated, true);
+
+  // Download and verify exact bytes
+  const getRes = await handleRequest(authedRequest(`/api/images/${hash}`), env);
+  assert.equal(getRes.status, 200);
+  assert.equal(getRes.headers.get('Content-Type'), 'image/png');
+  const downloaded = new Uint8Array(await getRes.arrayBuffer());
+  assert.equal(downloaded.length, payload.length);
+  assert.deepEqual(downloaded, payload);
+
+  // GC deletes unreferenced image
+  const gcRes = await (
+    await handleRequest(authedRequest('/api/images/gc', { method: 'POST' }), env)
+  ).json();
+  assert.equal(gcRes.deletedImages, 1);
+
+  const afterGc = await handleRequest(authedRequest(`/api/images/${hash}`), env);
+  assert.equal(afterGc.status, 404);
+});

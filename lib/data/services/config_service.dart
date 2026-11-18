@@ -220,6 +220,11 @@ class AppConfig {
   /// 如 normal / karras / exponential)
   final String comfyUiScheduler;
 
+  // 词库云同步设置 (Cloudflare Workers + D1)
+  final String promptSyncEndpoint;
+  final String promptSyncToken;
+  final String promptSyncNamespace;
+
   // LLM 设置 (多供应商配置)
   final List<LlmProviderConfig> llmProviders;
   final String activeLlmProviderId;
@@ -338,6 +343,9 @@ class AppConfig {
     this.comfyUiParamsNodeId = '',
     this.comfyUiSampler = '',
     this.comfyUiScheduler = '',
+    this.promptSyncEndpoint = '',
+    this.promptSyncToken = '',
+    this.promptSyncNamespace = 'default',
     this.llmProviders = const [],
     this.activeLlmProviderId = 'deepseek',
     this.imageEditProviderId = '',
@@ -402,6 +410,9 @@ class AppConfig {
     String? comfyUiParamsNodeId,
     String? comfyUiSampler,
     String? comfyUiScheduler,
+    String? promptSyncEndpoint,
+    String? promptSyncToken,
+    String? promptSyncNamespace,
     List<LlmProviderConfig>? llmProviders,
     String? activeLlmProviderId,
     String? imageEditProviderId,
@@ -472,6 +483,9 @@ class AppConfig {
       comfyUiParamsNodeId: comfyUiParamsNodeId ?? this.comfyUiParamsNodeId,
       comfyUiSampler: comfyUiSampler ?? this.comfyUiSampler,
       comfyUiScheduler: comfyUiScheduler ?? this.comfyUiScheduler,
+      promptSyncEndpoint: promptSyncEndpoint ?? this.promptSyncEndpoint,
+      promptSyncToken: promptSyncToken ?? this.promptSyncToken,
+      promptSyncNamespace: promptSyncNamespace ?? this.promptSyncNamespace,
       llmProviders: updatedProviders,
       activeLlmProviderId: targetActiveId,
       anySearchApiKey: anySearchApiKey ?? this.anySearchApiKey,
@@ -580,6 +594,11 @@ class ConfigService {
       'novelai_comfyui_params_node_id';
   static const String _keyComfyUiSampler = 'novelai_comfyui_sampler';
   static const String _keyComfyUiScheduler = 'novelai_comfyui_scheduler';
+
+  // 词库云同步持久化 Keys
+  static const String _keyPromptSyncEndpoint = 'novelai_prompt_sync_endpoint';
+  static const String _keyPromptSyncToken = 'novelai_prompt_sync_token';
+  static const String _keyPromptSyncNamespace = 'novelai_prompt_sync_namespace';
 
   // 页面布局持久化 Keys
   static const String _keySplitLeftWidth = 'novelai_layout_split_left_width';
@@ -920,6 +939,11 @@ class ConfigService {
         prefs.getString(_keyComfyUiParamsNodeId) ?? '';
     final String comfySampler = prefs.getString(_keyComfyUiSampler) ?? '';
     final String comfyScheduler = prefs.getString(_keyComfyUiScheduler) ?? '';
+    final String promptSyncEndpoint =
+        prefs.getString(_keyPromptSyncEndpoint) ?? '';
+    final String promptSyncToken = prefs.getString(_keyPromptSyncToken) ?? '';
+    final String promptSyncNamespace =
+        prefs.getString(_keyPromptSyncNamespace) ?? 'default';
 
     return AppConfig(
       novelAiKey: naiKey,
@@ -979,6 +1003,9 @@ class ConfigService {
       comfyUiParamsNodeId: comfyParamsNodeId,
       comfyUiSampler: comfySampler,
       comfyUiScheduler: comfyScheduler,
+      promptSyncEndpoint: promptSyncEndpoint,
+      promptSyncToken: promptSyncToken,
+      promptSyncNamespace: promptSyncNamespace,
       llmProviders: providers,
       activeLlmProviderId: activeProviderId,
       imageEditProviderId: imageEditProviderId,
@@ -1074,6 +1101,9 @@ class ConfigService {
       _keyComfyUiParamsNodeId: config.comfyUiParamsNodeId,
       _keyComfyUiSampler: config.comfyUiSampler,
       _keyComfyUiScheduler: config.comfyUiScheduler,
+      _keyPromptSyncEndpoint: config.promptSyncEndpoint,
+      _keyPromptSyncToken: config.promptSyncToken,
+      _keyPromptSyncNamespace: config.promptSyncNamespace,
       _keyLlmProviders: providersJson,
       _keyActiveLlmProviderId: config.activeLlmProviderId,
       _keyImageEditProviderId: config.imageEditProviderId,

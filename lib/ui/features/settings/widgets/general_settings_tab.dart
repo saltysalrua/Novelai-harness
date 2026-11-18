@@ -2,10 +2,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../../data/models/prompt_library_sync_models.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/models/nai_generation_params.dart';
 import '../../../../data/services/image_save_path_service.dart';
 import '../../../../data/services/media_store_service.dart';
+import '../../../../data/services/prompt_library_sync_service.dart';
 import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -59,6 +61,15 @@ class GeneralSettingsDraft {
       ),
       comfyParamsNodeController = TextEditingController(
         text: config.comfyUiParamsNodeId,
+      ),
+      promptSyncEndpointController = TextEditingController(
+        text: config.promptSyncEndpoint,
+      ),
+      promptSyncTokenController = TextEditingController(
+        text: config.promptSyncToken,
+      ),
+      promptSyncNamespaceController = TextEditingController(
+        text: config.promptSyncNamespace,
       ),
       opusFreeMode = config.opusFreeMode,
       themeMode = config.themeMode,
@@ -117,6 +128,9 @@ class GeneralSettingsDraft {
   final TextEditingController comfyPromptNodeController;
   final TextEditingController comfyResolutionNodeController;
   final TextEditingController comfyParamsNodeController;
+  final TextEditingController promptSyncEndpointController;
+  final TextEditingController promptSyncTokenController;
+  final TextEditingController promptSyncNamespaceController;
   bool comfyUiEnabled;
   int rtxUpscaleScale;
 
@@ -167,6 +181,9 @@ class GeneralSettingsDraft {
     comfyPromptNodeController.dispose();
     comfyResolutionNodeController.dispose();
     comfyParamsNodeController.dispose();
+    promptSyncEndpointController.dispose();
+    promptSyncTokenController.dispose();
+    promptSyncNamespaceController.dispose();
   }
 }
 
@@ -195,6 +212,9 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
   TagDictMeta? _dictMeta;
   bool _dictUpdating = false;
   String _dictStatus = '';
+  bool _syncTesting = false;
+  String _syncTestMessage = '';
+  bool _syncTestOk = false;
 
   @override
   void initState() {
@@ -303,6 +323,41 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
     final selected = await FilePicker.platform.getDirectoryPath();
     if (selected != null && selected.isNotEmpty && mounted) {
       setState(() => _draft.saveDirController.text = selected);
+    }
+  }
+
+  Future<void> _testLibrarySync() async {
+    if (_syncTesting) return;
+    final l10n = context.l10n;
+    setState(() {
+      _syncTesting = true;
+      _syncTestMessage = '';
+    });
+    try {
+      final health = await PromptLibrarySyncService.instance.testConnection(
+        PromptLibrarySyncConfig(
+          endpoint: _draft.promptSyncEndpointController.text.trim(),
+          token: _draft.promptSyncTokenController.text.trim(),
+          namespace: _draft.promptSyncNamespaceController.text.trim(),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _syncTestOk = true;
+        _syncTestMessage = l10n.librarySyncTestSuccess(
+          health.activeEntries,
+          health.imageCount,
+          health.revision,
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _syncTestOk = false;
+        _syncTestMessage = l10n.librarySyncTestFailed(e.toString());
+      });
+    } finally {
+      if (mounted) setState(() => _syncTesting = false);
     }
   }
 
@@ -613,6 +668,100 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   controller: _draft.anySearchKeyController,
                   hintText: 'as_sk-...',
                 ),
+              ),
+              const SizedBox(height: 12),
+              AppSectionHeader(title: l10n.settingsSectionLibrarySync),
+              AppSettingTile(
+                title: l10n.settingsLibrarySyncEndpointTitle,
+                subtitle: l10n.librarySyncEndpointSubtitle,
+                control: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 260),
+                  child: SizedBox(
+                    height: 36,
+                    child: TextField(
+                      controller: _draft.promptSyncEndpointController,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        hintText: l10n.settingsLibrarySyncEndpointHint,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsLibrarySyncTokenTitle,
+                subtitle: l10n.librarySyncTokenSubtitle,
+                control: SettingsKeyField(
+                  controller: _draft.promptSyncTokenController,
+                  hintText: l10n.settingsLibrarySyncTokenHint,
+                  width: 260,
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsLibrarySyncNamespaceTitle,
+                subtitle: l10n.librarySyncNamespaceSubtitle,
+                control: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 120,
+                      height: 36,
+                      child: TextField(
+                        controller: _draft.promptSyncNamespaceController,
+                        style: const TextStyle(fontSize: 12),
+                        decoration: InputDecoration(
+                          hintText: l10n.settingsLibrarySyncNamespaceHint,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AppActionButton(
+                      icon: _syncTestOk && _syncTestMessage.isNotEmpty
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.network_check_rounded,
+                      label: _syncTesting
+                          ? l10n.librarySyncTesting
+                          : l10n.librarySyncTestConnection,
+                      isLoading: _syncTesting,
+                      onPressed: _syncTesting ? null : _testLibrarySync,
+                    ),
+                  ],
+                ),
+                bottomChild: _syncTestMessage.isNotEmpty
+                    ? Row(
+                        children: [
+                          Icon(
+                            _syncTestOk
+                                ? Icons.check_circle_outline_rounded
+                                : Icons.error_outline_rounded,
+                            size: 14,
+                            color: _syncTestOk
+                                ? context.colors.success
+                                : context.colors.error,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _syncTestMessage,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _syncTestOk
+                                    ? context.colors.success
+                                    : context.colors.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : null,
               ),
               const SizedBox(height: 12),
               AppSectionHeader(title: l10n.settingsSectionComfy),

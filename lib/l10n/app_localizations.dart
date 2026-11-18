@@ -7213,6 +7213,289 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'JSON 格式无效，无法格式化'**
   String get toolFormatSchemaInvalid;
+
+  /// No description provided for @settingsSectionLibrarySync.
+  ///
+  /// In zh, this message translates to:
+  /// **'词库云同步'**
+  String get settingsSectionLibrarySync;
+
+  /// No description provided for @settingsLibrarySyncEndpointTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步服务地址'**
+  String get settingsLibrarySyncEndpointTitle;
+
+  /// No description provided for @settingsLibrarySyncEndpointHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://your-worker.workers.dev'**
+  String get settingsLibrarySyncEndpointHint;
+
+  /// No description provided for @settingsLibrarySyncTokenTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'访问密钥 (Token)'**
+  String get settingsLibrarySyncTokenTitle;
+
+  /// No description provided for @settingsLibrarySyncTokenHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'在 Worker 中配置的 SYNC_TOKEN'**
+  String get settingsLibrarySyncTokenHint;
+
+  /// No description provided for @settingsLibrarySyncNamespaceTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'命名空间'**
+  String get settingsLibrarySyncNamespaceTitle;
+
+  /// No description provided for @settingsLibrarySyncNamespaceHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'default'**
+  String get settingsLibrarySyncNamespaceHint;
+
+  /// No description provided for @librarySyncButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'云同步'**
+  String get librarySyncButton;
+
+  /// No description provided for @librarySyncingLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步中...'**
+  String get librarySyncingLabel;
+
+  /// No description provided for @librarySyncSettingsMenu.
+  ///
+  /// In zh, this message translates to:
+  /// **'云同步设置...'**
+  String get librarySyncSettingsMenu;
+
+  /// No description provided for @librarySyncMergeMenu.
+  ///
+  /// In zh, this message translates to:
+  /// **'立即云同步 (双向合并)'**
+  String get librarySyncMergeMenu;
+
+  /// No description provided for @librarySyncForcePushMenu.
+  ///
+  /// In zh, this message translates to:
+  /// **'强制上传覆盖云端'**
+  String get librarySyncForcePushMenu;
+
+  /// No description provided for @librarySyncForcePullMenu.
+  ///
+  /// In zh, this message translates to:
+  /// **'强制拉取覆盖本地'**
+  String get librarySyncForcePullMenu;
+
+  /// No description provided for @librarySyncDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'词库云同步'**
+  String get librarySyncDialogTitle;
+
+  /// No description provided for @librarySyncDialogSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'通过 Cloudflare Workers + D1 免费同步词组合与去重预览图。'**
+  String get librarySyncDialogSubtitle;
+
+  /// No description provided for @librarySyncTestConnection.
+  ///
+  /// In zh, this message translates to:
+  /// **'测试连接'**
+  String get librarySyncTestConnection;
+
+  /// No description provided for @librarySyncTesting.
+  ///
+  /// In zh, this message translates to:
+  /// **'测试中...'**
+  String get librarySyncTesting;
+
+  /// No description provided for @librarySyncTestSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接成功：云端 {entries} 条词条 · {images} 张预览图 (版本 r{revision})'**
+  String librarySyncTestSuccess(int entries, int images, int revision);
+
+  /// No description provided for @librarySyncTestFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接失败：{error}'**
+  String librarySyncTestFailed(String error);
+
+  /// No description provided for @librarySyncSaveConfig.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存配置'**
+  String get librarySyncSaveConfig;
+
+  /// No description provided for @librarySyncConfigSaved.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存云同步配置'**
+  String get librarySyncConfigSaved;
+
+  /// No description provided for @librarySyncLastSynced.
+  ///
+  /// In zh, this message translates to:
+  /// **'上次同步：{time}'**
+  String librarySyncLastSynced(String time);
+
+  /// No description provided for @librarySyncNeverSynced.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未同步过'**
+  String get librarySyncNeverSynced;
+
+  /// No description provided for @librarySyncDoneUpToDate.
+  ///
+  /// In zh, this message translates to:
+  /// **'云同步完成，本地与云端已一致 (r{revision})'**
+  String librarySyncDoneUpToDate(int revision);
+
+  /// No description provided for @librarySyncDoneSummary.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步完成：上传 {pushed} · 拉取 {pulled} · 删本地 {deletedLocal} · 删云端 {deletedRemote} · 图 ↑{uploadedImages}/↓{downloadedImages}'**
+  String librarySyncDoneSummary(
+    int pushed,
+    int pulled,
+    int deletedLocal,
+    int deletedRemote,
+    int uploadedImages,
+    int downloadedImages,
+  );
+
+  /// No description provided for @librarySyncForcePushDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'已强制上传覆盖云端 ({count} 条，上传图片 {images} 张)'**
+  String librarySyncForcePushDone(int count, int images);
+
+  /// No description provided for @librarySyncForcePullDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'已强制拉取覆盖本地 ({count} 条，下载图片 {images} 张)'**
+  String librarySyncForcePullDone(int count, int images);
+
+  /// No description provided for @librarySyncFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'云同步失败：{error}'**
+  String librarySyncFailed(String error);
+
+  /// No description provided for @librarySyncForcePushConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'强制上传覆盖云端'**
+  String get librarySyncForcePushConfirmTitle;
+
+  /// No description provided for @librarySyncForcePushConfirmMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'将用本地当前全部词条覆盖云端命名空间中的记录（云端多余条目会被标记删除）。确定继续吗？'**
+  String get librarySyncForcePushConfirmMessage;
+
+  /// No description provided for @librarySyncForcePullConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'强制拉取覆盖本地'**
+  String get librarySyncForcePullConfirmTitle;
+
+  /// No description provided for @librarySyncForcePullConfirmMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'将用云端词库完全替换本地当前词库，本地未同步的新增或修改将被覆盖且无法撤销。确定继续吗？'**
+  String get librarySyncForcePullConfirmMessage;
+
+  /// No description provided for @librarySyncStatusUnconfigured.
+  ///
+  /// In zh, this message translates to:
+  /// **'未配置'**
+  String get librarySyncStatusUnconfigured;
+
+  /// No description provided for @librarySyncStatusConfigured.
+  ///
+  /// In zh, this message translates to:
+  /// **'已配置'**
+  String get librarySyncStatusConfigured;
+
+  /// No description provided for @librarySyncStatusConnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已连接'**
+  String get librarySyncStatusConnected;
+
+  /// No description provided for @librarySyncStatusError.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接异常'**
+  String get librarySyncStatusError;
+
+  /// No description provided for @librarySyncConfigSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接配置'**
+  String get librarySyncConfigSection;
+
+  /// No description provided for @librarySyncConfigCollapsedHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'展开可修改 Worker 地址、密钥或命名空间'**
+  String get librarySyncConfigCollapsedHint;
+
+  /// No description provided for @librarySyncOverwriteSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'强制覆盖与恢复'**
+  String get librarySyncOverwriteSection;
+
+  /// No description provided for @librarySyncOverwriteSectionHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅在冲突无法合并或需要整库重置时使用'**
+  String get librarySyncOverwriteSectionHint;
+
+  /// No description provided for @librarySyncForcePushHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'以本地为准覆盖云端（云端多余条目将标记为已删除）'**
+  String get librarySyncForcePushHint;
+
+  /// No description provided for @librarySyncForcePullHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'以云端为准替换本地（本地未同步的修改会丢失）'**
+  String get librarySyncForcePullHint;
+
+  /// No description provided for @librarySyncOverwriteConfirmButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认覆盖'**
+  String get librarySyncOverwriteConfirmButton;
+
+  /// No description provided for @librarySyncEndpointSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'已部署的 Cloudflare Worker 访问地址'**
+  String get librarySyncEndpointSubtitle;
+
+  /// No description provided for @librarySyncTokenSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'与 Worker 中配置的 SYNC_TOKEN Secret 一致'**
+  String get librarySyncTokenSubtitle;
+
+  /// No description provided for @librarySyncNamespaceSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'用于隔离多套词库（默认 default）'**
+  String get librarySyncNamespaceSubtitle;
 }
 
 class _AppLocalizationsDelegate

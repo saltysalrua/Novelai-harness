@@ -4203,4 +4203,176 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get toolFormatSchemaInvalid => 'Invalid JSON; cannot format';
+
+  @override
+  String get settingsSectionLibrarySync => 'Library Cloud Sync';
+
+  @override
+  String get settingsLibrarySyncEndpointTitle => 'Sync Service URL';
+
+  @override
+  String get settingsLibrarySyncEndpointHint =>
+      'https://your-worker.workers.dev';
+
+  @override
+  String get settingsLibrarySyncTokenTitle => 'Access Token';
+
+  @override
+  String get settingsLibrarySyncTokenHint => 'SYNC_TOKEN configured in Worker';
+
+  @override
+  String get settingsLibrarySyncNamespaceTitle => 'Namespace';
+
+  @override
+  String get settingsLibrarySyncNamespaceHint => 'default';
+
+  @override
+  String get librarySyncButton => 'Cloud Sync';
+
+  @override
+  String get librarySyncingLabel => 'Syncing...';
+
+  @override
+  String get librarySyncSettingsMenu => 'Cloud Sync Settings...';
+
+  @override
+  String get librarySyncMergeMenu => 'Sync Now (Two-way Merge)';
+
+  @override
+  String get librarySyncForcePushMenu => 'Force Upload (Overwrite Cloud)';
+
+  @override
+  String get librarySyncForcePullMenu => 'Force Pull (Overwrite Local)';
+
+  @override
+  String get librarySyncDialogTitle => 'Library Cloud Sync';
+
+  @override
+  String get librarySyncDialogSubtitle =>
+      'Sync prompt combos and deduplicated preview images via Cloudflare Workers + D1.';
+
+  @override
+  String get librarySyncTestConnection => 'Test Connection';
+
+  @override
+  String get librarySyncTesting => 'Testing...';
+
+  @override
+  String librarySyncTestSuccess(int entries, int images, int revision) {
+    return 'Connected: $entries cloud entries · $images images (rev r$revision)';
+  }
+
+  @override
+  String librarySyncTestFailed(String error) {
+    return 'Connection failed: $error';
+  }
+
+  @override
+  String get librarySyncSaveConfig => 'Save Config';
+
+  @override
+  String get librarySyncConfigSaved => 'Cloud sync configuration saved';
+
+  @override
+  String librarySyncLastSynced(String time) {
+    return 'Last synced: $time';
+  }
+
+  @override
+  String get librarySyncNeverSynced => 'Not synced yet';
+
+  @override
+  String librarySyncDoneUpToDate(int revision) {
+    return 'Sync complete; local and cloud are up to date (r$revision)';
+  }
+
+  @override
+  String librarySyncDoneSummary(
+    int pushed,
+    int pulled,
+    int deletedLocal,
+    int deletedRemote,
+    int uploadedImages,
+    int downloadedImages,
+  ) {
+    return 'Synced: pushed $pushed · pulled $pulled · local del $deletedLocal · cloud del $deletedRemote · img ↑$uploadedImages/↓$downloadedImages';
+  }
+
+  @override
+  String librarySyncForcePushDone(int count, int images) {
+    return 'Force uploaded $count entries to cloud ($images images uploaded)';
+  }
+
+  @override
+  String librarySyncForcePullDone(int count, int images) {
+    return 'Force pulled $count entries from cloud ($images images downloaded)';
+  }
+
+  @override
+  String librarySyncFailed(String error) {
+    return 'Cloud sync failed: $error';
+  }
+
+  @override
+  String get librarySyncForcePushConfirmTitle => 'Force Upload to Cloud';
+
+  @override
+  String get librarySyncForcePushConfirmMessage =>
+      'This will overwrite the cloud namespace with your current local library (extra cloud entries will be marked deleted). Continue?';
+
+  @override
+  String get librarySyncForcePullConfirmTitle => 'Force Pull from Cloud';
+
+  @override
+  String get librarySyncForcePullConfirmMessage =>
+      'This will replace your local library with the cloud copy. Unsynced local additions or edits will be overwritten. Continue?';
+
+  @override
+  String get librarySyncStatusUnconfigured => 'Not Configured';
+
+  @override
+  String get librarySyncStatusConfigured => 'Configured';
+
+  @override
+  String get librarySyncStatusConnected => 'Connected';
+
+  @override
+  String get librarySyncStatusError => 'Error';
+
+  @override
+  String get librarySyncConfigSection => 'Connection Settings';
+
+  @override
+  String get librarySyncConfigCollapsedHint =>
+      'Expand to edit Worker URL, token, or namespace';
+
+  @override
+  String get librarySyncOverwriteSection => 'Force Overwrite & Recovery';
+
+  @override
+  String get librarySyncOverwriteSectionHint =>
+      'Use only when resolving conflicts or resetting a library';
+
+  @override
+  String get librarySyncForcePushHint =>
+      'Overwrite cloud with local library (extra cloud items will be deleted)';
+
+  @override
+  String get librarySyncForcePullHint =>
+      'Replace local library with cloud copy (unsynced local edits will be lost)';
+
+  @override
+  String get librarySyncOverwriteConfirmButton => 'Confirm Overwrite';
+
+  @override
+  String get librarySyncEndpointSubtitle =>
+      'Your deployed Cloudflare Worker URL';
+
+  @override
+  String get librarySyncTokenSubtitle =>
+      'Matches SYNC_TOKEN Secret configured on the Worker';
+
+  @override
+  String get librarySyncNamespaceSubtitle =>
+      'Isolate multiple libraries (defaults to default)';
 }

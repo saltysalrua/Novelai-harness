@@ -1689,5 +1689,100 @@
   "toolConfirmDeleteMessage": "Delete custom tool \"{name}\"? This takes effect immediately.",
   "@toolConfirmDeleteMessage": {"placeholders": {"name": {"type": "String"}}},
   "toolFormatSchema": "Format JSON",
-  "toolFormatSchemaInvalid": "Invalid JSON; cannot format"
+  "toolFormatSchemaInvalid": "Invalid JSON; cannot format",
+  "settingsSectionLibrarySync": "Library Cloud Sync",
+  "settingsLibrarySyncEndpointTitle": "Sync Service URL",
+  "settingsLibrarySyncEndpointHint": "https://your-worker.workers.dev",
+  "settingsLibrarySyncTokenTitle": "Access Token",
+  "settingsLibrarySyncTokenHint": "SYNC_TOKEN configured in Worker",
+  "settingsLibrarySyncNamespaceTitle": "Namespace",
+  "settingsLibrarySyncNamespaceHint": "default",
+  "librarySyncButton": "Cloud Sync",
+  "librarySyncingLabel": "Syncing...",
+  "librarySyncSettingsMenu": "Cloud Sync Settings...",
+  "librarySyncMergeMenu": "Sync Now (Two-way Merge)",
+  "librarySyncForcePushMenu": "Force Upload (Overwrite Cloud)",
+  "librarySyncForcePullMenu": "Force Pull (Overwrite Local)",
+  "librarySyncDialogTitle": "Library Cloud Sync",
+  "librarySyncDialogSubtitle": "Sync prompt combos and deduplicated preview images via Cloudflare Workers + D1.",
+  "librarySyncTestConnection": "Test Connection",
+  "librarySyncTesting": "Testing...",
+  "librarySyncTestSuccess": "Connected: {entries} cloud entries · {images} images (rev r{revision})",
+  "@librarySyncTestSuccess": {
+    "placeholders": {
+      "entries": {"type": "int"},
+      "images": {"type": "int"},
+      "revision": {"type": "int"}
+    }
+  },
+  "librarySyncTestFailed": "Connection failed: {error}",
+  "@librarySyncTestFailed": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "librarySyncSaveConfig": "Save Config",
+  "librarySyncConfigSaved": "Cloud sync configuration saved",
+  "librarySyncLastSynced": "Last synced: {time}",
+  "@librarySyncLastSynced": {
+    "placeholders": {
+      "time": {"type": "String"}
+    }
+  },
+  "librarySyncNeverSynced": "Not synced yet",
+  "librarySyncDoneUpToDate": "Sync complete; local and cloud are up to date (r{revision})",
+  "@librarySyncDoneUpToDate": {
+    "placeholders": {
+      "revision": {"type": "int"}
+    }
+  },
+  "librarySyncDoneSummary": "Synced: pushed {pushed} · pulled {pulled} · local del {deletedLocal} · cloud del {deletedRemote} · img ↑{uploadedImages}/↓{downloadedImages}",
+  "@librarySyncDoneSummary": {
+    "placeholders": {
+      "pushed": {"type": "int"},
+      "pulled": {"type": "int"},
+      "deletedLocal": {"type": "int"},
+      "deletedRemote": {"type": "int"},
+      "uploadedImages": {"type": "int"},
+      "downloadedImages": {"type": "int"}
+    }
+  },
+  "librarySyncForcePushDone": "Force uploaded {count} entries to cloud ({images} images uploaded)",
+  "@librarySyncForcePushDone": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "images": {"type": "int"}
+    }
+  },
+  "librarySyncForcePullDone": "Force pulled {count} entries from cloud ({images} images downloaded)",
+  "@librarySyncForcePullDone": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "images": {"type": "int"}
+    }
+  },
+  "librarySyncFailed": "Cloud sync failed: {error}",
+  "@librarySyncFailed": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "librarySyncForcePushConfirmTitle": "Force Upload to Cloud",
+  "librarySyncForcePushConfirmMessage": "This will overwrite the cloud namespace with your current local library (extra cloud entries will be marked deleted). Continue?",
+  "librarySyncForcePullConfirmTitle": "Force Pull from Cloud",
+  "librarySyncForcePullConfirmMessage": "This will replace your local library with the cloud copy. Unsynced local additions or edits will be overwritten. Continue?",
+  "librarySyncStatusUnconfigured": "Not Configured",
+  "librarySyncStatusConfigured": "Configured",
+  "librarySyncStatusConnected": "Connected",
+  "librarySyncStatusError": "Error",
+  "librarySyncConfigSection": "Connection Settings",
+  "librarySyncConfigCollapsedHint": "Expand to edit Worker URL, token, or namespace",
+  "librarySyncOverwriteSection": "Force Overwrite & Recovery",
+  "librarySyncOverwriteSectionHint": "Use only when resolving conflicts or resetting a library",
+  "librarySyncForcePushHint": "Overwrite cloud with local library (extra cloud items will be deleted)",
+  "librarySyncForcePullHint": "Replace local library with cloud copy (unsynced local edits will be lost)",
+  "librarySyncOverwriteConfirmButton": "Confirm Overwrite",
+  "librarySyncEndpointSubtitle": "Your deployed Cloudflare Worker URL",
+  "librarySyncTokenSubtitle": "Matches SYNC_TOKEN Secret configured on the Worker",
+  "librarySyncNamespaceSubtitle": "Isolate multiple libraries (defaults to default)"
 }
