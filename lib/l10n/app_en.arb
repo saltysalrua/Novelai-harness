@@ -1784,5 +1784,14 @@
   "librarySyncOverwriteConfirmButton": "Confirm Overwrite",
   "librarySyncEndpointSubtitle": "Your deployed Cloudflare Worker URL",
   "librarySyncTokenSubtitle": "Matches SYNC_TOKEN Secret configured on the Worker",
-  "librarySyncNamespaceSubtitle": "Isolate multiple libraries (defaults to default)"
+  "librarySyncNamespaceSubtitle": "Isolate multiple libraries (defaults to default)",
+  "canvasQuickPromptTooltip": "Open compact prompt panel",
+  "quickPromptOpenFullTooltip": "Open full prompt panel",
+  "quickPromptCharactersCount": "{enabled}/{total} active",
+  "@quickPromptCharactersCount": {
+    "placeholders": {
+      "enabled": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  }
 }

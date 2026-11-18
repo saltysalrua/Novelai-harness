@@ -905,6 +905,10 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.byKey(const Key('canvas_collapsed_prompts_button')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const Key('canvas_collapsed_library_button')),
       findsOneWidget,
     );
@@ -963,6 +967,114 @@ void main() {
       find.byKey(const Key('canvas_quick_generate_button')),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('宽屏收起左卡片后点击提示词图标按钮弹出合并式精简浮窗，支持切换编辑与展开完整面板', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1280, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+
+    final vm = StudioView.testViewModelHook!;
+    await tester.tap(find.byKey(const Key('sidebar_collapse_button')));
+    await tester.pumpAndSettle();
+    expect(vm.isLeftSidebarCollapsed, isTrue);
+
+    // 快捷悬浮条中提示词为纯图标按钮，位于词库右侧、设置左侧，不带文字标签
+    final dockFinder = find.byKey(const Key('canvas_collapsed_quick_dock'));
+    final libraryRect = tester.getRect(
+      find.byKey(const Key('canvas_collapsed_library_button')),
+    );
+    final promptBtnFinder = find.byKey(
+      const Key('canvas_collapsed_prompts_button'),
+    );
+    final promptRect = tester.getRect(promptBtnFinder);
+    final settingsRect = tester.getRect(
+      find.byKey(const Key('canvas_collapsed_settings_button')),
+    );
+    expect(promptRect.left, greaterThanOrEqualTo(libraryRect.right));
+    expect(promptRect.right, lessThanOrEqualTo(settingsRect.left));
+    expect(
+      find.descendant(of: dockFinder, matching: find.text('提示词')),
+      findsNothing,
+    );
+
+    // 点击图标按钮弹出合并式精简浮窗：无独立标题栏，正向/负向通过分段条切换
+    await tester.tap(promptBtnFinder);
+    await tester.pumpAndSettle();
+    final popoverFinder = find.byKey(const Key('compact_prompt_popover'));
+    expect(popoverFinder, findsOneWidget);
+    expect(
+      find.byKey(const Key('compact_prompt_positive_card')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('compact_prompt_negative_card')), findsNothing);
+    expect(
+      find.byKey(const Key('compact_prompt_generate_button')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: popoverFinder,
+        matching: find.byWidgetPredicate(
+          (w) => w.runtimeType.toString() == 'AppCard',
+        ),
+      ),
+      findsNothing,
+    );
+
+    // 编辑正向提示词并同步到 ViewModel
+    final positiveField = find.descendant(
+      of: find.byKey(const Key('compact_prompt_positive_card')),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(positiveField, '1girl, silver hair, smile');
+    await tester.pumpAndSettle();
+    expect(vm.params.prompt, '1girl, silver hair, smile');
+
+    // 切换到负向提示词标签页并编辑
+    await tester.tap(
+      find.descendant(
+        of: popoverFinder,
+        matching: find.byKey(const Key('segmented_card_undesired')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('compact_prompt_positive_card')), findsNothing);
+    expect(
+      find.byKey(const Key('compact_prompt_negative_card')),
+      findsOneWidget,
+    );
+    final negativeField = find.descendant(
+      of: find.byKey(const Key('compact_prompt_negative_card')),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(negativeField, 'lowres, bad hands');
+    await tester.pumpAndSettle();
+    expect(vm.params.negativePrompt, 'lowres, bad hands');
+
+    // 点击外部空白区域关闭浮窗并保持左侧栏收起
+    await tester.tapAt(const Offset(900, 600));
+    await tester.pumpAndSettle();
+    expect(popoverFinder, findsNothing);
+    expect(vm.isLeftSidebarCollapsed, isTrue);
+
+    // 再次打开后点击展开完整面板，切入提示词页并展开左侧栏
+    await tester.tap(promptBtnFinder);
+    await tester.pumpAndSettle();
+    expect(popoverFinder, findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('compact_prompt_open_full_button')));
+    await tester.pumpAndSettle();
+    expect(popoverFinder, findsNothing);
+    expect(vm.isLeftSidebarCollapsed, isFalse);
+    expect(vm.activeSidebarTab, StudioSidebarTab.prompts);
+
+    await vm.flushPendingLayoutSave();
     expect(tester.takeException(), isNull);
   });
 

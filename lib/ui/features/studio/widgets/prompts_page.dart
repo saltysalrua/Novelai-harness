@@ -3,16 +3,14 @@ import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
-import '../../../core/theme/theme_context_extensions.dart';
-import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
-import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'fixed_affixes_panel.dart';
 import 'prompt_editor_card.dart';
 import 'prompt_extension_deck.dart';
+import 'prompt_panel_shared.dart';
 import 'rich_prompt_text_controller.dart';
 import 'studio_shared.dart';
 
@@ -35,15 +33,11 @@ class _PromptsPageState extends State<PromptsPage> {
 
   bool _isTabbedMode = false;
   int _activeTab = 0; // 0: Prompt, 1: Undesired Content
-  String _qualityPreset = 'Standard';
-  String _ucPreset = 'Heavy';
 
   @override
   void initState() {
     super.initState();
     final params = widget.viewModel.params;
-    _qualityPreset = params.qualityPreset;
-    _ucPreset = params.ucPresetKey;
     _isTabbedMode = widget.viewModel.promptTabbedMode;
     _activeTab = widget.viewModel.promptActiveTab;
     _promptController = RichPromptTextController(text: params.prompt);
@@ -70,12 +64,6 @@ class _PromptsPageState extends State<PromptsPage> {
     if (_activeTab != widget.viewModel.promptActiveTab) {
       _activeTab = widget.viewModel.promptActiveTab;
     }
-    if (_qualityPreset != params.qualityPreset) {
-      _qualityPreset = params.qualityPreset;
-    }
-    if (_ucPreset != params.ucPresetKey) {
-      _ucPreset = params.ucPresetKey;
-    }
     if (_promptController.text != params.prompt) {
       _promptController.text = params.prompt;
     }
@@ -97,49 +85,6 @@ class _PromptsPageState extends State<PromptsPage> {
     _prefixController.dispose();
     _suffixController.dispose();
     super.dispose();
-  }
-
-  // --- 预设与开关操作 ---
-
-  void _applyQualityPreset(String presetKey) {
-    setState(() => _qualityPreset = presetKey);
-    final viewModel = widget.viewModel;
-    viewModel.updateParams(
-      viewModel.params.copyWith(
-        qualityPreset: presetKey,
-        qualityToggle: presetKey != 'None',
-      ),
-    );
-  }
-
-  void _applyUcPreset(String presetKey) {
-    setState(() => _ucPreset = presetKey);
-    final viewModel = widget.viewModel;
-    viewModel.updateParams(viewModel.params.copyWith(ucPresetKey: presetKey));
-  }
-
-  /// 切换透明背景，并清理输入框中残留的 transparent / simple background 字样
-  void _toggleTransparentBg() {
-    final viewModel = widget.viewModel;
-    final params = viewModel.params;
-    var p = _promptController.text;
-    if (p.contains('transparent background') ||
-        p.contains('simple background')) {
-      p = p.replaceAll(
-        RegExp(r',?\s*transparent background', caseSensitive: false),
-        '',
-      );
-      p = p.replaceAll(
-        RegExp(r',?\s*simple background', caseSensitive: false),
-        '',
-      );
-      p = p.replaceAll(RegExp(r',\s*,\s*'), ', ');
-      p = p.replaceAll(RegExp(r',\s*$'), '').trim();
-      _promptController.text = p;
-    }
-    viewModel.updateParams(
-      params.copyWith(prompt: p, transparentBg: !params.transparentBg),
-    );
   }
 
   void _updatePrompt(String value) {
@@ -175,7 +120,10 @@ class _PromptsPageState extends State<PromptsPage> {
         (params.suffixPrompt?.trim().isNotEmpty ?? false);
     final qualityTags = viewModelIsComfyUi
         ? ''
-        : NovelAiQualityTagsHelper.getQualityTags(params.model, _qualityPreset);
+        : NovelAiQualityTagsHelper.getQualityTags(
+            params.model,
+            resolveQualityPreset(params),
+          );
     return [
       if (hasSuffix)
         GrayTag(context.l10n.promptsSuffixBadge, params.suffixPrompt!.trim()),
@@ -194,82 +142,25 @@ class _PromptsPageState extends State<PromptsPage> {
     if (viewModelIsComfyUi || params.isMediumEffort) return const [];
     final ucPresetStr = NovelAiUndesiredContentHelper.getUndesiredContent(
       params.model,
-      _ucPreset,
+      params.ucPresetKey,
     );
     return [
       if (ucPresetStr.isNotEmpty)
         GrayTag(
-          '${context.l10n.promptsUcPreset}: ${_presetLabel(params.ucPresetKey)}',
+          '${context.l10n.promptsUcPreset}: ${promptPresetLabel(context, params.ucPresetKey)}',
           ucPresetStr,
         ),
     ];
   }
 
-  /// 正向提示词底部工具条：Transparent BG (仅 V5 模型) + Quality Tags 预设芯片，统一右对齐紧凑排布；
-  /// ComfyUI 模式下质量预设与透明背景均不生效，不渲染工具条
-  Widget? _promptToolbar(NaiGenerationParams params) {
-    if (viewModelIsComfyUi) return null;
-    final colors = context.colors;
-    final quality = AppDropdown<String>.simple(
-      value: _currentQualityPreset(params),
-      items: NovelAiQualityTagsHelper.getAvailablePresets(params.model),
-      labelOf: (p) => '${context.l10n.promptsQualityTags}: ${_presetLabel(p)}',
-      variant: AppDropdownVariant.chip,
-      isExpanded: false,
-      onChanged: _applyQualityPreset,
-    );
-    final transparent = AppToolChip(
-      isSelected: params.transparentBg,
-      icon: params.transparentBg ? Icons.check_rounded : Icons.close_rounded,
-      label: context.l10n.promptsTransparentBackground,
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      unselectedBackgroundColor: colors.canvasBackground,
-      borderColor: colors.borderDefault,
-      onTap: _toggleTransparentBg,
-    );
-    return Wrap(
-      alignment: WrapAlignment.end,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 6,
-      runSpacing: 6,
-      children: [if (params.model.isV5) transparent, quality],
-    );
-  }
+  Widget? _promptToolbar() => buildPositivePromptToolbar(
+    context,
+    widget.viewModel,
+    _promptController,
+  );
 
-  /// 负面提示词底部工具条：UC Preset 预设芯片，与正向工具条保持一致的右对齐紧凑排布；
-  /// ComfyUI 模式下 UC 预设不生效，不渲染工具条。
-  /// 节约档固定 Heavy，不提供预设切换。
-  Widget? _negativeToolbar(NaiGenerationParams params) {
-    if (viewModelIsComfyUi || params.isMediumEffort) return null;
-    final presets = NovelAiUndesiredContentHelper.availablePresets;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: AppDropdown<String>.simple(
-        value: presets.contains(_ucPreset) ? _ucPreset : presets.first,
-        items: presets,
-        labelOf: (p) =>
-            '${context.l10n.promptsUcPreset}: ${_presetLabel(p)}',
-        variant: AppDropdownVariant.chip,
-        isExpanded: false,
-        onChanged: _applyUcPreset,
-      ),
-    );
-  }
-
-  String _presetLabel(String preset) => switch (preset.toLowerCase()) {
-    'standard' => context.l10n.presetLevelStandard,
-    'light' => context.l10n.presetLevelLight,
-    'heavy' => context.l10n.presetLevelHeavy,
-    'human' || 'human focus' => context.l10n.presetLevelHuman,
-    'none' || 'off' => context.l10n.presetLevelNone,
-    _ => preset,
-  };
-
-  String _currentQualityPreset(NaiGenerationParams params) {
-    final presets = NovelAiQualityTagsHelper.getAvailablePresets(params.model);
-    return presets.contains(_qualityPreset) ? _qualityPreset : 'Standard';
-  }
+  Widget? _negativeToolbar() =>
+      buildNegativePromptToolbar(context, widget.viewModel);
 
   // --- 布局 ---
 
@@ -355,7 +246,7 @@ class _PromptsPageState extends State<PromptsPage> {
           onHeightChanged: viewModel.updatePromptHeightStacked,
           headerTags: _promptHeaderTags(params),
           footerTags: _promptFooterTags(params),
-          toolbar: _promptToolbar(params),
+          toolbar: _promptToolbar(),
           enableAutocomplete: viewModel.config.enableTagAutocomplete,
           showTranslation: viewModel.config.showTagTranslations,
           tokenUsage: viewModelIsComfyUi
@@ -413,7 +304,7 @@ class _PromptsPageState extends State<PromptsPage> {
           initialHeight: viewModel.negativePromptHeightStacked,
           onHeightChanged: viewModel.updateNegativePromptHeightStacked,
           footerTags: _negativeFooterTags(params),
-          toolbar: _negativeToolbar(params),
+          toolbar: _negativeToolbar(),
           enableAutocomplete: viewModel.config.enableTagAutocomplete,
           showTranslation: viewModel.config.showTagTranslations,
           tokenUsage: viewModelIsComfyUi
@@ -508,7 +399,7 @@ class _PromptsPageState extends State<PromptsPage> {
                   onHeightChanged: viewModel.updatePromptHeightTabbed,
                   headerTags: _promptHeaderTags(params),
                   footerTags: _promptFooterTags(params),
-                  toolbar: _promptToolbar(params),
+                  toolbar: _promptToolbar(),
                   enableAutocomplete: viewModel.config.enableTagAutocomplete,
                   showTranslation: viewModel.config.showTagTranslations,
                   tokenUsage: viewModelIsComfyUi
@@ -529,7 +420,7 @@ class _PromptsPageState extends State<PromptsPage> {
                   initialHeight: viewModel.negativePromptHeightTabbed,
                   onHeightChanged: viewModel.updateNegativePromptHeightTabbed,
                   footerTags: _negativeFooterTags(params),
-                  toolbar: _negativeToolbar(params),
+                  toolbar: _negativeToolbar(),
                   enableAutocomplete: viewModel.config.enableTagAutocomplete,
                   showTranslation: viewModel.config.showTagTranslations,
                   tokenUsage: viewModelIsComfyUi

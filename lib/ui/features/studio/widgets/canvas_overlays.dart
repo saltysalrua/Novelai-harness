@@ -14,6 +14,7 @@ import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../../settings/views/settings_dialog.dart';
 import '../view_models/studio_view_model.dart';
+import 'compact_prompt_popover.dart';
 import 'image_canvas_actions.dart';
 import 'studio_shared.dart';
 
@@ -675,16 +676,40 @@ class CanvasQuickGenerateButton extends StatelessWidget {
 }
 
 /// 宽屏收起左侧栏与左卡片时，画板左上角的轻量快捷悬浮条：
-/// 展开左侧栏 + 不拉出左卡片直达「词库」「设置」。
-class CanvasCollapsedQuickDock extends StatelessWidget {
+/// 展开左侧栏 + 弹出精简提示词浮窗 + 不拉出左卡片直达「词库」「设置」。
+class CanvasCollapsedQuickDock extends StatefulWidget {
   final StudioViewModel viewModel;
 
   const CanvasCollapsedQuickDock({super.key, required this.viewModel});
 
   @override
+  State<CanvasCollapsedQuickDock> createState() =>
+      _CanvasCollapsedQuickDockState();
+}
+
+class _CanvasCollapsedQuickDockState extends State<CanvasCollapsedQuickDock> {
+  bool _isPromptPopoverOpen = false;
+
+  Future<void> _openCompactPromptPopover(BuildContext anchorContext) async {
+    if (_isPromptPopoverOpen) return;
+    setState(() => _isPromptPopoverOpen = true);
+    try {
+      await CompactPromptPopover.show(
+        anchorContext,
+        viewModel: widget.viewModel,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isPromptPopoverOpen = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
+    final viewModel = widget.viewModel;
 
     return AppFloatingDock(
       key: const Key('canvas_collapsed_quick_dock'),
@@ -721,6 +746,20 @@ class CanvasCollapsedQuickDock extends StatelessWidget {
             onTap: () => viewModel.setActiveSidebarTab(
               StudioSidebarTab.library,
               expandSidebar: false,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Builder(
+            builder: (buttonContext) => AppIconButton(
+              key: const Key('canvas_collapsed_prompts_button'),
+              icon: Icons.edit_note_outlined,
+              size: 30,
+              iconSize: 17,
+              variant: AppIconButtonVariant.ghost,
+              backgroundColor: _isPromptPopoverOpen ? colors.primaryTint : null,
+              iconColor: _isPromptPopoverOpen ? colors.primary : null,
+              tooltip: l10n.canvasQuickPromptTooltip,
+              onPressed: () => _openCompactPromptPopover(buttonContext),
             ),
           ),
           const SizedBox(width: 2),

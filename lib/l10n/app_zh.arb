@@ -1784,5 +1784,14 @@
   "librarySyncOverwriteConfirmButton": "确认覆盖",
   "librarySyncEndpointSubtitle": "已部署的 Cloudflare Worker 访问地址",
   "librarySyncTokenSubtitle": "与 Worker 中配置的 SYNC_TOKEN Secret 一致",
-  "librarySyncNamespaceSubtitle": "用于隔离多套词库（默认 default）"
+  "librarySyncNamespaceSubtitle": "用于隔离多套词库（默认 default）",
+  "canvasQuickPromptTooltip": "打开精简提示词面板",
+  "quickPromptOpenFullTooltip": "展开完整提示词面板",
+  "quickPromptCharactersCount": "{enabled}/{total} 已启用",
+  "@quickPromptCharactersCount": {
+    "placeholders": {
+      "enabled": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  }
 }

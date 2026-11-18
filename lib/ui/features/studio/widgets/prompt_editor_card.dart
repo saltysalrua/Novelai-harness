@@ -67,6 +67,9 @@ class PromptEditorCard extends StatelessWidget {
   /// 锁定输入。已有文本保留，不提供会改写文本的快捷操作。
   final bool readOnly;
 
+  /// 是否以内嵌模式渲染 (不包裹外层 AppCard 边框，供浮窗等自带外框的容器复用，避免窗中窗)
+  final bool embedded;
+
   const PromptEditorCard({
     super.key,
     required this.controller,
@@ -86,6 +89,7 @@ class PromptEditorCard extends StatelessWidget {
     this.enableAutocomplete = true,
     this.showTranslation = true,
     this.readOnly = false,
+    this.embedded = false,
   });
 
   /// 按行数参考推导的默认输入区高度 (布局模式切换时变化)
@@ -112,11 +116,9 @@ class PromptEditorCard extends StatelessWidget {
     final colors = context.colors;
     final l10n = context.l10n;
     final actions = showQuickActions && !readOnly;
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
           if (headerTags.isNotEmpty) _TagPanel(tags: headerTags, atTop: true),
           ResizableTextField(
             controller: controller,
@@ -209,8 +211,9 @@ class PromptEditorCard extends StatelessWidget {
             ),
           if (tokenUsage != null) _TokenFooter(usage: tokenUsage!),
         ],
-      ),
     );
+    if (embedded) return content;
+    return AppCard(padding: EdgeInsets.zero, child: content);
   }
 }
 

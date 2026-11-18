@@ -7496,6 +7496,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'用于隔离多套词库（默认 default）'**
   String get librarySyncNamespaceSubtitle;
+
+  /// No description provided for @canvasQuickPromptTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开精简提示词面板'**
+  String get canvasQuickPromptTooltip;
+
+  /// No description provided for @quickPromptOpenFullTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'展开完整提示词面板'**
+  String get quickPromptOpenFullTooltip;
+
+  /// No description provided for @quickPromptCharactersCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{enabled}/{total} 已启用'**
+  String quickPromptCharactersCount(int enabled, int total);
 }
 
 class _AppLocalizationsDelegate

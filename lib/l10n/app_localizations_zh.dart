@@ -4071,4 +4071,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get librarySyncNamespaceSubtitle => '用于隔离多套词库（默认 default）';
+
+  @override
+  String get canvasQuickPromptTooltip => '打开精简提示词面板';
+
+  @override
+  String get quickPromptOpenFullTooltip => '展开完整提示词面板';
+
+  @override
+  String quickPromptCharactersCount(int enabled, int total) {
+    return '$enabled/$total 已启用';
+  }
 }

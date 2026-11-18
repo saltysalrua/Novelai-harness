@@ -4375,4 +4375,15 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get librarySyncNamespaceSubtitle =>
       'Isolate multiple libraries (defaults to default)';
+
+  @override
+  String get canvasQuickPromptTooltip => 'Open compact prompt panel';
+
+  @override
+  String get quickPromptOpenFullTooltip => 'Open full prompt panel';
+
+  @override
+  String quickPromptCharactersCount(int enabled, int total) {
+    return '$enabled/$total active';
+  }
 }
