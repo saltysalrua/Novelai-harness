@@ -159,6 +159,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     });
     widget.viewModel.acknowledgeComposerRestore(restore.epoch);
     _scheduleComposerFocus();
+    _scheduleRevealCaret();
   }
 
   List<_PendingAttachment> _attachmentsFrom(List<AgentMessageImage> images) {
@@ -286,15 +287,52 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     return KeyEventResult.ignored;
   }
 
+  EditableTextState? _findEditableText() {
+    final root = _inputFieldKey.currentContext;
+    if (root is! Element) return null;
+    EditableTextState? found;
+    void visit(Element element) {
+      if (found != null) return;
+      if (element is StatefulElement && element.state is EditableTextState) {
+        found = element.state as EditableTextState;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    visit(root);
+    return found;
+  }
+
+  void _scheduleRevealCaret() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_inputScrollController.hasClients) return;
+      final editable = _findEditableText();
+      final selection = _inputController.selection;
+      if (editable == null || !editable.mounted || !selection.isValid) return;
+      editable.bringIntoView(selection.extent);
+    });
+  }
+
   void _insertTextAtSelection(String text) {
     final value = _inputController.value;
     final selection = value.selection;
     final start = selection.isValid ? selection.start : value.text.length;
     final end = selection.isValid ? selection.end : value.text.length;
-    _inputController.value = TextEditingValue(
+    final nextValue = TextEditingValue(
       text: value.text.replaceRange(start, end, text),
       selection: TextSelection.collapsed(offset: start + text.length),
     );
+    final editable = _findEditableText();
+    if (editable != null && editable.mounted) {
+      editable.userUpdateTextEditingValue(
+        nextValue,
+        SelectionChangedCause.keyboard,
+      );
+    } else {
+      _inputController.value = nextValue;
+    }
+    _scheduleRevealCaret();
   }
 
   /// 粘贴：剪贴板有文本时按默认行为插入光标处；
@@ -538,6 +576,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     _dismissedToken = '';
     _hideSuggestions();
     _inputFocusNode.requestFocus();
+    _scheduleRevealCaret();
   }
 
   /// 悬浮于输入框上方的补全面板 (Overlay + Follower 锚定)
@@ -715,7 +754,6 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
               controller: _inputController,
               focusNode: _inputFocusNode,
               scrollController: _inputScrollController,
-              scrollPhysics: const StableSelectionScrollPhysics(),
               scrollPadding: EdgeInsets.zero,
               minLines: 2,
               maxLines: 5,

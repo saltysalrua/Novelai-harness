@@ -4386,4 +4386,51 @@ class AppLocalizationsEn extends AppLocalizations {
   String quickPromptCharactersCount(int enabled, int total) {
     return '$enabled/$total active';
   }
+
+  @override
+  String get notifications => 'Notifications';
+
+  @override
+  String get notificationsTooltip => 'Notifications & error log';
+
+  @override
+  String get notificationCenterTitle => 'Notifications';
+
+  @override
+  String get notificationCenterEmpty => 'No notifications yet';
+
+  @override
+  String get notificationCenterCopyAll => 'Copy all';
+
+  @override
+  String get notificationCenterClearAll => 'Clear all';
+
+  @override
+  String get notificationCenterCopied => 'Copied to clipboard';
+
+  @override
+  String get notificationSourceGeneration => 'Generate';
+
+  @override
+  String get notificationSourceInpaint => 'Inpaint';
+
+  @override
+  String get notificationSourceAgent => 'Agent';
+
+  @override
+  String get notificationSourceAccount => 'Account';
+
+  @override
+  String get notificationSourceComfyUi => 'ComfyUI';
+
+  @override
+  String get notificationSourceStorage => 'Storage';
+
+  @override
+  String get notificationSourceSystem => 'System';
+
+  @override
+  String vmAccountRefreshFailed(String error) {
+    return 'Failed to refresh NovelAI account: $error';
+  }
 }

@@ -532,8 +532,12 @@ mixin _StudioHarnessMixin on _StudioCore {
     return result;
   }
 
-  Future<SkillPackage> readSkillImportFile(String path) =>
-      _skillPackageService.readImportFile(path);
+  Future<SkillPackage> readSkillImportFile(String path, {String? filename}) =>
+      _skillPackageService.readImportFile(path, filename: filename);
+  Future<SkillPackage> readSkillImportBytes(
+    Uint8List bytes,
+    String filename,
+  ) => _skillPackageService.readImportBytes(bytes, filename);
   Future<SkillPackage> readSkillImportDirectory(String path) =>
       _skillPackageService.readImportDirectory(path);
   Future<Uint8List> exportSkillPackage(Skill skill) =>

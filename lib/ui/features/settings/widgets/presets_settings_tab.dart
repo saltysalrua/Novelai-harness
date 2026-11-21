@@ -567,15 +567,30 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     try {
       SkillPackage? package;
       if (source == _SkillImportSource.file) {
-        // 移动端 .skill 无标准 MIME，交给本地扩展名校验；桌面用对话框过滤。
+        // 移动端 .skill 无标准 MIME，且部分 SAF 文档不暴露本地路径，需同时拉取 bytes 并保留原始文件名。
         final picked = await FilePicker.platform.pickFiles(
           type: _isMobile ? FileType.any : FileType.custom,
           allowedExtensions: _isMobile ? null : const ['zip', 'skill', 'md'],
+          withData: _isMobile,
         );
         if (picked == null || !mounted) return;
-        final path = picked.files.single.path;
-        if (path == null) throw FormatException(l10n.skillFileUnreadable);
-        package = await widget.viewModel.readSkillImportFile(path);
+        final file = picked.files.single;
+        final bytes = file.bytes;
+        if (bytes != null && bytes.isNotEmpty) {
+          package = await widget.viewModel.readSkillImportBytes(
+            bytes,
+            file.name,
+          );
+        } else {
+          final path = file.path;
+          if (path == null || path.isEmpty) {
+            throw FormatException(l10n.skillFileUnreadable);
+          }
+          package = await widget.viewModel.readSkillImportFile(
+            path,
+            filename: file.name,
+          );
+        }
       } else if (source == _SkillImportSource.folder) {
         final path = await FilePicker.platform.getDirectoryPath();
         if (path == null || !mounted) return;

@@ -7514,6 +7514,96 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'{enabled}/{total} 已启用'**
   String quickPromptCharactersCount(int enabled, int total);
+
+  /// No description provided for @notifications.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知'**
+  String get notifications;
+
+  /// No description provided for @notificationsTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知与错误记录'**
+  String get notificationsTooltip;
+
+  /// No description provided for @notificationCenterTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知记录'**
+  String get notificationCenterTitle;
+
+  /// No description provided for @notificationCenterEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无通知记录'**
+  String get notificationCenterEmpty;
+
+  /// No description provided for @notificationCenterCopyAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制全部'**
+  String get notificationCenterCopyAll;
+
+  /// No description provided for @notificationCenterClearAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空记录'**
+  String get notificationCenterClearAll;
+
+  /// No description provided for @notificationCenterCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制到剪贴板'**
+  String get notificationCenterCopied;
+
+  /// No description provided for @notificationSourceGeneration.
+  ///
+  /// In zh, this message translates to:
+  /// **'生图'**
+  String get notificationSourceGeneration;
+
+  /// No description provided for @notificationSourceInpaint.
+  ///
+  /// In zh, this message translates to:
+  /// **'局部修复'**
+  String get notificationSourceInpaint;
+
+  /// No description provided for @notificationSourceAgent.
+  ///
+  /// In zh, this message translates to:
+  /// **'助手'**
+  String get notificationSourceAgent;
+
+  /// No description provided for @notificationSourceAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号'**
+  String get notificationSourceAccount;
+
+  /// No description provided for @notificationSourceComfyUi.
+  ///
+  /// In zh, this message translates to:
+  /// **'ComfyUI'**
+  String get notificationSourceComfyUi;
+
+  /// No description provided for @notificationSourceStorage.
+  ///
+  /// In zh, this message translates to:
+  /// **'存储'**
+  String get notificationSourceStorage;
+
+  /// No description provided for @notificationSourceSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'系统'**
+  String get notificationSourceSystem;
+
+  /// No description provided for @vmAccountRefreshFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新 NovelAI 账号信息失败：{error}'**
+  String vmAccountRefreshFailed(String error);
 }
 
 class _AppLocalizationsDelegate

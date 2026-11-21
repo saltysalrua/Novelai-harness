@@ -306,4 +306,91 @@ void main() {
     expect(selectedText(), contains('CODE_TAIL'));
     debugDefaultTargetPlatformOverride = null;
   });
+
+  testWidgets(
+    'TextField inside StableEdgeSelection auto-scrolls on input while keeping drag speed capped',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      final scrollController = ScrollController();
+      final textController = TextEditingController();
+      addTearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+        scrollController.dispose();
+        textController.dispose();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 240,
+                child: StableEdgeSelection(
+                  controller: scrollController,
+                  child: TextField(
+                    controller: textController,
+                    scrollController: scrollController,
+                    maxLines: 3,
+                    minLines: 1,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+
+      // 输入超过 3 行可见高度的文本，未传递自定义 scrollPhysics 时仍应自动滚到底部
+      final lines = List.generate(
+        12,
+        (i) => 'prompt line $i HEAD_TAG',
+      ).join('\n');
+      await tester.enterText(find.byType(TextField), '$lines\nTAIL_TOKEN');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 150));
+
+      expect(scrollController.position.maxScrollExtent, greaterThan(0));
+      expect(scrollController.offset, greaterThan(0));
+      expect(
+        (scrollController.position.maxScrollExtent - scrollController.offset)
+            .abs(),
+        lessThan(24.0),
+      );
+
+      // 拖选超出上边缘时，抑制隐式滚动且仍保持每帧步长上限 (<= 8.5 px)
+      final startOffset = scrollController.offset;
+      final box = tester.getRect(find.byType(TextField));
+      final gesture = await tester.startGesture(
+        Offset(box.center.dx, box.center.dy),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      final samples = <double>[];
+      scrollController.addListener(() => samples.add(scrollController.offset));
+      await gesture.moveTo(Offset(box.center.dx, box.top - 40));
+      for (var i = 0; i < 60 && scrollController.offset > 0; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pump();
+
+      expect(samples, isNotEmpty);
+      expect(scrollController.offset, lessThan(startOffset));
+      for (var i = 1; i < samples.length; i++) {
+        final delta = samples[i] - samples[i - 1];
+        expect(delta, lessThanOrEqualTo(0.5));
+        expect(delta.abs(), lessThanOrEqualTo(8.5));
+      }
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 }

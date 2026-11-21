@@ -440,4 +440,25 @@ void main() {
       expect(clean, 'masterpiece | 1girl, smile | solo');
     });
   });
+
+  group('PromptAstEngine colon weight edge cases', () {
+    test('handles overlapping and trailing colons without RangeError', () {
+      for (final sample in const [
+        '0.54::',
+        '0.54:::',
+        '0.54::::',
+        '0.54:::::',
+        '0.54::  ::',
+        '-1.2:::',
+      ]) {
+        final tokens = PromptAstEngine.parsePromptTokens(sample);
+        expect(tokens, hasLength(1), reason: 'sample=$sample');
+        expect(tokens.first.nameStart, lessThanOrEqualTo(tokens.first.nameEnd));
+      }
+
+      final closedEmpty = PromptAstEngine.parsePromptTokens('0.54::::').single;
+      expect(closedEmpty.effectiveMultiplier, closeTo(0.54, 0.001));
+      expect(closedEmpty.name, isEmpty);
+    });
+  });
 }

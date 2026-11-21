@@ -40,8 +40,7 @@ mixin _StudioGenerationMixin on _StudioCore {
         ? customDir
         : _config.saveDirectory;
     if (targetDir.isEmpty) {
-      _errorMessage = vmL10n.vmGenNoSaveDir;
-      notifyListeners();
+      reportError(vmL10n.vmGenNoSaveDir, source: AppNoticeSource.generation);
       return false;
     }
 
@@ -59,8 +58,10 @@ mixin _StudioGenerationMixin on _StudioCore {
         watermarkBytes: _config.watermarkConfig.imageBytes,
       );
       if (saved == null) {
-        _errorMessage = vmL10n.vmGenSaveFailedNoTarget;
-        notifyListeners();
+        reportError(
+          vmL10n.vmGenSaveFailedNoTarget,
+          source: AppNoticeSource.generation,
+        );
         return false;
       }
       if (_selectedImage?.id == saved.id) {
@@ -70,8 +71,10 @@ mixin _StudioGenerationMixin on _StudioCore {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = vmL10n.vmGenSaveFailed('$e');
-      notifyListeners();
+      reportError(
+        vmL10n.vmGenSaveFailed('$e'),
+        source: AppNoticeSource.generation,
+      );
       return false;
     }
   }
@@ -101,8 +104,10 @@ mixin _StudioGenerationMixin on _StudioCore {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = vmL10n.vmGenSaveFailed('$e');
-      notifyListeners();
+      reportError(
+        vmL10n.vmGenSaveFailed('$e'),
+        source: AppNoticeSource.generation,
+      );
       return false;
     }
   }
@@ -150,8 +155,7 @@ mixin _StudioGenerationMixin on _StudioCore {
   @override
   Future<void> generateImage() async {
     if (_params.prompt.trim().isEmpty) {
-      _errorMessage = vmL10n.vmGenEmptyPrompt;
-      notifyListeners();
+      reportError(vmL10n.vmGenEmptyPrompt, source: AppNoticeSource.generation);
       return;
     }
 
@@ -162,8 +166,7 @@ mixin _StudioGenerationMixin on _StudioCore {
     }
 
     if (_config.novelAiKey.trim().isEmpty) {
-      _errorMessage = vmL10n.vmGenNoApiKey;
-      notifyListeners();
+      reportError(vmL10n.vmGenNoApiKey, source: AppNoticeSource.generation);
       return;
     }
 
@@ -213,8 +216,10 @@ mixin _StudioGenerationMixin on _StudioCore {
           (progress) {
             if (progress.errorMessage != null &&
                 progress.errorMessage!.isNotEmpty) {
-              _errorMessage = progress.errorMessage;
-              notifyListeners();
+              reportError(
+                progress.errorMessage!,
+                source: AppNoticeSource.generation,
+              );
               return;
             }
 
@@ -245,7 +250,11 @@ mixin _StudioGenerationMixin on _StudioCore {
             }
           },
           onError: (e) {
-            _errorMessage = vmL10n.vmGenFailed('$e');
+            reportError(
+              vmL10n.vmGenFailed('$e'),
+              source: AppNoticeSource.generation,
+              notify: false,
+            );
             _statusMessage = null;
             if (!completer.isCompleted) completer.complete();
           },
@@ -257,7 +266,11 @@ mixin _StudioGenerationMixin on _StudioCore {
 
         await completer.future;
       } catch (e) {
-        _errorMessage = vmL10n.vmGenFailed('$e');
+        reportError(
+          vmL10n.vmGenFailed('$e'),
+          source: AppNoticeSource.generation,
+          notify: false,
+        );
         _statusMessage = null;
       } finally {
         _generationSubscription = null;
@@ -294,7 +307,11 @@ mixin _StudioGenerationMixin on _StudioCore {
           }
         }
       } catch (e) {
-        _errorMessage = vmL10n.vmGenFailed('$e');
+        reportError(
+          vmL10n.vmGenFailed('$e'),
+          source: AppNoticeSource.generation,
+          notify: false,
+        );
         _statusMessage = null;
       } finally {
         _isGenerating = false;
@@ -351,14 +368,18 @@ mixin _StudioGenerationMixin on _StudioCore {
   @override
   Future<void> upscaleSelected() async {
     if (_selectedImage == null) {
-      _errorMessage = vmL10n.vmUpscaleNoImage;
-      notifyListeners();
+      reportError(
+        vmL10n.vmUpscaleNoImage,
+        source: AppNoticeSource.generation,
+      );
       return;
     }
 
     if (_config.novelAiKey.trim().isEmpty) {
-      _errorMessage = vmL10n.vmUpscaleNoApiKey;
-      notifyListeners();
+      reportError(
+        vmL10n.vmUpscaleNoApiKey,
+        source: AppNoticeSource.generation,
+      );
       return;
     }
 
@@ -397,7 +418,11 @@ mixin _StudioGenerationMixin on _StudioCore {
             )
           : vmL10n.vmUpscaleDone(upscaled.params.width, upscaled.params.height);
     } catch (e) {
-      _errorMessage = vmL10n.vmUpscaleFailed('$e');
+      reportError(
+        vmL10n.vmUpscaleFailed('$e'),
+        source: AppNoticeSource.generation,
+        notify: false,
+      );
       _statusMessage = null;
     } finally {
       _isGenerating = false;
@@ -445,12 +470,20 @@ mixin _StudioGenerationMixin on _StudioCore {
       if (e.cancelled) {
         _statusMessage = vmL10n.vmGenAborted;
       } else {
-        _errorMessage = vmL10n.vmUpscaleFailed('$e');
+        reportError(
+          vmL10n.vmUpscaleFailed('$e'),
+          source: AppNoticeSource.generation,
+          notify: false,
+        );
         _statusMessage = null;
       }
     } catch (e) {
       if (_rtxDisposed) return;
-      _errorMessage = vmL10n.vmUpscaleFailed('$e');
+      reportError(
+        vmL10n.vmUpscaleFailed('$e'),
+        source: AppNoticeSource.generation,
+        notify: false,
+      );
       _statusMessage = null;
     } finally {
       _isRtxUpscaling = false;
@@ -484,8 +517,14 @@ mixin _StudioGenerationMixin on _StudioCore {
 
   /// 刷新账号与体力信息
   @override
-  Future<void> refreshAccountInfo() async {
-    if (_config.novelAiKey.trim().isEmpty) return;
+  Future<void> refreshAccountInfo({bool showError = false}) async {
+    if (_config.novelAiKey.trim().isEmpty) {
+      if (_accountInfo != null) {
+        _accountInfo = null;
+        notifyListeners();
+      }
+      return;
+    }
 
     _isLoadingAccount = true;
     notifyListeners();
@@ -494,8 +533,15 @@ mixin _StudioGenerationMixin on _StudioCore {
       _accountInfo = await _repository.fetchAccountInfo(
         apiKey: _config.novelAiKey,
       );
-    } catch (_) {
-      // ignore
+    } catch (e) {
+      if (showError) {
+        _accountInfo = null;
+        reportError(
+          vmL10n.vmAccountRefreshFailed('$e'),
+          source: AppNoticeSource.account,
+          notify: false,
+        );
+      }
     } finally {
       _isLoadingAccount = false;
       notifyListeners();

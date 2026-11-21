@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +16,7 @@ import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_keep_alive_page.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/custom_title_bar.dart';
 import '../../../core/widgets/resizable_split_view.dart';
@@ -25,6 +28,7 @@ import '../widgets/annotation_history_strip.dart';
 import '../widgets/image_canvas_actions.dart';
 import '../widgets/image_canvas_card.dart';
 import '../widgets/metadata_reader_dialog.dart';
+import '../widgets/notification_center_popover.dart';
 import '../widgets/parameter_card.dart';
 import '../widgets/prompt_library_view.dart';
 import '../widgets/studio_sidebar.dart';
@@ -84,6 +88,7 @@ class _StudioViewState extends State<StudioView> {
         (_viewModel.gallery.isNotEmpty ? _viewModel.gallery.first : null);
     return (
       _viewModel.errorMessage,
+      _viewModel.unreadNotificationCount,
       _viewModel.activeSidebarTab,
       _viewModel.isLeftSidebarCollapsed,
       _viewModel.board.isAnnotatingImage,
@@ -386,6 +391,21 @@ class _StudioViewState extends State<StudioView> {
             _cachedOuterBuildSeq = _outerBuildSeq;
             // 系统返回键 (Android 手势/物理键) 先在层内消费，无可消费层时交还系统。
             // canPop 由判态驱动：无层内动作时保持 true，交由系统正常退出/回桌面。
+            final showCustomTitleBar =
+                kIsWeb || defaultTargetPlatform != TargetPlatform.macOS;
+            final isDesktop =
+                !kIsWeb &&
+                (defaultTargetPlatform == TargetPlatform.windows ||
+                    defaultTargetPlatform == TargetPlatform.linux ||
+                    defaultTargetPlatform == TargetPlatform.macOS);
+            final bannerTop = !isNarrow
+                ? (showCustomTitleBar ? 46.0 : 12.0)
+                : (isDesktop ? 42.0 : 50.0);
+            final bannerWidth = math.min(
+              360.0,
+              (constraints.maxWidth - 24).clamp(220.0, 360.0).toDouble(),
+            );
+
             return _cachedLayoutBody = PopScope(
               canPop: !_hasSystemBackAction(isNarrow: isNarrow),
               onPopInvokedWithResult: (didPop, _) {
@@ -394,9 +414,29 @@ class _StudioViewState extends State<StudioView> {
               },
               child: Scaffold(
                 backgroundColor: context.colors.canvasBackground,
-                body: isNarrow
-                    ? _buildNarrowLayout(context, isLibraryTab: isLibraryTab)
-                    : _buildWideLayout(context, isLibraryTab: isLibraryTab),
+                body: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    isNarrow
+                        ? _buildNarrowLayout(context, isLibraryTab: isLibraryTab)
+                        : _buildWideLayout(context, isLibraryTab: isLibraryTab),
+                    Positioned(
+                      top: bannerTop,
+                      right: 12,
+                      child: SafeArea(
+                        bottom: false,
+                        left: false,
+                        child: AppBannerStack(
+                          key: const Key('studio_floating_banner_stack'),
+                          controller: _viewModel.bannerController,
+                          stackFromTop: true,
+                          width: bannerWidth,
+                          itemExtent: 76.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -414,12 +454,6 @@ class _StudioViewState extends State<StudioView> {
         // 顶部自定义 Notion 风格标题栏 (支持窗口拖拽与三键控制)
         if (kIsWeb || defaultTargetPlatform != TargetPlatform.macOS)
           const CustomTitleBar(),
-
-        // 全局错误提示微胶囊
-        _StudioErrorBanner(
-          errorMessage: _viewModel.errorMessage,
-          onDismiss: _viewModel.clearError,
-        ),
 
         // 主体区域：最左侧导航栏 + 主工作台/全屏词库覆盖视图
         Expanded(
@@ -559,9 +593,15 @@ class _StudioViewState extends State<StudioView> {
             isEditingWatermarkPosition: _viewModel.isEditingWatermarkPosition,
             isAnnotating: _viewModel.board.isAnnotatingImage,
             hasSelectedImage: selectedImage != null,
+            unreadNotificationCount: _viewModel.unreadNotificationCount,
             onStudioTabSelected: (tab) {
               _viewModel.setActiveSidebarTab(tab, expandSidebar: false);
             },
+            onOpenNotifications: (anchorContext) =>
+                NotificationCenterPopover.show(
+                  anchorContext,
+                  viewModel: _viewModel,
+                ),
             onOpenSettings: () => SettingsDialog.show(context, _viewModel),
             onReadImageMetadata: () =>
                 pickAndInspectImageMetadata(context, _viewModel),
@@ -571,12 +611,6 @@ class _StudioViewState extends State<StudioView> {
                     _viewModel.sendImageToInpaint(selectedImage);
                     _setMobilePage(0);
                   },
-          ),
-
-          // 全局错误提示微胶囊 (直接置于顶部栏正下方)
-          _StudioErrorBanner(
-            errorMessage: _viewModel.errorMessage,
-            onDismiss: _viewModel.clearError,
           ),
 
           // 中间核心区域：三卡片 PageView 始终保活，词库以覆盖层形式叠在其上。
@@ -1075,104 +1109,11 @@ class _BottomBarPopDotState extends State<_BottomBarPopDot>
   }
 }
 
-/// 全局错误提示微胶囊 (`07-panel-reveal` + `12-error-state-shake`)
-class _StudioErrorBanner extends StatefulWidget {
-  final String? errorMessage;
-  final VoidCallback onDismiss;
-
-  const _StudioErrorBanner({
-    required this.errorMessage,
-    required this.onDismiss,
-  });
-
-  @override
-  State<_StudioErrorBanner> createState() => _StudioErrorBannerState();
-}
-
-class _StudioErrorBannerState extends State<_StudioErrorBanner> {
-  String _cachedMessage = '';
-  int _shakeTrigger = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.errorMessage != null) {
-      _cachedMessage = widget.errorMessage!;
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _StudioErrorBanner oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final next = widget.errorMessage;
-    if (next != null && next != oldWidget.errorMessage) {
-      _cachedMessage = next;
-      _shakeTrigger++;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final visible = widget.errorMessage != null;
-    if (widget.errorMessage != null) {
-      _cachedMessage = widget.errorMessage!;
-    }
-
-    return AppPanelReveal(
-      visible: visible,
-      openDuration: AppMotionDurations.fast,
-      closeDuration: AppMotionDurations.quick,
-      slideOffset: AppMotionDistances.base,
-      enableBlur: false,
-      child: AppErrorShake(
-        trigger: _shakeTrigger,
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: colors.errorSurface,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(
-              color: colors.error.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.error_outline, size: 16, color: colors.error),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _cachedMessage,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.close, size: 14, color: colors.textSecondary),
-                tooltip: context.l10n.close,
-                onPressed: widget.onDismiss,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// 移动端 / 窄屏顶部上下文子导航栏：
 ///
 /// - 生图页 (Page 0)：呈现 [参数 | 提示词 | 局部修复] 二级分段切换条；
 /// - 画板/助手/词库：呈现当前视图图标与标题 (+ 画板页选中图像时的快捷修复动作)；
-/// - 右侧常驻「设置」入口，桌面窄屏窗口额外保留窗口拖拽与三键控制。
+/// - 右侧常驻「通知」与「设置」入口，桌面窄屏窗口额外保留窗口拖拽与三键控制。
 class _MobileTopBar extends StatefulWidget {
   final int activeIndex;
   final bool isLibraryTab;
@@ -1181,7 +1122,9 @@ class _MobileTopBar extends StatefulWidget {
   final bool isEditingWatermarkPosition;
   final bool isAnnotating;
   final bool hasSelectedImage;
+  final int unreadNotificationCount;
   final ValueChanged<StudioSidebarTab> onStudioTabSelected;
+  final ValueChanged<BuildContext> onOpenNotifications;
   final VoidCallback onOpenSettings;
   final VoidCallback? onReadImageMetadata;
   final VoidCallback? onQuickInpaint;
@@ -1194,7 +1137,9 @@ class _MobileTopBar extends StatefulWidget {
     required this.isEditingWatermarkPosition,
     required this.isAnnotating,
     required this.hasSelectedImage,
+    required this.unreadNotificationCount,
     required this.onStudioTabSelected,
+    required this.onOpenNotifications,
     required this.onOpenSettings,
     this.onReadImageMetadata,
     this.onQuickInpaint,
@@ -1255,6 +1200,42 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
                   tooltip: l10n.canvasActionSendToInpaint,
                   onPressed: widget.onQuickInpaint,
                 ),
+
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Builder(
+                    builder: (buttonContext) => AppIconButton(
+                      key: const Key('mobile_nav_notifications'),
+                      icon: Icons.notifications_none_rounded,
+                      variant: AppIconButtonVariant.ghost,
+                      size: btnSize,
+                      tooltip: l10n.notificationsTooltip,
+                      onPressed: () =>
+                          widget.onOpenNotifications(buttonContext),
+                    ),
+                  ),
+                  if (widget.unreadNotificationCount > 0)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: IgnorePointer(
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: colors.error,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: colors.cardBackground,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
 
               Padding(
                 padding: EdgeInsets.only(

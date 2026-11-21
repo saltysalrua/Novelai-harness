@@ -1,9 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 const double _kEdgeScrollMaxStep = 8;
 const double _kEdgeScrollMinSpeed = 80;
@@ -17,22 +19,92 @@ double _edgeScrollStep(double overshoot, double seconds) {
   return math.min(_kEdgeScrollMaxStep, speed * seconds);
 }
 
-/// 文本框自身仍可滚轮、拖滚动条，但拒绝光标 `showOnScreen` 的隐式滚动。
+/// 文本框自身仍可滚轮、拖滚动条，并按 [suppressImplicitScrolling] 动态控制光标隐式滚动。
 ///
 /// 拖选越过边缘时，框架会按「每个指针事件一行」把视口 `jumpTo`，
 /// 并在帧末用 `animateTo` 重启动画。速度随指针离边缘的距离暴涨，
-/// 视口就一帧一顿地抽搐，选区也停在半路。关掉隐式滚动后，
-/// 由 [StableEdgeSelection] 按封顶速度自己滚。
+/// 视口就一帧一顿地抽搐，选区也停在半路。指针按住期间关闭隐式滚动，
+/// 由 [StableEdgeSelection] 按封顶速度自己滚；松手后恢复默认以保证输入超行自动跟进光标。
 class StableSelectionScrollPhysics extends ScrollPhysics {
-  const StableSelectionScrollPhysics({super.parent});
+  final ValueListenable<bool>? suppressImplicitScrolling;
+
+  const StableSelectionScrollPhysics({
+    super.parent,
+    this.suppressImplicitScrolling,
+  });
 
   @override
   StableSelectionScrollPhysics applyTo(ScrollPhysics? ancestor) {
-    return StableSelectionScrollPhysics(parent: buildParent(ancestor));
+    return StableSelectionScrollPhysics(
+      parent: buildParent(ancestor),
+      suppressImplicitScrolling: suppressImplicitScrolling,
+    );
   }
 
   @override
-  bool get allowImplicitScrolling => false;
+  bool get allowImplicitScrolling =>
+      (parent?.allowImplicitScrolling ?? true) &&
+      !(suppressImplicitScrolling?.value ?? true);
+}
+
+class _StableSelectionScrollBehavior extends ScrollBehavior {
+  final ScrollBehavior delegate;
+  final ValueListenable<bool> suppressImplicitScrolling;
+
+  const _StableSelectionScrollBehavior({
+    required this.delegate,
+    required this.suppressImplicitScrolling,
+  });
+
+  @override
+  TargetPlatform getPlatform(BuildContext context) =>
+      delegate.getPlatform(context);
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => delegate.dragDevices;
+
+  @override
+  MultitouchDragStrategy getMultitouchDragStrategy(BuildContext context) =>
+      delegate.getMultitouchDragStrategy(context);
+
+  @override
+  Set<LogicalKeyboardKey> get pointerAxisModifiers =>
+      delegate.pointerAxisModifiers;
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => delegate.buildScrollbar(context, child, details);
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => delegate.buildOverscrollIndicator(context, child, details);
+
+  @override
+  GestureVelocityTrackerBuilder velocityTrackerBuilder(BuildContext context) =>
+      delegate.velocityTrackerBuilder(context);
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      StableSelectionScrollPhysics(
+        parent: delegate.getScrollPhysics(context),
+        suppressImplicitScrolling: suppressImplicitScrolling,
+      );
+
+  @override
+  bool shouldNotify(covariant _StableSelectionScrollBehavior oldDelegate) {
+    return !identical(
+          oldDelegate.suppressImplicitScrolling,
+          suppressImplicitScrolling,
+        ) ||
+        oldDelegate.delegate.runtimeType != delegate.runtimeType ||
+        oldDelegate.delegate.shouldNotify(delegate);
+  }
 }
 
 /// 指针按住并越出盒子边缘时，沿 [axis] 以封顶速度滚动 [controller]，
@@ -59,6 +131,7 @@ class StableEdgeSelection extends StatefulWidget {
 class _StableEdgeSelectionState extends State<StableEdgeSelection>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
+  final ValueNotifier<bool> _pointerActive = ValueNotifier<bool>(false);
   int? _pointer;
   Offset? _position;
   int? _anchorOffset;
@@ -74,6 +147,7 @@ class _StableEdgeSelectionState extends State<StableEdgeSelection>
   @override
   void dispose() {
     _stopTracking();
+    _pointerActive.dispose();
     _ticker.dispose();
     super.dispose();
   }
@@ -85,6 +159,7 @@ class _StableEdgeSelectionState extends State<StableEdgeSelection>
     _pointer = null;
     _position = null;
     _anchorOffset = null;
+    _pointerActive.value = false;
     _ticker.stop();
     _setBlocking(false);
   }
@@ -119,6 +194,7 @@ class _StableEdgeSelectionState extends State<StableEdgeSelection>
     _position = event.position;
     _anchorOffset = _offsetAt(event.position);
     _lastTick = Duration.zero;
+    _pointerActive.value = true;
     _setBlocking(true);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointer);
     _ticker.start();
@@ -287,7 +363,16 @@ class _StableEdgeSelectionState extends State<StableEdgeSelection>
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: _onPointerDown,
-      child: _ShowOnScreenGate(block: _blockShowOnScreen, child: widget.child),
+      child: ScrollConfiguration(
+        behavior: _StableSelectionScrollBehavior(
+          delegate: ScrollConfiguration.of(context),
+          suppressImplicitScrolling: _pointerActive,
+        ),
+        child: _ShowOnScreenGate(
+          block: _blockShowOnScreen,
+          child: widget.child,
+        ),
+      ),
     );
   }
 }

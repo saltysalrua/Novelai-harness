@@ -31,10 +31,24 @@ class SkillPackageService {
     p.join((await getApplicationSupportDirectory()).path, 'skill_packages'),
   );
 
-  Future<SkillPackage> readImportFile(String path) async {
+  Future<SkillPackage> readImportFile(String path, {String? filename}) async {
     final bytes = await _readBounded(File(path), maxPackageBytes);
-    final name = p.basename(path);
-    return Isolate.run(() => decodeImport(bytes, name));
+    final resolvedName =
+        (filename != null && filename.trim().isNotEmpty)
+        ? filename.trim()
+        : p.basename(path);
+    return Isolate.run(() => decodeImport(bytes, resolvedName));
+  }
+
+  /// 直接从内存字节解码技能包（Android SAF 文件选择器未落盘本地路径时走此入口）。
+  Future<SkillPackage> readImportBytes(Uint8List bytes, String filename) {
+    if (bytes.length > maxPackageBytes) {
+      throw const SkillFormatException(
+        SkillFormatError.packageTooLarge,
+        '技能包不能超过 32 MiB。',
+      );
+    }
+    return Isolate.run(() => decodeImport(bytes, filename));
   }
 
   /// .skill 是 ZIP 容器的常用扩展名；Markdown 继续兼容单文件导入。

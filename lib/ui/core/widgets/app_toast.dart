@@ -493,7 +493,7 @@ class AppBannerController extends ChangeNotifier {
         onAction: onAction,
       ),
     );
-    if (autoDismiss != null && autoDismiss > Duration.zero) {
+    if (autoDismiss != null && autoDismiss > Duration.zero && hasListeners) {
       _timers[resolvedId] = Timer(autoDismiss, () => dismiss(resolvedId));
     }
     notifyListeners();
@@ -568,6 +568,9 @@ class AppBannerStack extends StatefulWidget {
   /// 单条卡片预估高度 (用于叠放与展开高度计算)，默认 64.0
   final double itemExtent;
 
+  /// 是否从顶部向下堆叠展开（用于右上角等顶栏下方悬浮场景），默认 false（从底部向上）
+  final bool stackFromTop;
+
   const AppBannerStack({
     super.key,
     this.controller,
@@ -580,6 +583,7 @@ class AppBannerStack extends StatefulWidget {
     this.depthFadeStep = 0.4,
     this.width = 360.0,
     this.itemExtent = 64.0,
+    this.stackFromTop = false,
   });
 
   @override
@@ -648,7 +652,9 @@ class _AppBannerStackState extends State<AppBannerStack> {
         height: stackHeight,
         child: Stack(
           clipBehavior: Clip.none,
-          alignment: Alignment.bottomCenter,
+          alignment: widget.stackFromTop
+              ? Alignment.topCenter
+              : Alignment.bottomCenter,
           children: [
             // 先绘深层，再绘浅层，保证 depth 0 永远位于最前
             for (var depth = count - 1; depth >= 0; depth--)
@@ -670,7 +676,7 @@ class _AppBannerStackState extends State<AppBannerStack> {
     required Duration animDuration,
     required bool reduceMotion,
   }) {
-    final double bottom = _isSpread
+    final double offset = _isSpread
         ? depth * (widget.itemExtent + widget.spreadGap)
         : depth * widget.peekOffset;
     final double scale = _isSpread
@@ -689,7 +695,8 @@ class _AppBannerStackState extends State<AppBannerStack> {
       curve: AppMotionCurves.smoothOut,
       left: 0,
       right: 0,
-      bottom: bottom,
+      top: widget.stackFromTop ? offset : null,
+      bottom: widget.stackFromTop ? null : offset,
       child: AnimatedOpacity(
         duration: animDuration,
         curve: AppMotionCurves.smoothOut,
@@ -698,9 +705,12 @@ class _AppBannerStackState extends State<AppBannerStack> {
           duration: animDuration,
           curve: AppMotionCurves.smoothOut,
           scale: scale,
-          alignment: Alignment.bottomCenter,
+          alignment: widget.stackFromTop
+              ? Alignment.topCenter
+              : Alignment.bottomCenter,
           child: _BannerArrivalWrapper(
             reduceMotion: reduceMotion,
+            fromTop: widget.stackFromTop,
             child: AppToastCard(
               title: item.title,
               message: item.message,
@@ -721,10 +731,12 @@ class _AppBannerStackState extends State<AppBannerStack> {
 class _BannerArrivalWrapper extends StatefulWidget {
   final Widget child;
   final bool reduceMotion;
+  final bool fromTop;
 
   const _BannerArrivalWrapper({
     required this.child,
     required this.reduceMotion,
+    this.fromTop = false,
   });
 
   @override
@@ -771,7 +783,11 @@ class _BannerArrivalWrapperState extends State<_BannerArrivalWrapper>
         final t = AppMotionCurves.smoothOut
             .transform(_controller.value)
             .clamp(0.0, 1.0);
-        final dy = AppMotionDistances.toast * (1.0 - t);
+        final dy =
+            (widget.fromTop
+                ? -AppMotionDistances.toast
+                : AppMotionDistances.toast) *
+            (1.0 - t);
         final scale =
             AppMotionScales.dropdown + (1.0 - AppMotionScales.dropdown) * t;
         return Opacity(

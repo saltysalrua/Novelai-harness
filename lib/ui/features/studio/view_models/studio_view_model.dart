@@ -43,6 +43,7 @@ import '../../../../data/services/image_file_store.dart';
 import '../../../../data/services/image_metadata_service.dart';
 import '../../../../data/services/image_save_path_service.dart';
 import '../../../../data/services/media_store_service.dart';
+import '../../../../data/services/notification_history_service.dart';
 import '../../../../data/services/palette_service.dart';
 import '../../../../data/services/rtx_upscale_service.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
@@ -57,6 +58,7 @@ import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import '../../../../l10n/app_localizations.dart'
     show AppLocalizations, lookupAppLocalizations;
+import '../../../core/widgets/app_toast.dart';
 import 'param_snapshot_journal.dart';
 import 'board/board_controller.dart';
 import 'slash_command_catalog.dart';
@@ -99,6 +101,9 @@ mixin _StudioCore on ChangeNotifier {
   Future<void> _skillWriteQueue = Future<void>.value();
   final SessionLogService _sessionLog = SessionLogService();
   final UsageLedgerService _usageLedger = UsageLedgerService();
+  final NotificationHistoryService _notificationLog =
+      NotificationHistoryService();
+  final AppBannerController bannerController = AppBannerController();
   late final ToolRegistry _toolRegistry;
   late final AgentHarness _harness;
 
@@ -341,6 +346,8 @@ mixin _StudioCore on ChangeNotifier {
       _config.presets.isNotEmpty ? _config.presets : BuiltinPresets.all;
   String? get statusMessage => _statusMessage;
   String? get errorMessage => _errorMessage;
+  List<AppNoticeRecord> get notificationHistory => _notificationLog.records;
+  int get unreadNotificationCount => _notificationLog.unreadCount;
 
   /// 实时生图预览 Getters (委托 LiveProgressController)
   Uint8List? get livePreviewBytes => _liveProgressController.previewBytes;
@@ -524,7 +531,7 @@ mixin _StudioCore on ChangeNotifier {
   Future<void> upscaleRtx(NaiGeneratedImage image);
 
   /// 刷新账号与体力信息
-  Future<void> refreshAccountInfo();
+  Future<void> refreshAccountInfo({bool showError = false});
 
   /// 获取用于导出/复制的图像字节 (根据全局设置决定是否去元数据或添加水印)
   Future<Uint8List> getExportImageBytes(
@@ -662,6 +669,78 @@ mixin _StudioCore on ChangeNotifier {
     }
     return loaded;
   }
+
+  String _noticeSourceTitle(AppNoticeSource source) => switch (source) {
+    AppNoticeSource.generation => vmL10n.notificationSourceGeneration,
+    AppNoticeSource.inpaint => vmL10n.notificationSourceInpaint,
+    AppNoticeSource.agent => vmL10n.notificationSourceAgent,
+    AppNoticeSource.account => vmL10n.notificationSourceAccount,
+    AppNoticeSource.comfyUi => vmL10n.notificationSourceComfyUi,
+    AppNoticeSource.storage => vmL10n.notificationSourceStorage,
+    AppNoticeSource.system => vmL10n.notificationSourceSystem,
+  };
+
+  /// 统一上报错误/通知：同步更新最新 errorMessage、写入持久化历史，并推送右上角悬浮通知卡片。
+  void reportError(
+    String message, {
+    AppNoticeSource source = AppNoticeSource.system,
+    AppNoticeLevel level = AppNoticeLevel.error,
+    bool notify = true,
+    Duration? autoDismiss = const Duration(seconds: 6),
+  }) {
+    final trimmed = message.trim();
+    if (trimmed.isEmpty) return;
+    _errorMessage = trimmed;
+    final record = _notificationLog.record(
+      message: trimmed,
+      level: level,
+      source: source,
+    );
+    final tone = switch (level) {
+      AppNoticeLevel.error => AppToastTone.error,
+      AppNoticeLevel.warning => AppToastTone.warning,
+      AppNoticeLevel.info => AppToastTone.info,
+    };
+    bannerController.push(
+      id: record.id,
+      title: _noticeSourceTitle(source),
+      message: trimmed,
+      tone: tone,
+      autoDismiss: autoDismiss,
+    );
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
+  void markAllNotificationsRead() {
+    if (_notificationLog.markAllRead()) {
+      notifyListeners();
+    }
+  }
+
+  void removeNotification(String id) {
+    if (_notificationLog.remove(id)) {
+      bannerController.dismiss(id);
+      notifyListeners();
+    }
+  }
+
+  void clearNotificationHistory() {
+    final hadBanner = bannerController.items.isNotEmpty;
+    final clearedLog = _notificationLog.clear();
+    if (hadBanner) bannerController.clear();
+    if (_errorMessage != null) _errorMessage = null;
+    if (hadBanner || clearedLog) {
+      notifyListeners();
+    }
+  }
+
+  void clearError() {
+    _errorMessage = null;
+    bannerController.clear();
+    notifyListeners();
+  }
 }
 
 /// Studio 状态管理中枢 (MVVM)。
@@ -784,7 +863,12 @@ class StudioViewModel extends ChangeNotifier
     }
     _syncVmLocale();
     if (storageDegraded) {
-      _errorMessage = vmL10n.bootStorageFallbackBanner;
+      reportError(
+        vmL10n.bootStorageFallbackBanner,
+        source: AppNoticeSource.storage,
+        level: AppNoticeLevel.warning,
+        notify: false,
+      );
     }
     _syncGalleryExportHook();
     final lastPrompt = await _configService.loadLastPrompt();
@@ -871,6 +955,7 @@ class StudioViewModel extends ChangeNotifier
     try {
       await _sessionLog.init(baseDir: _sessionLogBaseDir);
       await _usageLedger.init(baseDir: _sessionLog.baseDirPath);
+      await _notificationLog.init(baseDir: _sessionLog.baseDirPath);
       final snapshot = await _sessionLog.loadLatestSessionAsync();
       if (snapshot != null && snapshot.messages.isNotEmpty) {
         _harness.restoreMessages(snapshot.messages);
@@ -1072,9 +1157,14 @@ class StudioViewModel extends ChangeNotifier
     notifyListeners();
 
     // 仅在 NovelAI API Key 发生变更时刷新账号，避免调整参数/水印时频繁请求网络
-    final keyChanged = oldConfig.novelAiKey != newConfig.novelAiKey;
-    if (keyChanged && _config.novelAiKey.isNotEmpty) {
-      await refreshAccountInfo();
+    final keyChanged =
+        oldConfig.novelAiKey.trim() != newConfig.novelAiKey.trim();
+    if (keyChanged) {
+      _accountInfo = null;
+      notifyListeners();
+      if (_config.novelAiKey.trim().isNotEmpty) {
+        await refreshAccountInfo(showError: true);
+      }
     }
   }
 
@@ -1145,6 +1235,7 @@ class StudioViewModel extends ChangeNotifier
     await Future.wait([
       _sessionLog.flush(),
       _usageLedger.flush(),
+      _notificationLog.flush(),
       _repository.flushPendingImageLoads(),
     ]);
   }
@@ -1543,11 +1634,6 @@ class StudioViewModel extends ChangeNotifier
 
   // ------------------------- 杂项状态 -------------------------
 
-  void clearError() {
-    _errorMessage = null;
-    notifyListeners();
-  }
-
   /// Ctrl+O: 切换对话卡思考块全局展开/折叠
   void toggleThinkingExpanded() {
     _isThinkingExpanded = !_isThinkingExpanded;
@@ -1597,10 +1683,12 @@ class StudioViewModel extends ChangeNotifier
     // 瞬态控制器随宿主一起释放
     _streamingText.dispose();
     _liveProgressController.dispose();
+    bannerController.dispose();
     promptLibraryNotifier.dispose();
     // 大画布领域控制器：内部取消防抖并立即落盘一次 (对齐旧 dispose 契约)
     board.dispose();
     unawaited(_sessionLog.flush());
+    unawaited(_notificationLog.flush());
     super.dispose();
   }
 }

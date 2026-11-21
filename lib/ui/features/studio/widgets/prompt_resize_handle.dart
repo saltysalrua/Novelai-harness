@@ -252,7 +252,6 @@ class _ResizableTextFieldState extends State<ResizableTextField> {
             focusNode: _focusNode,
             readOnly: widget.readOnly,
             scrollController: _scrollController,
-            scrollPhysics: const StableSelectionScrollPhysics(),
             scrollPadding: EdgeInsets.zero,
             maxLines: null,
             expands: true,

@@ -1793,5 +1793,25 @@
       "enabled": {"type": "int"},
       "total": {"type": "int"}
     }
+  },
+  "notifications": "Notifications",
+  "notificationsTooltip": "Notifications & error log",
+  "notificationCenterTitle": "Notifications",
+  "notificationCenterEmpty": "No notifications yet",
+  "notificationCenterCopyAll": "Copy all",
+  "notificationCenterClearAll": "Clear all",
+  "notificationCenterCopied": "Copied to clipboard",
+  "notificationSourceGeneration": "Generate",
+  "notificationSourceInpaint": "Inpaint",
+  "notificationSourceAgent": "Agent",
+  "notificationSourceAccount": "Account",
+  "notificationSourceComfyUi": "ComfyUI",
+  "notificationSourceStorage": "Storage",
+  "notificationSourceSystem": "System",
+  "vmAccountRefreshFailed": "Failed to refresh NovelAI account: {error}",
+  "@vmAccountRefreshFailed": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
   }
 }

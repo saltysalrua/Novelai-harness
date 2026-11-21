@@ -70,8 +70,7 @@ mixin _StudioChatMixin on _StudioCore {
 
     // 斜杠指令不支持附带图片
     if (trimmed.startsWith('/') && hasImages) {
-      _errorMessage = vmL10n.vmChatSlashNoImage;
-      notifyListeners();
+      reportError(vmL10n.vmChatSlashNoImage, source: AppNoticeSource.agent);
       return;
     }
 
@@ -88,8 +87,10 @@ mixin _StudioChatMixin on _StudioCore {
       try {
         await _handleSlashCommand(trimmed);
       } catch (e) {
-        _errorMessage = vmL10n.vmChatSlashFailed('$e');
-        notifyListeners();
+        reportError(
+          vmL10n.vmChatSlashFailed('$e'),
+          source: AppNoticeSource.agent,
+        );
       }
       return;
     }
@@ -149,12 +150,20 @@ mixin _StudioChatMixin on _StudioCore {
           } else if (event is ToolResultEvent) {
             _notifyNow();
           } else if (event is ErrorEvent) {
-            _errorMessage = localizeHarnessError(vmL10n, event);
+            reportError(
+              localizeHarnessError(vmL10n, event),
+              source: AppNoticeSource.agent,
+              notify: false,
+            );
             _notifyNow();
           }
         },
         onError: (e) {
-          _errorMessage = vmL10n.vmChatError('$e');
+          reportError(
+            vmL10n.vmChatError('$e'),
+            source: AppNoticeSource.agent,
+            notify: false,
+          );
           if (!completer.isCompleted) completer.complete();
         },
         onDone: () {
@@ -165,7 +174,11 @@ mixin _StudioChatMixin on _StudioCore {
 
       await completer.future;
     } catch (e) {
-      _errorMessage = vmL10n.vmChatError('$e');
+      reportError(
+        vmL10n.vmChatError('$e'),
+        source: AppNoticeSource.agent,
+        notify: false,
+      );
     } finally {
       _chatSubscription = null;
       _chatCompletion = null;

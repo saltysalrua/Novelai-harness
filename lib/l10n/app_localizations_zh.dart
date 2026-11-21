@@ -4082,4 +4082,51 @@ class AppLocalizationsZh extends AppLocalizations {
   String quickPromptCharactersCount(int enabled, int total) {
     return '$enabled/$total 已启用';
   }
+
+  @override
+  String get notifications => '通知';
+
+  @override
+  String get notificationsTooltip => '通知与错误记录';
+
+  @override
+  String get notificationCenterTitle => '通知记录';
+
+  @override
+  String get notificationCenterEmpty => '暂无通知记录';
+
+  @override
+  String get notificationCenterCopyAll => '复制全部';
+
+  @override
+  String get notificationCenterClearAll => '清空记录';
+
+  @override
+  String get notificationCenterCopied => '已复制到剪贴板';
+
+  @override
+  String get notificationSourceGeneration => '生图';
+
+  @override
+  String get notificationSourceInpaint => '局部修复';
+
+  @override
+  String get notificationSourceAgent => '助手';
+
+  @override
+  String get notificationSourceAccount => '账号';
+
+  @override
+  String get notificationSourceComfyUi => 'ComfyUI';
+
+  @override
+  String get notificationSourceStorage => '存储';
+
+  @override
+  String get notificationSourceSystem => '系统';
+
+  @override
+  String vmAccountRefreshFailed(String error) {
+    return '刷新 NovelAI 账号信息失败：$error';
+  }
 }

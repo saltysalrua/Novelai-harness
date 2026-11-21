@@ -380,7 +380,7 @@ class _RefreshButton extends StatelessWidget {
       loadingIndicatorSize: compact ? 15 : 12,
       variant: AppIconButtonVariant.ghost,
       tooltip: context.l10n.dockRefreshTooltip,
-      onPressed: viewModel.refreshAccountInfo,
+      onPressed: () => viewModel.refreshAccountInfo(showError: true),
     );
   }
 }

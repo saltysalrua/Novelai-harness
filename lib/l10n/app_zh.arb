@@ -1793,5 +1793,25 @@
       "enabled": {"type": "int"},
       "total": {"type": "int"}
     }
+  },
+  "notifications": "通知",
+  "notificationsTooltip": "通知与错误记录",
+  "notificationCenterTitle": "通知记录",
+  "notificationCenterEmpty": "暂无通知记录",
+  "notificationCenterCopyAll": "复制全部",
+  "notificationCenterClearAll": "清空记录",
+  "notificationCenterCopied": "已复制到剪贴板",
+  "notificationSourceGeneration": "生图",
+  "notificationSourceInpaint": "局部修复",
+  "notificationSourceAgent": "助手",
+  "notificationSourceAccount": "账号",
+  "notificationSourceComfyUi": "ComfyUI",
+  "notificationSourceStorage": "存储",
+  "notificationSourceSystem": "系统",
+  "vmAccountRefreshFailed": "刷新 NovelAI 账号信息失败：{error}",
+  "@vmAccountRefreshFailed": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
   }
 }

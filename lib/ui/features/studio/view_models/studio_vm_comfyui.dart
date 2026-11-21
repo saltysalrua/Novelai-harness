@@ -138,8 +138,7 @@ mixin _StudioComfyMixin on _StudioCore {
   @override
   Future<void> generateImageViaComfyUi() async {
     if (_params.prompt.trim().isEmpty) {
-      _errorMessage = vmL10n.vmGenEmptyPrompt;
-      notifyListeners();
+      reportError(vmL10n.vmGenEmptyPrompt, source: AppNoticeSource.comfyUi);
       return;
     }
 
@@ -158,7 +157,11 @@ mixin _StudioComfyMixin on _StudioCore {
       try {
         state = await service.fetchBridgeState();
       } on ComfyUiBridgeException catch (e) {
-        _errorMessage = vmL10n.vmComfyBridgeUnreachable(e.message);
+        reportError(
+          vmL10n.vmComfyBridgeUnreachable(e.message),
+          source: AppNoticeSource.comfyUi,
+          notify: false,
+        );
         return;
       }
       _comfyBridgeState = state;
@@ -168,8 +171,11 @@ mixin _StudioComfyMixin on _StudioCore {
       final targets = _resolveComfyNodeTargets(state);
       if (targets.promptNodeId.isEmpty) {
         _comfyStatus = ComfyUiConnectionStatus.connected;
-        _errorMessage = vmL10n.vmComfyNoPromptPanel;
-        notifyListeners();
+        reportError(
+          vmL10n.vmComfyNoPromptPanel,
+          source: AppNoticeSource.comfyUi,
+          notify: false,
+        );
         return;
       }
 
@@ -243,7 +249,11 @@ mixin _StudioComfyMixin on _StudioCore {
         if (fresh != null) break;
       }
       if (fresh == null) {
-        _errorMessage = vmL10n.vmComfyWaitTimeout;
+        reportError(
+          vmL10n.vmComfyWaitTimeout,
+          source: AppNoticeSource.comfyUi,
+          notify: false,
+        );
         return;
       }
 
@@ -273,10 +283,18 @@ mixin _StudioComfyMixin on _StudioCore {
         _applySeedMutationAfter(seed);
       }
     } on ComfyUiBridgeException catch (e) {
-      _errorMessage = vmL10n.vmComfyFailed(e.message);
+      reportError(
+        vmL10n.vmComfyFailed(e.message),
+        source: AppNoticeSource.comfyUi,
+        notify: false,
+      );
       _statusMessage = null;
     } catch (e) {
-      _errorMessage = vmL10n.vmComfyFailed('$e');
+      reportError(
+        vmL10n.vmComfyFailed('$e'),
+        source: AppNoticeSource.comfyUi,
+        notify: false,
+      );
       _statusMessage = null;
     } finally {
       _comfyAbortRequested = false;

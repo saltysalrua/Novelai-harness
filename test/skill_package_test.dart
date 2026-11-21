@@ -408,4 +408,24 @@ void main() {
       expect(reads, 0);
     },
   );
+
+  test(
+    'readImportBytes and readImportFile support mobile bytes and extensionless cache paths',
+    () async {
+      final zipBytes = _zip(_files('example-skill/'));
+      final fromBytes = await service.readImportBytes(zipBytes, 'demo.skill');
+      expect(fromBytes.skill.id, 'example-skill');
+      expect(fromBytes.files.keys, contains('references/guide.md'));
+
+      final cachedFile = File(p.join(temp.path, 'content_cache_item'));
+      await cachedFile.writeAsBytes(zipBytes, flush: true);
+
+      final fromFallback = await service.readImportFile(
+        cachedFile.path,
+        filename: 'demo.skill',
+      );
+      expect(fromFallback.skill.id, 'example-skill');
+      expect(fromFallback.files.keys, contains('assets/template.bin'));
+    },
+  );
 }

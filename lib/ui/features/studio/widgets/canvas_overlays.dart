@@ -16,6 +16,7 @@ import '../../settings/views/settings_dialog.dart';
 import '../view_models/studio_view_model.dart';
 import 'compact_prompt_popover.dart';
 import 'image_canvas_actions.dart';
+import 'notification_center_popover.dart';
 import 'studio_shared.dart';
 
 /// 画板浮层通用白底徽章装饰 (Notion 蓝白卡片，支持 context 语义色与无参回退)
@@ -761,6 +762,13 @@ class _CanvasCollapsedQuickDockState extends State<CanvasCollapsedQuickDock> {
               tooltip: l10n.canvasQuickPromptTooltip,
               onPressed: () => _openCompactPromptPopover(buttonContext),
             ),
+          ),
+          const SizedBox(width: 2),
+          NotificationBellButton(
+            key: const Key('canvas_collapsed_notifications_button'),
+            viewModel: viewModel,
+            size: 30,
+            iconSize: 16,
           ),
           const SizedBox(width: 2),
           AppIconButton(

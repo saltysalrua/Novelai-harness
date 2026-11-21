@@ -183,4 +183,94 @@ void main() {
           '(前: $anchorTop, 后: $afterTop, 消息: ${anchorMessage!.id})',
     );
   });
+
+  testWidgets('AgentChatInputBar Shift+Enter 与多行粘贴自动滚动到底部', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(_wrapChatCard(cardViewModel));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final inputFinder = find.byType(TextField);
+    expect(inputFinder, findsOneWidget);
+    await tester.tap(inputFinder);
+    await tester.pump();
+
+    // 连续按 Shift+Enter 超过最大可见行数 (5 行)
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    for (var i = 0; i < 8; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+    }
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final inputScrollable = find.descendant(
+      of: inputFinder,
+      matching: find.byType(Scrollable),
+    );
+    expect(inputScrollable, findsOneWidget);
+    final posAfterEnter = tester.state<ScrollableState>(inputScrollable).position;
+    expect(posAfterEnter.maxScrollExtent, greaterThan(0));
+    expect(posAfterEnter.pixels, greaterThan(0));
+    expect(
+      (posAfterEnter.maxScrollExtent - posAfterEnter.pixels).abs(),
+      lessThan(24.0),
+    );
+
+    // 清空后测试 Ctrl+V 多行粘贴同样自动滚动到末尾
+    String? mockClipboardText;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          mockClipboardText = (call.arguments as Map?)?['text'] as String?;
+          return null;
+        }
+        if (call.method == 'Clipboard.getData') {
+          return mockClipboardText == null ? null : {'text': mockClipboardText};
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    final tfWidget = tester.widget<TextField>(inputFinder);
+    tfWidget.controller!.clear();
+    await tester.pump();
+
+    final pastedText = List.generate(12, (i) => 'pasted line $i').join('\n');
+    await Clipboard.setData(ClipboardData(text: pastedText));
+    await tester.tap(inputFinder);
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(tfWidget.controller!.text, pastedText);
+    final posAfterPaste = tester.state<ScrollableState>(inputScrollable).position;
+    expect(posAfterPaste.maxScrollExtent, greaterThan(0));
+    expect(posAfterPaste.pixels, greaterThan(0));
+    expect(
+      (posAfterPaste.maxScrollExtent - posAfterPaste.pixels).abs(),
+      lessThan(24.0),
+    );
+
+    // 等待草稿防抖落盘计时器 (300ms) 触发完毕，避免悬空 Timer 报错
+    await tester.pump(const Duration(milliseconds: 350));
+  });
 }

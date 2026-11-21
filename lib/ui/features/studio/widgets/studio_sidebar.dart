@@ -6,6 +6,7 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../settings/views/settings_dialog.dart';
 import '../view_models/studio_view_model.dart';
+import 'notification_center_popover.dart';
 import 'studio_shared.dart';
 
 class StudioSidebar extends StatelessWidget {
@@ -115,6 +116,24 @@ class StudioSidebar extends StatelessWidget {
             Divider(height: 1, color: colors.borderSubtle),
             const SizedBox(height: 6),
 
+            // 通知与错误记录浮窗入口
+            Builder(
+              builder: (buttonContext) => _buildNavItem(
+                key: const Key('sidebar_notifications_button'),
+                icon: Icons.notifications_none_rounded,
+                label: l10n.notifications,
+                tooltip: l10n.notificationsTooltip,
+                isSelected: false,
+                showBadgeDot: viewModel.unreadNotificationCount > 0,
+                badgeColor: colors.error,
+                onTap: () => NotificationCenterPopover.show(
+                  buttonContext,
+                  viewModel: viewModel,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+
             // 底部全局设置按钮 (弹窗形式打开)
             _buildNavItem(
               icon: Icons.settings_outlined,
@@ -137,6 +156,7 @@ class StudioSidebar extends StatelessWidget {
     required bool isSelected,
     bool isTab = false,
     bool showBadgeDot = false,
+    Color? badgeColor,
     required VoidCallback onTap,
   }) {
     final navTile = AppNavTile(
@@ -166,7 +186,9 @@ class StudioSidebar extends StatelessWidget {
                 top: 6,
                 right: 8,
                 child: IgnorePointer(
-                  child: ExcludeSemantics(child: const _SidebarBadgeDot()),
+                  child: ExcludeSemantics(
+                    child: _SidebarBadgeDot(color: badgeColor),
+                  ),
                 ),
               ),
           ],
@@ -178,7 +200,9 @@ class StudioSidebar extends StatelessWidget {
 
 /// 侧栏导航状态点 (`03-notification-badge`)
 class _SidebarBadgeDot extends StatefulWidget {
-  const _SidebarBadgeDot();
+  final Color? color;
+
+  const _SidebarBadgeDot({this.color});
 
   @override
   State<_SidebarBadgeDot> createState() => _SidebarBadgeDotState();
@@ -225,7 +249,7 @@ class _SidebarBadgeDotState extends State<_SidebarBadgeDot>
       width: 7,
       height: 7,
       decoration: BoxDecoration(
-        color: colors.primary,
+        color: widget.color ?? colors.primary,
         shape: BoxShape.circle,
         border: Border.all(color: colors.cardBackground, width: 1),
       ),
