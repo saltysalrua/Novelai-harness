@@ -13,7 +13,7 @@ import '../services/image_save_path_service.dart';
 import '../services/inpaint_service.dart';
 import '../services/image_thumbnail_service.dart';
 import '../services/media_store_service.dart' show MediaGalleryExportFn;
-import '../services/skia_image_codec.dart';
+import '../services/skia_image_codec.dart' show RawRgbaImage;
 import '../services/watermark_service.dart';
 import '../services/novelai_service.dart';
 import '../services/image_edit_service.dart';
@@ -273,21 +273,33 @@ class NovelAiRepository {
       final removed = _history.sublist(maxImages);
       _history.removeRange(maxImages, _history.length);
       // 淘汰工作台原图缓存，但保留正式导出文件。
+      var evictedFromLru = false;
       for (final image in removed) {
-        _lruImageCache.remove(image.id);
-        _publishImageCache();
+        if (_lruImageCache.remove(image.id) != null) {
+          evictedFromLru = true;
+        }
         await _deleteImageCache(image, saveDir);
+      }
+      if (evictedFromLru) {
+        _publishImageCache();
       }
     }
 
     try {
-      final dir = Directory(saveDir);
-      if (!dir.existsSync()) {
-        dir.createSync(recursive: true);
-      }
       final jsonList = _history.map((img) => img.toJson()).toList();
-      await historyFile.writeAsString(jsonEncode(jsonList), flush: true);
+      await _atomicWriteString(historyFile, jsonEncode(jsonList));
     } catch (_) {}
+  }
+
+  /// 原子写入文本文件 (先写同目录 `.tmp` 并 flush，再原子重命名覆盖目标)
+  Future<void> _atomicWriteString(File file, String content) async {
+    final parent = file.parent;
+    if (!parent.existsSync()) {
+      parent.createSync(recursive: true);
+    }
+    final tmp = File('${file.path}.tmp');
+    await tmp.writeAsString(content, flush: true);
+    await tmp.rename(file.path);
   }
 
   /// 确保保存目录存在并写入图片文件，返回落盘路径 (目录为空或写入失败返回 null)
@@ -704,7 +716,7 @@ class NovelAiRepository {
       InpaintGeometry geometry,
       Uint8List requestSourceBytes,
       Uint8List requestMaskBytes,
-      Uint8List sourceMaskBytes,
+      RawRgbaImage sourceMask,
       int srcW,
       int srcH,
     })
@@ -745,11 +757,6 @@ class NovelAiRepository {
       selectionRect: isFocus
           ? inpaintParams.effectiveSelectionRect
           : inpaintParams.selectionRect,
-    );
-    final sourceMaskBytes = await encodeRawRgbaToPng(
-      sourceMask.rgba,
-      sourceMask.width,
-      sourceMask.height,
     );
 
     // 2. 几何与请求数据
@@ -820,7 +827,7 @@ class NovelAiRepository {
       geometry: geometry,
       requestSourceBytes: requestSourceBytes,
       requestMaskBytes: requestMaskBytes,
-      sourceMaskBytes: sourceMaskBytes,
+      sourceMask: sourceMask,
       srcW: srcW,
       srcH: srcH,
     );
@@ -836,7 +843,7 @@ class NovelAiRepository {
       InpaintGeometry geometry,
       Uint8List requestSourceBytes,
       Uint8List requestMaskBytes,
-      Uint8List sourceMaskBytes,
+      RawRgbaImage sourceMask,
       int srcW,
       int srcH,
     })
@@ -848,9 +855,7 @@ class NovelAiRepository {
             originalSourceBytes: sourceImageBytes,
             generatedPatchBytes: generatedBytes,
             geometry: prepared.geometry,
-            sourceMask: await InpaintService.decodeMaskOrNull(
-              prepared.sourceMaskBytes,
-            ),
+            sourceMask: prepared.sourceMask,
           )
         : await InpaintService.compositeStandardResult(
             originalSourceBytes: sourceImageBytes,
@@ -1210,9 +1215,21 @@ class NovelAiRepository {
       watermarkBytes: watermarkBytes,
     );
 
+    final thumb = files.originalFilePath == null
+        ? await ImageThumbnailService.fromBytes(upscaledBytes)
+        : await ImageThumbnailService.load(
+            sourcePath: files.originalFilePath!,
+            cacheDirectory: p.join(
+              p.dirname(files.originalFilePath!),
+              'thumbnails',
+            ),
+            sourceBytes: upscaledBytes,
+          );
+
     final upscaledImage = NaiGeneratedImage(
       id: '${rtxScale == null ? 'nai' : 'rtx'}_${now.microsecondsSinceEpoch}_upscaled',
       bytes: upscaledBytes,
+      thumbnailBytes: thumb,
       localFilePath: files.filePath,
       originalFilePath: files.originalFilePath,
       params: sourceImage.params.copyWith(width: outWidth, height: outHeight),
@@ -1225,8 +1242,8 @@ class NovelAiRepository {
       isUnsaved: files.isUnsaved,
     );
 
-    _history.insert(0, upscaledImage);
     _cacheImageBytes(upscaledImage.id, upscaledBytes);
+    _history.insert(0, _historySnapshot(upscaledImage));
 
     if (enablePersistence && saveDir.isNotEmpty) {
       await savePersistedHistory(saveDir: saveDir, maxImages: maxImages);
@@ -1397,9 +1414,9 @@ class NovelAiRepository {
     final index = _history.indexWhere((img) => img.id == imageId);
     if (index < 0) return false;
 
-    _cacheEpoch++;
-    _lruImageCache.remove(imageId);
-    _publishImageCache();
+    if (_lruImageCache.remove(imageId) != null) {
+      _publishImageCache();
+    }
     final removedImage = _history.removeAt(index);
     await _deleteImageCache(removedImage, saveDir);
 
@@ -1470,11 +1487,7 @@ class NovelAiRepository {
     }
 
     try {
-      final dir = Directory(saveDir);
-      if (!dir.existsSync()) {
-        dir.createSync(recursive: true);
-      }
-      await layoutFile.writeAsString(jsonEncode(data.toJson()), flush: true);
+      await _atomicWriteString(layoutFile, jsonEncode(data.toJson()));
       await _pruneBoardRefs(data, saveDir);
     } catch (_) {}
   }

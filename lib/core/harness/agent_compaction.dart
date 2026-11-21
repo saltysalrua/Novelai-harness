@@ -42,34 +42,39 @@ extension AgentCompaction on AgentHarness {
       // 小窗口压缩模型分批迭代；保守字符预算确保中文也不会超窗。
       final budget = ((compactionModelWindowTokens * 0.45).floor() - 2048);
       if (budget < 256) throw StateError('压缩模型上下文窗口过小');
-      final batches = <List<AgentMessage>>[];
-      var batch = <AgentMessage>[];
+      final batches = <StringBuffer>[];
+      var batch = StringBuffer();
       var used = 0;
       for (final m in snapshot) {
         final text = _serializeForSummary([m]);
         final chunkSize = budget.clamp(256, 50000);
-        for (var start = 0; start < text.length; start += chunkSize) {
-          final end = (start + chunkSize).clamp(0, text.length);
-          final chunk = AgentMessage(
-            id: m.id,
-            role: AgentRole.user,
-            content: text.substring(start, end),
-          );
-          final cost = AgentHarness._estimateTextTokens(chunk.content) + 16;
+        for (var start = 0; start < text.length;) {
+          var end = (start + chunkSize).clamp(0, text.length);
+          if (end > start && end < text.length) {
+            final lastUnit = text.codeUnitAt(end - 1);
+            // 避免把 UTF-16 代理对从中间劈开导致孤立代理码元
+            if (lastUnit >= 0xD800 && lastUnit <= 0xDBFF) {
+              end--;
+            }
+          }
+          final chunkText = text.substring(start, end);
+          final cost = AgentHarness._estimateTextTokens(chunkText) + 16;
           if (used + cost > budget && batch.isNotEmpty) {
             batches.add(batch);
-            batch = [];
+            batch = StringBuffer();
             used = 0;
           }
-          batch.add(chunk);
+          batch.write(chunkText);
           used += cost;
+          start = end;
         }
       }
       if (batch.isNotEmpty) batches.add(batch);
       String? summary = _compactionSummary;
       for (final part in batches) {
         summary = await _generateSummary(
-          part,
+          const [],
+          preSerializedConversation: part.toString(),
           previousSummary: summary,
           run: run,
         );

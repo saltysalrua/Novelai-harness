@@ -112,34 +112,47 @@ Future<OverlayRenderResult> renderImageWithCharacterOverlay(
   Uint8List imageBytes,
   NaiGenerationParams params, {
   int maxDimension = 1536,
+  bool whiteBackground = false,
 }) async {
-  final codec = await ui.instantiateImageCodec(imageBytes);
-  final frame = await codec.getNextFrame();
-  final source = frame.image;
+  ui.Codec? codec;
+  ui.Image? source;
+  ui.Picture? picture;
+  ui.Image? outImage;
+  try {
+    codec = await ui.instantiateImageCodec(imageBytes);
+    final frame = await codec.getNextFrame();
+    source = frame.image;
 
-  final longSide = math.max(source.width, source.height);
-  final scale = longSide > maxDimension ? maxDimension / longSide : 1.0;
-  final outW = math.max(1, (source.width * scale).round());
-  final outH = math.max(1, (source.height * scale).round());
+    final longSide = math.max(source.width, source.height);
+    final scale = longSide > maxDimension ? maxDimension / longSide : 1.0;
+    final outW = math.max(1, (source.width * scale).round());
+    final outH = math.max(1, (source.height * scale).round());
 
-  final enabledCharacters = params.characterPrompts
-      .where((c) => c.enabled)
-      .toList();
-  final useGrid = !params.model.supportsFreeCharacterPositioning;
+    final enabledCharacters = params.characterPrompts
+        .where((c) => c.enabled)
+        .toList();
+    final useGrid = !params.model.supportsFreeCharacterPositioning;
 
-  final recorder = ui.PictureRecorder();
-  final canvas = ui.Canvas(
-    recorder,
-    ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
-  );
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(
+      recorder,
+      ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
+    );
 
-  // 1. 底图
-  canvas.drawImageRect(
-    source,
-    ui.Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
-    ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
-    ui.Paint()..filterQuality = ui.FilterQuality.medium,
-  );
+    if (whiteBackground) {
+      canvas.drawRect(
+        ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
+        ui.Paint()..color = const ui.Color(0xFFFFFFFF),
+      );
+    }
+
+    // 1. 底图
+    canvas.drawImageRect(
+      source,
+      ui.Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
+      ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
+      ui.Paint()..filterQuality = ui.FilterQuality.medium,
+    );
 
   final size = ui.Size(outW.toDouble(), outH.toDouble());
 
@@ -228,23 +241,27 @@ Future<OverlayRenderResult> renderImageWithCharacterOverlay(
     }
   }
 
-  final picture = recorder.endRecording();
-  final outImage = await picture.toImage(outW, outH);
-  final data = await outImage.toByteData(format: ui.ImageByteFormat.png);
-  source.dispose();
-  outImage.dispose();
+    picture = recorder.endRecording();
+    outImage = await picture.toImage(outW, outH);
+    final data = await outImage.toByteData(format: ui.ImageByteFormat.png);
 
-  final bytes = data?.buffer.asUint8List();
-  if (bytes == null || bytes.isEmpty) {
-    throw StateError('图片编码失败');
+    final bytes = data?.buffer.asUint8List();
+    if (bytes == null || bytes.isEmpty) {
+      throw StateError('图片编码失败');
+    }
+
+    return OverlayRenderResult(
+      bytes: bytes,
+      width: outW,
+      height: outH,
+      overlayApplied: true,
+    );
+  } finally {
+    outImage?.dispose();
+    picture?.dispose();
+    source?.dispose();
+    codec?.dispose();
   }
-
-  return OverlayRenderResult(
-    bytes: bytes,
-    width: outW,
-    height: outH,
-    overlayApplied: true,
-  );
 }
 
 void _paintText(
@@ -266,11 +283,16 @@ void _paintText(
     ),
     textAlign: TextAlign.center,
     textDirection: TextDirection.ltr,
-  )..layout();
-  painter.paint(
-    canvas,
-    center - ui.Offset(painter.width / 2, painter.height / 2),
   );
+  try {
+    painter.layout();
+    painter.paint(
+      canvas,
+      center - ui.Offset(painter.width / 2, painter.height / 2),
+    );
+  } finally {
+    painter.dispose();
+  }
 }
 
 void _paintLabelBadge(
@@ -291,33 +313,38 @@ void _paintLabelBadge(
       ),
     ),
     textDirection: TextDirection.ltr,
-  )..layout();
-
-  const padH = 6.0;
-  const padV = 3.0;
-  final gap = 4.0;
-  final badgeW = painter.width + padH * 2;
-  final badgeH = painter.height + padV * 2;
-  final top = (topY + gap)
-      .clamp(0.0, math.max(0.0, canvasSize.height - badgeH))
-      .toDouble();
-  final left = (cx - badgeW / 2)
-      .clamp(0.0, math.max(0.0, canvasSize.width - badgeW))
-      .toDouble();
-
-  final rrect = ui.RRect.fromRectAndRadius(
-    ui.Rect.fromLTWH(left, top, badgeW, badgeH),
-    ui.Radius.circular(4),
   );
-  canvas.drawRRect(rrect, ui.Paint()..color = const ui.Color(0xD9000000));
-  canvas.drawRRect(
-    rrect,
-    ui.Paint()
-      ..color = const ui.Color(0x40FFFFFF)
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1,
-  );
-  painter.paint(canvas, ui.Offset(left + padH, top + padV));
+  try {
+    painter.layout();
+
+    const padH = 6.0;
+    const padV = 3.0;
+    final gap = 4.0;
+    final badgeW = painter.width + padH * 2;
+    final badgeH = painter.height + padV * 2;
+    final top = (topY + gap)
+        .clamp(0.0, math.max(0.0, canvasSize.height - badgeH))
+        .toDouble();
+    final left = (cx - badgeW / 2)
+        .clamp(0.0, math.max(0.0, canvasSize.width - badgeW))
+        .toDouble();
+
+    final rrect = ui.RRect.fromRectAndRadius(
+      ui.Rect.fromLTWH(left, top, badgeW, badgeH),
+      ui.Radius.circular(4),
+    );
+    canvas.drawRRect(rrect, ui.Paint()..color = const ui.Color(0xD9000000));
+    canvas.drawRRect(
+      rrect,
+      ui.Paint()
+        ..color = const ui.Color(0x40FFFFFF)
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+    painter.paint(canvas, ui.Offset(left + padH, top + padV));
+  } finally {
+    painter.dispose();
+  }
 }
 
 /// 画板历史图片查看工具：按索引 (0 为最新，从新到旧) 获取已生成的图片 (可叠加角色位置覆盖层) 供 Agent 视觉检查。
@@ -439,6 +466,8 @@ class ViewCanvasImageTool extends AgentTool {
           final rendered = await renderImageWithCharacterOverlay(
             imageBytes,
             params,
+            maxDimension: fullResolution ? 1536 : kVisionImageMaxSide,
+            whiteBackground: !fullResolution,
           );
           finalBytes = rendered.bytes;
           overlayApplied = true;
@@ -451,9 +480,9 @@ class ViewCanvasImageTool extends AgentTool {
     }
 
     // 视觉附件压缩：默认压到最长边 1024px 控制视觉 Token，
-    // 模型看不清细节时可传 full_resolution=true 获取原图
-    String mime = sniffImageMimeType(finalBytes);
-    if (!fullResolution) {
+    // 覆盖层已在非原图模式下一次性直出 ≤1024px 白底 PNG，无需二次编解码
+    String mime = overlayApplied ? 'image/png' : sniffImageMimeType(finalBytes);
+    if (!fullResolution && !overlayApplied) {
       final compressed = await compressVisionImage(finalBytes);
       finalBytes = compressed.bytes;
       mime = compressed.mimeType;

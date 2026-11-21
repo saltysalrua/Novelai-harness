@@ -21,9 +21,15 @@ class ComfyUiService {
   final String baseUrl;
 
   final http.Client _httpClient;
+  final bool _ownsClient;
 
   ComfyUiService({required this.baseUrl, http.Client? httpClient})
-    : _httpClient = httpClient ?? http.Client();
+    : _httpClient = httpClient ?? http.Client(),
+      _ownsClient = httpClient == null;
+
+  void close() {
+    if (_ownsClient) _httpClient.close();
+  }
 
   Uri _uri(String path, [Map<String, String>? query]) =>
       Uri.parse('$baseUrl$path').replace(queryParameters: query);
@@ -37,23 +43,29 @@ class ComfyUiService {
   Future<ComfyUiBridgeState> fetchBridgeState({
     Duration timeout = const Duration(seconds: 5),
   }) async {
-    final Map<String, dynamic> prompts;
-    final Map<String, dynamic> resolutions;
-    // 注册表是插件必装路由：拿不到说明地址错误或插件未安装
-    prompts = await _getJson('/pt/ai/prompt', timeout);
-    resolutions = await _getJson('/pt/ai/resolution', timeout);
-    // `/pt/ai/params` 为 ParamsPanelPT 引入的新路由，旧版插件返回 404 时
-    // 按空表容错 (paramsNodeIds 为空，负向词与采样参数将不下发)
-    var params = const <String, dynamic>{};
-    try {
-      params = await _getJson('/pt/ai/params', timeout);
-    } on ComfyUiBridgeException {
-      // ignore: 旧版插件无该路由，保持空表
-    }
+    // 三个端点彼此独立，并行请求减少探测等待耗时；
+    // `/pt/ai/params` 为 ParamsPanelPT 新路由，旧版返回 404 时按空表容错。
+    final promptsFuture = _getJson('/pt/ai/prompt', timeout);
+    final resolutionsFuture = _getJson('/pt/ai/resolution', timeout);
+    final paramsFuture = _getJson('/pt/ai/params', timeout)
+        .then<Map<String, dynamic>>(
+          (value) => value,
+          onError: (Object error, StackTrace stackTrace) {
+            if (error is ComfyUiBridgeException) {
+              return const <String, dynamic>{};
+            }
+            Error.throwWithStackTrace(error, stackTrace);
+          },
+        );
+    final results = await Future.wait<Map<String, dynamic>>([
+      promptsFuture,
+      resolutionsFuture,
+      paramsFuture,
+    ]);
     return ComfyUiBridgeState.fromResponses(
-      prompts: prompts,
-      resolutions: resolutions,
-      params: params,
+      prompts: results[0],
+      resolutions: results[1],
+      params: results[2],
       baseUrl: baseUrl,
     );
   }

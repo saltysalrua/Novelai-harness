@@ -114,6 +114,9 @@ class PromptTokenCounterService {
       ).then((encoder) {
         _t5 = encoder;
         _singleCountCache.removeWhere((k, _) => k.$1 == NaiTokenizerKind.t5);
+      }).catchError((Object e, StackTrace st) {
+        _t5Loading = null;
+        Error.throwWithStackTrace(e, st);
       }),
       NaiTokenizerKind.qwen35 => _qwenLoading ??= QwenPromptTokenEncoder.load(
         assetPath: qwenAssetPath,
@@ -122,6 +125,9 @@ class PromptTokenCounterService {
         _singleCountCache.removeWhere(
           (k, _) => k.$1 == NaiTokenizerKind.qwen35,
         );
+      }).catchError((Object e, StackTrace st) {
+        _qwenLoading = null;
+        Error.throwWithStackTrace(e, st);
       }),
     };
   }

@@ -57,7 +57,7 @@ class AppSwitch extends StatefulWidget {
 class _AppSwitchState extends State<AppSwitch>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late Animation<double> _thumbCurve;
+  late final CurvedAnimation _thumbCurve;
   bool _reduceMotion = false;
 
   @override
@@ -100,6 +100,7 @@ class _AppSwitchState extends State<AppSwitch>
 
   @override
   void dispose() {
+    _thumbCurve.dispose();
     _controller.dispose();
     super.dispose();
   }

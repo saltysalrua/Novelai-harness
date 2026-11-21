@@ -1171,6 +1171,8 @@ class _ComposerActionMorph extends StatefulWidget {
 class _ComposerActionMorphState extends State<_ComposerActionMorph>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final CurvedAnimation _scaleCurve;
+  late final CurvedAnimation _turnsCurve;
   late final Animation<double> _scale;
   late final Animation<double> _turns;
 
@@ -1182,14 +1184,16 @@ class _ComposerActionMorphState extends State<_ComposerActionMorph>
       duration: AppMotionDurations.quick,
       value: 1.0,
     );
-    final curved = CurvedAnimation(
+    _scaleCurve = CurvedAnimation(
       parent: _controller,
       curve: AppMotionCurves.bounce,
     );
-    _scale = Tween<double>(begin: 0.78, end: 1.0).animate(curved);
-    _turns = Tween<double>(begin: -0.05, end: 0.0).animate(
-      CurvedAnimation(parent: _controller, curve: AppMotionCurves.smoothOut),
+    _turnsCurve = CurvedAnimation(
+      parent: _controller,
+      curve: AppMotionCurves.smoothOut,
     );
+    _scale = Tween<double>(begin: 0.78, end: 1.0).animate(_scaleCurve);
+    _turns = Tween<double>(begin: -0.05, end: 0.0).animate(_turnsCurve);
   }
 
   @override
@@ -1206,6 +1210,8 @@ class _ComposerActionMorphState extends State<_ComposerActionMorph>
 
   @override
   void dispose() {
+    _scaleCurve.dispose();
+    _turnsCurve.dispose();
     _controller.dispose();
     super.dispose();
   }

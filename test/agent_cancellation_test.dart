@@ -7,7 +7,7 @@ import 'package:novelai_harness/core/harness/providers/llm_provider.dart';
 import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 
-class _Provider implements LlmProvider {
+class _Provider extends LlmProvider {
   final Stream<HarnessEvent> Function() events;
   _Provider(this.events);
   @override

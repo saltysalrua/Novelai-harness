@@ -25,7 +25,7 @@ Widget _buildTestApp(Widget child) => MaterialApp(
 const String _tinyPngBase64 =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
-class _MockLlmProvider implements LlmProvider {
+class _MockLlmProvider extends LlmProvider {
   List<AgentMessage>? lastMessages;
 
   @override

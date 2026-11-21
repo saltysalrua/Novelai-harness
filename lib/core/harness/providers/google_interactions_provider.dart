@@ -45,6 +45,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
 
   final LlmCacheConfig cacheConfig;
   final http.Client _client;
+  final bool _ownsClient;
 
   static const Duration _requestStartupTimeout = Duration(seconds: 45);
   static const Duration _streamIdleTimeout = Duration(seconds: 90);
@@ -60,7 +61,13 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     this.streaming = true,
     this.cacheConfig = const LlmCacheConfig(),
     http.Client? client,
-  }) : _client = client ?? http.Client();
+  }) : _client = client ?? http.Client(),
+       _ownsClient = client == null;
+
+  @override
+  void close() {
+    if (_ownsClient) _client.close();
+  }
 
   @override
   String get requestProtocolPrompt =>
@@ -428,7 +435,8 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     TokenUsage? latestUsage;
     final rawLines = <String>[];
     var sawSseData = false;
-    var emittedAnyContentOrThoughts = false;
+    var emittedContent = false;
+    var emittedThoughts = false;
     final rawToolCalls = <ToolCall>[];
     FormatException? promptParseError;
 
@@ -453,7 +461,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
 
     Iterable<ContentDeltaEvent> emitContentText(String text) {
       if (text.isEmpty || promptParseError != null) return const [];
-      emittedAnyContentOrThoughts = true;
+      emittedContent = true;
       if (promptParser != null) {
         try {
           return promptParser.add(text);
@@ -470,11 +478,13 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     try {
       final lines = response.stream
           .timeout(_streamIdleTimeout)
-          .transform(utf8.decoder)
+          .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter());
 
       await for (final line in lines) {
-        rawLines.add(line);
+        if (!sawSseData) {
+          rawLines.add(line);
+        }
         final trimmed = line.trim();
         if (trimmed.isEmpty) {
           currentEventType = null;
@@ -486,7 +496,10 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
         }
         if (!trimmed.startsWith('data:')) continue;
 
-        sawSseData = true;
+        if (!sawSseData) {
+          sawSseData = true;
+          rawLines.clear();
+        }
         final dataStr = trimmed.substring(5).trim();
         if (dataStr.isEmpty || dataStr == '[DONE]') continue;
 
@@ -558,7 +571,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                   _extractBlocksText(stepMap['content']) ??
                   (stepMap['text'] as String? ?? '');
               if (summaryText.isNotEmpty) {
-                emittedAnyContentOrThoughts = true;
+                emittedThoughts = true;
                 yield ThoughtDeltaEvent(summaryText);
               }
             } else if (state.type == 'model_output' || state.type == 'text') {
@@ -606,7 +619,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                   _extractThoughtDeltaText(delta) ??
                   (delta['text'] as String? ?? '');
               if (thoughtText.isNotEmpty) {
-                emittedAnyContentOrThoughts = true;
+                emittedThoughts = true;
                 yield ThoughtDeltaEvent(thoughtText);
               }
 
@@ -617,7 +630,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                   '';
               if (state.type == 'thought') {
                 if (text.isNotEmpty) {
-                  emittedAnyContentOrThoughts = true;
+                  emittedThoughts = true;
                   yield ThoughtDeltaEvent(text);
                 }
               } else {
@@ -646,7 +659,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
               } else if (state.type == 'thought') {
                 final thoughtText = _extractThoughtDeltaText(delta);
                 if (thoughtText != null && thoughtText.isNotEmpty) {
-                  emittedAnyContentOrThoughts = true;
+                  emittedThoughts = true;
                   yield ThoughtDeltaEvent(thoughtText);
                 }
               } else {
@@ -724,7 +737,8 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
           yield* _emitRemainingFromInteractionMap(
             interactionMap,
             stepStates: stepStates,
-            emittedAnyContentOrThoughts: () => emittedAnyContentOrThoughts,
+            emittedContent: () => emittedContent,
+            emittedThoughts: () => emittedThoughts,
             rawToolCalls: rawToolCalls,
             latestThoughtSignature: latestThoughtSignature,
             onSignature: (sig) => latestThoughtSignature = sig,
@@ -773,8 +787,8 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                   yield* _emitRemainingFromInteractionMap(
                     interactionMap,
                     stepStates: stepStates,
-                    emittedAnyContentOrThoughts: () =>
-                        emittedAnyContentOrThoughts,
+                    emittedContent: () => emittedContent,
+                    emittedThoughts: () => emittedThoughts,
                     rawToolCalls: rawToolCalls,
                     latestThoughtSignature: latestThoughtSignature,
                     onSignature: (sig) => latestThoughtSignature = sig,
@@ -841,7 +855,8 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
   Stream<HarnessEvent> _emitRemainingFromInteractionMap(
     Map<String, dynamic> interactionMap, {
     required Map<int, _InteractionStepState> stepStates,
-    required bool Function() emittedAnyContentOrThoughts,
+    required bool Function() emittedContent,
+    required bool Function() emittedThoughts,
     required List<ToolCall> rawToolCalls,
     required String? latestThoughtSignature,
     required void Function(String) onSignature,
@@ -850,7 +865,8 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     final outputs = interactionMap['output'] ?? interactionMap['outputs'];
     if (outputs is! List) return;
 
-    final allowContentEmit = !emittedAnyContentOrThoughts();
+    final allowThoughtEmit = !emittedThoughts();
+    final allowContentEmit = !emittedContent();
     final allowToolEmit = rawToolCalls.isEmpty;
     var currentSignature = latestThoughtSignature;
 
@@ -866,7 +882,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
             onSignature(sig);
             yield ThoughtSignatureEvent(sig);
           }
-          if (allowContentEmit) {
+          if (allowThoughtEmit) {
             final text =
                 _extractBlocksText(item['summary']) ??
                 _extractBlocksText(item['content']) ??
@@ -1038,12 +1054,13 @@ class _InteractionStepState {
     Map<String, dynamic> args = parsedArguments ?? <String, dynamic>{};
     if (args.isEmpty && argumentsBuffer.isNotEmpty) {
       final raw = argumentsBuffer.toString().trim();
-      try {
+      if (raw.isNotEmpty) {
         final decoded = jsonDecode(raw);
-        if (decoded is Map<String, dynamic>) {
-          args = decoded;
+        if (decoded is! Map<String, dynamic>) {
+          throw FormatException('工具 "$name" 参数不是 JSON 对象');
         }
-      } catch (_) {}
+        args = decoded;
+      }
     }
     final effectiveId = id.isNotEmpty ? id : 'call_${index + 1}';
     return ToolCall(

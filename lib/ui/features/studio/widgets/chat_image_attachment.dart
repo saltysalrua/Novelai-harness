@@ -21,12 +21,16 @@ const int kChatImageMaxSide = 1024;
 /// 返回 base64 形态的 [AgentMessageImage]；解码失败返回 null。
 Future<AgentMessageImage?> processImageAttachment(Uint8List rawBytes) async {
   if (rawBytes.isEmpty) return null;
+  ui.Codec? codec;
+  ui.Image? source;
+  ui.Picture? picture;
+  ui.Image? target;
   try {
-    final codec = await ui.instantiateImageCodec(rawBytes);
+    codec = await ui.instantiateImageCodec(rawBytes);
     final frame = await codec.getNextFrame();
-    final source = frame.image;
+    source = frame.image;
 
-    ui.Image target = source;
+    target = source;
     final srcW = source.width;
     final srcH = source.height;
     final longestSide = srcW > srcH ? srcW : srcH;
@@ -42,18 +46,23 @@ Future<AgentMessageImage?> processImageAttachment(Uint8List rawBytes) async {
         Rect.fromLTWH(0, 0, newW.toDouble(), newH.toDouble()),
         Paint()..filterQuality = ui.FilterQuality.medium,
       );
-      final picture = recorder.endRecording();
+      picture = recorder.endRecording();
       target = await picture.toImage(newW, newH);
-      if (target != source) source.dispose();
     }
 
     final data = await target.toByteData(format: ui.ImageByteFormat.png);
     final imageBytes = data?.buffer.asUint8List();
-    target.dispose();
     if (imageBytes == null || imageBytes.isEmpty) return null;
     return AgentMessageImage.fromBytes(bytes: imageBytes);
   } catch (_) {
     return null;
+  } finally {
+    if (target != null && !identical(target, source)) {
+      target.dispose();
+    }
+    picture?.dispose();
+    source?.dispose();
+    codec?.dispose();
   }
 }
 
@@ -254,7 +263,7 @@ class _PendingThumbAppear extends StatefulWidget {
 class _PendingThumbAppearState extends State<_PendingThumbAppear>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Animation<double> _curved;
+  late final CurvedAnimation _curved;
   bool _completed = false;
 
   @override
@@ -289,6 +298,7 @@ class _PendingThumbAppearState extends State<_PendingThumbAppear>
 
   @override
   void dispose() {
+    _curved.dispose();
     _controller.dispose();
     super.dispose();
   }

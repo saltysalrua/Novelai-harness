@@ -148,10 +148,11 @@ class ImageEditService {
       headers['Authorization'] = 'Bearer $trimmedKey';
     }
 
+    final endpointUri = Uri.parse(endpoint);
     http.Response response;
     try {
       response = await _client
-          .post(Uri.parse(endpoint), headers: headers, body: body)
+          .post(endpointUri, headers: headers, body: body)
           .timeout(timeout);
     } catch (e) {
       throw Exception('网络连接失败 ($endpoint): $e');
@@ -162,7 +163,7 @@ class ImageEditService {
       await Future<void>.delayed(retryDelay);
       try {
         response = await _client
-            .post(Uri.parse(endpoint), headers: headers, body: body)
+            .post(endpointUri, headers: headers, body: body)
             .timeout(timeout);
       } catch (e) {
         throw Exception('网络连接失败 ($endpoint): $e');
@@ -210,6 +211,7 @@ class ImageEditService {
     for (final candidate in candidates) {
       final bytes = await _resolveCandidate(
         candidate,
+        sourceUri: endpointUri,
         headers: headers,
         timeout: timeout,
       );
@@ -227,6 +229,7 @@ class ImageEditService {
   /// 下载或解码单个图片候选 (data URL 解码 / http 链接下载)，失败返回 null
   Future<Uint8List?> _resolveCandidate(
     String candidate, {
+    required Uri sourceUri,
     required Map<String, String> headers,
     required Duration timeout,
   }) async {
@@ -239,8 +242,16 @@ class ImageEditService {
     }
     if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
       try {
+        final targetUri = Uri.parse(candidate);
+        final sameOrigin =
+            targetUri.scheme == sourceUri.scheme &&
+            targetUri.host.toLowerCase() == sourceUri.host.toLowerCase() &&
+            targetUri.port == sourceUri.port;
+        final downloadHeaders = sameOrigin
+            ? headers
+            : const {'Accept': 'image/*'};
         final resp = await _client
-            .get(Uri.parse(candidate), headers: headers)
+            .get(targetUri, headers: downloadHeaders)
             .timeout(timeout);
         if (resp.statusCode != 200) return null;
         final bytes = resp.bodyBytes;

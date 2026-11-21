@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data' show BytesBuilder;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -188,7 +188,13 @@ class TagDictionaryUpdateService {
   @visibleForTesting
   Directory? baseDirOverride;
 
-  http.Client get _client => httpClient ?? http.Client();
+  http.Client? _ownedClient;
+  http.Client get _client => httpClient ?? (_ownedClient ??= http.Client());
+
+  void close() {
+    _ownedClient?.close();
+    _ownedClient = null;
+  }
 
   /// 单飞锁：同一时刻只允许一个更新流程在跑
   /// (防止启动自动更新与手动点击并发，争抢同一临时文件导致
@@ -260,15 +266,35 @@ class TagDictionaryUpdateService {
 
   // ------------------------------------------------------------ 启动应用
 
-  /// 启动时应用已安装的在线词库 (无则继续使用内置资产词库)
-  Future<void> applyInstalledAtStartup() async {
+  /// 读取本地已安装的在线词库内容；无文件、空内容或路径不可用时返回 null。
+  Future<String?> readInstalledTsvIfPresent() async {
     try {
       final dir = await _baseDir();
       final tsvFile = _tsvFile(dir);
-      if (!await tsvFile.exists()) return;
+      if (!await tsvFile.exists()) return null;
       final content = await tsvFile.readAsString();
-      if (content.trim().isEmpty) return;
-      await TagDictionaryService.instance.replaceWithContent(content);
+      if (content.trim().isEmpty) return null;
+      return content;
+    } on MissingPluginException {
+      return null;
+    } on FileSystemException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 启动时应用已安装的在线词库 (无则继续使用内置资产词库)
+  Future<void> applyInstalledAtStartup() async {
+    try {
+      await TagDictionaryService.instance.ensureLoaded();
+      if (TagDictionaryService.instance.loadedFromInstalled) return;
+      final content = await readInstalledTsvIfPresent();
+      if (content == null) return;
+      await TagDictionaryService.instance.replaceWithContent(
+        content,
+        fromInstalled: true,
+      );
       debugPrint(
         '[TagDictUpdate] 已应用在线词库 '
         '(${TagDictionaryService.instance.count} 条)',
@@ -358,19 +384,19 @@ class TagDictionaryUpdateService {
       );
     }
 
-    // 2. 下载 sqlite 词库 (约 22MB，流式读取并汇报进度)
+    // 2. 下载 sqlite 词库 (约 22MB，流式写盘并汇报进度，避免常驻内存)
     //    临时文件名带时间戳，避免多流程争抢同一文件
     status('下载词库数据 (约 22MB)');
-    final bytes = await _downloadSqlite(
-      onProgress: (p) => status('下载词库数据 ${(p * 100).round()}%'),
-    );
     final sqliteTemp = File(
       '${dir.path}${Platform.pathSeparator}'
       'tag_download_${DateTime.now().microsecondsSinceEpoch}.tmp.sqlite',
     );
-    await sqliteTemp.writeAsBytes(bytes, flush: true);
-
     try {
+      await _downloadSqliteToFile(
+        sqliteTemp,
+        onProgress: (p) => status('下载词库数据 ${(p * 100).round()}%'),
+      );
+
       // 3. 拉取 Danbooru 官方别名 (缓存 7 天)
       final aliasPairs = await _loadAliasPairs(dir, status);
 
@@ -388,7 +414,6 @@ class TagDictionaryUpdateService {
       );
       await tsvTemp.writeAsString(output.tsv, flush: true);
       final tsvFile = _tsvFile(dir);
-      if (await tsvFile.exists()) await tsvFile.delete();
       await tsvTemp.rename(tsvFile.path);
 
       final now = DateTime.now();
@@ -415,25 +440,33 @@ class TagDictionaryUpdateService {
     }
   }
 
-  Future<Uint8List> _downloadSqlite({
+  Future<void> _downloadSqliteToFile(
+    File targetFile, {
     required void Function(double progress) onProgress,
   }) async {
     final req = http.Request('GET', Uri.parse(kTagSqliteUrl));
     final resp = await _client.send(req).timeout(const Duration(seconds: 30));
 
     if (resp.statusCode != 200) {
+      await resp.stream.drain<void>().catchError((_) {});
       throw HttpException('词库下载失败: HTTP ${resp.statusCode}');
     }
 
     final total = resp.contentLength ?? 0;
-    final builder = BytesBuilder(copy: false);
     var received = 0;
-    await for (final chunk in resp.stream) {
-      builder.add(chunk);
-      received += chunk.length;
-      if (total > 0) onProgress(received / total);
+    final sink = targetFile.openWrite();
+    try {
+      await for (final chunk in resp.stream.timeout(
+        const Duration(seconds: 30),
+      )) {
+        sink.add(chunk);
+        received += chunk.length;
+        if (total > 0) onProgress(received / total);
+      }
+      await sink.flush();
+    } finally {
+      await sink.close();
     }
-    return builder.takeBytes();
   }
 
   /// 拉取 (或复用缓存) Danbooru 官方别名对列表

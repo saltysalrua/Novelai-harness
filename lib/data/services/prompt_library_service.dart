@@ -109,12 +109,22 @@ class PromptLibraryService {
     return [];
   }
 
+  Future<void> _atomicWriteString(File file, String content) async {
+    final parent = file.parent;
+    if (!parent.existsSync()) {
+      parent.createSync(recursive: true);
+    }
+    final tmp = File('${file.path}.tmp');
+    await tmp.writeAsString(content, flush: true);
+    await tmp.rename(file.path);
+  }
+
   /// 持久化保存词组合列表
   Future<void> saveEntries(List<PromptComboEntry> entries) async {
     _cachedEntries = List.from(entries);
     final file = await _getDataFile();
     final jsonList = entries.map((e) => e.toJson()).toList();
-    await file.writeAsString(jsonEncode(jsonList), flush: true);
+    await _atomicWriteString(file, jsonEncode(jsonList));
   }
 
   /// 搜索词库中的所有词组合条目 (含角色与非角色) 并转换为自动补全建议 (TagSuggestion)
@@ -201,7 +211,7 @@ class PromptLibraryService {
   Future<void> saveSyncState(PromptLibrarySyncState state) async {
     _cachedSyncState = state;
     final file = await _getSyncStateFile();
-    await file.writeAsString(jsonEncode(state.toJson()), flush: true);
+    await _atomicWriteString(file, jsonEncode(state.toJson()));
   }
 
   /// 一次性提交云同步产物并清理孤儿托管预览图

@@ -70,6 +70,20 @@ class AgentChatCardState extends State<AgentChatCard> {
   /// 已知消息 ID 集合：用于区分历史加载与运行期新到达消息（仅新消息执行轻量入场）
   final Set<String> _knownMessageIds = {};
   bool _initialMessagesCaptured = false;
+  List<AgentMessage>? _lastPairedMessages;
+  ({Map<int, List<AgentMessage?>> pairedByAssistant, Set<int> mergedToolIndices})?
+      _cachedPairing;
+
+  bool _sameMessageSnapshot(
+    List<AgentMessage> cached,
+    List<AgentMessage> current,
+  ) {
+    if (cached.length != current.length) return false;
+    for (var i = 0; i < cached.length; i++) {
+      if (!identical(cached[i], current[i])) return false;
+    }
+    return true;
+  }
 
   static const int _maxKeptAliveMessages = 120;
   String? _renderedSessionId;
@@ -952,17 +966,32 @@ class AgentChatCardState extends State<AgentChatCard> {
         ? _frozenThinkingExpanded
         : widget.viewModel.isThinkingExpanded;
 
-    final liveIds = messages.map((message) => message.id).toSet();
-    _messageWidgetCache.removeWhere((id, _) => !liveIds.contains(id));
-    final diffIds = _initialMessagesCaptured
-        ? liveIds.difference(_knownMessageIds)
-        : const <String>{};
-    // 批量加载历史消息（超过 3 条）不触发逐条入场动效，仅对运行期实时新入列消息执行轻量淡入
-    final Set<String> newMessageIds =
-        diffIds.length <= 3 ? diffIds : const <String>{};
-    _knownMessageIds.addAll(liveIds);
-    _initialMessagesCaptured = true;
-    final pairing = _computeToolPairing(messages);
+    final ({
+      Map<int, List<AgentMessage?>> pairedByAssistant,
+      Set<int> mergedToolIndices,
+    }) pairing;
+    final Set<String> newMessageIds;
+    final lastPaired = _lastPairedMessages;
+    final cachedPairing = _cachedPairing;
+    if (lastPaired != null &&
+        cachedPairing != null &&
+        _sameMessageSnapshot(lastPaired, messages)) {
+      newMessageIds = const <String>{};
+      pairing = cachedPairing;
+    } else {
+      final liveIds = messages.map((message) => message.id).toSet();
+      _messageWidgetCache.removeWhere((id, _) => !liveIds.contains(id));
+      final diffIds = _initialMessagesCaptured
+          ? liveIds.difference(_knownMessageIds)
+          : const <String>{};
+      // 批量加载历史消息（超过 3 条）不触发逐条入场动效，仅对运行期实时新入列消息执行轻量淡入
+      newMessageIds = diffIds.length <= 3 ? diffIds : const <String>{};
+      _knownMessageIds.addAll(liveIds);
+      _initialMessagesCaptured = true;
+      pairing = _computeToolPairing(messages);
+      _lastPairedMessages = List<AgentMessage>.of(messages, growable: false);
+      _cachedPairing = pairing;
+    }
 
     final list = ListView.builder(
       key: ValueKey(widget.viewModel.currentSessionId),

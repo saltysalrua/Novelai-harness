@@ -328,6 +328,7 @@ class WatermarkPadPicker extends StatelessWidget {
                 width: 42,
                 height: 42,
                 fit: BoxFit.contain,
+                cacheWidth: 128,
               ),
             ),
             const SizedBox(width: 10),

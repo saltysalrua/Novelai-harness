@@ -4,7 +4,57 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:unorm_dart/unorm_dart.dart' as unorm;
 
+import '../isolated_compute.dart';
 import 'prompt_token_encoder.dart';
+
+class _ParsedQwenData {
+  const _ParsedQwenData({
+    required this.splitRegex,
+    required this.ranks,
+    required this.specialTokens,
+    required this.normalizeNfc,
+  });
+
+  final String splitRegex;
+  final Map<String, int> ranks;
+  final List<String> specialTokens;
+  final bool normalizeNfc;
+}
+
+_ParsedQwenData _parseQwenBytes(IsolateBytes payload) {
+  final text = utf8.decode(GZipCodec().decode(payload.materialize()));
+  return _parseQwenText(text);
+}
+
+_ParsedQwenData _parseQwenText(String assetText) {
+  final lines = const LineSplitter().convert(assetText);
+  if (lines.isEmpty) {
+    throw StateError('Qwen tokenizer asset is empty');
+  }
+
+  final header = jsonDecode(lines.first) as Map<String, dynamic>;
+  final ranks = <String, int>{};
+  for (var index = 1; index < lines.length; index++) {
+    final line = lines[index];
+    if (line.isEmpty) continue;
+    // 键直接用整行 "left right"，查询时拼接同样的格式，省一次拆分。
+    ranks[line] = ranks.length;
+  }
+
+  final specialTokens =
+      (header['specialTokens'] as List<dynamic>? ?? const [])
+          .cast<String>()
+          .toList()
+        // 长的优先，避免前缀较短的特殊标记先匹配。
+        ..sort((a, b) => b.length.compareTo(a.length));
+
+  return _ParsedQwenData(
+    splitRegex: header['splitRegex'] as String,
+    ranks: ranks,
+    specialTokens: specialTokens,
+    normalizeNfc: header['normalization'] == 'NFC',
+  );
+}
 
 /// NovelAI V5 使用的 Qwen 3.5 分词器 (byte-level BPE)。
 ///
@@ -27,13 +77,24 @@ class QwenPromptTokenEncoder implements PromptTokenEncoder {
   final RegExp? _specialPattern;
   final bool _normalizeNfc;
 
+  static const int _maxPieceCacheEntries = 4096;
   final Map<String, int> _pieceCountCache = <String, int>{};
 
   static final List<String> _byteEncoder = _buildByteEncoder();
 
   /// 按资产路径缓存实例，词表解析只做一次。
   static Future<QwenPromptTokenEncoder> load({required String assetPath}) {
-    return _instances.putIfAbsent(assetPath, () => _loadFromAsset(assetPath));
+    final existing = _instances[assetPath];
+    if (existing != null) return existing;
+    late final Future<QwenPromptTokenEncoder> future;
+    future = _loadFromAsset(assetPath).catchError((Object e, StackTrace st) {
+      if (identical(_instances[assetPath], future)) {
+        _instances.remove(assetPath);
+      }
+      Error.throwWithStackTrace(e, st);
+    });
+    _instances[assetPath] = future;
+    return future;
   }
 
   static final Map<String, Future<QwenPromptTokenEncoder>> _instances =
@@ -45,7 +106,8 @@ class QwenPromptTokenEncoder implements PromptTokenEncoder {
       data.offsetInBytes,
       data.lengthInBytes,
     );
-    return fromBytes(compressed);
+    final parsed = await runIsolated(_parseQwenBytes, IsolateBytes(compressed));
+    return _fromParsed(parsed);
   }
 
   /// 用已经解压的资产文本构造 (测试与离线校验使用)。
@@ -58,35 +120,17 @@ class QwenPromptTokenEncoder implements PromptTokenEncoder {
     return _parse(text);
   }
 
-  static QwenPromptTokenEncoder _parse(String assetText) {
-    final lines = const LineSplitter().convert(assetText);
-    if (lines.isEmpty) {
-      throw StateError('Qwen tokenizer asset is empty');
-    }
+  static QwenPromptTokenEncoder _parse(String assetText) =>
+      _fromParsed(_parseQwenText(assetText));
 
-    final header = jsonDecode(lines.first) as Map<String, dynamic>;
-    final ranks = <String, int>{};
-    for (var index = 1; index < lines.length; index++) {
-      final line = lines[index];
-      if (line.isEmpty) continue;
-      // 键直接用整行 "left right"，查询时拼接同样的格式，省一次拆分。
-      ranks[line] = ranks.length;
-    }
-
-    final specialTokens =
-        (header['specialTokens'] as List<dynamic>? ?? const [])
-            .cast<String>()
-            .toList()
-          // 长的优先，避免前缀较短的特殊标记先匹配。
-          ..sort((a, b) => b.length.compareTo(a.length));
-
+  static QwenPromptTokenEncoder _fromParsed(_ParsedQwenData data) {
     return QwenPromptTokenEncoder._(
-      splitPattern: RegExp(header['splitRegex'] as String, unicode: true),
-      ranks: ranks,
-      specialPattern: specialTokens.isEmpty
+      splitPattern: RegExp(data.splitRegex, unicode: true),
+      ranks: data.ranks,
+      specialPattern: data.specialTokens.isEmpty
           ? null
-          : RegExp(specialTokens.map(RegExp.escape).join('|')),
-      normalizeNfc: header['normalization'] == 'NFC',
+          : RegExp(data.specialTokens.map(RegExp.escape).join('|')),
+      normalizeNfc: data.normalizeNfc,
     );
   }
 
@@ -112,10 +156,16 @@ class QwenPromptTokenEncoder implements PromptTokenEncoder {
   }
 
   int _countPiece(String piece) {
-    final cached = _pieceCountCache[piece];
-    if (cached != null) return cached;
+    final cached = _pieceCountCache.remove(piece);
+    if (cached != null) {
+      _pieceCountCache[piece] = cached;
+      return cached;
+    }
 
     final count = _mergeCount(_toByteLevel(piece));
+    if (_pieceCountCache.length >= _maxPieceCacheEntries) {
+      _pieceCountCache.remove(_pieceCountCache.keys.first);
+    }
     _pieceCountCache[piece] = count;
     return count;
   }

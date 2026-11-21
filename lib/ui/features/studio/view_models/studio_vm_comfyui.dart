@@ -65,12 +65,13 @@ mixin _StudioComfyMixin on _StudioCore {
     );
   }
 
-  /// 重建/复用 ComfyUI 服务实例 (baseUrl 变化时自动重建)
+  /// 重建/复用 ComfyUI 服务实例 (baseUrl 变化时自动关闭旧实例并重建)
   ComfyUiService _ensureComfyService() {
     final url = _config.comfyUiBaseUrl.trim();
     final effective = url.isEmpty ? 'http://127.0.0.1:8188' : url;
     final existing = _comfyService;
     if (existing != null && existing.baseUrl == effective) return existing;
+    existing?.close();
     return _comfyService = ComfyUiService(baseUrl: effective);
   }
 

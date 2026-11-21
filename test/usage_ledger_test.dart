@@ -235,4 +235,39 @@ void main() {
     );
     expect(idle.aggregate(BillPeriod.all).requests, equals(0));
   });
+
+  test('caps retained keys and preserves evicted usage totals across reload', () async {
+    final capped = UsageLedgerService(maxRetainedKeys: 3);
+    await capped.init(baseDir: tempDir.path);
+
+    for (var i = 1; i <= 5; i++) {
+      final ok = capped.record(
+        key: 'k_$i',
+        provider: i.isOdd ? 'deepseek' : 'openai',
+        model: i.isOdd ? 'chat' : 'gpt',
+        usage: TokenUsage(input: i * 10, output: i * 5),
+      );
+      expect(ok, isTrue);
+    }
+    await capped.flush();
+
+    final file = File('${tempDir.path}/usage-ledger.json');
+    final raw = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+    final keysMap = raw['keys'] as Map<String, dynamic>;
+    expect(keysMap.keys.toList(), equals(['k_3', 'k_4', 'k_5']));
+
+    // 总量 = (1+2+3+4+5) * 15 = 15 * 15 = 225, requests = 5
+    final memSummary = capped.aggregate(BillPeriod.all);
+    expect(memSummary.requests, equals(5));
+    expect(memSummary.usage.input, equals(150));
+    expect(memSummary.usage.output, equals(75));
+    expect(memSummary.usage.total, equals(225));
+
+    final reloaded = UsageLedgerService(maxRetainedKeys: 3);
+    await reloaded.init(baseDir: tempDir.path);
+    final diskSummary = reloaded.aggregate(BillPeriod.all);
+    expect(diskSummary.requests, equals(5));
+    expect(diskSummary.usage.total, equals(225));
+    expect(diskSummary.models.length, equals(2));
+  });
 }

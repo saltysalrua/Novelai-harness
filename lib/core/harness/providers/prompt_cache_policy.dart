@@ -38,6 +38,26 @@ class PromptCachePolicy {
         'type': 'ephemeral',
         if (config.retention == LlmCacheRetention.long) 'ttl': '1h',
       };
+      // 原生 Anthropic `/v1/messages` 将系统提示词放在顶层 `body['system']`。
+      final topSystem = body['system'];
+      if (topSystem is String && topSystem.isNotEmpty) {
+        body['system'] = [
+          {'type': 'text', 'text': topSystem, 'cache_control': marker},
+        ];
+      } else if (topSystem is List && topSystem.isNotEmpty) {
+        final systemBlocks = List<dynamic>.from(topSystem);
+        for (var i = systemBlocks.length - 1; i >= 0; i--) {
+          final block = systemBlocks[i];
+          if (block is Map && block['type'] == 'text') {
+            systemBlocks[i] = <String, dynamic>{
+              ...Map<String, dynamic>.from(block),
+              'cache_control': marker,
+            };
+            body['system'] = systemBlocks;
+            break;
+          }
+        }
+      }
       final messages = (body['messages'] as List)
           .map((message) => Map<String, dynamic>.from(message as Map))
           .toList();
@@ -101,10 +121,14 @@ class PromptCachePolicy {
     if (content is List) {
       for (var i = content.length - 1; i >= 0; i--) {
         final part = content[i];
-        if (part is Map<String, dynamic> && part['type'] == 'text') {
+        if (part is Map &&
+            (part['type'] == 'text' || part['type'] == 'tool_result')) {
           message['content'] = [
             ...content.take(i),
-            <String, dynamic>{...part, 'cache_control': marker},
+            <String, dynamic>{
+              ...Map<String, dynamic>.from(part),
+              'cache_control': marker,
+            },
             ...content.skip(i + 1),
           ];
           return true;

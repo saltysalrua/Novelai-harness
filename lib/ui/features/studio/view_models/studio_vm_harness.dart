@@ -331,6 +331,7 @@ mixin _StudioHarnessMixin on _StudioCore {
     _harness.providerLabel = activeLlm.name.isNotEmpty
         ? activeLlm.name
         : activeLlm.id;
+    _harness.provider?.close();
     if (_canCreateChatProvider(activeLlm)) {
       final supportsThinking = activeModel.supportsThinking;
       final isReasoningActive =
@@ -349,6 +350,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         cacheConfig: activeModel.cacheConfig,
         promptToolUse: activeLlm.promptToolUse,
         streaming: activeLlm.streaming,
+        client: _llmHttpClient,
       );
     } else {
       _harness.provider = null;
@@ -378,6 +380,7 @@ mixin _StudioHarnessMixin on _StudioCore {
     _harness.compactionEnabled = _config.agentCompactionEnabled;
     _harness.backgroundCompactionEnabled = _config.agentBackgroundCompaction;
     _harness.persistentImages = _config.agentPersistentImages;
+    _harness.compactionProvider?.close();
     _harness.compactionProvider = null;
     _harness.compactionModelWindowTokens = activeModel.contextWindow;
     final summaryProvider = _config.llmProviders
@@ -405,6 +408,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         cacheConfig: summaryModel.cacheConfig,
         promptToolUse: summaryProvider.promptToolUse,
         streaming: summaryProvider.streaming,
+        client: _llmHttpClient,
       );
       _harness.compactionModelWindowTokens = summaryModel.contextWindow;
     }

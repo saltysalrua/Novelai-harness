@@ -55,6 +55,7 @@ class AgentHarness {
   int _usageFloor = 0;
   String? _compactionError;
   int _lastBackgroundSize = -1;
+  _ContextUsageCache? _cachedContextUsage;
 
   /// 当前模型的上下文窗口大小 (Token)，由 ViewModel 装配时按模型卡片写入
   int contextWindowTokens = 128000;
@@ -343,8 +344,8 @@ class AgentHarness {
           yield TurnStartEvent(assistantMsgId);
           if (run.isCancelled) return;
 
-          String content = '';
-          String thoughts = '';
+          final contentBuffer = StringBuffer();
+          final thoughtsBuffer = StringBuffer();
           String? thoughtSignature;
           List<ReasoningRecord> reasoningRecords = const [];
           // 流式增量里的回复标记过滤：UI 与入库正文都不会看到回显的标记
@@ -367,7 +368,7 @@ class AgentHarness {
             if (event is ThoughtDeltaEvent) {
               final chunk = thoughtFilter.add(event.delta);
               if (chunk.isNotEmpty) {
-                thoughts += chunk;
+                thoughtsBuffer.write(chunk);
                 yield ThoughtDeltaEvent(chunk);
               }
             } else if (event is ThoughtSignatureEvent) {
@@ -381,7 +382,7 @@ class AgentHarness {
             } else if (event is ContentDeltaEvent) {
               final chunk = contentFilter.add(event.delta);
               if (chunk.isNotEmpty) {
-                content += chunk;
+                contentBuffer.write(chunk);
                 yield ContentDeltaEvent(chunk);
               }
             } else if (event is ToolCallEvent) {
@@ -406,14 +407,17 @@ class AgentHarness {
           // 流结束：冲刷被扣在过滤缓冲里的尾巴 (残缺标记直接丢弃)
           final contentTail = contentFilter.flush();
           if (contentTail.isNotEmpty) {
-            content += contentTail;
+            contentBuffer.write(contentTail);
             yield ContentDeltaEvent(contentTail);
           }
           final thoughtTail = thoughtFilter.flush();
           if (thoughtTail.isNotEmpty) {
-            thoughts += thoughtTail;
+            thoughtsBuffer.write(thoughtTail);
             yield ThoughtDeltaEvent(thoughtTail);
           }
+
+          final content = contentBuffer.toString();
+          final thoughts = thoughtsBuffer.toString();
 
           if (run.isCancelled) {
             // 保存已显示的半截正文/思考，不把尚未执行的工具调用写入协议历史。
@@ -558,8 +562,20 @@ class AgentHarness {
               isError: true,
             );
           } else {
+            Future<ToolResult> executeSafely() async {
+              try {
+                return await tool.execute(call.id, call.arguments);
+              } catch (e) {
+                return ToolResult(
+                  toolCallId: call.id,
+                  content: '工具 "${call.name}" 执行异常: $e',
+                  isError: true,
+                );
+              }
+            }
+
             result =
-                await run.wait(tool.execute(call.id, call.arguments)) ??
+                await run.wait(executeSafely()) ??
                 ToolResult(
                   toolCallId: call.id,
                   content: '用户已中断；已启动的外部操作可能仍在执行。',
@@ -874,13 +890,15 @@ class AgentHarness {
   /// 失败或空摘要返回 null，此时放弃压缩 (绝不破坏现有上下文)。
   Future<String?> _generateSummary(
     List<AgentMessage> toSummarize, {
+    String? preSerializedConversation,
     String? previousSummary,
     _HarnessRun? run,
   }) async {
     final p = compactionProvider ?? provider;
     if (p == null) return null;
 
-    final conversationText = _serializeForSummary(toSummarize);
+    final conversationText =
+        preSerializedConversation ?? _serializeForSummary(toSummarize);
     final buffer = StringBuffer();
     buffer.write('<conversation>\n$conversationText</conversation>\n\n');
     if (previousSummary != null) {
@@ -907,7 +925,7 @@ class AgentHarness {
       ),
     ];
 
-    String summary = '';
+    final summaryBuffer = StringBuffer();
     final stream = p.streamChat(
       messages: requestMessages,
       tools: const <AgentTool>[],
@@ -918,7 +936,7 @@ class AgentHarness {
           compactionTimeout,
         )) {
       if (event is ContentDeltaEvent) {
-        summary += event.delta;
+        summaryBuffer.write(event.delta);
       } else if (event is UsageEvent) {
         if (!(run?.isCancelled ?? false)) {
           onCompactionUsage?.call(event.usage, p.modelId);
@@ -927,7 +945,7 @@ class AgentHarness {
         return null;
       }
     }
-    final trimmed = summary.trim();
+    final trimmed = summaryBuffer.toString().trim();
     return trimmed.isEmpty ? null : trimmed;
   }
 
@@ -1030,6 +1048,61 @@ class AgentHarness {
   }
 }
 
+class _ContextUsageCache {
+  final int messageCount;
+  final AgentMessage? lastMessage;
+  final TokenUsage? lastUsage;
+  final int contextStartIndex;
+  final int usageFloor;
+  final int contextRevision;
+  final int contextWindowTokens;
+  final AgentPreset preset;
+  final bool compactToolSurface;
+  final LlmProvider? provider;
+  final Future<CompactionEvent?>? pendingCompaction;
+  final int noteCount;
+  final int forgottenCount;
+  final String? compactionSummary;
+  final String? compactionError;
+  final ContextUsage value;
+
+  const _ContextUsageCache({
+    required this.messageCount,
+    required this.lastMessage,
+    required this.lastUsage,
+    required this.contextStartIndex,
+    required this.usageFloor,
+    required this.contextRevision,
+    required this.contextWindowTokens,
+    required this.preset,
+    required this.compactToolSurface,
+    required this.provider,
+    required this.pendingCompaction,
+    required this.noteCount,
+    required this.forgottenCount,
+    required this.compactionSummary,
+    required this.compactionError,
+    required this.value,
+  });
+
+  bool matches(AgentHarness h) =>
+      messageCount == h._messages.length &&
+      identical(lastMessage, h._messages.lastOrNull) &&
+      identical(lastUsage, h._messages.lastOrNull?.usage) &&
+      contextStartIndex == h._contextStartIndex &&
+      usageFloor == h._usageFloor &&
+      contextRevision == h._contextRevision &&
+      contextWindowTokens == h.contextWindowTokens &&
+      identical(preset, h.currentPreset) &&
+      compactToolSurface == h.compactToolSurface &&
+      identical(provider, h.provider) &&
+      identical(pendingCompaction, h._pendingCompaction) &&
+      noteCount == h.memory.notes.length &&
+      forgottenCount == h.memory.forgottenReplies.length &&
+      compactionSummary == h._compactionSummary &&
+      compactionError == h._compactionError;
+}
+
 /// 每轮独立的取消信号，不依赖 async* 的 subscription.cancel 等待上游返回。
 class _HarnessRun {
   final Completer<void> _cancelled = Completer<void>();
@@ -1039,8 +1112,29 @@ class _HarnessRun {
     if (!isCancelled) _cancelled.complete();
   }
 
-  Future<T?> wait<T>(Future<T> work) =>
-      Future.any<T?>([work, _cancelled.future.then<T?>((_) => null)]);
+  Future<T?> wait<T>(Future<T> work) {
+    if (isCancelled) {
+      unawaited(work.then<void>((_) {}, onError: (Object _) {}));
+      return Future<T?>.value(null);
+    }
+    final completer = Completer<T?>();
+    work.then(
+      (value) {
+        if (!completer.isCompleted) completer.complete(value);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!completer.isCompleted && !isCancelled) {
+          completer.completeError(error, stackTrace);
+        }
+      },
+    );
+    unawaited(
+      _cancelled.future.then((_) {
+        if (!completer.isCompleted) completer.complete(null);
+      }),
+    );
+    return completer.future;
+  }
 
   Stream<T> events<T>(Stream<T> source) {
     late final StreamController<T> controller;
@@ -1069,7 +1163,10 @@ class _HarnessRun {
               controller.addError(error, stack);
             }
           },
-          onDone: () => unawaited(controller.close()),
+          onDone: () {
+            subscription = null;
+            if (!controller.isClosed) unawaited(controller.close());
+          },
         );
         // 每个请求仅注册一次取消监听，不按流式 token 累积 Future 回调。
         unawaited(

@@ -2,13 +2,38 @@ part of 'agent_harness.dart';
 
 /// 请求上下文生命周期与会话记忆，不依赖 Flutter。
 extension AgentContext on AgentHarness {
-  ContextUsage get contextUsage => ContextUsage(
-    tokens: _estimateContextTokens(buildSystemPrompt(currentPreset)),
-    window: contextWindowTokens,
-    compacting: _pendingCompaction != null,
-    noteCount: memory.notes.length,
-    error: _compactionError,
-  );
+  ContextUsage get contextUsage {
+    final cached = _cachedContextUsage;
+    if (cached != null && cached.matches(this)) {
+      return cached.value;
+    }
+    final computed = ContextUsage(
+      tokens: _estimateContextTokens(),
+      window: contextWindowTokens,
+      compacting: _pendingCompaction != null,
+      noteCount: memory.notes.length,
+      error: _compactionError,
+    );
+    _cachedContextUsage = _ContextUsageCache(
+      messageCount: _messages.length,
+      lastMessage: _messages.lastOrNull,
+      lastUsage: _messages.lastOrNull?.usage,
+      contextStartIndex: _contextStartIndex,
+      usageFloor: _usageFloor,
+      contextRevision: _contextRevision,
+      contextWindowTokens: contextWindowTokens,
+      preset: currentPreset,
+      compactToolSurface: compactToolSurface,
+      provider: provider,
+      pendingCompaction: _pendingCompaction,
+      noteCount: memory.notes.length,
+      forgottenCount: memory.forgottenReplies.length,
+      compactionSummary: _compactionSummary,
+      compactionError: _compactionError,
+      value: computed,
+    );
+    return computed;
+  }
 
   int get _hardContextLimit => contextWindowTokens <= 0
       ? 1
@@ -21,6 +46,8 @@ extension AgentContext on AgentHarness {
   void dispose() {
     abort();
     _invalidateCompaction();
+    provider?.close();
+    compactionProvider?.close();
     onContextChanged = null;
     onCompactionUsage = null;
   }

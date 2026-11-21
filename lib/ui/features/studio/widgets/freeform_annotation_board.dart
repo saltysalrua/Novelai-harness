@@ -805,6 +805,7 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                         thumb,
                                         fit: BoxFit.cover,
                                         gaplessPlayback: true,
+                                        cacheWidth: 240,
                                       )
                                     : Icon(
                                         Icons.image_outlined,

@@ -37,9 +37,6 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
   http: ^1.2.1
   archive: ^3.6.1
   yaml: ^3.1.3
@@ -64,7 +61,7 @@ dependencies:
   # MD3 动态取色 (QuantizerCelebi/Score/DynamicScheme，与 Android 取壁纸色同源)
   material_color_utilities: ^0.13.0
 
-  markdown: any
+  markdown: ^7.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -85,7 +82,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/danbooru.tsv
+    - assets/danbooru.tsv.gz
     - assets/tokenizers/
 
   fonts:

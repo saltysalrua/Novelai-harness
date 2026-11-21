@@ -151,6 +151,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
                                         thumb,
                                         fit: BoxFit.cover,
                                         gaplessPlayback: true,
+                                        cacheWidth: 240,
                                       );
                                     }
                                     return const AppSkeletonBox(
@@ -208,6 +209,7 @@ class AnnotationHistoryStrip extends StatelessWidget {
                                     return Image.memory(
                                       thumb,
                                       fit: BoxFit.cover,
+                                      cacheWidth: 240,
                                     );
                                   }
                                   return const AppSkeletonBox(

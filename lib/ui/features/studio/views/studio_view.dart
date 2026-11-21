@@ -512,9 +512,6 @@ class _StudioViewState extends State<StudioView> {
                           },
                         )
                       : ResizableThreeSplitView(
-                          key: ValueKey(
-                            'split-${_viewModel.board.isAnnotatingImage}',
-                          ),
                           initialLeftWidth: _viewModel.splitLeftWidth,
                           initialRightWidth: _viewModel.board.isAnnotatingImage
                               ? 110.0

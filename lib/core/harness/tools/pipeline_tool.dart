@@ -199,10 +199,19 @@ class RunPipelineTool extends AgentTool {
           ? Map<String, dynamic>.from(_resolveValue(rawArgs, env) as Map)
           : <String, dynamic>{};
 
-      final stepResult = await targetTool.execute(
-        '${toolCallId}_$stepId',
-        resolvedArgs,
-      );
+      final ToolResult stepResult;
+      try {
+        stepResult = await targetTool.execute(
+          '${toolCallId}_$stepId',
+          resolvedArgs,
+        );
+      } catch (e) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: '步骤 [$stepId] 工具 "$toolName" 执行异常: $e',
+          isError: true,
+        );
+      }
 
       if (stepResult.imageBase64 != null && stepResult.imageBase64!.isNotEmpty) {
         latestImageBase64 = stepResult.imageBase64;

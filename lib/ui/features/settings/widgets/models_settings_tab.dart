@@ -346,6 +346,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
   void dispose() {
     _draft.nameController.removeListener(_onProviderNameChanged);
     _scrollController.dispose();
+    _modelFetcher.close();
     super.dispose();
   }
 

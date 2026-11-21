@@ -38,29 +38,42 @@ Future<AnnotationOverlayRenderResult> renderImageWithAnnotationOverlay(
   Uint8List imageBytes,
   List<ImageAnnotation> annotations, {
   int maxDimension = 1536,
+  bool whiteBackground = false,
 }) async {
-  final codec = await ui.instantiateImageCodec(imageBytes);
-  final frame = await codec.getNextFrame();
-  final source = frame.image;
+  ui.Codec? codec;
+  ui.Image? source;
+  ui.Picture? picture;
+  ui.Image? outImage;
+  try {
+    codec = await ui.instantiateImageCodec(imageBytes);
+    final frame = await codec.getNextFrame();
+    source = frame.image;
 
-  final longSide = math.max(source.width, source.height);
-  final scale = longSide > maxDimension ? maxDimension / longSide : 1.0;
-  final outW = math.max(1, (source.width * scale).round());
-  final outH = math.max(1, (source.height * scale).round());
+    final longSide = math.max(source.width, source.height);
+    final scale = longSide > maxDimension ? maxDimension / longSide : 1.0;
+    final outW = math.max(1, (source.width * scale).round());
+    final outH = math.max(1, (source.height * scale).round());
 
-  final recorder = ui.PictureRecorder();
-  final canvas = ui.Canvas(
-    recorder,
-    ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
-  );
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(
+      recorder,
+      ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
+    );
 
-  // 1. 绘制底图
-  canvas.drawImageRect(
-    source,
-    ui.Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
-    ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
-    ui.Paint()..filterQuality = ui.FilterQuality.medium,
-  );
+    if (whiteBackground) {
+      canvas.drawRect(
+        ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
+        ui.Paint()..color = const ui.Color(0xFFFFFFFF),
+      );
+    }
+
+    // 1. 绘制底图
+    canvas.drawImageRect(
+      source,
+      ui.Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
+      ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
+      ui.Paint()..filterQuality = ui.FilterQuality.medium,
+    );
 
   final canvasSize = ui.Size(outW.toDouble(), outH.toDouble());
 
@@ -159,23 +172,27 @@ Future<AnnotationOverlayRenderResult> renderImageWithAnnotationOverlay(
     }
   }
 
-  final picture = recorder.endRecording();
-  final outImage = await picture.toImage(outW, outH);
-  final data = await outImage.toByteData(format: ui.ImageByteFormat.png);
-  source.dispose();
-  outImage.dispose();
+    picture = recorder.endRecording();
+    outImage = await picture.toImage(outW, outH);
+    final data = await outImage.toByteData(format: ui.ImageByteFormat.png);
 
-  final bytes = data?.buffer.asUint8List();
-  if (bytes == null || bytes.isEmpty) {
-    throw StateError('批注覆盖层编码失败');
+    final bytes = data?.buffer.asUint8List();
+    if (bytes == null || bytes.isEmpty) {
+      throw StateError('批注覆盖层编码失败');
+    }
+
+    return AnnotationOverlayRenderResult(
+      bytes: bytes,
+      width: outW,
+      height: outH,
+      overlayApplied: true,
+    );
+  } finally {
+    outImage?.dispose();
+    picture?.dispose();
+    source?.dispose();
+    codec?.dispose();
   }
-
-  return AnnotationOverlayRenderResult(
-    bytes: bytes,
-    width: outW,
-    height: outH,
-    overlayApplied: true,
-  );
 }
 
 void _drawPinBadge(
@@ -206,11 +223,16 @@ void _drawPinBadge(
     ),
     textAlign: TextAlign.center,
     textDirection: TextDirection.ltr,
-  )..layout();
-  painter.paint(
-    canvas,
-    center - ui.Offset(painter.width / 2, painter.height / 2),
   );
+  try {
+    painter.layout();
+    painter.paint(
+      canvas,
+      center - ui.Offset(painter.width / 2, painter.height / 2),
+    );
+  } finally {
+    painter.dispose();
+  }
 }
 
 void _drawNoteLabelBadge(
@@ -237,33 +259,38 @@ void _drawNoteLabelBadge(
       ),
     ),
     textDirection: TextDirection.ltr,
-  )..layout();
-
-  const padH = 7.0;
-  const padV = 3.5;
-  final badgeW = painter.width + padH * 2;
-  final badgeH = painter.height + padV * 2;
-
-  final clampedL = left
-      .clamp(0.0, math.max(0.0, canvasSize.width - badgeW))
-      .toDouble();
-  final clampedT = top
-      .clamp(0.0, math.max(0.0, canvasSize.height - badgeH))
-      .toDouble();
-
-  final rrect = ui.RRect.fromRectAndRadius(
-    ui.Rect.fromLTWH(clampedL, clampedT, badgeW, badgeH),
-    const ui.Radius.circular(5),
   );
-  canvas.drawRRect(rrect, ui.Paint()..color = const ui.Color(0xEB1E1E24));
-  canvas.drawRRect(
-    rrect,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.8)
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.2,
-  );
-  painter.paint(canvas, ui.Offset(clampedL + padH, clampedT + padV));
+  try {
+    painter.layout();
+
+    const padH = 7.0;
+    const padV = 3.5;
+    final badgeW = painter.width + padH * 2;
+    final badgeH = painter.height + padV * 2;
+
+    final clampedL = left
+        .clamp(0.0, math.max(0.0, canvasSize.width - badgeW))
+        .toDouble();
+    final clampedT = top
+        .clamp(0.0, math.max(0.0, canvasSize.height - badgeH))
+        .toDouble();
+
+    final rrect = ui.RRect.fromRectAndRadius(
+      ui.Rect.fromLTWH(clampedL, clampedT, badgeW, badgeH),
+      const ui.Radius.circular(5),
+    );
+    canvas.drawRRect(rrect, ui.Paint()..color = const ui.Color(0xEB1E1E24));
+    canvas.drawRRect(
+      rrect,
+      ui.Paint()
+        ..color = color.withValues(alpha: 0.8)
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.2,
+    );
+    painter.paint(canvas, ui.Offset(clampedL + padH, clampedT + padV));
+  } finally {
+    painter.dispose();
+  }
 }
 
 void _drawGlobalBanner(
@@ -291,28 +318,33 @@ void _drawGlobalBanner(
       ),
     ),
     textDirection: TextDirection.ltr,
-  )..layout();
-
-  const padH = 10.0;
-  const padV = 5.0;
-  final badgeW = painter.width + padH * 2;
-  final badgeH = painter.height + padV * 2;
-  final top = 12.0 + index * (badgeH + 6.0);
-  final left = (canvasSize.width - badgeW - 12.0).clamp(0.0, canvasSize.width);
-
-  final rrect = ui.RRect.fromRectAndRadius(
-    ui.Rect.fromLTWH(left, top, badgeW, badgeH),
-    const ui.Radius.circular(6),
   );
-  canvas.drawRRect(rrect, ui.Paint()..color = const ui.Color(0xF018181B));
-  canvas.drawRRect(
-    rrect,
-    ui.Paint()
-      ..color = color
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.5,
-  );
-  painter.paint(canvas, ui.Offset(left + padH, top + padV));
+  try {
+    painter.layout();
+
+    const padH = 10.0;
+    const padV = 5.0;
+    final badgeW = painter.width + padH * 2;
+    final badgeH = painter.height + padV * 2;
+    final top = 12.0 + index * (badgeH + 6.0);
+    final left = (canvasSize.width - badgeW - 12.0).clamp(0.0, canvasSize.width);
+
+    final rrect = ui.RRect.fromRectAndRadius(
+      ui.Rect.fromLTWH(left, top, badgeW, badgeH),
+      const ui.Radius.circular(6),
+    );
+    canvas.drawRRect(rrect, ui.Paint()..color = const ui.Color(0xF018181B));
+    canvas.drawRRect(
+      rrect,
+      ui.Paint()
+        ..color = color
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+    painter.paint(canvas, ui.Offset(left + padH, top + padV));
+  } finally {
+    painter.dispose();
+  }
 }
 
 /// 查看画板图片批注工具：获取历史图片及其全部圈选批注、锚点与整图备注
@@ -429,6 +461,8 @@ class ViewImageAnnotationsTool extends AgentTool {
           final rendered = await renderImageWithAnnotationOverlay(
             imageBytes,
             annotations,
+            maxDimension: fullResolution ? 1536 : kVisionImageMaxSide,
+            whiteBackground: !fullResolution,
           );
           finalImageBytes = rendered.bytes;
           overlayApplied = true;
@@ -440,12 +474,12 @@ class ViewImageAnnotationsTool extends AgentTool {
       }
     }
 
-    // 视觉附件压缩：默认压到最长边 1024px 控制视觉 Token，
-    // 模型看不清批注细节时可传 full_resolution=true 获取原图
-    String resultMime = finalImageBytes == null
+    // 视觉附件压缩：默认压到最长边 1024px 控制视觉 Token；
+    // 覆盖层已在非原图模式下一次性直出 ≤1024px 白底 PNG，无需二次编解码
+    String resultMime = (finalImageBytes == null || overlayApplied)
         ? 'image/png'
         : sniffImageMimeType(finalImageBytes);
-    if (finalImageBytes != null && !fullResolution) {
+    if (finalImageBytes != null && !fullResolution && !overlayApplied) {
       final compressed = await compressVisionImage(finalImageBytes);
       finalImageBytes = compressed.bytes;
       resultMime = compressed.mimeType;
@@ -997,7 +1031,7 @@ class UpdateImageAnnotationTool extends AgentTool {
     final applied = <({int number, String summary})>[];
     final failed = <String>[];
     for (final spec in resolved.specs) {
-      final ann = _findAnnotations(target.annotations, spec).firstOrNull;
+      final ann = _findAnnotations(updatedList, spec).firstOrNull;
       if (ann == null) {
         failed.add(
           '未找到批注 ${spec['annotation_id'] ?? spec['annotation'] ?? '(未指定编号)'}',

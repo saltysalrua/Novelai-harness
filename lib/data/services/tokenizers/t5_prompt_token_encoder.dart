@@ -1,7 +1,15 @@
 import 'package:dart_sentencepiece_tokenizer/dart_sentencepiece_tokenizer.dart';
 import 'package:flutter/services.dart';
 
+import '../isolated_compute.dart';
 import 'prompt_token_encoder.dart';
+
+SentencePieceTokenizer _parseT5Tokenizer(IsolateBytes payload) {
+  return SentencePieceTokenizer.fromBytes(
+    payload.materialize(),
+    config: const SentencePieceConfig(),
+  );
+}
 
 /// NovelAI V4 / V4.5 使用的 T5 分词器 (SentencePiece)。
 ///
@@ -17,7 +25,17 @@ class T5PromptTokenEncoder implements PromptTokenEncoder {
   final SentencePieceTokenizer _tokenizer;
 
   static Future<T5PromptTokenEncoder> load({required String assetPath}) {
-    return _instances.putIfAbsent(assetPath, () => _loadFromAsset(assetPath));
+    final existing = _instances[assetPath];
+    if (existing != null) return existing;
+    late final Future<T5PromptTokenEncoder> future;
+    future = _loadFromAsset(assetPath).catchError((Object e, StackTrace st) {
+      if (identical(_instances[assetPath], future)) {
+        _instances.remove(assetPath);
+      }
+      Error.throwWithStackTrace(e, st);
+    });
+    _instances[assetPath] = future;
+    return future;
   }
 
   /// 用原始词表字节构造 (测试与离线校验使用，绕过 rootBundle)。
@@ -31,9 +49,15 @@ class T5PromptTokenEncoder implements PromptTokenEncoder {
 
   static Future<T5PromptTokenEncoder> _loadFromAsset(String assetPath) async {
     final data = await rootBundle.load(assetPath);
-    return fromBytes(
-      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    final bytes = data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
     );
+    final tokenizer = await runIsolated(
+      _parseT5Tokenizer,
+      IsolateBytes(bytes),
+    );
+    return T5PromptTokenEncoder._(tokenizer);
   }
 
   @override

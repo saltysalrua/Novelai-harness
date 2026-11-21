@@ -449,19 +449,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
       }
     }
 
-    // 2. 负向提示词
-    if (args.containsKey('negative_prompt')) {
-      if (current.isMediumEffort && model == NaiModel.v5Full) {
-        blockedEntries.add('负向提示词（节约档锁定排除词）');
-      } else if (isAllowed(PresetParamKeys.negativePrompt)) {
-        negativePrompt = args['negative_prompt'] as String? ?? '';
-        updatedEntries.add('负向提示词: 已更新');
-      } else {
-        blockedEntries.add('负向提示词');
-      }
-    }
-
-    // 3. 模型
+    // 2. 模型 (先于 negative_prompt 校验，避免同次调用切换模型时仍被旧模型锁定拦截)
     if (args.containsKey('model')) {
       if (isAllowed(PresetParamKeys.model)) {
         final modelStr = args['model'] as String?;
@@ -473,6 +461,18 @@ class NovelAiUpdateParamsTool extends AgentTool {
         }
       } else {
         blockedEntries.add('生图模型');
+      }
+    }
+
+    // 3. 负向提示词
+    if (args.containsKey('negative_prompt')) {
+      if (current.isMediumEffort && model == NaiModel.v5Full) {
+        blockedEntries.add('负向提示词（节约档锁定排除词）');
+      } else if (isAllowed(PresetParamKeys.negativePrompt)) {
+        negativePrompt = args['negative_prompt'] as String? ?? '';
+        updatedEntries.add('负向提示词: 已更新');
+      } else {
+        blockedEntries.add('负向提示词');
       }
     }
 

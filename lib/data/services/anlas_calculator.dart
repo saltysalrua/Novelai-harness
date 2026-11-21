@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../models/novelai_models.dart';
+import 'prompt_image_probe.dart';
 
 /// Anlas 预计消耗计算器 (移植自 Aaalice_NAI_Launcher 的 AnlasCalculator)
 ///
@@ -147,16 +148,24 @@ class AnlasCalculator {
   static Future<({int width, int height})?> decodeImageDimensions(
     List<int> bytes,
   ) async {
+    final data = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+    // 优先只读 24-30B 文件头 (PNG/WebP/JPEG)，避免全图像素解码瞬间吃掉数十 MB
+    final probed = PromptImageProbe.probeDimensions(data);
+    if (probed != null) {
+      return (width: probed.$1, height: probed.$2);
+    }
+    ui.Codec? codec;
+    ui.Image? image;
     try {
-      final data = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
-      final codec = await ui.instantiateImageCodec(data);
+      codec = await ui.instantiateImageCodec(data);
       final frame = await codec.getNextFrame();
-      final size = (width: frame.image.width, height: frame.image.height);
-      frame.image.dispose();
-      codec.dispose();
-      return size;
+      image = frame.image;
+      return (width: image.width, height: image.height);
     } catch (_) {
       return null;
+    } finally {
+      image?.dispose();
+      codec?.dispose();
     }
   }
 }

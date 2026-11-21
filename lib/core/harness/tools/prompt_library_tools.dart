@@ -578,10 +578,14 @@ Future<Uint8List> downscalePreviewBytes(
   Uint8List bytes, {
   int maxDimension = kPromptPreviewMaxDimension,
 }) async {
+  ui.Codec? codec;
+  ui.Image? source;
+  ui.Picture? picture;
+  ui.Image? rendered;
   try {
-    final codec = await ui.instantiateImageCodec(bytes);
+    codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
-    final source = frame.image;
+    source = frame.image;
 
     final longSide = math.max(source.width, source.height);
     if (longSide <= maxDimension) {
@@ -603,13 +607,18 @@ Future<Uint8List> downscalePreviewBytes(
       ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
       ui.Paint()..filterQuality = ui.FilterQuality.medium,
     );
-    final picture = recorder.endRecording();
-    final rendered = await picture.toImage(outW, outH);
+    picture = recorder.endRecording();
+    rendered = await picture.toImage(outW, outH);
     final data = await rendered.toByteData(format: ui.ImageByteFormat.png);
     if (data == null) return bytes;
     return data.buffer.asUint8List();
   } catch (_) {
     return bytes;
+  } finally {
+    rendered?.dispose();
+    picture?.dispose();
+    source?.dispose();
+    codec?.dispose();
   }
 }
 

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
+import '../../../../data/services/prompt_image_probe.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_pan_gesture_region.dart';
 import '../../../core/theme/theme_context_extensions.dart';
@@ -54,12 +55,21 @@ class _WatermarkPositionOverlayState extends State<WatermarkPositionOverlay> {
       _imageAspectRatio = 1.0;
       return;
     }
+    final probed = PromptImageProbe.probeBytes(bytes);
+    if (probed != null && probed > 0) {
+      _imageAspectRatio = probed;
+      return;
+    }
     decodeImageFromList(bytes)
         .then((img) {
-          if (mounted && img.width > 0 && img.height > 0) {
-            setState(() {
-              _imageAspectRatio = img.width / img.height;
-            });
+          try {
+            if (mounted && img.width > 0 && img.height > 0) {
+              setState(() {
+                _imageAspectRatio = img.width / img.height;
+              });
+            }
+          } finally {
+            img.dispose();
           }
         })
         .catchError((_) {});

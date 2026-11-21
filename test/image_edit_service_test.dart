@@ -294,8 +294,9 @@ void main() {
       expect(result.textReply, '已完成编辑');
     });
 
-    test('http 临时链接自动下载取回字节', () async {
+    test('http 临时链接自动下载取回字节且跨源不携带 Authorization', () async {
       final png = fakePngBytes();
+      Map<String, String>? cdnHeaders;
       final service = ImageEditService(
         client: MockClient((request) async {
           if (request.method == 'GET') {
@@ -303,8 +304,10 @@ void main() {
               request.url.toString(),
               'https://cdn.example.com/tmp/img.png',
             );
+            cdnHeaders = request.headers;
             return http.Response.bytes(png, 200);
           }
+          expect(request.headers['Authorization'], 'Bearer sk-secret-token');
           final body = chatBody(
             message: {
               'content': '![image](https://cdn.example.com/tmp/img.png)',
@@ -316,13 +319,15 @@ void main() {
 
       final result = await service.editImage(
         baseUrl: 'https://api.example.com/v1',
-        apiKey: '',
+        apiKey: 'sk-secret-token',
         modelId: 'seedream-4',
         prompt: '重绘整图',
         imageBytes: fakePngBytes(),
       );
 
       expect(result.imageBytes, png);
+      expect(cdnHeaders, isNotNull);
+      expect(cdnHeaders!.containsKey('Authorization'), isFalse);
     });
 
     test('无图片返回时抛出带模型文字回复的错误', () async {

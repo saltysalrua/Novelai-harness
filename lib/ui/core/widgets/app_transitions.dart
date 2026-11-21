@@ -617,7 +617,10 @@ class _AppPanelRevealState extends State<AppPanelReveal>
           if (!widget.maintainState) {
             return const SizedBox.shrink();
           }
-          return Offstage(offstage: true, child: innerChild);
+          return Offstage(
+            offstage: true,
+            child: TickerMode(enabled: false, child: innerChild ?? widget.child),
+          );
         }
 
         final t = widget.curve.transform(_controller.value).clamp(0.0, 1.0);
@@ -1667,216 +1670,6 @@ class _AppStaggerRevealState extends State<AppStaggerReveal>
   }
 }
 
-/// 桌面端卡片 3D 指针倾斜悬停动效 (`19-card-tilt`)
-///
-/// 适用场景：画廊作品卡片、预设卡片、模板预览卡。
-/// 将指针监听绑定在静止的外层容器，仅对内层卡片施加 3D 透视旋转与可选游标追踪高光，
-/// 彻底避免边缘旋转引起的悬停抖动；高光与倾角均通过内部动画控制器更新，零外部重建。
-class AppHoverTilt extends StatefulWidget {
-  /// 卡片内容
-  final Widget child;
-
-  /// 最大倾斜角度 (度)，默认 8.0
-  final double maxTiltDegrees;
-
-  /// 是否显示指针追踪高光，默认 true
-  final bool showGlare;
-
-  /// 高光最大不透明度，默认 0.24
-  final double glareOpacity;
-
-  /// 圆角裁剪 (用于裁切高光叠层)
-  final BorderRadius? borderRadius;
-
-  /// 鼠标跟随过渡时长，默认 [AppMotionDurations.hoverTiltFollow] (400ms)
-  final Duration followDuration;
-
-  /// 离开后回正时长，默认 [AppMotionDurations.hoverTiltReturn] (1000ms)
-  final Duration returnDuration;
-
-  /// 是否启用动效，默认 true
-  final bool enabled;
-
-  const AppHoverTilt({
-    super.key,
-    required this.child,
-    this.maxTiltDegrees = 8.0,
-    this.showGlare = true,
-    this.glareOpacity = 0.24,
-    this.borderRadius,
-    this.followDuration = AppMotionDurations.hoverTiltFollow,
-    this.returnDuration = AppMotionDurations.hoverTiltReturn,
-    this.enabled = true,
-  });
-
-  @override
-  State<AppHoverTilt> createState() => _AppHoverTiltState();
-}
-
-class _AppHoverTiltState extends State<AppHoverTilt>
-    with TickerProviderStateMixin {
-  late final AnimationController _tiltController;
-  late final AnimationController _glareController;
-  Offset _fromPointer = const Offset(0.5, 0.5);
-  Offset _targetPointer = const Offset(0.5, 0.5);
-  bool _hovered = false;
-  bool _reduceMotion = false;
-
-  Offset _currentPointer() {
-    final t = AppMotionCurves.smoothOut
-        .transform(_tiltController.value)
-        .clamp(0.0, 1.0);
-    return Offset.lerp(_fromPointer, _targetPointer, t) ?? _targetPointer;
-  }
-
-  void _animateTo(Offset next, {required bool isLeaving}) {
-    _fromPointer = _currentPointer();
-    _targetPointer = next;
-    _tiltController.duration = isLeaving
-        ? widget.returnDuration
-        : widget.followDuration;
-    _tiltController.forward(from: 0.0);
-  }
-
-  void _onHoverPosition(Offset localPosition, Size size) {
-    if (!widget.enabled || _reduceMotion) return;
-    if (size.width <= 0 || size.height <= 0) return;
-    final px = (localPosition.dx / size.width).clamp(0.0, 1.0);
-    final py = (localPosition.dy / size.height).clamp(0.0, 1.0);
-    if (!_hovered) {
-      _hovered = true;
-      if (widget.showGlare) {
-        _glareController.forward();
-      }
-    }
-    _animateTo(Offset(px, py), isLeaving: false);
-  }
-
-  void _onExit() {
-    if (!_hovered) return;
-    _hovered = false;
-    if (widget.showGlare) {
-      _glareController.reverse();
-    }
-    _animateTo(const Offset(0.5, 0.5), isLeaving: true);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _tiltController = AnimationController(
-      vsync: this,
-      duration: widget.followDuration,
-      value: 1.0,
-    );
-    _glareController = AnimationController(
-      vsync: this,
-      duration: AppMotionDurations.hoverTiltGlareFade,
-      value: 0.0,
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _reduceMotion = AppMotion.shouldReduceMotion(context);
-    if (_reduceMotion) {
-      _fromPointer = const Offset(0.5, 0.5);
-      _targetPointer = const Offset(0.5, 0.5);
-      _tiltController.value = 1.0;
-      _glareController.value = 0.0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _tiltController.dispose();
-    _glareController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!widget.enabled || _reduceMotion) {
-      return widget.child;
-    }
-
-    final maxRad = widget.maxTiltDegrees * (3.141592653589793 / 180.0);
-
-    return MouseRegion(
-      onHover: (event) {
-        final box = context.findRenderObject() as RenderBox?;
-        if (box != null && box.hasSize) {
-          _onHoverPosition(event.localPosition, box.size);
-        }
-      },
-      onExit: (_) => _onExit(),
-      child: RepaintBoundary(
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_tiltController, _glareController]),
-          builder: (context, innerChild) {
-            final p = _currentPointer();
-            final ry = (p.dx - 0.5) * maxRad;
-            final rx = (0.5 - p.dy) * maxRad;
-
-            final matrix = Matrix4.identity()
-              ..setEntry(3, 2, -0.001)
-              ..rotateX(rx)
-              ..rotateY(ry);
-
-            final glareAlpha =
-                AppMotionCurves.smoothOut
-                    .transform(_glareController.value)
-                    .clamp(0.0, 1.0) *
-                widget.glareOpacity;
-
-            Widget card = innerChild!;
-            if (widget.showGlare && glareAlpha > 0.005) {
-              final glareAlignment = Alignment(p.dx * 2 - 1, p.dy * 2 - 1);
-              card = Stack(
-                fit: StackFit.passthrough,
-                children: [
-                  card,
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: widget.borderRadius,
-                          gradient: RadialGradient(
-                            center: glareAlignment,
-                            radius: 0.9,
-                            colors: [
-                              Colors.white.withValues(alpha: glareAlpha),
-                              Colors.white.withValues(alpha: glareAlpha * 0.22),
-                              Colors.white.withValues(alpha: 0.0),
-                            ],
-                            stops: const [0.0, 0.45, 1.0],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            }
-
-            if (widget.borderRadius != null) {
-              card = ClipRRect(borderRadius: widget.borderRadius!, child: card);
-            }
-
-            return Transform(
-              alignment: Alignment.center,
-              transform: matrix,
-              child: card,
-            );
-          },
-          child: widget.child,
-        ),
-      ),
-    );
-  }
-}
-
 /// 桌面端元素悬停微抬升与回弹动效 (`11-avatar-group-hover` 风格)
 ///
 /// 适用场景：标签胶囊、工具按钮、头像/缩略图条目悬停反馈。
@@ -1930,7 +1723,7 @@ class AppHoverLift extends StatefulWidget {
 class _AppHoverLiftState extends State<AppHoverLift>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late Animation<double> _curved;
+  CurvedAnimation? _curved;
   bool _reduceMotion = false;
 
   @override
@@ -1941,6 +1734,7 @@ class _AppHoverLiftState extends State<AppHoverLift>
   }
 
   void _updateCurvedAnimation() {
+    _curved?.dispose();
     _curved = CurvedAnimation(
       parent: _controller,
       curve: widget.easeIn,
@@ -1974,6 +1768,7 @@ class _AppHoverLiftState extends State<AppHoverLift>
 
   @override
   void dispose() {
+    _curved?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -2006,14 +1801,15 @@ class _AppHoverLiftState extends State<AppHoverLift>
       return MouseRegion(cursor: effectiveCursor, child: content);
     }
 
+    final curved = _curved!;
     return MouseRegion(
       cursor: effectiveCursor,
       onEnter: (_) => _setHovered(true),
       onExit: (_) => _setHovered(false),
       child: AnimatedBuilder(
-        animation: _curved,
+        animation: curved,
         builder: (context, child) {
-          final t = _curved.value;
+          final t = curved.value;
           final dy = widget.lift * t;
           final scale = 1.0 + (widget.hoverScale - 1.0) * t;
           return Transform.translate(
@@ -2154,23 +1950,18 @@ class _AppMatrixDotLoaderState extends State<AppMatrixDotLoader>
     return RepaintBoundary(
       child: SizedBox.square(
         dimension: totalSide,
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            return CustomPaint(
-              painter: _MatrixDotPainter(
-                phase: _controller.value,
-                variant: widget.variant,
-                rounded: widget.rounded,
-                dotSize: widget.dotSize,
-                gap: widget.gap,
-                baseColor: base,
-                activeColor: active,
-                curve: widget.curve,
-                reduceMotion: _reduceMotion,
-              ),
-            );
-          },
+        child: CustomPaint(
+          painter: _MatrixDotPainter(
+            phase: _controller,
+            variant: widget.variant,
+            rounded: widget.rounded,
+            dotSize: widget.dotSize,
+            gap: widget.gap,
+            baseColor: base,
+            activeColor: active,
+            curve: widget.curve,
+            reduceMotion: _reduceMotion,
+          ),
         ),
       ),
     );
@@ -2200,7 +1991,7 @@ class _MatrixDotPainter extends CustomPainter {
     4,
   ];
 
-  final double phase;
+  final Animation<double> phase;
   final AppMatrixDotVariant variant;
   final bool rounded;
   final double dotSize;
@@ -2220,7 +2011,7 @@ class _MatrixDotPainter extends CustomPainter {
     required this.activeColor,
     required this.curve,
     required this.reduceMotion,
-  });
+  }) : super(repaint: phase);
 
   double _pulseIntensity(double localPhase) {
     // 对齐 31-matrix-loader 关键帧: 0% -> base, 15% -> active, 45% -> base, 100% -> base
@@ -2240,6 +2031,7 @@ class _MatrixDotPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
     final step = dotSize + gap;
     final radius = Radius.circular(dotSize * 0.25);
+    final currentPhase = phase.value;
 
     for (var idx = 0; idx < 16; idx++) {
       if (rounded && _corners.contains(idx)) continue;
@@ -2254,21 +2046,21 @@ class _MatrixDotPainter extends CustomPainter {
         switch (variant) {
           case AppMatrixDotVariant.scan:
             final delayFrac = col / 10.0;
-            intensity = _pulseIntensity(phase - delayFrac + 1.0);
+            intensity = _pulseIntensity(currentPhase - delayFrac + 1.0);
           case AppMatrixDotVariant.twinkle:
             final delayFrac = _twinkleOrder[idx] / 16.0;
-            intensity = _pulseIntensity(phase - delayFrac + 1.0);
+            intensity = _pulseIntensity(currentPhase - delayFrac + 1.0);
           case AppMatrixDotVariant.orbit:
             final ringIndex = _ring.indexOf(idx);
             if (ringIndex == -1) {
               intensity = 0.0;
             } else {
               final delayFrac = ringIndex / 8.0;
-              intensity = _pulseIntensity(phase - delayFrac + 1.0);
+              intensity = _pulseIntensity(currentPhase - delayFrac + 1.0);
             }
           case AppMatrixDotVariant.pulse:
             final delayFrac = _inner.contains(idx) ? 0.0 : 0.16;
-            intensity = _pulseIntensity(phase - delayFrac + 1.0);
+            intensity = _pulseIntensity(currentPhase - delayFrac + 1.0);
         }
       }
 
@@ -2290,6 +2082,7 @@ class _MatrixDotPainter extends CustomPainter {
         oldDelegate.gap != gap ||
         oldDelegate.baseColor != baseColor ||
         oldDelegate.activeColor != activeColor ||
+        oldDelegate.curve != curve ||
         oldDelegate.reduceMotion != reduceMotion;
   }
 }

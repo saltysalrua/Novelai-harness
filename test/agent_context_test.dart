@@ -11,7 +11,7 @@ import 'package:novelai_harness/core/harness/types.dart';
 
 import 'agent_harness_test.dart' show MockLlmProvider, TestEchoTool;
 
-class _SummaryProvider implements LlmProvider {
+class _SummaryProvider extends LlmProvider {
   final started = Completer<void>();
   final release = Completer<void>();
   int calls = 0;

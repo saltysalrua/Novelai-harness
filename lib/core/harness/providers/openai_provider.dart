@@ -14,6 +14,9 @@ import '../../../data/models/llm_cache_config.dart';
 
 /// OpenAI 兼容格式提供商 (兼容 DeepSeek, Qwen, Moonshot, OpenAI, Ollama, LocalAI 等)
 class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
+  static const Duration _requestStartupTimeout = Duration(seconds: 60);
+  static const Duration _streamIdleTimeout = Duration(seconds: 90);
+
   /// 拒绝记录按端点、模型、字段隔离，不能让一个中转站关闭所有供应商的缓存键。
   static final Set<(String, String, String)> _unsupportedCacheFields = {};
 
@@ -34,6 +37,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
   /// 对齐 pi openai-completions 的 thinkingFormat 兼容矩阵。
   final String? thinkingParamFormat;
   final http.Client _client;
+  final bool _ownsClient;
   final LlmCacheConfig cacheConfig;
 
   /// 纯聊天渠道兼容模式：提示词声明工具，正文解析调用。
@@ -53,7 +57,13 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     this.promptToolUse = false,
     this.streaming = true,
     http.Client? client,
-  }) : _client = client ?? http.Client();
+  }) : _client = client ?? http.Client(),
+       _ownsClient = client == null;
+
+  @override
+  void close() {
+    if (_ownsClient) _client.close();
+  }
 
   @override
   String get modelId => model;
@@ -513,17 +523,32 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     }
 
     if (streamedResponse.statusCode != 200) {
-      final errBody = await streamedResponse.stream.bytesToString();
-      yield ErrorEvent(
-        'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
-        transient: isTransientStatus(streamedResponse.statusCode),
-      );
+      try {
+        final errBody = await streamedResponse.stream.bytesToString().timeout(
+          _requestStartupTimeout,
+        );
+        yield ErrorEvent(
+          'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
+          transient: isTransientStatus(streamedResponse.statusCode),
+        );
+      } catch (e) {
+        yield ErrorEvent('网络请求异常: $e', transient: true);
+      }
       return;
     }
 
     if (!streaming) {
+      final String raw;
+      try {
+        raw = await streamedResponse.stream.bytesToString().timeout(
+          _requestStartupTimeout,
+        );
+      } catch (e) {
+        yield ErrorEvent('网络请求异常: $e', transient: true);
+        return;
+      }
       yield* _emitNonStreamingChat(
-        await streamedResponse.stream.bytesToString(),
+        raw,
         promptParser: promptParser,
         messages: normalizedMessages,
       );
@@ -562,7 +587,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
 
     try {
       final lineStream = streamedResponse.stream
-          .transform(utf8.decoder)
+          .timeout(_streamIdleTimeout)
+          .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter());
 
       await for (final line in lineStream) {
@@ -651,72 +677,80 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
                 final emitLen = rest.length - overlap;
                 if (emitLen > 0) {
                   final emit = rest.substring(0, emitLen);
+                    if (inThinkTag) {
+                      emittedThoughts = true;
+                      yield ThoughtDeltaEvent(emit);
+                    } else {
+                      for (final evt in contentEvents(emit)) {
+                        yield evt;
+                      }
+                    }
+                  }
+                  if (overlap > 0) {
+                    pendingTagBuffer = rest.substring(emitLen);
+                  }
+                  break;
+                }
+                if (idx > 0) {
+                  final emit = rest.substring(0, idx);
                   if (inThinkTag) {
                     emittedThoughts = true;
                     yield ThoughtDeltaEvent(emit);
                   } else {
-                    yield* Stream.fromIterable(contentEvents(emit));
+                    for (final evt in contentEvents(emit)) {
+                      yield evt;
+                    }
                   }
                 }
-                if (overlap > 0) {
-                  pendingTagBuffer = rest.substring(emitLen);
-                }
-                break;
+                rest = rest.substring(idx + tag.length);
+                inThinkTag = !inThinkTag;
               }
-              if (idx > 0) {
-                final emit = rest.substring(0, idx);
-                if (inThinkTag) {
-                  emittedThoughts = true;
-                  yield ThoughtDeltaEvent(emit);
-                } else {
-                  yield* Stream.fromIterable(contentEvents(emit));
-                }
-              }
-              rest = rest.substring(idx + tag.length);
-              inThinkTag = !inThinkTag;
             }
           }
-        }
 
-        // 3. 处理 tool_calls 流式组装
-        if (!promptToolUse && delta['tool_calls'] is List) {
-          final deltaToolCalls = delta['tool_calls'] as List<dynamic>;
-          for (var position = 0; position < deltaToolCalls.length; position++) {
-            final tc = deltaToolCalls[position];
-            final index = tc['index'] as int? ?? position;
-            if (!toolCallsAccumulator.containsKey(index)) {
-              toolCallsAccumulator[index] = {
-                'id':
-                    tc['id'] ??
-                    'call_${DateTime.now().millisecondsSinceEpoch}_$index',
-                'name': '',
-                'arguments': '',
-                'thoughtSignature': null,
-              };
-            }
-
-            final current = toolCallsAccumulator[index]!;
-            if (tc['id'] != null) {
-              current['id'] = tc['id'];
-            }
-            final tcSig = _extractToolCallThoughtSignature(tc);
-            if (tcSig != null) {
-              current['thoughtSignature'] = tcSig;
-              yield ThoughtSignatureEvent(tcSig);
-            }
-            final func = tc['function'] as Map<String, dynamic>?;
-            if (func != null) {
-              if (func['name'] != null && func['name'] != current['name']) {
-                current['name'] = '${current['name']}${func['name']}';
+          // 3. 处理 tool_calls 流式组装
+          if (!promptToolUse && delta['tool_calls'] is List) {
+            final deltaToolCalls = delta['tool_calls'] as List<dynamic>;
+            for (var position = 0; position < deltaToolCalls.length; position++) {
+              final tc = deltaToolCalls[position];
+              final index = tc['index'] as int? ?? position;
+              if (!toolCallsAccumulator.containsKey(index)) {
+                toolCallsAccumulator[index] = {
+                  'id':
+                      tc['id'] ??
+                      'call_${DateTime.now().millisecondsSinceEpoch}_$index',
+                  'name': StringBuffer(),
+                  'arguments': StringBuffer(),
+                  'thoughtSignature': null,
+                };
               }
-              if (func['arguments'] != null) {
-                current['arguments'] =
-                    '${current['arguments']}${func['arguments']}';
+
+              final current = toolCallsAccumulator[index]!;
+              if (tc['id'] != null) {
+                current['id'] = tc['id'];
+              }
+              final tcSig = _extractToolCallThoughtSignature(tc);
+              if (tcSig != null) {
+                current['thoughtSignature'] = tcSig;
+                yield ThoughtSignatureEvent(tcSig);
+              }
+              final func = tc['function'] as Map<String, dynamic>?;
+              if (func != null) {
+                final namePart = func['name'];
+                final nameBuf = current['name'] as StringBuffer;
+                if (namePart is String &&
+                    namePart.isNotEmpty &&
+                    namePart != nameBuf.toString()) {
+                  nameBuf.write(namePart);
+                }
+                final argPart = func['arguments'];
+                if (argPart is String && argPart.isNotEmpty) {
+                  (current['arguments'] as StringBuffer).write(argPart);
+                }
               }
             }
           }
         }
-      }
 
       // 流结束: 冲刷残缺标签缓冲 (没等到完整标签出现，按当前状态原文输出)
       if (pendingTagBuffer.isNotEmpty) {
@@ -724,7 +758,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
           emittedThoughts = true;
           yield ThoughtDeltaEvent(pendingTagBuffer);
         } else {
-          yield* Stream.fromIterable(contentEvents(pendingTagBuffer));
+          for (final evt in contentEvents(pendingTagBuffer)) {
+            yield evt;
+          }
         }
         pendingTagBuffer = '';
       }
@@ -737,33 +773,39 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         if (finishReason == 'length' || _isSafetyFinishReason(finishReason)) {
           throw FormatException('提示词工具调用响应未完整生成 ($finishReason)，未执行。');
         }
-        yield* Stream.fromIterable(promptParser.finish());
+        for (final evt in promptParser.finish()) {
+          yield evt;
+        }
       }
 
-      // 整条流成功后一次性提交调用，统一保证与历史 ID 不冲突。
+      // 整条流成功后一次性提交调用，按 index 排序并统一保证与历史 ID 不冲突。
       final completedCalls = <ToolCall>[...?promptParser?.calls];
-      for (final entry in toolCallsAccumulator.entries) {
-        final raw = entry.value;
-        final name = raw['name'] as String? ?? '';
+      final sortedIndices = toolCallsAccumulator.keys.toList()..sort();
+      for (final index in sortedIndices) {
+        final raw = toolCallsAccumulator[index]!;
+        final name = (raw['name'] as StringBuffer).toString();
         final id = raw['id'] as String? ?? '';
-        final argsStr = raw['arguments'] as String? ?? '{}';
+        final argsStr = (raw['arguments'] as StringBuffer).toString().trim();
         final sig = raw['thoughtSignature'] as String?;
 
+        if (name.isEmpty) continue;
         Map<String, dynamic> args = {};
-        try {
-          args = jsonDecode(argsStr) as Map<String, dynamic>;
-        } catch (_) {}
-
-        if (name.isNotEmpty) {
-          completedCalls.add(
-            ToolCall(
-              id: id,
-              name: name,
-              arguments: args,
-              thoughtSignature: sig,
-            ),
-          );
+        if (argsStr.isNotEmpty) {
+          final decoded = jsonDecode(argsStr);
+          if (decoded is! Map) {
+            throw FormatException('工具 "$name" 参数不是合法 JSON 对象');
+          }
+          args = Map<String, dynamic>.from(decoded);
         }
+
+        completedCalls.add(
+          ToolCall(
+            id: id,
+            name: name,
+            arguments: args,
+            thoughtSignature: sig,
+          ),
+        );
       }
       final refusal = refusalBuffer.toString().trim();
       if (refusal.isNotEmpty &&
@@ -792,15 +834,10 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         return;
       }
       if (completedCalls.isNotEmpty) {
-        final normalized = normalizeToolCallIds([
-          ...normalizedMessages,
-          AgentMessage(
-            id: 'pending_tool_calls',
-            role: AgentRole.assistant,
-            toolCalls: completedCalls,
-          ),
-        ]).last.toolCalls!;
-        for (final call in normalized) {
+        for (final call in _normalizePendingToolCalls(
+          normalizedMessages,
+          completedCalls,
+        )) {
           yield ToolCallEvent(call);
         }
       }
@@ -828,7 +865,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     Map<String, String> cacheHeaders,
   ) async {
     while (streamedResponse.statusCode == 400) {
-      final errBody = await streamedResponse.stream.bytesToString();
+      final errBody = await streamedResponse.stream.bytesToString().timeout(
+        _requestStartupTimeout,
+      );
       final lower = errBody.toLowerCase();
       String? rejectedField;
       if (RegExp(
@@ -885,7 +924,21 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       request.headers['Authorization'] = 'Bearer $trimmedKey';
     }
     request.body = jsonEncode(requestBody);
-    return _client.send(request);
+    return _client.send(request).timeout(_requestStartupTimeout);
+  }
+
+  List<ToolCall> _normalizePendingToolCalls(
+    List<AgentMessage> messages,
+    List<ToolCall> pendingCalls,
+  ) {
+    return normalizeToolCallIds([
+      ...messages,
+      AgentMessage(
+        id: 'pending_tool_calls',
+        role: AgentRole.assistant,
+        toolCalls: pendingCalls,
+      ),
+    ]).last.toolCalls!;
   }
 
   /// 非流式 Chat Completions：读完整 JSON，发出与流式相同的事件。
@@ -941,7 +994,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     }
     if (promptParser != null) {
       try {
-        yield* Stream.fromIterable(promptParser.finish());
+        for (final evt in promptParser.finish()) {
+          yield evt;
+        }
       } on FormatException catch (error) {
         yield ErrorEvent('工具调用格式错误: ${error.message}');
         if (usage != null && usage.total > 0) yield UsageEvent(usage);
@@ -957,15 +1012,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
 
     final calls = <ToolCall>[...?promptParser?.calls, ...parsed.toolCalls];
     if (calls.isNotEmpty) {
-      final normalized = normalizeToolCallIds([
-        ...messages,
-        AgentMessage(
-          id: 'pending_tool_calls',
-          role: AgentRole.assistant,
-          toolCalls: calls,
-        ),
-      ]).last.toolCalls!;
-      for (final call in normalized) {
+      for (final call in _normalizePendingToolCalls(messages, calls)) {
         yield ToolCallEvent(call);
       }
     }
@@ -1188,11 +1235,17 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     }
 
     if (streamedResponse.statusCode != 200) {
-      final errBody = await streamedResponse.stream.bytesToString();
-      yield ErrorEvent(
-        'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
-        transient: isTransientStatus(streamedResponse.statusCode),
-      );
+      try {
+        final errBody = await streamedResponse.stream.bytesToString().timeout(
+          _requestStartupTimeout,
+        );
+        yield ErrorEvent(
+          'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
+          transient: isTransientStatus(streamedResponse.statusCode),
+        );
+      } catch (e) {
+        yield ErrorEvent('网络请求异常: $e', transient: true);
+      }
       return;
     }
 
@@ -1236,7 +1289,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
 
     try {
       final lineStream = streamedResponse.stream
-          .transform(utf8.decoder)
+          .timeout(_streamIdleTimeout)
+          .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter());
 
       await for (final line in lineStream) {
@@ -1284,9 +1338,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         if (json['type'] == 'message_stop' || pendingEvent == 'message_stop') {
           streamCompleted = true;
         }
-        yield* Stream.fromIterable(
-          absorb(parser.add(json, eventType: pendingEvent)),
-        );
+        for (final evt in absorb(parser.add(json, eventType: pendingEvent))) {
+          yield evt;
+        }
         pendingEvent = null;
       }
     } catch (e) {
@@ -1325,7 +1379,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
               yield ThoughtSignatureEvent(sig);
             }
           }
-          yield* Stream.fromIterable(contentEvents(completion.text));
+          for (final evt in contentEvents(completion.text)) {
+            yield evt;
+          }
           calls.addAll(completion.toolCalls);
           streamCompleted = true;
         }
@@ -1335,7 +1391,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         return;
       }
     } else {
-      yield* Stream.fromIterable(absorb(parser.finish()));
+      for (final evt in absorb(parser.finish())) {
+        yield evt;
+      }
     }
 
     if (promptParser != null && !failed) {
@@ -1348,7 +1406,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         yield const ErrorEvent('提示词工具调用响应流提前结束，未执行。');
       } else {
         try {
-          yield* Stream.fromIterable(promptParser.finish());
+          for (final evt in promptParser.finish()) {
+            yield evt;
+          }
         } on FormatException catch (e) {
           failed = true;
           yield ErrorEvent('工具调用格式错误: ${e.message}');
@@ -1364,15 +1424,10 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         ? promptParser.calls
         : const <ToolCall>[];
     if (!failed && (calls.isNotEmpty || promptCalls.isNotEmpty)) {
-      final normalized = normalizeToolCallIds([
-        ...messages,
-        AgentMessage(
-          id: 'pending_tool_calls',
-          role: AgentRole.assistant,
-          toolCalls: [...calls, ...promptCalls],
-        ),
-      ]).last.toolCalls!;
-      for (final call in normalized) {
+      for (final call in _normalizePendingToolCalls(
+        messages,
+        [...calls, ...promptCalls],
+      )) {
         yield ToolCallEvent(call);
       }
     }
@@ -1467,11 +1522,17 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     }
 
     if (streamedResponse.statusCode != 200) {
-      final errBody = await streamedResponse.stream.bytesToString();
-      yield ErrorEvent(
-        'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
-        transient: isTransientStatus(streamedResponse.statusCode),
-      );
+      try {
+        final errBody = await streamedResponse.stream.bytesToString().timeout(
+          _requestStartupTimeout,
+        );
+        yield ErrorEvent(
+          'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
+          transient: isTransientStatus(streamedResponse.statusCode),
+        );
+      } catch (e) {
+        yield ErrorEvent('网络请求异常: $e', transient: true);
+      }
       return;
     }
 
@@ -1515,7 +1576,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
 
     try {
       final lineStream = streamedResponse.stream
-          .transform(utf8.decoder)
+          .timeout(_streamIdleTimeout)
+          .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter());
 
       await for (final line in lineStream) {
@@ -1564,9 +1626,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
             pendingEvent == 'response.completed') {
           streamCompleted = true;
         }
-        yield* Stream.fromIterable(
-          absorb(parser.add(json, eventType: pendingEvent)),
-        );
+        for (final evt in absorb(parser.add(json, eventType: pendingEvent))) {
+          yield evt;
+        }
         pendingEvent = null;
       }
     } catch (e) {
@@ -1599,7 +1661,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
           if (completion.reasoning.isNotEmpty) {
             yield ThoughtDeltaEvent(completion.reasoning);
           }
-          yield* Stream.fromIterable(contentEvents(completion.text));
+          for (final evt in contentEvents(completion.text)) {
+            yield evt;
+          }
           calls.addAll(completion.toolCalls);
           streamCompleted = true;
         }
@@ -1609,7 +1673,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         return;
       }
     } else {
-      yield* Stream.fromIterable(absorb(parser.finish()));
+      for (final evt in absorb(parser.finish())) {
+        yield evt;
+      }
     }
 
     if (promptParser != null && !failed) {
@@ -1622,7 +1688,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         yield const ErrorEvent('提示词工具调用响应流提前结束，未执行。');
       } else {
         try {
-          yield* Stream.fromIterable(promptParser.finish());
+          for (final evt in promptParser.finish()) {
+            yield evt;
+          }
         } on FormatException catch (e) {
           failed = true;
           yield ErrorEvent('工具调用格式错误: ${e.message}');
@@ -1640,15 +1708,10 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         ? promptParser.calls
         : const <ToolCall>[];
     if (!failed && (calls.isNotEmpty || promptCalls.isNotEmpty)) {
-      final normalized = normalizeToolCallIds([
-        ...messages,
-        AgentMessage(
-          id: 'pending_tool_calls',
-          role: AgentRole.assistant,
-          toolCalls: [...calls, ...promptCalls],
-        ),
-      ]).last.toolCalls!;
-      for (final call in normalized) {
+      for (final call in _normalizePendingToolCalls(
+        messages,
+        [...calls, ...promptCalls],
+      )) {
         yield ToolCallEvent(call);
       }
     }

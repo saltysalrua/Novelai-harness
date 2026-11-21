@@ -44,10 +44,14 @@ Future<VisionImagePayload> compressVisionImage(
       mimeType: sniffImageMimeType(bytes),
     );
   }
+  ui.Codec? codec;
+  ui.Image? source;
+  ui.Picture? picture;
+  ui.Image? outImage;
   try {
-    final codec = await ui.instantiateImageCodec(bytes);
+    codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
-    final source = frame.image;
+    source = frame.image;
 
     final longSide = math.max(source.width, source.height);
     final scale = longSide > maxSide ? maxSide / longSide : 1.0;
@@ -72,11 +76,9 @@ Future<VisionImagePayload> compressVisionImage(
       ui.Paint()..filterQuality = ui.FilterQuality.medium,
     );
 
-    final picture = recorder.endRecording();
-    final outImage = await picture.toImage(outW, outH);
+    picture = recorder.endRecording();
+    outImage = await picture.toImage(outW, outH);
     final data = await outImage.toByteData(format: ui.ImageByteFormat.png);
-    source.dispose();
-    outImage.dispose();
 
     final outBytes = data?.buffer.asUint8List();
     if (outBytes == null || outBytes.isEmpty) {
@@ -91,5 +93,10 @@ Future<VisionImagePayload> compressVisionImage(
       bytes: bytes,
       mimeType: sniffImageMimeType(bytes),
     );
+  } finally {
+    outImage?.dispose();
+    picture?.dispose();
+    source?.dispose();
+    codec?.dispose();
   }
 }

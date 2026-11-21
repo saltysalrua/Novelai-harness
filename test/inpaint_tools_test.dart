@@ -243,7 +243,7 @@ void main() {
       expect(missing.error, isNotNull);
     });
 
-    test('NovelAiInpaintTool annotation_id 不存在时明确报错', () async {
+    test('NovelAiInpaintTool annotation_id 不存在时明确报错且无插值残留', () async {
       final tool = NovelAiInpaintTool(
         repository: repository,
         configService: configService,
@@ -254,6 +254,83 @@ void main() {
       });
       expect(result.isError, isTrue);
       expect(result.content, contains('未在目标图片上找到批注'));
+      expect(result.content, isNot(contains('.error')));
+    });
+
+    test('NovelAiInpaintTool 在非 Opus 或 V5 体力透支时不绕过 AnlasCalculator 确认闸门', () async {
+      int? capturedCost;
+      final nonOpusTool = NovelAiInpaintTool(
+        repository: repository,
+        configService: configService,
+        getCurrentParams: () => const NaiGenerationParams(
+          prompt: 'p',
+          width: 832,
+          height: 1216,
+          steps: 28,
+        ),
+        getAccountInfo: () => const NaiAccountInfo(
+          tierName: 'Scroll',
+          tier: 2,
+          active: true,
+          staminaPercent: 100,
+          timeUntilNextPercent: 0,
+          totalAnlas: 500,
+          fixedAnlas: 500,
+          purchasedAnlas: 0,
+          taskPriority: 0,
+          unlimitedFree: false,
+        ),
+        onConfirmPaidGeneration: ({required params, required estimatedCost}) async {
+          capturedCost = estimatedCost;
+          return false;
+        },
+      );
+      final deniedNonOpus = await nonOpusTool.execute('c_non_opus', {
+        'mode': 'focus',
+        'rect': [0.2, 0.2, 0.4, 0.4],
+      });
+      expect(deniedNonOpus.isError, isTrue);
+      expect(capturedCost, isNotNull);
+      expect(capturedCost!, greaterThan(0));
+      expect(deniedNonOpus.content, contains('用户已拒绝扣费'));
+
+      capturedCost = null;
+      final exhaustedV5Tool = NovelAiInpaintTool(
+        repository: repository,
+        configService: configService,
+        getCurrentParams: () => const NaiGenerationParams(
+          prompt: 'p',
+          model: NaiModel.v5Full,
+          width: 832,
+          height: 1216,
+          steps: 28,
+        ),
+        getAccountInfo: () => const NaiAccountInfo(
+          tierName: 'Opus',
+          tier: 3,
+          active: true,
+          staminaPercent: 0,
+          timeUntilNextPercent: 0,
+          totalAnlas: 500,
+          fixedAnlas: 500,
+          purchasedAnlas: 0,
+          taskPriority: 10,
+          unlimitedFree: true,
+          v5QuotaExhausted: true,
+        ),
+        onConfirmPaidGeneration: ({required params, required estimatedCost}) async {
+          capturedCost = estimatedCost;
+          return false;
+        },
+      );
+      final deniedExhausted = await exhaustedV5Tool.execute('c_v5_exhausted', {
+        'mode': 'focus',
+        'rect': [0.2, 0.2, 0.4, 0.4],
+      });
+      expect(deniedExhausted.isError, isTrue);
+      expect(capturedCost, isNotNull);
+      expect(capturedCost!, greaterThan(0));
+      expect(deniedExhausted.content, contains('用户已拒绝扣费'));
     });
 
     test('NovelAiInpaintTool focus 模式无选区时报错而非静默修中心', () async {

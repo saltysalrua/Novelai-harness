@@ -58,7 +58,7 @@ class _EchoTool extends AgentTool {
   ) async => ToolResult(toolCallId: toolCallId, content: 'ok');
 }
 
-class _ScriptedProvider implements LlmProvider {
+class _ScriptedProvider extends LlmProvider {
   final List<List<AgentMessage>> seen = [];
   final List<HarnessEvent> Function(List<AgentMessage> messages) script;
 

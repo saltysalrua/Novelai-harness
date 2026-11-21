@@ -449,7 +449,7 @@ class NovelAiInpaintTool extends AgentTool {
         if (resolved.error != null) {
           return ToolResult(
             toolCallId: toolCallId,
-            content: '错误：$resolved.error',
+            content: '错误：${resolved.error}',
             isError: true,
           );
         }
@@ -558,10 +558,13 @@ class NovelAiInpaintTool extends AgentTool {
         );
       }
 
-      final isOpusFree =
-          geometry.requestArea <= 1048576 && currentParams.steps <= 28;
+      final billedParams = currentParams.copyWith(
+        width: geometry.requestWidth,
+        height: geometry.requestHeight,
+        nSamples: 1,
+      );
       var account = _getAccountInfo?.call();
-      if (account == null && !isOpusFree) {
+      if (account == null) {
         try {
           account = await _repository.fetchAccountInfo(
             apiKey: config.novelAiKey,
@@ -569,25 +572,17 @@ class NovelAiInpaintTool extends AgentTool {
         } catch (_) {}
       }
 
-      final estimatedCost = isOpusFree
-          ? 0
-          : (account != null
-                ? AnlasCalculator.estimateGenerationCost(
-                    params: currentParams.copyWith(
-                      width: geometry.requestWidth,
-                      height: geometry.requestHeight,
-                    ),
-                    isOpus: account.isOpus,
-                    opusQuotaExhausted: account.v5QuotaExhausted,
-                  )
-                : AnlasCalculator.invalidCost);
+      final estimatedCost = account != null
+          ? AnlasCalculator.estimateGenerationCost(
+              params: billedParams,
+              isOpus: account.isOpus,
+              opusQuotaExhausted: account.v5QuotaExhausted,
+            )
+          : AnlasCalculator.invalidCost;
 
       if (estimatedCost != 0 && _onConfirmPaidGeneration != null) {
         final confirmed = await _onConfirmPaidGeneration(
-          params: currentParams.copyWith(
-            width: geometry.requestWidth,
-            height: geometry.requestHeight,
-          ),
+          params: billedParams,
           estimatedCost: estimatedCost,
         );
         if (!confirmed) {
@@ -690,10 +685,11 @@ class NovelAiInpaintTool extends AgentTool {
           '• 请求潜空间: ${geometry.requestWidth}x${geometry.requestHeight} (${geometry.scale.toStringAsFixed(2)}x 超采样)',
         );
       }
+      final costText = estimatedCost == 0
+          ? '0 Anlas (Opus 免费)'
+          : (estimatedCost > 0 ? '预计 $estimatedCost Anlas' : '消耗点数 (未能获取账号信息)');
       buffer.writeln('• 重绘强度: $strength (附加噪声: $noise)');
-      buffer.writeln(
-        '• 点数状态: ${isOpusFree ? '0 Anlas (Opus 免费)' : '预计 $estimatedCost Anlas'}',
-      );
+      buffer.writeln('• 点数状态: $costText');
 
       return ToolResult(
         toolCallId: toolCallId,
@@ -789,7 +785,7 @@ class NovelAiInpaintGeometryTool extends AgentTool {
         if (resolved.error != null) {
           return ToolResult(
             toolCallId: toolCallId,
-            content: '错误：$resolved.error',
+            content: '错误：${resolved.error}',
             isError: true,
           );
         }

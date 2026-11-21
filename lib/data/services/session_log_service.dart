@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -111,6 +112,13 @@ class SessionLogService implements SessionRecorder {
   /// 串行写队列，保证 JSONL 行序与写入顺序一致
   Future<void> _queue = Future.value();
 
+  /// 将写操作串行排入 [_queue]，隔离单次 I/O 异常避免写队列永久毒化。
+  Future<T> _enqueue<T>(Future<T> Function() action) {
+    final next = _queue.then((_) => action());
+    _queue = next.then<void>((_) {}, onError: (Object _) {});
+    return next;
+  }
+
   /// 列表只缓存轻量元数据；文件大小/修改时间变化时才重新解析。
   final _sessionInfoCache =
       <String, ({int size, DateTime modified, SessionInfo? info})>{};
@@ -123,11 +131,13 @@ class SessionLogService implements SessionRecorder {
     if (file == null) return;
     final target = File('${file.path}.context.json');
     final encoded = jsonEncode(state);
-    _queue = _queue.catchError((Object _) {}).then((_) async {
-      final temp = File('${target.path}.tmp');
-      await temp.writeAsString(encoded, flush: true);
-      await temp.rename(target.path);
-    });
+    unawaited(
+      _enqueue(() async {
+        final temp = File('${target.path}.tmp');
+        await temp.writeAsString(encoded, flush: true);
+        await temp.rename(target.path);
+      }).catchError((Object _) {}),
+    );
   }
 
   Map<String, Object?> loadContextState() {
@@ -320,14 +330,16 @@ class SessionLogService implements SessionRecorder {
     final file = _currentFile;
     if (file == null) return;
     final path = file.path;
-    _queue = _queue.then((_) async {
-      final lastId = await runIsolated(_truncateSessionFile, (
-        path: path,
-        keepCount: keepCount,
-      ));
-      _sessionInfoCache.remove(path);
-      if (_currentFile?.path == path) _lastEntryId = lastId;
-    });
+    unawaited(
+      _enqueue(() async {
+        final lastId = await runIsolated(_truncateSessionFile, (
+          path: path,
+          keepCount: keepCount,
+        ));
+        _sessionInfoCache.remove(path);
+        if (_currentFile?.path == path) _lastEntryId = lastId;
+      }).catchError((Object _) {}),
+    );
   }
 
   static String? _truncateSessionFile(({String path, int keepCount}) task) {
@@ -368,7 +380,7 @@ class SessionLogService implements SessionRecorder {
       lastKeptId = entry['id'] as String? ?? lastKeptId;
     }
 
-    file.writeAsStringSync('${keptLines.join('\n')}\n', flush: true);
+    _atomicWriteStringSync(task.path, '${keptLines.join('\n')}\n');
     return lastKeptId;
   }
 
@@ -574,12 +586,10 @@ class SessionLogService implements SessionRecorder {
     ));
     if (path == null) return;
     // 后台读取/重写与正常追加共用写队列，不覆盖期间的新消息。
-    final task = _queue.then((_) async {
+    await _enqueue(() async {
       await runIsolated(_renameSessionFile, (path: path, title: trimmedTitle));
       _sessionInfoCache.remove(path);
     });
-    _queue = task;
-    await task;
   }
 
   static String? _findSessionPath(
@@ -612,7 +622,20 @@ class SessionLogService implements SessionRecorder {
     };
     lines.add(jsonEncode(infoEntry));
 
-    file.writeAsStringSync('${lines.join('\n')}\n', flush: true);
+    _atomicWriteStringSync(task.path, '${lines.join('\n')}\n');
+  }
+
+  static void _atomicWriteStringSync(String path, String content) {
+    final temp = File('$path.tmp');
+    try {
+      temp.writeAsStringSync(content, flush: true);
+      temp.renameSync(path);
+    } catch (e) {
+      try {
+        if (temp.existsSync()) temp.deleteSync();
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -627,19 +650,24 @@ class SessionLogService implements SessionRecorder {
     final file = File(p.join(_baseDir!.path, fileName));
     _currentFile = file;
     _lastEntryId = null;
-    _queue = _queue.then((_) async {
-      final header = <String, dynamic>{
-        'type': 'session',
-        'version': _sessionVersion,
-        'id': sessionId,
-        'timestamp': now.toIso8601String(),
-        'cwd': Directory.current.path,
-      };
-      final sink = file.openWrite(mode: FileMode.writeOnly);
-      sink.writeln(jsonEncode(header));
-      await sink.flush();
-      await sink.close();
-    });
+    unawaited(
+      _enqueue(() async {
+        final header = <String, dynamic>{
+          'type': 'session',
+          'version': _sessionVersion,
+          'id': sessionId,
+          'timestamp': now.toIso8601String(),
+          'cwd': Directory.current.path,
+        };
+        final sink = file.openWrite(mode: FileMode.writeOnly);
+        try {
+          sink.writeln(jsonEncode(header));
+          await sink.flush();
+        } finally {
+          await sink.close();
+        }
+      }).catchError((Object _) {}),
+    );
   }
 
   void _appendEntry(Map<String, dynamic> entry) {
@@ -651,12 +679,17 @@ class SessionLogService implements SessionRecorder {
     entry['timestamp'] = DateTime.now().toUtc().toIso8601String();
     _lastEntryId = id;
     final line = jsonEncode(entry);
-    _queue = _queue.then((_) async {
-      final sink = file.openWrite(mode: FileMode.append);
-      sink.writeln(line);
-      await sink.flush();
-      await sink.close();
-    });
+    unawaited(
+      _enqueue(() async {
+        final sink = file.openWrite(mode: FileMode.append);
+        try {
+          sink.writeln(line);
+          await sink.flush();
+        } finally {
+          await sink.close();
+        }
+      }).catchError((Object _) {}),
+    );
   }
 
   File? _latestSessionFile() => _latestSessionInDirectory(_baseDir?.path);

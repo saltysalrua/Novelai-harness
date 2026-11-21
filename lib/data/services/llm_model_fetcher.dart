@@ -43,11 +43,17 @@ class RemoteModelFetchResult {
 /// 3. 本地启发式猜测 (id 关键词匹配，兜底)
 class LlmModelFetcher {
   final http.Client _client;
+  final bool _ownsClient;
   final ModelsDevCatalog modelsDevCatalog;
 
   LlmModelFetcher({http.Client? client, ModelsDevCatalog? modelsDevCatalog})
     : _client = client ?? http.Client(),
+      _ownsClient = client == null,
       modelsDevCatalog = modelsDevCatalog ?? ModelsDevCatalog.instance;
+
+  void close() {
+    if (_ownsClient) _client.close();
+  }
 
   /// 计算用于获取模型列表的端点 URL
   static String calculateModelsEndpoint(String baseUrl, LlmProtocol protocol) {

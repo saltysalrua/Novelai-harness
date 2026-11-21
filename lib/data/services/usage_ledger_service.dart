@@ -43,6 +43,12 @@ class BillSummary {
 /// 三层聚合存储，支持今天 / 近 7 天 / 近 30 天 / 全部四种周期汇总。
 class UsageLedgerService {
   static const int _version = 2;
+  static const int defaultMaxRetainedKeys = 10000;
+
+  UsageLedgerService({this.maxRetainedKeys = defaultMaxRetainedKeys});
+
+  /// 内存与磁盘保留的明细去重键上限；超出后最旧条目折叠进 archivedDays，总量与账期汇总不丢。
+  final int maxRetainedKeys;
 
   File? _ledgerFile;
   Future<void>? _pendingWrite;
@@ -62,6 +68,7 @@ class UsageLedgerService {
     'version': _version,
     'days': <String, dynamic>{},
     'keys': <String, dynamic>{},
+    'archivedDays': <String, dynamic>{},
   };
 
   bool get isInitialized => _ledgerFile != null;
@@ -121,6 +128,38 @@ class UsageLedgerService {
     final merged = existing.add(usage);
     providerUsage[model] = merged.toJson();
 
+    final cap = maxRetainedKeys < 0 ? 0 : maxRetainedKeys;
+    if (keys.length > cap) {
+      final archivedDays = _mapOf(
+        _data.putIfAbsent('archivedDays', () => <String, dynamic>{}),
+      );
+      while (keys.length > cap) {
+        final oldestKey = keys.keys.first;
+        final evicted = keys.remove(oldestKey);
+        if (evicted is! Map) continue;
+        final evDay = evicted['day'] as String? ?? '';
+        final evProvider = evicted['provider'] as String? ?? 'unknown';
+        final evModel = evicted['model'] as String? ?? 'unknown';
+        final evUsage = TokenUsage.fromJson(evicted['usage']);
+
+        final archDay = _mapOf(
+          archivedDays.putIfAbsent(evDay, () => <String, dynamic>{}),
+        );
+        final archProvider = _mapOf(
+          archDay.putIfAbsent(evProvider, () => <String, dynamic>{}),
+        );
+        final archModel = _mapOf(
+          archProvider.putIfAbsent(evModel, () => <String, dynamic>{}),
+        );
+        final prevRequests = (archModel['requests'] as num?)?.toInt() ?? 0;
+        final prevUsage = TokenUsage.fromJson(archModel);
+        archProvider[evModel] = {
+          ...prevUsage.add(evUsage).toJson(),
+          'requests': prevRequests + 1,
+        };
+      }
+    }
+
     _dirty = true;
     _schedulePersist();
     return true;
@@ -134,6 +173,34 @@ class UsageLedgerService {
     var total = const TokenUsage();
     var requests = 0;
     final modelMap = <String, BillModelUsage>{};
+
+    final archivedDays = _mapOf(_data['archivedDays']);
+    for (final dayEntry in archivedDays.entries) {
+      final day = dayEntry.key;
+      if (startDay != null && day.compareTo(startDay) < 0) continue;
+      final providers = _mapOf(dayEntry.value);
+      for (final provEntry in providers.entries) {
+        final provider = provEntry.key;
+        final modelsMap = _mapOf(provEntry.value);
+        for (final modelEntry in modelsMap.entries) {
+          final leaf = _mapOf(modelEntry.value);
+          final reqs = (leaf['requests'] as num?)?.toInt() ?? 0;
+          if (reqs <= 0) continue;
+          final usage = TokenUsage.fromJson(leaf);
+
+          requests += reqs;
+          total = total.add(usage);
+
+          final name = '$provider/${modelEntry.key}';
+          final existing = modelMap[name];
+          modelMap[name] = BillModelUsage(
+            name: name,
+            requests: (existing?.requests ?? 0) + reqs,
+            usage: (existing?.usage ?? const TokenUsage()).add(usage),
+          );
+        }
+      }
+    }
 
     final keys = _mapOf(_data['keys']);
     for (final record in keys.values) {
@@ -194,6 +261,7 @@ class UsageLedgerService {
         'version': _version,
         'days': <String, dynamic>{},
         'keys': <String, dynamic>{},
+        'archivedDays': <String, dynamic>{},
       };
     }
     try {
@@ -206,6 +274,7 @@ class UsageLedgerService {
           'version': _version,
           'days': decoded['days'] ?? <String, dynamic>{},
           'keys': decoded['keys'] ?? <String, dynamic>{},
+          'archivedDays': decoded['archivedDays'] ?? <String, dynamic>{},
         };
       }
     } catch (_) {}
@@ -213,6 +282,7 @@ class UsageLedgerService {
       'version': _version,
       'days': <String, dynamic>{},
       'keys': <String, dynamic>{},
+      'archivedDays': <String, dynamic>{},
     };
   }
 

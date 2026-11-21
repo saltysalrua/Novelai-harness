@@ -236,6 +236,67 @@ void main() {
         expect(jsonEncode(disabled), original);
       },
     );
+
+    test(
+      'native Anthropic /v1/messages marks top-level system and tool_result',
+      () {
+        final payload = <String, dynamic>{
+          'system': 'system instructions',
+          'messages': [
+            {
+              'role': 'user',
+              'content': [
+                {'type': 'text', 'text': 'read file'},
+              ],
+            },
+            {
+              'role': 'assistant',
+              'content': [
+                {
+                  'type': 'tool_use',
+                  'id': 'toolu_1',
+                  'name': 'b',
+                  'input': const <String, dynamic>{},
+                },
+              ],
+            },
+            {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'tool_result',
+                  'tool_use_id': 'toolu_1',
+                  'content': 'result',
+                },
+              ],
+            },
+          ],
+          'tools': [
+            {'name': 'a', 'input_schema': const <String, dynamic>{}},
+            {'name': 'b', 'input_schema': const <String, dynamic>{}},
+          ],
+        };
+        PromptCachePolicy(
+          config: const LlmCacheConfig(),
+          endpoint: Uri.parse('https://api.anthropic.com/v1/messages'),
+          model: 'claude-sonnet-4-5',
+        ).apply(payload, 's');
+        expect(payload['system'], [
+          {
+            'type': 'text',
+            'text': 'system instructions',
+            'cache_control': {'type': 'ephemeral'},
+          },
+        ]);
+        final tools = payload['tools'] as List<dynamic>;
+        expect(tools[0].containsKey('cache_control'), isFalse);
+        expect(tools[1]['cache_control'], {'type': 'ephemeral'});
+        final messages = payload['messages'] as List<dynamic>;
+        expect(messages.last['content'][0]['cache_control'], {
+          'type': 'ephemeral',
+        });
+      },
+    );
   });
 
   group('usage streaming and safe fallback', () {

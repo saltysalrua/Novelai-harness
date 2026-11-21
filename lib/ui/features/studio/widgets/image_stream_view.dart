@@ -68,6 +68,11 @@ class CanvasStreamController {
 
   GlobalKey keyFor(String id) => _itemKeys.putIfAbsent(id, GlobalKey.new);
 
+  void pruneKeys(Set<String> validIds) {
+    if (_itemKeys.isEmpty) return;
+    _itemKeys.removeWhere((id, _) => !validIds.contains(id));
+  }
+
   /// 同步当前视口与卡片布局约束，供跳转定位与卡片列表共享单一高度事实源
   void attachLayout({
     required StudioViewModel viewModel,
@@ -630,6 +635,10 @@ class _ImageStreamViewState extends State<ImageStreamView> {
       }
     }
 
+    if (gallery.length != _lastGalleryLength ||
+        firstImageId != _lastFirstImageId) {
+      controller.pruneKeys(gallery.map((item) => item.id).toSet());
+    }
     _lastGalleryLength = gallery.length;
     _lastFirstImageId = firstImageId;
     _lastIsGenerating = viewModel.isGenerating;
@@ -707,7 +716,8 @@ class CanvasGeneratingCard extends StatelessWidget {
     final displayWidth = maxCardWidth < maxCardHeight * aspectRatio
         ? maxCardWidth
         : maxCardHeight * aspectRatio;
-    final previewCacheWidth = (displayWidth * 1.5).round().clamp(64, 4096);
+    final previewCacheWidth = (((displayWidth * 1.5) / 128.0).ceil() * 128)
+        .clamp(128, 4096);
 
     return Center(
       child: GestureDetector(
@@ -823,7 +833,10 @@ class CanvasImageCard extends StatelessWidget {
         ? maxCardWidth
         : maxCardHeight * itemAspect;
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final cacheWidth = (displayWidth * dpr).round().clamp(64, 4096);
+    final cacheWidth = (((displayWidth * dpr) / 128.0).ceil() * 128).clamp(
+      128,
+      4096,
+    );
 
     return Center(
       child: StudioContextMenuRegion(

@@ -59,11 +59,24 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialLeftWidth != widget.initialLeftWidth &&
         !_isDraggingLeft) {
-      _leftWidth = widget.initialLeftWidth;
+      _leftWidth = widget.initialLeftWidth.clamp(
+        widget.minLeftWidth,
+        widget.maxLeftWidth,
+      );
+    } else if (!_isDraggingLeft) {
+      _leftWidth = _leftWidth.clamp(widget.minLeftWidth, widget.maxLeftWidth);
     }
     if (oldWidget.initialRightWidth != widget.initialRightWidth &&
         !_isDraggingRight) {
-      _rightWidth = widget.initialRightWidth;
+      _rightWidth = widget.initialRightWidth.clamp(
+        widget.minRightWidth,
+        widget.maxRightWidth,
+      );
+    } else if (!_isDraggingRight) {
+      _rightWidth = _rightWidth.clamp(
+        widget.minRightWidth,
+        widget.maxRightWidth,
+      );
     }
   }
 
@@ -118,9 +131,12 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
               Visibility(
                 visible: !widget.leftCollapsed,
                 maintainState: true,
-                child: SizedBox(
-                  width: _leftWidth,
-                  child: RepaintBoundary(child: widget.leftChild),
+                child: TickerMode(
+                  enabled: !widget.leftCollapsed,
+                  child: SizedBox(
+                    width: _leftWidth,
+                    child: RepaintBoundary(child: widget.leftChild),
+                  ),
                 ),
               ),
 

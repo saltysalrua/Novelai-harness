@@ -362,10 +362,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                           final fullBytes = image.bytes.isNotEmpty
                               ? image.bytes
                               : bytesMap[image.id];
-                          final cacheW = (imageRect.width * dpr).round().clamp(
-                            64,
-                            4096,
-                          );
+                          final cacheW =
+                              (((imageRect.width * dpr) / 128.0).ceil() * 128)
+                                  .clamp(128, 4096);
                           if (fullBytes != null && fullBytes.isNotEmpty) {
                             return Image.memory(
                               fullBytes,
@@ -554,6 +553,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                             bytes,
                             fit: BoxFit.contain,
                             gaplessPlayback: true,
+                            cacheWidth: 256,
                           ),
                         ),
                       );

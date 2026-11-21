@@ -21,4 +21,7 @@ abstract class LlmProvider {
     double temperature = 0.7,
     String? promptCacheKey,
   });
+
+  /// 释放底层 HTTP 连接池等资源 (注入外部共享 client 时可不关闭)。
+  void close() {}
 }

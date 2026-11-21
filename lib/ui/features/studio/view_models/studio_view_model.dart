@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' show Color, Locale, Offset, Rect;
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import '../../../../core/harness/agent_harness.dart';
 import '../../../../core/harness/context_memory.dart';
@@ -106,6 +107,7 @@ mixin _StudioCore on ChangeNotifier {
   final AppBannerController bannerController = AppBannerController();
   late final ToolRegistry _toolRegistry;
   late final AgentHarness _harness;
+  final http.Client _llmHttpClient = http.Client();
 
   /// 本地词组合库条目列表
   List<PromptComboEntry> _promptLibraryEntries = const [];
@@ -1302,7 +1304,7 @@ class StudioViewModel extends ChangeNotifier
       // 词表资产缺失时不阻断启动，计数保持启发式估算
       return;
     }
-    if (_params.model.tokenizerKind == target.tokenizerKind) {
+    if (!_disposed && _params.model.tokenizerKind == target.tokenizerKind) {
       notifyListeners();
     }
   }
@@ -1350,7 +1352,7 @@ class StudioViewModel extends ChangeNotifier
           cacheKey: image.id,
         );
         if (palette == null) return;
-        if (_selectedImage?.id != image.id) return;
+        if (_disposed || _selectedImage?.id != image.id) return;
         AppAccentController.instance.applyAdaptiveSeed(Color(palette.seed));
       } catch (_) {
         // 取色失败静默降级：保持当前主题不变
@@ -1671,7 +1673,10 @@ class StudioViewModel extends ChangeNotifier
     inpaintPreviewNotifier.dispose();
     _rtxDisposed = true;
     _repository.cancelRtxUpscale();
+    _comfyService?.close();
+    _comfyService = null;
     _harness.dispose();
+    _llmHttpClient.close();
     _generationSubscription?.cancel();
     _paramSaveDebounceTimer?.cancel();
     _configSaveDebounceTimer?.cancel();

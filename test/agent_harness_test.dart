@@ -6,7 +6,7 @@ import 'package:novelai_harness/core/harness/session_recorder.dart';
 import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 
-class MockLlmProvider implements LlmProvider {
+class MockLlmProvider extends LlmProvider {
   final List<HarnessEvent> Function(
     List<AgentMessage> messages,
     List<AgentTool> tools,

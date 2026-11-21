@@ -78,6 +78,11 @@ class BoardController extends ChangeNotifier {
   /// 大画布布局持久化防抖计时器 (拖拽/缩放/移动后延迟落盘)
   Timer? _boardSaveDebounceTimer;
 
+  /// 连线便利贴打字时同步主图批注的防抖计时器 (避免每次击键写盘)
+  Timer? _annotationPersistDebounceTimer;
+  ({String imageId, List<ImageAnnotation> annotations})?
+      _pendingAnnotationPersist;
+
   /// 迟到写入防护：dispose 后拒绝一切广播与宿主回调
   bool _alive = true;
 
@@ -126,14 +131,46 @@ class BoardController extends ChangeNotifier {
     );
   }
 
+  void _scheduleAnnotationPersist(
+    String imageId,
+    List<ImageAnnotation> annotations,
+  ) {
+    final pending = _pendingAnnotationPersist;
+    if (pending != null && pending.imageId != imageId) {
+      unawaited(_flushAnnotationPersist());
+    }
+    _pendingAnnotationPersist = (imageId: imageId, annotations: annotations);
+    _annotationPersistDebounceTimer?.cancel();
+    _annotationPersistDebounceTimer = Timer(
+      const Duration(milliseconds: 500),
+      () => unawaited(_flushAnnotationPersist()),
+    );
+  }
+
+  Future<void> _flushAnnotationPersist() async {
+    _annotationPersistDebounceTimer?.cancel();
+    _annotationPersistDebounceTimer = null;
+    final pending = _pendingAnnotationPersist;
+    if (pending == null) return;
+    _pendingAnnotationPersist = null;
+    await _repository.updateImageAnnotations(
+      imageId: pending.imageId,
+      annotations: pending.annotations,
+      saveDir: _host.boardSaveDirectory,
+      enablePersistence: _host.boardImagePersistenceEnabled,
+    );
+  }
+
   // ------------------------- 生命周期 -------------------------
 
   @override
   void dispose() {
     _alive = false;
-    // 大画布布局：取消防抖并立即落盘一次 (契约保持与旧宿主 dispose 等价)
+    // 大画布布局与待刷新的批注持久化：取消防抖并立即落盘一次
     _boardSaveDebounceTimer?.cancel();
+    _annotationPersistDebounceTimer?.cancel();
     unawaited(_flushBoardSave());
+    unawaited(_flushAnnotationPersist());
     super.dispose();
   }
 
@@ -496,8 +533,10 @@ class BoardController extends ChangeNotifier {
   /// 更新图片节点上的批注 (例如移动选区/锚点)
   Future<void> updateAnnotationInImageNode(
     String imageNodeId,
-    ImageAnnotation annotation,
-  ) async {
+    ImageAnnotation annotation, {
+    bool broadcast = true,
+    bool debouncePersist = false,
+  }) async {
     if (_boardData == null) return;
     CanvasImageNode? targetNode;
 
@@ -516,11 +555,27 @@ class BoardController extends ChangeNotifier {
     _boardData = _boardData!.copyWith(imageNodes: updatedNodes);
 
     // 先同步刷新 UI (避免选区/图钉拖拽结束时闪回旧位置)，再落盘
-    _broadcast();
+    if (broadcast) {
+      _broadcast();
+    }
     _scheduleBoardSave();
 
     // 同步到持久化仓库 (若为主图)
     if (targetNode != null && targetNode!.isMain) {
+      if (debouncePersist) {
+        _scheduleAnnotationPersist(
+          targetNode!.image.id,
+          targetNode!.annotations,
+        );
+        return;
+      }
+      if (_pendingAnnotationPersist?.imageId == targetNode!.image.id) {
+        _annotationPersistDebounceTimer?.cancel();
+        _annotationPersistDebounceTimer = null;
+        _pendingAnnotationPersist = null;
+      } else if (_pendingAnnotationPersist != null) {
+        await _flushAnnotationPersist();
+      }
       await _repository.updateImageAnnotations(
         imageId: targetNode!.image.id,
         annotations: targetNode!.annotations,
@@ -665,7 +720,14 @@ class BoardController extends ChangeNotifier {
               .where((a) => a.id == targetNote.targetAnnotationId)
               .firstOrNull;
           if (ann != null && ann.note != text) {
-            updateAnnotationInImageNode(imgNode.id, ann.copyWith(note: text));
+            unawaited(
+              updateAnnotationInImageNode(
+                imgNode.id,
+                ann.copyWith(note: text),
+                broadcast: false,
+                debouncePersist: true,
+              ),
+            );
           }
         }
       }
@@ -992,13 +1054,13 @@ class BoardController extends ChangeNotifier {
         final renderRes = await renderImageWithAnnotationOverlay(
           mainBytes,
           mainNode.annotations,
+          maxDimension: kVisionImageMaxSide,
+          whiteBackground: true,
         );
-        // 压缩到最长边 1024px 控制视觉 Token (文字批注同时以文本形式附在消息里)
-        final payload = await compressVisionImage(renderRes.bytes);
         messageImages.add(
           AgentMessageImage(
-            base64: base64Encode(payload.bytes),
-            mimeType: payload.mimeType,
+            base64: base64Encode(renderRes.bytes),
+            mimeType: 'image/png',
           ),
         );
       } catch (_) {
