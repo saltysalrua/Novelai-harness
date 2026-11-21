@@ -24,6 +24,8 @@ class PromptComboCard extends StatelessWidget {
 
   final PromptComboEntry combo;
   final void Function(bool replace, bool asCharacter) onApply;
+  final void Function(bool replace)? onApplyStyle;
+  final VoidCallback? onSendToAgent;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -37,6 +39,8 @@ class PromptComboCard extends StatelessWidget {
     super.key,
     required this.combo,
     required this.onApply,
+    this.onApplyStyle,
+    this.onSendToAgent,
     required this.onEdit,
     required this.onDelete,
     this.loadImage = true,
@@ -44,9 +48,23 @@ class PromptComboCard extends StatelessWidget {
   });
 
   void _copyToClipboard(BuildContext context) {
-    final text = combo.isCharacter && combo.negativePrompt.isNotEmpty
-        ? 'Prompt: ${combo.prompt}\nNegative: ${combo.negativePrompt}'
-        : combo.prompt;
+    final String text;
+    if (combo.isStyle) {
+      final parts = <String>[
+        if (combo.prefixPrompt.trim().isNotEmpty)
+          'Prefix: ${combo.prefixPrompt.trim()}',
+        if (combo.suffixPrompt.trim().isNotEmpty)
+          'Suffix: ${combo.suffixPrompt.trim()}',
+        if (combo.prompt.trim().isNotEmpty) 'Prompt: ${combo.prompt.trim()}',
+        if (combo.negativePrompt.trim().isNotEmpty)
+          'Negative: ${combo.negativePrompt.trim()}',
+      ];
+      text = parts.join('\n');
+    } else if (combo.isCharacter && combo.negativePrompt.isNotEmpty) {
+      text = 'Prompt: ${combo.prompt}\nNegative: ${combo.negativePrompt}';
+    } else {
+      text = combo.prompt;
+    }
     Clipboard.setData(ClipboardData(text: text));
     showAppToast(
       context,
@@ -62,22 +80,50 @@ class PromptComboCard extends StatelessWidget {
       context,
       position: position,
       actions: [
-        ContextMenuItem(
-          icon: Icons.add_outlined,
-          label: l10n.libraryMenuAppendToPrompt,
-          onTap: () => onApply(false, false),
-        ),
-        ContextMenuItem(
-          icon: Icons.swap_horiz_outlined,
-          label: l10n.libraryMenuReplacePrompt,
-          onTap: () => onApply(true, false),
-        ),
-        if (combo.isCharacter)
+        if (combo.isStyle) ...[
           ContextMenuItem(
-            icon: Icons.person_add_alt_1_outlined,
-            label: l10n.libraryMenuAddAsCharacter,
-            onTap: () => onApply(false, true),
+            icon: Icons.palette_outlined,
+            label: l10n.libraryMenuApplyStyleReplace,
+            onTap: () => onApplyStyle != null
+                ? onApplyStyle!(true)
+                : onApply(true, false),
           ),
+          ContextMenuItem(
+            icon: Icons.add_outlined,
+            label: l10n.libraryMenuApplyStyleAppend,
+            onTap: () => onApplyStyle != null
+                ? onApplyStyle!(false)
+                : onApply(false, false),
+          ),
+          ContextMenuItem(
+            icon: Icons.playlist_add_outlined,
+            label: l10n.libraryMenuAppendToPrompt,
+            onTap: () => onApply(false, false),
+          ),
+        ] else ...[
+          ContextMenuItem(
+            icon: Icons.add_outlined,
+            label: l10n.libraryMenuAppendToPrompt,
+            onTap: () => onApply(false, false),
+          ),
+          ContextMenuItem(
+            icon: Icons.swap_horiz_outlined,
+            label: l10n.libraryMenuReplacePrompt,
+            onTap: () => onApply(true, false),
+          ),
+          if (combo.isCharacter)
+            ContextMenuItem(
+              icon: Icons.person_add_alt_1_outlined,
+              label: l10n.libraryMenuAddAsCharacter,
+              onTap: () => onApply(false, true),
+            ),
+          if (combo.isCharacter && onSendToAgent != null)
+            ContextMenuItem(
+              icon: Icons.chat_bubble_outline_rounded,
+              label: l10n.libraryMenuSendToAgent,
+              onTap: onSendToAgent!,
+            ),
+        ],
         const ContextMenuDivider(),
         ContextMenuItem(
           icon: Icons.copy_outlined,
@@ -117,12 +163,14 @@ class PromptComboCard extends StatelessWidget {
 
   Widget _buildPromptSnippet(BuildContext context, {required bool hasNegative}) {
     final colors = context.colors;
+    final summary = combo.displayPromptSummary;
+    final tooltipText = !combo.isStyle && hasNegative
+        ? '$summary\nUC: ${combo.negativePrompt}'
+        : summary;
     return Tooltip(
-      message: hasNegative
-          ? '${combo.prompt}\nUC: ${combo.negativePrompt}'
-          : combo.prompt,
+      message: tooltipText,
       child: Text(
-        combo.prompt,
+        summary,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -137,6 +185,25 @@ class PromptComboCard extends StatelessWidget {
   Widget _buildApplyPills(BuildContext context, {required bool isChar}) {
     final colors = context.colors;
     final l10n = context.l10n;
+    if (combo.isStyle) {
+      return Row(
+        children: [
+          Flexible(
+            child: _SoftActionPill(
+              icon: Icons.palette_outlined,
+              label: l10n.libraryCardApplyStyle,
+              backgroundColor: colors.primaryTint,
+              foregroundColor: colors.primary,
+              compact: compact,
+              onTap: () => onApplyStyle != null
+                  ? onApplyStyle!(true)
+                  : onApply(false, false),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         Flexible(
@@ -164,6 +231,16 @@ class PromptComboCard extends StatelessWidget {
               onTap: () => onApply(false, true),
             ),
           ),
+          if (onSendToAgent != null) ...[
+            const SizedBox(width: 4),
+            _SoftIconPill(
+              icon: Icons.chat_bubble_outline_rounded,
+              tooltip: l10n.libraryCardSendToAgentTooltip,
+              backgroundColor: colors.primaryTint,
+              foregroundColor: colors.primary,
+              onTap: onSendToAgent!,
+            ),
+          ],
         ],
       ],
     );
@@ -515,6 +592,60 @@ class _SoftActionPillState extends State<_SoftActionPill> {
       pill = Tooltip(message: widget.tooltip!, child: pill);
     }
     return pill;
+  }
+}
+
+/// 紧凑无边框动作图标胶囊 (用于角色卡「发送到助手」等辅助动作)
+class _SoftIconPill extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final VoidCallback onTap;
+
+  const _SoftIconPill({
+    required this.icon,
+    required this.tooltip,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.onTap,
+  });
+
+  @override
+  State<_SoftIconPill> createState() => _SoftIconPillState();
+}
+
+class _SoftIconPillState extends State<_SoftIconPill> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = _hovered
+        ? widget.foregroundColor.withValues(alpha: 0.16)
+        : widget.backgroundColor;
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(widget.icon, size: 13, color: widget.foregroundColor),
+          ),
+        ),
+      ),
+    );
   }
 }
 

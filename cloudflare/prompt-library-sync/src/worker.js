@@ -199,6 +199,8 @@ function mapRowToEntry(row) {
     category: row.category,
     prompt: row.prompt,
     negativePrompt: row.negative_prompt ?? '',
+    prefixPrompt: row.prefix_prompt ?? '',
+    suffixPrompt: row.suffix_prompt ?? '',
     tags,
     isFavorite: Boolean(row.is_favorite),
     isBuiltin: Boolean(row.is_builtin),
@@ -209,6 +211,25 @@ function mapRowToEntry(row) {
     deletedAt: row.deleted_at || null,
     revision: Number(row.revision ?? 0),
   };
+}
+
+const migratedStyleColumnDbs = new WeakSet();
+
+async function ensureStyleColumns(db) {
+  if (migratedStyleColumnDbs.has(db)) return;
+  const { results } = await db.prepare('PRAGMA table_info(sync_entries)').all();
+  const cols = new Set((results || []).map((r) => r.name));
+  if (!cols.has('prefix_prompt')) {
+    await db
+      .prepare("ALTER TABLE sync_entries ADD COLUMN prefix_prompt TEXT NOT NULL DEFAULT ''")
+      .run();
+  }
+  if (!cols.has('suffix_prompt')) {
+    await db
+      .prepare("ALTER TABLE sync_entries ADD COLUMN suffix_prompt TEXT NOT NULL DEFAULT ''")
+      .run();
+  }
+  migratedStyleColumnDbs.add(db);
 }
 
 async function executeBatches(db, statements) {
@@ -283,6 +304,8 @@ async function handleGetSync(url, env) {
     return errorResponse('namespace 格式无效', 400, 'INVALID_NAMESPACE');
   }
 
+  await ensureStyleColumns(env.DB);
+
   const sinceRaw = url.searchParams.get('since_rev');
   const sinceRev = sinceRaw !== null ? Number.parseInt(sinceRaw, 10) : null;
 
@@ -326,12 +349,22 @@ function validatePushEntry(raw, fallbackIso) {
   const category = typeof raw.category === 'string' && raw.category.trim() ? raw.category.trim() : '其他';
   const prompt = typeof raw.prompt === 'string' ? raw.prompt : '';
 
-  if (deletedAt === null && (!title.trim() || !prompt.trim())) {
+  const catLower = category.trim().toLowerCase();
+  const isChar = catLower === '角色' || catLower === 'character';
+  const isStyle = catLower === '风格' || catLower === '画风' || catLower === 'style';
+
+  const negativePrompt = (isChar || isStyle) && typeof raw.negativePrompt === 'string' ? raw.negativePrompt : '';
+  const prefixPrompt = isStyle && typeof raw.prefixPrompt === 'string' ? raw.prefixPrompt : '';
+  const suffixPrompt = isStyle && typeof raw.suffixPrompt === 'string' ? raw.suffixPrompt : '';
+
+  const hasContent = isStyle
+    ? Boolean(prompt.trim() || prefixPrompt.trim() || suffixPrompt.trim() || negativePrompt.trim())
+    : Boolean(prompt.trim());
+
+  if (deletedAt === null && (!title.trim() || !hasContent)) {
     return { error: `条目 ${id} 缺少 title 或 prompt` };
   }
 
-  const isChar = category.trim().toLowerCase() === '角色' || category.trim().toLowerCase() === 'character';
-  const negativePrompt = isChar && typeof raw.negativePrompt === 'string' ? raw.negativePrompt : '';
   const tags = Array.isArray(raw.tags) ? raw.tags.map((t) => String(t)) : [];
   const previewHash =
     raw.previewHash && isValidSha256(String(raw.previewHash).toLowerCase())
@@ -352,6 +385,8 @@ function validatePushEntry(raw, fallbackIso) {
       category,
       prompt,
       negativePrompt,
+      prefixPrompt,
+      suffixPrompt,
       tagsJson: JSON.stringify(tags),
       isFavorite: raw.isFavorite ? 1 : 0,
       isBuiltin: raw.isBuiltin ? 1 : 0,
@@ -362,6 +397,52 @@ function validatePushEntry(raw, fallbackIso) {
       deletedAt,
     },
   };
+}
+
+function prepareUpsertEntry(db, namespace, e, nextRevision) {
+  return db
+    .prepare(
+      `INSERT INTO sync_entries (
+         namespace, id, title, category, prompt, negative_prompt, prefix_prompt, suffix_prompt, tags_json,
+         is_favorite, is_builtin, preview_hash, preview_ext,
+         created_at, updated_at, deleted_at, revision
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(namespace, id) DO UPDATE SET
+         title = excluded.title,
+         category = excluded.category,
+         prompt = excluded.prompt,
+         negative_prompt = excluded.negative_prompt,
+         prefix_prompt = excluded.prefix_prompt,
+         suffix_prompt = excluded.suffix_prompt,
+         tags_json = excluded.tags_json,
+         is_favorite = excluded.is_favorite,
+         is_builtin = excluded.is_builtin,
+         preview_hash = excluded.preview_hash,
+         preview_ext = excluded.preview_ext,
+         created_at = excluded.created_at,
+         updated_at = excluded.updated_at,
+         deleted_at = excluded.deleted_at,
+         revision = excluded.revision`,
+    )
+    .bind(
+      namespace,
+      e.id,
+      e.title,
+      e.category,
+      e.prompt,
+      e.negativePrompt,
+      e.prefixPrompt,
+      e.suffixPrompt,
+      e.tagsJson,
+      e.isFavorite,
+      e.isBuiltin,
+      e.previewHash,
+      e.previewExt,
+      e.createdAt,
+      e.updatedAt,
+      e.deletedAt,
+      nextRevision,
+    );
 }
 
 async function fetchExistingTimestamps(db, namespace, ids) {
@@ -396,6 +477,8 @@ async function handlePushSync(request, env) {
   if (!namespace) {
     return errorResponse('namespace 格式无效', 400, 'INVALID_NAMESPACE');
   }
+
+  await ensureStyleColumns(env.DB);
 
   const mode = body?.mode === 'replace' ? 'replace' : 'merge';
   const rawEntries = Array.isArray(body?.entries) ? body.entries : null;
@@ -446,45 +529,7 @@ async function handlePushSync(request, env) {
     }
 
     for (const e of normalized) {
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO sync_entries (
-             namespace, id, title, category, prompt, negative_prompt, tags_json,
-             is_favorite, is_builtin, preview_hash, preview_ext,
-             created_at, updated_at, deleted_at, revision
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(namespace, id) DO UPDATE SET
-             title = excluded.title,
-             category = excluded.category,
-             prompt = excluded.prompt,
-             negative_prompt = excluded.negative_prompt,
-             tags_json = excluded.tags_json,
-             is_favorite = excluded.is_favorite,
-             is_builtin = excluded.is_builtin,
-             preview_hash = excluded.preview_hash,
-             preview_ext = excluded.preview_ext,
-             created_at = excluded.created_at,
-             updated_at = excluded.updated_at,
-             deleted_at = excluded.deleted_at,
-             revision = excluded.revision`,
-        ).bind(
-          namespace,
-          e.id,
-          e.title,
-          e.category,
-          e.prompt,
-          e.negativePrompt,
-          e.tagsJson,
-          e.isFavorite,
-          e.isBuiltin,
-          e.previewHash,
-          e.previewExt,
-          e.createdAt,
-          e.updatedAt,
-          e.deletedAt,
-          nextRevision,
-        ),
-      );
+      statements.push(prepareUpsertEntry(env.DB, namespace, e, nextRevision));
       appliedCount++;
     }
   } else {
@@ -500,45 +545,7 @@ async function handlePushSync(request, env) {
       if (existingMs !== undefined && incomingMs < existingMs) {
         continue;
       }
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO sync_entries (
-             namespace, id, title, category, prompt, negative_prompt, tags_json,
-             is_favorite, is_builtin, preview_hash, preview_ext,
-             created_at, updated_at, deleted_at, revision
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(namespace, id) DO UPDATE SET
-             title = excluded.title,
-             category = excluded.category,
-             prompt = excluded.prompt,
-             negative_prompt = excluded.negative_prompt,
-             tags_json = excluded.tags_json,
-             is_favorite = excluded.is_favorite,
-             is_builtin = excluded.is_builtin,
-             preview_hash = excluded.preview_hash,
-             preview_ext = excluded.preview_ext,
-             created_at = excluded.created_at,
-             updated_at = excluded.updated_at,
-             deleted_at = excluded.deleted_at,
-             revision = excluded.revision`,
-        ).bind(
-          namespace,
-          e.id,
-          e.title,
-          e.category,
-          e.prompt,
-          e.negativePrompt,
-          e.tagsJson,
-          e.isFavorite,
-          e.isBuiltin,
-          e.previewHash,
-          e.previewExt,
-          e.createdAt,
-          e.updatedAt,
-          e.deletedAt,
-          nextRevision,
-        ),
-      );
+      statements.push(prepareUpsertEntry(env.DB, namespace, e, nextRevision));
       appliedCount++;
     }
   }

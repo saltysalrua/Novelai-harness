@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS sync_entries (
   category TEXT NOT NULL,
   prompt TEXT NOT NULL,
   negative_prompt TEXT NOT NULL DEFAULT '',
+  prefix_prompt TEXT NOT NULL DEFAULT '',
+  suffix_prompt TEXT NOT NULL DEFAULT '',
   tags_json TEXT NOT NULL DEFAULT '[]',
   is_favorite INTEGER NOT NULL DEFAULT 0,
   is_builtin INTEGER NOT NULL DEFAULT 0,

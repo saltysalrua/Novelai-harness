@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/models/prompt_library_models.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
+import 'package:novelai_harness/data/services/prompt_library_mention.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 
@@ -64,7 +65,7 @@ void main() {
     });
 
     test(
-      'copyWith cleans negative prompt if category is changed to non-character',
+      'copyWith preserves negativePrompt for style and cleans style/negative fields on other categories',
       () {
         final charEntry = PromptComboEntry(
           id: '1',
@@ -76,12 +77,51 @@ void main() {
           updatedAt: DateTime.now(),
         );
 
-        final styleEntry = charEntry.copyWith(category: '风格');
+        final styleEntry = charEntry.copyWith(
+          category: '风格',
+          prefixPrompt: 'artist:foo',
+          suffixPrompt: 'very aesthetic',
+        );
         expect(styleEntry.category, '风格');
-        expect(styleEntry.isCharacter, isFalse);
-        expect(styleEntry.negativePrompt, '');
+        expect(styleEntry.isStyle, isTrue);
+        expect(styleEntry.negativePrompt, 'bad hands, lowres');
+        expect(styleEntry.prefixPrompt, 'artist:foo');
+        expect(styleEntry.suffixPrompt, 'very aesthetic');
+
+        final attireEntry = styleEntry.copyWith(category: '服装');
+        expect(attireEntry.category, '服装');
+        expect(attireEntry.isCharacter, isFalse);
+        expect(attireEntry.isStyle, isFalse);
+        expect(attireEntry.negativePrompt, '');
+        expect(attireEntry.prefixPrompt, '');
+        expect(attireEntry.suffixPrompt, '');
       },
     );
+
+    test('style entry toJson and fromJson round-trip keeps affixes and negativePrompt', () {
+      final original = PromptComboEntry(
+        id: 'style_100',
+        title: '水彩厚涂',
+        category: '风格',
+        prefixPrompt: 'artist:foo, watercolor style',
+        suffixPrompt: 'very aesthetic, soft lighting',
+        negativePrompt: '3d, photorealistic',
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 2),
+        tags: ['watercolor'],
+      );
+
+      final json = original.toJson();
+      expect(json['prefixPrompt'], 'artist:foo, watercolor style');
+      expect(json['suffixPrompt'], 'very aesthetic, soft lighting');
+      expect(json['negativePrompt'], '3d, photorealistic');
+
+      final reconstructed = PromptComboEntry.fromJson(json);
+      expect(reconstructed.prefixPrompt, original.prefixPrompt);
+      expect(reconstructed.suffixPrompt, original.suffixPrompt);
+      expect(reconstructed.negativePrompt, original.negativePrompt);
+      expect(reconstructed.hasEffectiveContent, isTrue);
+    });
 
     test('toJson and fromJson round-trip keeps values intact', () {
       final original = PromptComboEntry(
@@ -404,15 +444,174 @@ void main() {
         expect(match.insertText, contains('watercolor style'));
         expect(match.isPromptCombo, isTrue);
 
-        // 角色分类条目 (如 初音未来) 同样支持补全，且 insertText 仅为主提示词
-        final charMatches = service.searchAsSuggestions('初音');
-        expect(charMatches.isNotEmpty, isTrue);
-        final charMatch = charMatches.first;
-        expect(charMatch.tag, '初音未来 (Hatsune Miku)');
-        expect(charMatch.customCategoryLabel, '角色');
-        expect(charMatch.insertText, contains('hatsune miku'));
-        expect(charMatch.isPromptCombo, isTrue);
+      // 角色分类条目 (如 初音未来) 同样支持补全，且 insertText 仅为主提示词
+      final charMatches = service.searchAsSuggestions('初音');
+      expect(charMatches.isNotEmpty, isTrue);
+      final charMatch = charMatches.first;
+      expect(charMatch.tag, '初音未来 (Hatsune Miku)');
+      expect(charMatch.customCategoryLabel, '角色');
+      expect(charMatch.insertText, contains('hatsune miku'));
+      expect(charMatch.isPromptCombo, isTrue);
+    });
+
+    test(
+      'applyPromptCombo asStyle populates affixes and negative prompt with replace/append and legacy fallback',
+      () async {
+        final vm = StudioViewModel(
+          configService: ConfigService(),
+          promptLibraryService: service,
+        );
+        await vm.init();
+
+        vm.updateParams(
+          vm.params.copyWith(
+            prefixPrompt: 'old_prefix',
+            suffixPrompt: 'old_suffix',
+            negativePrompt: 'existing_uc',
+            applyFixedPrompts: false,
+          ),
+        );
+
+        final styleWithNegative = PromptComboEntry(
+          id: 'st_1',
+          title: '赛博水彩',
+          category: '风格',
+          prefixPrompt: 'watercolor, neon',
+          suffixPrompt: 'very aesthetic',
+          negativePrompt: '3d, photo',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        // 追加模式
+        vm.applyPromptCombo(styleWithNegative, asStyle: true, replace: false);
+        expect(vm.params.applyFixedPrompts, isTrue);
+        expect(vm.params.prefixPrompt, 'old_prefix, watercolor, neon');
+        expect(vm.params.suffixPrompt, 'old_suffix, very aesthetic');
+        expect(vm.params.negativePrompt, 'existing_uc, 3d, photo');
+
+        // 覆盖模式 (且风格负面词为空时不得清空工作台现有负面词)
+        final styleNoNegative = PromptComboEntry(
+          id: 'st_2',
+          title: '油画',
+          category: '风格',
+          prefixPrompt: 'oil painting',
+          suffixPrompt: '',
+          negativePrompt: '',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        vm.applyPromptCombo(styleNoNegative, asStyle: true, replace: true);
+        expect(vm.params.prefixPrompt, 'oil painting');
+        expect(vm.params.suffixPrompt, '');
+        expect(vm.params.negativePrompt, 'existing_uc, 3d, photo');
+
+        // 旧版仅填 prompt 的风格条目作为 prefix 回退
+        final legacyStyle = PromptComboEntry(
+          id: 'st_legacy',
+          title: '旧水彩',
+          category: '风格',
+          prompt: 'legacy watercolor',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        vm.applyPromptCombo(legacyStyle, asStyle: true, replace: true);
+        expect(vm.params.prefixPrompt, 'legacy watercolor');
       },
     );
+  });
+
+  group('PromptLibraryMention Tests', () {
+    final now = DateTime(2026, 1, 1);
+    final entries = [
+      PromptComboEntry(
+        id: 'c_miku',
+        title: '初音未来 (Hatsune Miku)',
+        category: '角色',
+        prompt: '1girl, hatsune miku, aqua hair',
+        negativePrompt: 'bad hands, secret_uc',
+        isFavorite: true,
+        tags: ['vocaloid', 'miku'],
+        createdAt: now,
+        updatedAt: now,
+      ),
+      PromptComboEntry(
+        id: 'c_rin',
+        title: '镜音铃',
+        category: '角色',
+        prompt: '1girl, kagamine rin, blonde hair, secret_tag',
+        createdAt: now,
+        updatedAt: now,
+      ),
+      PromptComboEntry(
+        id: 'c_k',
+        title: 'K',
+        category: '角色',
+        prompt: '1girl, short name',
+        createdAt: now,
+        updatedAt: now,
+      ),
+      PromptComboEntry(
+        id: 's_wc',
+        title: '水彩风',
+        category: '风格',
+        prefixPrompt: 'watercolor',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    ];
+
+    test('extractActiveCharacterMention detects @ query and skips emails/spaces', () {
+      final m1 = extractActiveCharacterMention('画一下 @初音', 7);
+      expect(m1, isNotNull);
+      expect(m1!.atIndex, 4);
+      expect(m1.query, '初音');
+
+      final mEmpty = extractActiveCharacterMention('@', 1);
+      expect(mEmpty, isNotNull);
+      expect(mEmpty!.query, '');
+
+      expect(extractActiveCharacterMention('user@example.com', 16), isNull);
+      expect(extractActiveCharacterMention('画 @[初音未来] 在海边', 15), isNull);
+    });
+
+    test('matchCharacterMentionSuggestions filters characters only and ranks favorites', () {
+      final all = matchCharacterMentionSuggestions('', entries);
+      expect(all.any((e) => e.id == 's_wc'), isFalse);
+      expect(all.first.id, 'c_miku');
+
+      final byTag = matchCharacterMentionSuggestions('vocaloid', entries);
+      expect(byTag.single.id, 'c_miku');
+    });
+
+    test('extractLinkedCharacters and removeCharacterMention handle @[title]', () {
+      final text = '帮我画 ${formatCharacterMention('初音未来 (Hatsune Miku)')} 和镜音铃';
+      final linked = extractLinkedCharacters(text, entries);
+      expect(linked.map((e) => e.id), ['c_miku']);
+
+      final cleaned = removeCharacterMention(text, entries.first);
+      expect(cleaned, '帮我画 和镜音铃');
+    });
+
+    test('resolveLibraryCharactersForMessage resolves explicit, implicit alias, and sanitizes banned words', () {
+      final ctx1 = resolveLibraryCharactersForMessage(
+        '让 Hatsune Miku 和 @[镜音铃] 一起喝奶茶',
+        entries,
+        sanitizeText: (s) => s.replaceAll('secret_tag', '').replaceAll('secret_uc', ''),
+      );
+      expect(ctx1, isNotNull);
+      expect(ctx1, contains('<library_characters>'));
+      expect(ctx1, contains('hatsune miku, aqua hair'));
+      expect(ctx1, contains('kagamine rin, blonde hair'));
+      expect(ctx1, isNot(contains('secret_tag')));
+      expect(ctx1, isNot(contains('secret_uc')));
+
+      // 单字符名称 'K' 不得误触发隐式关联
+      final ctxNoShort = resolveLibraryCharactersForMessage(
+        'ok let us draw a cat',
+        entries,
+      );
+      expect(ctxNoShort, isNull);
+    });
   });
 }

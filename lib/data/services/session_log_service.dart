@@ -224,6 +224,9 @@ class SessionLogService implements SessionRecorder {
           });
         }
         msg['content'] = userParts;
+        if (message.llmContext != null && message.llmContext!.isNotEmpty) {
+          msg['llmContext'] = message.llmContext;
+        }
         msg['timestamp'] = message.createdAt.millisecondsSinceEpoch;
 
       case AgentRole.assistant:
@@ -989,6 +992,7 @@ class SessionLogService implements SessionRecorder {
               ? msg['content'] as String
               : userText,
           images: restoredImages,
+          llmContext: msg['llmContext'] as String?,
           createdAt: createdAt,
         );
 

@@ -193,6 +193,8 @@ class RemotePromptEntryRecord {
   final String category;
   final String prompt;
   final String negativePrompt;
+  final String prefixPrompt;
+  final String suffixPrompt;
   final List<String> tags;
   final bool isFavorite;
   final bool isBuiltin;
@@ -209,6 +211,8 @@ class RemotePromptEntryRecord {
     required this.category,
     required this.prompt,
     this.negativePrompt = '',
+    this.prefixPrompt = '',
+    this.suffixPrompt = '',
     this.tags = const [],
     this.isFavorite = false,
     this.isBuiltin = false,
@@ -234,7 +238,9 @@ class RemotePromptEntryRecord {
       title: entry.title,
       category: entry.category,
       prompt: entry.prompt,
-      negativePrompt: entry.isCharacter ? entry.negativePrompt : '',
+      negativePrompt: entry.supportsNegative ? entry.negativePrompt : '',
+      prefixPrompt: entry.isStyle ? entry.prefixPrompt : '',
+      suffixPrompt: entry.isStyle ? entry.suffixPrompt : '',
       tags: entry.tags,
       isFavorite: entry.isFavorite,
       isBuiltin: entry.isBuiltin,
@@ -267,8 +273,14 @@ class RemotePromptEntryRecord {
       title: title,
       category: category,
       prompt: prompt,
-      negativePrompt: PromptComboEntry.isCharacterCategory(category)
+      negativePrompt: PromptComboEntry.supportsNegativePrompt(category)
           ? negativePrompt
+          : '',
+      prefixPrompt: PromptComboEntry.isStyleCategory(category)
+          ? prefixPrompt
+          : '',
+      suffixPrompt: PromptComboEntry.isStyleCategory(category)
+          ? suffixPrompt
           : '',
       previewImagePath: previewImagePath,
       createdAt: createdAt.toLocal(),
@@ -284,9 +296,13 @@ class RemotePromptEntryRecord {
     'title': title,
     'category': category,
     'prompt': prompt,
-    'negativePrompt': PromptComboEntry.isCharacterCategory(category)
+    'negativePrompt': PromptComboEntry.supportsNegativePrompt(category)
         ? negativePrompt
         : '',
+    if (PromptComboEntry.isStyleCategory(category) && prefixPrompt.isNotEmpty)
+      'prefixPrompt': prefixPrompt,
+    if (PromptComboEntry.isStyleCategory(category) && suffixPrompt.isNotEmpty)
+      'suffixPrompt': suffixPrompt,
     'tags': tags,
     'isFavorite': isFavorite,
     'isBuiltin': isBuiltin,
@@ -312,6 +328,8 @@ class RemotePromptEntryRecord {
         ? DateTime.tryParse(deletedRaw)?.toUtc()
         : null;
     final cat = json['category'] as String? ?? PromptComboCategories.other;
+    final allowNeg = PromptComboEntry.supportsNegativePrompt(cat);
+    final allowStyle = PromptComboEntry.isStyleCategory(cat);
     final rawHash = json['previewHash'];
     final previewHash = rawHash is String && rawHash.trim().isNotEmpty
         ? rawHash.trim().toLowerCase()
@@ -326,9 +344,9 @@ class RemotePromptEntryRecord {
       title: json['title'] as String? ?? '',
       category: cat,
       prompt: json['prompt'] as String? ?? '',
-      negativePrompt: PromptComboEntry.isCharacterCategory(cat)
-          ? (json['negativePrompt'] as String? ?? '')
-          : '',
+      negativePrompt: allowNeg ? (json['negativePrompt'] as String? ?? '') : '',
+      prefixPrompt: allowStyle ? (json['prefixPrompt'] as String? ?? '') : '',
+      suffixPrompt: allowStyle ? (json['suffixPrompt'] as String? ?? '') : '',
       tags:
           (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
           const [],

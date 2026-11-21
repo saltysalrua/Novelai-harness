@@ -90,14 +90,26 @@ mixin _StudioLibraryMixin on _StudioCore {
     return _liveProgressController.previewBytes;
   }
 
+  static String _appendCommaSeparated(String base, String addition) {
+    final trimmedAdd = addition.trim();
+    if (trimmedAdd.isEmpty) return base;
+    final trimmedBase = base.trim();
+    if (trimmedBase.isEmpty) return trimmedAdd;
+    return trimmedBase.endsWith(',') || trimmedBase.endsWith('，')
+        ? '$trimmedBase $trimmedAdd'
+        : '$trimmedBase, $trimmedAdd';
+  }
+
   /// 将词组合应用到工作台
   ///
-  /// - [replace]: 为 true 时替换主提示词，为 false 时在末尾追加
+  /// - [replace]: 为 true 时替换目标字段，为 false 时在末尾追加
   /// - [asCharacter]: 为 true 且当分类为角色时，将词组合直接追加为一个新的多角色卡片
+  /// - [asStyle]: 为 true 且当分类为风格时，将前置/后置词写入固定词缀并开启固定词缀开关，同时写入负面提示词
   void applyPromptCombo(
     PromptComboEntry combo, {
     bool replace = false,
     bool asCharacter = false,
+    bool asStyle = false,
   }) {
     // 1. 若选择作为独立多角色添加 (仅角色分类有效)
     if (asCharacter && combo.isCharacter) {
@@ -118,33 +130,73 @@ mixin _StudioLibraryMixin on _StudioCore {
       return;
     }
 
-    String nextPrompt = _params.prompt;
-    String nextNegativePrompt = _params.negativePrompt;
+    // 2. 若选择作为画风应用到固定词缀与负面词 (仅风格分类有效)
+    if (asStyle && combo.isStyle) {
+      final incomingPrefix = combo.effectiveStylePrefix;
+      final incomingSuffix = combo.suffixPrompt.trim();
+      final incomingNegative = combo.negativePrompt.trim();
 
-    // 2. 正向提示词应用
-    final incomingPrompt = combo.prompt.trim();
-    if (incomingPrompt.isNotEmpty) {
-      if (replace || nextPrompt.trim().isEmpty) {
-        nextPrompt = incomingPrompt;
-      } else {
-        final currentPrompt = nextPrompt.trim();
-        nextPrompt = currentPrompt.endsWith(',') || currentPrompt.endsWith('，')
-            ? '$currentPrompt $incomingPrompt'
-            : '$currentPrompt, $incomingPrompt';
+      var nextPrefix = _params.prefixPrompt ?? '';
+      var nextSuffix = _params.suffixPrompt ?? '';
+      var nextApplyFixed = _params.applyFixedPrompts;
+      var nextNegative = _params.negativePrompt;
+
+      if (incomingPrefix.isNotEmpty || incomingSuffix.isNotEmpty) {
+        if (replace) {
+          nextPrefix = incomingPrefix;
+          nextSuffix = incomingSuffix;
+        } else {
+          if (incomingPrefix.isNotEmpty) {
+            nextPrefix = _appendCommaSeparated(nextPrefix, incomingPrefix);
+          }
+          if (incomingSuffix.isNotEmpty) {
+            nextSuffix = _appendCommaSeparated(nextSuffix, incomingSuffix);
+          }
+        }
+        nextApplyFixed = true;
       }
+
+      if (incomingNegative.isNotEmpty) {
+        nextNegative = replace
+            ? incomingNegative
+            : _appendCommaSeparated(nextNegative, incomingNegative);
+      }
+
+      updateParams(
+        _params.copyWith(
+          prefixPrompt: nextPrefix,
+          suffixPrompt: nextSuffix,
+          applyFixedPrompts: nextApplyFixed,
+          negativePrompt: nextNegative,
+        ),
+      );
+      return;
     }
 
-    // 3. 负面提示词应用 (只当分类为角色且负面词不为空时生效)
-    if (combo.isCharacter && combo.negativePrompt.trim().isNotEmpty) {
+    var nextPrompt = _params.prompt;
+    var nextNegativePrompt = _params.negativePrompt;
+
+    // 3. 正向提示词应用 (风格条目未填写主提示词时合并前后缀)
+    final incomingPrompt = combo.prompt.trim().isNotEmpty
+        ? combo.prompt.trim()
+        : (combo.isStyle
+              ? [
+                  combo.prefixPrompt.trim(),
+                  combo.suffixPrompt.trim(),
+                ].where((s) => s.isNotEmpty).join(', ')
+              : '');
+    if (incomingPrompt.isNotEmpty) {
+      nextPrompt = replace
+          ? incomingPrompt
+          : _appendCommaSeparated(nextPrompt, incomingPrompt);
+    }
+
+    // 4. 负面提示词应用 (角色或风格分类且负面词不为空时生效)
+    if (combo.supportsNegative && combo.negativePrompt.trim().isNotEmpty) {
       final incomingUc = combo.negativePrompt.trim();
-      if (replace || nextNegativePrompt.trim().isEmpty) {
-        nextNegativePrompt = incomingUc;
-      } else {
-        final currentUc = nextNegativePrompt.trim();
-        nextNegativePrompt = currentUc.endsWith(',') || currentUc.endsWith('，')
-            ? '$currentUc $incomingUc'
-            : '$currentUc, $incomingUc';
-      }
+      nextNegativePrompt = replace
+          ? incomingUc
+          : _appendCommaSeparated(nextNegativePrompt, incomingUc);
     }
 
     updateParams(

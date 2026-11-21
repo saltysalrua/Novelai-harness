@@ -1507,6 +1507,29 @@ class AppLocalizationsZh extends AppLocalizations {
   String get affixResizeSuffixTooltip => '拖动调整后缀词高度 (双击重置)';
 
   @override
+  String get affixSaveStyleLabel => '存为画风';
+
+  @override
+  String get affixSaveStyleTooltip => '将当前前缀词、后缀词和负面提示词保存为画风预设';
+
+  @override
+  String get affixStylePresetsLabel => '画风库';
+
+  @override
+  String get affixStylePresetsTooltip => '从词库一键填入画风预设（前置词、后置词与负面词）';
+
+  @override
+  String get affixStylePresetsEmpty => '词库暂无风格条目，可先点击「存为画风」创建';
+
+  @override
+  String get affixSaveStyleEmptyNotice => '当前前置词、后缀词和负面提示词均为空';
+
+  @override
+  String affixAppliedStyleNotice(String title) {
+    return '已填入画风预设: $title';
+  }
+
+  @override
   String get bannedWordsTitle => '排除违禁词';
 
   @override
@@ -2288,6 +2311,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get libraryMenuAddAsCharacter => '添加为多角色卡片';
 
   @override
+  String get libraryMenuSendToAgent => '发送到助手输入框';
+
+  @override
+  String get libraryMenuApplyStyleReplace => '一键填入画风 (覆盖词缀与负面词)';
+
+  @override
+  String get libraryMenuApplyStyleAppend => '追加到词缀与负面词';
+
+  @override
   String get libraryMenuCopyPrompt => '复制提示词';
 
   @override
@@ -2295,6 +2327,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get libraryCardApply => '应用到工作台';
+
+  @override
+  String get libraryCardApplyStyle => '应用画风';
+
+  @override
+  String get libraryCardSendToAgentTooltip => '发送到助手输入框';
+
+  @override
+  String librarySentCharacterToAgent(String title) {
+    return '已将角色「$title」发送到助手输入框';
+  }
+
+  @override
+  String libraryApplyStyleSuccess(String title) {
+    return '已填入画风预设: $title';
+  }
 
   @override
   String get libraryCardAddAsCharacterTooltip => '添加为工作台多角色卡片';
@@ -2375,17 +2423,40 @@ class AppLocalizationsZh extends AppLocalizations {
       '输入正向提示词 (如: 1girl, hatsune miku, cybernetic...)';
 
   @override
+  String get libraryEditFieldPrefix => '前置词 (Prefix)';
+
+  @override
+  String get libraryEditFieldPrefixHint =>
+      '放置于主提示词最前的画风/画师前缀 (如: artist:..., watercolor style...)';
+
+  @override
+  String get libraryEditFieldSuffix => '后置词 (Suffix)';
+
+  @override
+  String get libraryEditFieldSuffixHint =>
+      '放置于主提示词最后的画风后缀 (如: very aesthetic, soft lighting...)';
+
+  @override
+  String get libraryEditFillAllStyleFromWorkbench => '从工作台填入画风';
+
+  @override
+  String get libraryEditWorkspaceStyleEmpty => '工作台前置词、后缀词和负面提示词均为空';
+
+  @override
+  String get libraryEditStyleContentEmpty => '请至少填写前置词、后缀词或负面提示词中的一项';
+
+  @override
   String get libraryEditFieldNegative => '负面提示词';
 
   @override
-  String get libraryEditCharacterOnlyBadge => '仅角色分类可用';
+  String get libraryEditCharacterOnlyBadge => '角色 / 风格可用';
 
   @override
   String get libraryEditFillFromNegative => '填入工作台负向词';
 
   @override
   String get libraryEditFieldNegativeHint =>
-      '角色专有负面词 (如: worst quality, bad hands, mutated...)';
+      '角色/画风专有负面词 (如: worst quality, bad hands, mutated...)';
 
   @override
   String get libraryEditFieldTags => '检索标签 (Tags)';
@@ -2456,7 +2527,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatModelNoVisionBeforeSendNotice => '当前模型不支持图片输入，发送前请切换到多模态模型';
 
   @override
-  String get chatInputHint => '输入绘画构思，或输入 /nai <词> 快速生图...';
+  String get chatInputHint => '输入绘画构思，@ 关联词库角色，或 /nai 快速生图...';
+
+  @override
+  String get chatCharacterMentionHeader => '词库角色';
+
+  @override
+  String get chatLinkedCharacterRemoveTooltip => '移除关联角色';
 
   @override
   String get chatSendTooltip => '发送（Enter）';

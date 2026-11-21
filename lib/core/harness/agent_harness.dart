@@ -239,28 +239,44 @@ class AgentHarness {
       '按编号读取或释放旧回复；清理请用 ids 数组一次批量处理，不要逐条多次调用。'
       '释放不删除用户原文；请先记录必要结论。',
     );
+    if (enabledTools.any((t) => t.name == 'search_prompt_library')) {
+      buffer.writeln(
+        '若用户消息末尾附带 <library_characters>，表示系统已自动关联本地词库角色，'
+        '请直接采用其提示词设定，无需让用户提醒去查词库；若提及未自动关联的自定义角色名，'
+        '可主动调用 search_prompt_library(category: "角色") 查询。',
+      );
+    }
     return buffer.toString();
   }
 
   /// 发送用户消息并启动 Agent 循环流
   /// [images] 为可选的用户图片附件 (粘贴/上传，随消息发送给视觉模型)
+  /// [llmContext] 为仅发送给 LLM 的附加上下文（如自动关联的词库角色设定）
   Stream<HarnessEvent> send(
     String userText, {
     double temperature = 0.7,
     List<AgentMessageImage>? images,
+    String? llmContext,
   }) {
     final hasImages = images != null && images.isNotEmpty;
     if (userText.trim().isEmpty && !hasImages) return const Stream.empty();
     if (_activeRun != null) throw StateError('Agent 已在运行');
     final run = _HarnessRun();
     _activeRun = run;
-    return _send(userText, temperature: temperature, images: images, run: run);
+    return _send(
+      userText,
+      temperature: temperature,
+      images: images,
+      llmContext: llmContext,
+      run: run,
+    );
   }
 
   Stream<HarnessEvent> _send(
     String userText, {
     required double temperature,
     List<AgentMessageImage>? images,
+    String? llmContext,
     required _HarnessRun run,
   }) async* {
     try {
@@ -270,11 +286,15 @@ class AgentHarness {
       // 1. 记录用户消息
       final userMsgId =
           'user_${DateTime.now().microsecondsSinceEpoch}_$_sendEpoch';
+      final trimmedContext = llmContext?.trim();
       final userMsg = AgentMessage(
         id: userMsgId,
         role: AgentRole.user,
         content: userText.trim(),
         images: images ?? const [],
+        llmContext: trimmedContext != null && trimmedContext.isNotEmpty
+            ? trimmedContext
+            : null,
         imageEpoch: _sendEpoch,
       );
       _messages.add(userMsg);
@@ -683,6 +703,14 @@ class AgentHarness {
           content: '[回复 #${m.replyNumber}]\n${stripReplyMarkers(m.content)}',
         );
       }
+      if (m.role == AgentRole.user &&
+          m.llmContext != null &&
+          m.llmContext!.isNotEmpty) {
+        final merged = m.content.isEmpty
+            ? m.llmContext!
+            : '${m.content}\n\n${m.llmContext!}';
+        m = m.copyWith(content: merged);
+      }
       // 本轮新产生的图片原样发送；更早轮次的图片折叠为占位符
       // (persistentImages 开启时全部原样发送，不折叠)
       if (persistentImages ||
@@ -715,7 +743,9 @@ class AgentHarness {
 
   int _estimateMessageTokens(AgentMessage m) {
     var tokens =
-        _estimateTextTokens(m.content) + _estimateTextTokens(m.thoughts);
+        _estimateTextTokens(m.content) +
+        _estimateTextTokens(m.thoughts) +
+        _estimateTextTokens(m.llmContext ?? '');
     // 跨轮回放的推理项也随请求原样重发，必须计入估算：
     // 明文按文本估算；加密载荷是 base64，先反推原始字节数再除 4。
     for (final record in m.reasoningRecords) {

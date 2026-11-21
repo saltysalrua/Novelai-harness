@@ -661,6 +661,18 @@
   "affixResizePrefixTooltip": "Drag to resize prefix height (double-click to reset)",
   "affixSuffixTitle": "Suffix (placed after main prompt)",
   "affixResizeSuffixTooltip": "Drag to resize suffix height (double-click to reset)",
+  "affixSaveStyleLabel": "Save Style",
+  "affixSaveStyleTooltip": "Save current prefix, suffix, and negative prompt as a style preset",
+  "affixStylePresetsLabel": "Style Library",
+  "affixStylePresetsTooltip": "Fill prefix, suffix, and negative prompt from a saved style preset",
+  "affixStylePresetsEmpty": "No style presets in library yet. Click \"Save Style\" to create one.",
+  "affixSaveStyleEmptyNotice": "Prefix, suffix, and negative prompt are all empty",
+  "affixAppliedStyleNotice": "Applied style preset: {title}",
+  "@affixAppliedStyleNotice": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
   "bannedWordsTitle": "Strip banned words",
   "bannedWordsSubtitle": "Hidden from assistant only; still sent to generation",
   "bannedWordsHint": "Comma-separated terms to hide from assistant...",
@@ -1055,9 +1067,26 @@
   "libraryMenuAppendToPrompt": "Append to Workbench Prompt",
   "libraryMenuReplacePrompt": "Replace Workbench Prompt",
   "libraryMenuAddAsCharacter": "Add as Character Card",
+  "libraryMenuSendToAgent": "Send to Assistant Input",
+  "libraryMenuApplyStyleReplace": "Apply Style (Replace Affixes & Negative)",
+  "libraryMenuApplyStyleAppend": "Append to Affixes & Negative",
   "libraryMenuCopyPrompt": "Copy Prompt",
   "libraryMenuEdit": "Edit",
   "libraryCardApply": "Apply to Workbench",
+  "libraryCardApplyStyle": "Apply Style",
+  "libraryCardSendToAgentTooltip": "Send to assistant input",
+  "librarySentCharacterToAgent": "Sent character \"{title}\" to assistant input",
+  "@librarySentCharacterToAgent": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryApplyStyleSuccess": "Applied style preset: {title}",
+  "@libraryApplyStyleSuccess": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
   "libraryCardAddAsCharacterTooltip": "Add as workbench character card",
   "libraryCardAddCharacter": "+ Character",
   "libraryCardNoPreview": "No Preview",
@@ -1101,10 +1130,17 @@
   "libraryEditFieldPrompt": "Main Prompt",
   "libraryEditFillFromPrompt": "Fill from Workbench",
   "libraryEditFieldPromptHint": "Enter positive prompt (e.g. 1girl, hatsune miku, cybernetic...)",
+  "libraryEditFieldPrefix": "Prefix",
+  "libraryEditFieldPrefixHint": "Style/artist tags placed before main prompt (e.g. artist:..., watercolor style...)",
+  "libraryEditFieldSuffix": "Suffix",
+  "libraryEditFieldSuffixHint": "Style suffix placed after main prompt (e.g. very aesthetic, soft lighting...)",
+  "libraryEditFillAllStyleFromWorkbench": "Fill Style from Workbench",
+  "libraryEditWorkspaceStyleEmpty": "Workbench prefix, suffix, and negative prompt are all empty",
+  "libraryEditStyleContentEmpty": "Please enter at least one of prefix, suffix, or negative prompt",
   "libraryEditFieldNegative": "Negative Prompt",
-  "libraryEditCharacterOnlyBadge": "Character category only",
+  "libraryEditCharacterOnlyBadge": "Character & Style",
   "libraryEditFillFromNegative": "Fill from Negative",
-  "libraryEditFieldNegativeHint": "Character-specific negative tags (e.g. worst quality, bad hands...)",
+  "libraryEditFieldNegativeHint": "Character or style negative tags (e.g. worst quality, bad hands...)",
   "libraryEditFieldTags": "Search Tags",
   "libraryEditFieldTagsHint": "For quick filtering, separated by commas (e.g. miku, watercolor, cyber)",
   "libraryEditSaveButton": "Save Changes",
@@ -1146,7 +1182,9 @@
   },
   "chatImageParseFailedNotice": "Image parsing failed, please try another image",
   "chatModelNoVisionBeforeSendNotice": "Current model does not support image input, please switch to a multimodal model before sending",
-  "chatInputHint": "Enter drawing ideas, or type /nai <prompt> for quick generation...",
+  "chatInputHint": "Enter drawing ideas, @ to link character, or /nai for quick generation...",
+  "chatCharacterMentionHeader": "Library Characters",
+  "chatLinkedCharacterRemoveTooltip": "Remove linked character",
   "chatSendTooltip": "Send (Enter)",
   "chatSendingTooltip": "Replying",
   "chatThinkingLabel": "Thinking:",

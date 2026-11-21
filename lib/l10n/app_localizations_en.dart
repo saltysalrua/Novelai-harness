@@ -1622,6 +1622,33 @@ class AppLocalizationsEn extends AppLocalizations {
       'Drag to resize suffix height (double-click to reset)';
 
   @override
+  String get affixSaveStyleLabel => 'Save Style';
+
+  @override
+  String get affixSaveStyleTooltip =>
+      'Save current prefix, suffix, and negative prompt as a style preset';
+
+  @override
+  String get affixStylePresetsLabel => 'Style Library';
+
+  @override
+  String get affixStylePresetsTooltip =>
+      'Fill prefix, suffix, and negative prompt from a saved style preset';
+
+  @override
+  String get affixStylePresetsEmpty =>
+      'No style presets in library yet. Click \"Save Style\" to create one.';
+
+  @override
+  String get affixSaveStyleEmptyNotice =>
+      'Prefix, suffix, and negative prompt are all empty';
+
+  @override
+  String affixAppliedStyleNotice(String title) {
+    return 'Applied style preset: $title';
+  }
+
+  @override
   String get bannedWordsTitle => 'Strip banned words';
 
   @override
@@ -2455,6 +2482,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryMenuAddAsCharacter => 'Add as Character Card';
 
   @override
+  String get libraryMenuSendToAgent => 'Send to Assistant Input';
+
+  @override
+  String get libraryMenuApplyStyleReplace =>
+      'Apply Style (Replace Affixes & Negative)';
+
+  @override
+  String get libraryMenuApplyStyleAppend => 'Append to Affixes & Negative';
+
+  @override
   String get libraryMenuCopyPrompt => 'Copy Prompt';
 
   @override
@@ -2462,6 +2499,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libraryCardApply => 'Apply to Workbench';
+
+  @override
+  String get libraryCardApplyStyle => 'Apply Style';
+
+  @override
+  String get libraryCardSendToAgentTooltip => 'Send to assistant input';
+
+  @override
+  String librarySentCharacterToAgent(String title) {
+    return 'Sent character \"$title\" to assistant input';
+  }
+
+  @override
+  String libraryApplyStyleSuccess(String title) {
+    return 'Applied style preset: $title';
+  }
 
   @override
   String get libraryCardAddAsCharacterTooltip =>
@@ -2548,17 +2601,43 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter positive prompt (e.g. 1girl, hatsune miku, cybernetic...)';
 
   @override
+  String get libraryEditFieldPrefix => 'Prefix';
+
+  @override
+  String get libraryEditFieldPrefixHint =>
+      'Style/artist tags placed before main prompt (e.g. artist:..., watercolor style...)';
+
+  @override
+  String get libraryEditFieldSuffix => 'Suffix';
+
+  @override
+  String get libraryEditFieldSuffixHint =>
+      'Style suffix placed after main prompt (e.g. very aesthetic, soft lighting...)';
+
+  @override
+  String get libraryEditFillAllStyleFromWorkbench =>
+      'Fill Style from Workbench';
+
+  @override
+  String get libraryEditWorkspaceStyleEmpty =>
+      'Workbench prefix, suffix, and negative prompt are all empty';
+
+  @override
+  String get libraryEditStyleContentEmpty =>
+      'Please enter at least one of prefix, suffix, or negative prompt';
+
+  @override
   String get libraryEditFieldNegative => 'Negative Prompt';
 
   @override
-  String get libraryEditCharacterOnlyBadge => 'Character category only';
+  String get libraryEditCharacterOnlyBadge => 'Character & Style';
 
   @override
   String get libraryEditFillFromNegative => 'Fill from Negative';
 
   @override
   String get libraryEditFieldNegativeHint =>
-      'Character-specific negative tags (e.g. worst quality, bad hands...)';
+      'Character or style negative tags (e.g. worst quality, bad hands...)';
 
   @override
   String get libraryEditFieldTags => 'Search Tags';
@@ -2642,7 +2721,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatInputHint =>
-      'Enter drawing ideas, or type /nai <prompt> for quick generation...';
+      'Enter drawing ideas, @ to link character, or /nai for quick generation...';
+
+  @override
+  String get chatCharacterMentionHeader => 'Library Characters';
+
+  @override
+  String get chatLinkedCharacterRemoveTooltip => 'Remove linked character';
 
   @override
   String get chatSendTooltip => 'Send (Enter)';

@@ -29,6 +29,7 @@ import 'studio_shared.dart';
 class PromptLibraryView extends StatefulWidget {
   final StudioViewModel viewModel;
   final VoidCallback? onClose;
+  final VoidCallback? onSentToChat;
   final bool connectedLeft;
   final VoidCallback? onExpandSidebar;
 
@@ -39,6 +40,7 @@ class PromptLibraryView extends StatefulWidget {
     super.key,
     required this.viewModel,
     this.onClose,
+    this.onSentToChat,
     this.connectedLeft = false,
     this.onExpandSidebar,
     this.compact = false,
@@ -131,6 +133,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               if (filterByQuery) {
                 final matchTitle = e.title.toLowerCase().contains(q);
                 final matchPrompt = e.prompt.toLowerCase().contains(q);
+                final matchPrefix = e.prefixPrompt.toLowerCase().contains(q);
+                final matchSuffix = e.suffixPrompt.toLowerCase().contains(q);
                 final matchNegative = e.negativePrompt.toLowerCase().contains(
                   q,
                 );
@@ -138,6 +142,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 final matchTags = e.tags.any((t) => t.toLowerCase().contains(q));
                 if (!matchTitle &&
                     !matchPrompt &&
+                    !matchPrefix &&
+                    !matchSuffix &&
                     !matchNegative &&
                     !matchCategory &&
                     !matchTags) {
@@ -291,6 +297,37 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
           : null,
       onAction: widget.onClose,
     );
+  }
+
+  void _applyStyleCombo(PromptComboEntry combo, {required bool replace}) {
+    final l10n = context.l10n;
+    widget.viewModel.applyPromptCombo(
+      combo,
+      replace: replace,
+      asStyle: true,
+    );
+    showAppToast(
+      context,
+      message: l10n.libraryApplyStyleSuccess(combo.title),
+      tone: AppToastTone.success,
+      duration: const Duration(milliseconds: 1400),
+      actionLabel: widget.onClose != null
+          ? l10n.libraryReturnToWorkbench
+          : null,
+      onAction: widget.onClose,
+    );
+  }
+
+  void _sendCharacterToAgent(PromptComboEntry combo) {
+    final l10n = context.l10n;
+    widget.viewModel.insertCharacterToChatInput(combo);
+    showAppToast(
+      context,
+      message: l10n.librarySentCharacterToAgent(combo.title),
+      tone: AppToastTone.success,
+      duration: const Duration(milliseconds: 1400),
+    );
+    (widget.onSentToChat ?? widget.onClose)?.call();
   }
 
   Future<void> _handleSync(PromptLibrarySyncMode mode) async {
@@ -716,8 +753,11 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   /// + 新建词组合
   Widget _buildNewComboButton(BuildContext context, {required bool compact}) {
     final l10n = context.l10n;
-    void openCreateDialog() =>
-        PromptComboEditDialog.show(context, viewModel: widget.viewModel);
+    void openCreateDialog() => PromptComboEditDialog.show(
+      context,
+      viewModel: widget.viewModel,
+      initialCategory: _selectedCategory != '全部' ? _selectedCategory : null,
+    );
 
     if (compact) {
       return AppIconButton(
@@ -877,6 +917,17 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                                   replace: replace,
                                   asCharacter: asChar,
                                 ),
+                                onApplyStyle: columns[c][i].entry.isStyle
+                                    ? (replace) => _applyStyleCombo(
+                                        columns[c][i].entry,
+                                        replace: replace,
+                                      )
+                                    : null,
+                                onSendToAgent: columns[c][i].entry.isCharacter
+                                    ? () => _sendCharacterToAgent(
+                                        columns[c][i].entry,
+                                      )
+                                    : null,
                                 onEdit: () {
                                   PromptComboEditDialog.show(
                                     context,

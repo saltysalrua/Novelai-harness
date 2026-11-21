@@ -22,17 +22,20 @@ import '../view_models/studio_view_model.dart';
 class PromptComboEditDialog extends StatefulWidget {
   final StudioViewModel viewModel;
   final PromptComboEntry? initialEntry;
+  final String? initialCategory;
 
   const PromptComboEditDialog({
     super.key,
     required this.viewModel,
     this.initialEntry,
+    this.initialCategory,
   });
 
   static Future<void> show(
     BuildContext context, {
     required StudioViewModel viewModel,
     PromptComboEntry? initialEntry,
+    String? initialCategory,
   }) {
     return showAppModalDialog<void>(
       context: context,
@@ -41,6 +44,7 @@ class PromptComboEditDialog extends StatefulWidget {
       builder: (ctx) => PromptComboEditDialog(
         viewModel: viewModel,
         initialEntry: initialEntry,
+        initialCategory: initialCategory,
       ),
     );
   }
@@ -55,6 +59,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _customCategoryController;
   late final TextEditingController _promptController;
+  late final TextEditingController _prefixPromptController;
+  late final TextEditingController _suffixPromptController;
   late final TextEditingController _negativePromptController;
   late final TextEditingController _tagsController;
   late final SmoothWheelScrollController _formScrollController;
@@ -68,13 +74,19 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   bool _isDraggingOver = false;
   int _titleShakeTrigger = 0;
   int _promptShakeTrigger = 0;
+  int _styleShakeTrigger = 0;
 
   bool get _isEdit =>
       widget.initialEntry != null && widget.initialEntry!.id.trim().isNotEmpty;
 
-  bool get _isCharacterCategory => PromptComboEntry.isCharacterCategory(
-    _isCustomCategory ? _customCategoryController.text : _selectedCategory,
-  );
+  String get _effectiveCategory =>
+      _isCustomCategory ? _customCategoryController.text : _selectedCategory;
+
+  bool get _isStyleCategory =>
+      PromptComboEntry.isStyleCategory(_effectiveCategory);
+
+  bool get _supportsNegativePrompt =>
+      PromptComboEntry.supportsNegativePrompt(_effectiveCategory);
 
   @override
   void initState() {
@@ -82,13 +94,24 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     final entry = widget.initialEntry;
     _titleController = TextEditingController(text: entry?.title ?? '');
     _promptController = TextEditingController(text: entry?.prompt ?? '');
+
+    final initialPrefix = entry != null && entry.isStyle
+        ? entry.effectiveStylePrefix
+        : (entry?.prefixPrompt ?? '');
+    _prefixPromptController = TextEditingController(text: initialPrefix);
+    _suffixPromptController = TextEditingController(
+      text: entry?.suffixPrompt ?? '',
+    );
     _negativePromptController = TextEditingController(
       text: entry?.negativePrompt ?? '',
     );
     _tagsController = TextEditingController(text: entry?.tags.join(', ') ?? '');
     _formScrollController = SmoothWheelScrollController();
 
-    final cat = entry?.category ?? PromptComboCategories.character;
+    final cat =
+        entry?.category ??
+        widget.initialCategory ??
+        PromptComboCategories.character;
     if (PromptComboCategories.defaults.contains(cat)) {
       _selectedCategory = cat;
       _isCustomCategory = false;
@@ -126,6 +149,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     _titleController.dispose();
     _customCategoryController.dispose();
     _promptController.dispose();
+    _prefixPromptController.dispose();
+    _suffixPromptController.dispose();
     _negativePromptController.dispose();
     _tagsController.dispose();
     _formScrollController.dispose();
@@ -250,9 +275,34 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     });
   }
 
+  void _fillStyleFromCurrentWorkspace() {
+    final params = widget.viewModel.params;
+    final prefix = (params.prefixPrompt ?? '').trim();
+    final suffix = (params.suffixPrompt ?? '').trim();
+    final negative = params.negativePrompt.trim();
+    if (prefix.isEmpty && suffix.isEmpty && negative.isEmpty) {
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditWorkspaceStyleEmpty,
+        tone: AppToastTone.info,
+        duration: const Duration(milliseconds: 1400),
+      );
+      return;
+    }
+    setState(() {
+      _prefixPromptController.text = prefix;
+      _suffixPromptController.text = suffix;
+      _negativePromptController.text = negative;
+    });
+  }
+
   Future<void> _handleSave() async {
     final title = _titleController.text.trim();
-    final prompt = _promptController.text.trim();
+    final isStyle = _isStyleCategory;
+    final prompt = isStyle ? '' : _promptController.text.trim();
+    final prefixPrompt = isStyle ? _prefixPromptController.text.trim() : '';
+    final suffixPrompt = isStyle ? _suffixPromptController.text.trim() : '';
+    final negativeRaw = _negativePromptController.text.trim();
 
     if (title.isEmpty) {
       setState(() => _titleShakeTrigger++);
@@ -265,7 +315,20 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       return;
     }
 
-    if (prompt.isEmpty) {
+    if (isStyle) {
+      if (prefixPrompt.isEmpty &&
+          suffixPrompt.isEmpty &&
+          negativeRaw.isEmpty) {
+        setState(() => _styleShakeTrigger++);
+        showAppToast(
+          context,
+          message: context.l10n.libraryEditStyleContentEmpty,
+          tone: AppToastTone.warning,
+          duration: const Duration(milliseconds: 1400),
+        );
+        return;
+      }
+    } else if (prompt.isEmpty) {
       setState(() => _promptShakeTrigger++);
       showAppToast(
         context,
@@ -285,10 +348,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                 : PromptComboCategories.other)
           : _selectedCategory;
 
-      final isChar = PromptComboEntry.isCharacterCategory(finalCategory);
-      final negativePrompt = isChar
-          ? _negativePromptController.text.trim()
-          : '';
+      final allowNeg = PromptComboEntry.supportsNegativePrompt(finalCategory);
+      final negativePrompt = allowNeg ? negativeRaw : '';
 
       final rawTags = _tagsController.text
           .split(RegExp(r'[,，\n]'))
@@ -315,6 +376,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           category: finalCategory,
           prompt: prompt,
           negativePrompt: negativePrompt,
+          prefixPrompt: prefixPrompt,
+          suffixPrompt: suffixPrompt,
           previewImagePath: savedImagePath,
           clearPreviewImage: savedImagePath == null,
           updatedAt: now,
@@ -328,6 +391,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           category: finalCategory,
           prompt: prompt,
           negativePrompt: negativePrompt,
+          prefixPrompt: prefixPrompt,
+          suffixPrompt: suffixPrompt,
           previewImagePath: savedImagePath,
           createdAt: now,
           updatedAt: now,
@@ -755,35 +820,55 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       ),
       const SizedBox(height: 14),
 
-      // 3. 主提示词
-      SizedBox(
-        width: double.infinity,
-        child: Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            _FieldLabel(text: '${l10n.libraryEditFieldPrompt} *'),
-            AppToolChip(
-              icon: Icons.input_rounded,
-              label: l10n.libraryEditFillFromPrompt,
-              variant: AppToolChipVariant.tinted,
-              fontSize: 11.5,
-              iconSize: 13,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              onTap: _fillFromCurrentWorkspacePrompt,
-            ),
-          ],
+      // 3. 主提示词 (非风格分类) 或 前置词/后置词 (风格分类)
+      if (_isStyleCategory) ...[
+        SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              _FieldLabel(text: l10n.libraryEditFieldPrefix),
+              AppToolChip(
+                icon: Icons.input_rounded,
+                label: l10n.libraryEditFillAllStyleFromWorkbench,
+                variant: AppToolChipVariant.tinted,
+                fontSize: 11.5,
+                iconSize: 13,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                onTap: _fillStyleFromCurrentWorkspace,
+              ),
+            ],
+          ),
         ),
-      ),
-      const SizedBox(height: 6),
-      AppErrorShake(
-        trigger: _promptShakeTrigger,
-        child: TextField(
-          controller: _promptController,
-          minLines: 5,
-          maxLines: 10,
+        const SizedBox(height: 6),
+        AppErrorShake(
+          trigger: _styleShakeTrigger,
+          child: TextField(
+            controller: _prefixPromptController,
+            minLines: 3,
+            maxLines: 6,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: colors.textPrimary,
+            ),
+            decoration: _softFieldDecoration(
+              context,
+              hintText: l10n.libraryEditFieldPrefixHint,
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _FieldLabel(text: l10n.libraryEditFieldSuffix),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _suffixPromptController,
+          minLines: 2,
+          maxLines: 5,
           style: TextStyle(
             fontSize: 13,
             height: 1.5,
@@ -791,15 +876,56 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           ),
           decoration: _softFieldDecoration(
             context,
-            hintText: l10n.libraryEditFieldPromptHint,
+            hintText: l10n.libraryEditFieldSuffixHint,
             contentPadding: const EdgeInsets.all(12),
           ),
         ),
-      ),
+      ] else ...[
+        SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              _FieldLabel(text: '${l10n.libraryEditFieldPrompt} *'),
+              AppToolChip(
+                icon: Icons.input_rounded,
+                label: l10n.libraryEditFillFromPrompt,
+                variant: AppToolChipVariant.tinted,
+                fontSize: 11.5,
+                iconSize: 13,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                onTap: _fillFromCurrentWorkspacePrompt,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        AppErrorShake(
+          trigger: _promptShakeTrigger,
+          child: TextField(
+            controller: _promptController,
+            minLines: 5,
+            maxLines: 10,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: colors.textPrimary,
+            ),
+            decoration: _softFieldDecoration(
+              context,
+              hintText: l10n.libraryEditFieldPromptHint,
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+        ),
+      ],
 
-      // 4. 负面提示词 (仅角色分类时平滑展开)
+      // 4. 负面提示词 (角色与风格分类时平滑展开)
       AppPanelReveal(
-        visible: _isCharacterCategory,
+        visible: _supportsNegativePrompt,
         openDuration: AppMotionDurations.fast,
         closeDuration: AppMotionDurations.quick,
         slideOffset: AppMotionDistances.base,

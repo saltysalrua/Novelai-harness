@@ -41,8 +41,13 @@ String formatPromptComboEntry(PromptComboEntry entry) {
   final lines = <String>[
     '• [${entry.id}] ${entry.title} (${entry.category})'
         '${entry.isFavorite ? ' [收藏]' : ''}${entry.isBuiltin ? ' [内置]' : ''}',
-    '  提示词: ${entry.prompt}',
-    if (entry.isCharacter && entry.negativePrompt.isNotEmpty)
+    if (entry.isStyle && entry.prefixPrompt.trim().isNotEmpty)
+      '  前置词: ${entry.prefixPrompt}',
+    if (entry.isStyle && entry.suffixPrompt.trim().isNotEmpty)
+      '  后置词: ${entry.suffixPrompt}',
+    if (!entry.isStyle || entry.prompt.trim().isNotEmpty)
+      '  提示词: ${entry.prompt}',
+    if (entry.supportsNegative && entry.negativePrompt.isNotEmpty)
       '  负面提示词: ${entry.negativePrompt}',
     if (entry.previewImagePath != null) '  预览图: 已设置',
     if (entry.tags.isNotEmpty) '  标签: ${entry.tags.join(', ')}',
@@ -124,6 +129,8 @@ class SearchPromptLibraryTool extends AgentTool {
       if (query.isEmpty) return true;
       return entry.title.toLowerCase().contains(query) ||
           entry.prompt.toLowerCase().contains(query) ||
+          entry.prefixPrompt.toLowerCase().contains(query) ||
+          entry.suffixPrompt.toLowerCase().contains(query) ||
           entry.negativePrompt.toLowerCase().contains(query) ||
           entry.tags.any((t) => t.toLowerCase().contains(query)) ||
           entry.category.toLowerCase().contains(query);
@@ -175,26 +182,34 @@ class AddPromptLibraryEntryTool extends AgentTool {
         name: 'add_prompt_library_entry',
         label: '新增词库条目',
         description:
-            '向本地词库新增词组合预设。title 与 prompt 必填；分类建议使用标准分类名 '
-            '(角色/风格/服装/构图/环境/特效/其他)。注意：只有「角色」分类支持负面提示词，'
-            '其他分类的负面提示词会被自动清空。新增成功后返回条目 ID。'
-            '需要一次新增多条时用 entries 数组，不要逐条多次调用。',
+            '向本地词库新增词组合预设。title 必填；分类建议使用标准分类名 '
+            '(角色/风格/服装/构图/环境/特效/其他)。「风格」分类支持 prefix_prompt、suffix_prompt 与 negative_prompt '
+            '(四项提示词字段至少填一项)；「角色」与「风格」分类支持 negative_prompt，其他分类的负面与前后缀会被自动清空。'
+            '新增成功后返回条目 ID。需要一次新增多条时用 entries 数组，不要逐条多次调用。',
         parameters: const {
           'type': 'object',
           'properties': {
             'title': {'type': 'string', 'description': '条目标题 (如「初音未来」「赛博水彩风」)'},
             'prompt': {
               'type': 'string',
-              'description': '正向提示词组合 (Danbooru 标签或自然语言)',
+              'description': '正向提示词组合 (非风格分类必填；风格分类可留空改用前后缀)',
             },
             'category': {
               'type': 'string',
               'enum': ['角色', '风格', '服装', '构图', '环境', '特效', '其他'],
               'description': '分类 (默认 其他)',
             },
+            'prefix_prompt': {
+              'type': 'string',
+              'description': '前置词 (仅风格分类生效，对应工作台固定前置词缀)',
+            },
+            'suffix_prompt': {
+              'type': 'string',
+              'description': '后置词 (仅风格分类生效，对应工作台固定后置词缀)',
+            },
             'negative_prompt': {
               'type': 'string',
-              'description': '负面提示词 (仅角色分类生效)',
+              'description': '负面提示词 (角色与风格分类生效)',
             },
             'tags': {
               'type': 'array',
@@ -205,13 +220,15 @@ class AddPromptLibraryEntryTool extends AgentTool {
             'entries': {
               'type': 'array',
               'description':
-                  '批量新增多个条目：每项字段与顶层同名参数一致 (title 与 prompt 必填)，本次调用内一次全部新增',
+                  '批量新增多个条目：每项字段与顶层同名参数一致 (title 必填)，本次调用内一次全部新增',
               'items': {
                 'type': 'object',
                 'properties': {
                   'title': {'type': 'string'},
                   'prompt': {'type': 'string'},
                   'category': {'type': 'string'},
+                  'prefix_prompt': {'type': 'string'},
+                  'suffix_prompt': {'type': 'string'},
                   'negative_prompt': {'type': 'string'},
                   'tags': {
                     'type': 'array',
@@ -219,7 +236,7 @@ class AddPromptLibraryEntryTool extends AgentTool {
                   },
                   'favorite': {'type': 'boolean'},
                 },
-                'required': ['title', 'prompt'],
+                'required': ['title'],
               },
             },
           },
@@ -259,11 +276,25 @@ class AddPromptLibraryEntryTool extends AgentTool {
     final seen = <String>{};
     for (final spec in specs) {
       final title = (spec['title'] as String?)?.trim() ?? '';
+      final category = (spec['category'] as String?)?.trim().isNotEmpty == true
+          ? (spec['category'] as String).trim()
+          : PromptComboCategories.other;
+      final isStyle = PromptComboEntry.isStyleCategory(category);
       final prompt = (spec['prompt'] as String?)?.trim() ?? '';
-      if (title.isEmpty || prompt.isEmpty) {
+      final prefix = (spec['prefix_prompt'] as String?)?.trim() ?? '';
+      final suffix = (spec['suffix_prompt'] as String?)?.trim() ?? '';
+      final negative = (spec['negative_prompt'] as String?)?.trim() ?? '';
+      final hasStyleContent =
+          prompt.isNotEmpty ||
+          prefix.isNotEmpty ||
+          suffix.isNotEmpty ||
+          negative.isNotEmpty;
+      if (title.isEmpty || (isStyle ? !hasStyleContent : prompt.isEmpty)) {
         return ToolResult(
           toolCallId: toolCallId,
-          content: 'title 与 prompt 为必填项，不能为空。',
+          content: isStyle
+              ? '风格分类下 title 为必填项，且 prompt / prefix_prompt / suffix_prompt / negative_prompt 至少需填一项。'
+              : 'title 与 prompt 为必填项，不能为空。',
           isError: true,
         );
       }
@@ -281,6 +312,11 @@ class AddPromptLibraryEntryTool extends AgentTool {
     for (var i = 0; i < specs.length; i++) {
       final spec = specs[i];
       final now = DateTime.now();
+      final category = (spec['category'] as String?)?.trim().isNotEmpty == true
+          ? (spec['category'] as String).trim()
+          : PromptComboCategories.other;
+      final allowNeg = PromptComboEntry.supportsNegativePrompt(category);
+      final allowStyle = PromptComboEntry.isStyleCategory(category);
       created.add(
         await addEntry(
           PromptComboEntry(
@@ -289,11 +325,17 @@ class AddPromptLibraryEntryTool extends AgentTool {
                 'combo_${now.millisecondsSinceEpoch}'
                 '${specs.length > 1 ? '_$i' : ''}',
             title: (spec['title'] as String).trim(),
-            category: (spec['category'] as String?)?.trim().isNotEmpty == true
-                ? (spec['category'] as String).trim()
-                : PromptComboCategories.other,
-            prompt: (spec['prompt'] as String).trim(),
-            negativePrompt: (spec['negative_prompt'] as String?)?.trim() ?? '',
+            category: category,
+            prompt: (spec['prompt'] as String?)?.trim() ?? '',
+            negativePrompt: allowNeg
+                ? ((spec['negative_prompt'] as String?)?.trim() ?? '')
+                : '',
+            prefixPrompt: allowStyle
+                ? ((spec['prefix_prompt'] as String?)?.trim() ?? '')
+                : '',
+            suffixPrompt: allowStyle
+                ? ((spec['suffix_prompt'] as String?)?.trim() ?? '')
+                : '',
             createdAt: now,
             updatedAt: now,
             isFavorite: spec['favorite'] is bool
@@ -648,9 +690,17 @@ class UpdatePromptLibraryEntryTool extends AgentTool {
                'enum': ['角色', '风格', '服装', '构图', '环境', '特效', '其他'],
                'description': '新分类',
              },
+             'prefix_prompt': {
+               'type': 'string',
+               'description': '新前置词 (仅风格分类保留，传入空字符串可清除)',
+             },
+             'suffix_prompt': {
+               'type': 'string',
+               'description': '新后置词 (仅风格分类保留，传入空字符串可清除)',
+             },
              'negative_prompt': {
                'type': 'string',
-               'description': '新负面提示词 (仅角色分类保留，传入空字符串可清除)',
+               'description': '新负面提示词 (角色与风格分类保留，传入空字符串可清除)',
              },
              'tags': {
                'type': 'array',
@@ -669,6 +719,8 @@ class UpdatePromptLibraryEntryTool extends AgentTool {
                    'title': {'type': 'string'},
                    'prompt': {'type': 'string'},
                    'category': {'type': 'string'},
+                   'prefix_prompt': {'type': 'string'},
+                   'suffix_prompt': {'type': 'string'},
                    'negative_prompt': {'type': 'string'},
                    'tags': {
                      'type': 'array',
@@ -755,6 +807,12 @@ class UpdatePromptLibraryEntryTool extends AgentTool {
             : null,
         category: (spec['category'] as String?)?.trim().isNotEmpty == true
             ? (spec['category'] as String).trim()
+            : null,
+        prefixPrompt: spec.containsKey('prefix_prompt')
+            ? ((spec['prefix_prompt'] as String?)?.trim() ?? '')
+            : null,
+        suffixPrompt: spec.containsKey('suffix_prompt')
+            ? ((spec['suffix_prompt'] as String?)?.trim() ?? '')
             : null,
         negativePrompt: spec.containsKey('negative_prompt')
             ? ((spec['negative_prompt'] as String?)?.trim() ?? '')

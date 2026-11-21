@@ -57,28 +57,38 @@ void main() {
 
   group('PromptComboEditDialog UI Tests', () {
     testWidgets(
-      'Shows negative prompt for character category and hides for style category',
+      'Shows style affixes & negative prompt for style category and hides for attire category',
       (tester) async {
         await tester.pumpWidget(
           buildTestApp(PromptComboEditDialog(viewModel: viewModel)),
         );
         await tester.pumpAndSettle();
 
-        // 默认选中“角色”，应看到负面提示词区域及“仅角色分类可用”标识
+        // 默认选中“角色”，应看到负面提示词区域及“角色 / 风格可用”标识
         expect(find.text('负面提示词'), findsOneWidget);
-        expect(find.text('仅角色分类可用'), findsOneWidget);
+        expect(find.text('角色 / 风格可用'), findsOneWidget);
         expect(find.text('设置预览图'), findsOneWidget);
         expect(find.text('选择本地图片'), findsOneWidget);
 
-        // 直接点击一键分类胶囊选择“风格”
+        // 切换到“风格”，应出现前置词/后置词并保留负面提示词
         final styleChip = find.text('风格');
         await tester.ensureVisible(styleChip);
         await tester.tap(styleChip);
         await tester.pumpAndSettle();
 
-        // 负面提示词输入框应完全消失
+        expect(find.text('前置词 (Prefix)'), findsOneWidget);
+        expect(find.text('后置词 (Suffix)'), findsOneWidget);
+        expect(find.text('负面提示词'), findsOneWidget);
+
+        // 切换到“服装”，前置词/后置词与负面提示词均隐藏
+        final attireChip = find.text('服装');
+        await tester.ensureVisible(attireChip);
+        await tester.tap(attireChip);
+        await tester.pumpAndSettle();
+
+        expect(find.text('前置词 (Prefix)'), findsNothing);
         expect(find.text('负面提示词'), findsNothing);
-        expect(find.text('仅角色分类可用'), findsNothing);
+        expect(find.text('角色 / 风格可用'), findsNothing);
 
         // 重新切回“角色”
         final charChip = find.text('角色');
@@ -87,7 +97,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('负面提示词'), findsOneWidget);
-        expect(find.text('仅角色分类可用'), findsOneWidget);
+        expect(find.text('角色 / 风格可用'), findsOneWidget);
       },
     );
   });
@@ -340,7 +350,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Negative Prompt'), findsOneWidget);
-        expect(find.text('Character category only'), findsOneWidget);
+        expect(find.text('Character & Style'), findsOneWidget);
         expect(find.text('Set Preview Image'), findsOneWidget);
         expect(find.text('Choose Local Image'), findsOneWidget);
         expect(find.text('Use Current Canvas Image'), findsOneWidget);

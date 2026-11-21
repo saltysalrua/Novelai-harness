@@ -158,10 +158,21 @@ class PromptLibraryService {
       }
 
       if (score > 0) {
-        // 辅助描述：若有 tags 则展示 tags，否则展示分类与部分提示词
+        final insertText = entry.prompt.trim().isNotEmpty
+            ? entry.prompt
+            : (entry.isStyle
+                  ? [
+                      entry.prefixPrompt.trim(),
+                      entry.suffixPrompt.trim(),
+                    ].where((s) => s.isNotEmpty).join(', ')
+                  : '');
+        if (insertText.isEmpty) continue;
+
+        // 辅助描述：若有 tags 则展示 tags，否则展示分类与摘要
+        final summary = entry.displayPromptSummary.replaceAll('\n', ' · ');
         final desc = entry.tags.isNotEmpty
             ? entry.tags.join(', ')
-            : '${entry.category} · ${entry.prompt}';
+            : '${entry.category} · $summary';
 
         results.add(
           TagSuggestion(
@@ -171,7 +182,7 @@ class PromptLibraryService {
                 : DanbooruTagCategory.meta,
             customCategoryLabel: entry.category,
             translation: desc,
-            insertText: entry.prompt, // 角色分类同样只添加主提示词
+            insertText: insertText,
             isPromptCombo: true,
             score: score,
             postCount: 0,

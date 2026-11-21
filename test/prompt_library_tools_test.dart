@@ -200,22 +200,55 @@ void main() {
     expect(dup.content, contains('同名'));
   });
 
-  test('新增工具: 非角色分类自动清空负面提示词', () async {
-    final tool = AddPromptLibraryEntryTool(
+  test('新增工具: 风格分类支持仅前后缀与负面词，非角色/风格自动清空', () async {
+    final addTool = AddPromptLibraryEntryTool(
       getEntries: () => entries,
       addEntry: addEntry,
     );
-    final result = await tool.execute('t1', {
+    final styleResult = await addTool.execute('t_style', {
+      'title': '赛博厚涂风',
+      'category': '风格',
+      'prefix_prompt': 'artist:cyber, impasto',
+      'suffix_prompt': 'very aesthetic',
+      'negative_prompt': 'flat color',
+    });
+    expect(styleResult.isError, isFalse);
+    expect(styleResult.content, contains('前置词: artist:cyber, impasto'));
+    expect(styleResult.content, contains('后置词: very aesthetic'));
+    expect(styleResult.content, contains('负面提示词: flat color'));
+
+    final searchTool = SearchPromptLibraryTool(getEntries: () => entries);
+    final byPrefix = await searchTool.execute('t_search', {'query': 'impasto'});
+    expect(byPrefix.content, contains('赛博厚涂风'));
+
+    final createdStyle = entries.firstWhere((e) => e.title == '赛博厚涂风');
+    final updateTool = UpdatePromptLibraryEntryTool(
+      getEntries: () => entries,
+      updateEntry: updateEntry,
+    );
+    final updatedRes = await updateTool.execute('t_upd', {
+      'id': createdStyle.id,
+      'suffix_prompt': 'masterpiece',
+    });
+    expect(updatedRes.isError, isFalse);
+    expect(
+      entries.firstWhere((e) => e.id == createdStyle.id).suffixPrompt,
+      'masterpiece',
+    );
+
+    final attireResult = await addTool.execute('t_attire', {
       'title': '构图预设',
       'prompt': 'low angle',
       'category': '构图',
+      'prefix_prompt': 'should drop',
       'negative_prompt': 'should be dropped',
     });
 
-    expect(result.isError, isFalse);
+    expect(attireResult.isError, isFalse);
     final persisted = await PromptLibraryService.instance.loadEntries();
-    final created = persisted.firstWhere((e) => e.title == '构图预设');
-    expect(created.negativePrompt, isEmpty);
+    final createdAttire = persisted.firstWhere((e) => e.title == '构图预设');
+    expect(createdAttire.negativePrompt, isEmpty);
+    expect(createdAttire.prefixPrompt, isEmpty);
   });
 
   test('修改工具: 部分字段更新，未传字段保持原值', () async {

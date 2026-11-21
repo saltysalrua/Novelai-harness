@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:pasteboard/pasteboard.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/models/prompt_library_models.dart';
+import '../../../../data/services/prompt_library_mention.dart';
 import '../../../../data/services/usage_ledger_service.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
@@ -19,6 +21,7 @@ import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/overlay_anchor.dart';
 import '../../../core/widgets/stable_edge_selection.dart';
+import 'character_mention_overlay.dart';
 import 'chat_context_status.dart';
 import 'chat_image_attachment.dart';
 import 'slash_command_overlay.dart';
@@ -76,8 +79,10 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 图片归一化进行中 (缩略图栏显示处理指示)
   bool _processingImage = false;
 
-  /// 当前展示的斜杠指令补全建议与面板开关态（支持关闭退场动效）
+  /// 当前展示的斜杠指令或 `@` 角色补全建议与面板开关态（支持关闭退场动效）
   List<SlashSuggestion> _suggestions = const [];
+  List<PromptComboEntry> _mentionSuggestions = const [];
+  ActiveCharacterMention? _activeMention;
   bool _suggestionsVisible = false;
   int _selectedIndex = 0;
 
@@ -96,6 +101,12 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 已排进帧后回调、尚未写入输入框的回溯代数。
   int? _scheduledRestoreEpoch;
 
+  /// 已套用的词库角色插入代数，避免重复插入。
+  int _appliedInsertionEpoch = 0;
+
+  /// 已排进帧后回调的词库角色插入代数。
+  int? _scheduledInsertionEpoch;
+
   @override
   void initState() {
     super.initState();
@@ -110,11 +121,25 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       widget.viewModel.acknowledgeComposerRestore(restore.epoch);
       _scheduleComposerFocus();
     } else {
-      _inputController.text = widget.viewModel.chatDraft;
+      final draft = widget.viewModel.chatDraft;
+      _inputController.value = TextEditingValue(
+        text: draft,
+        selection: TextSelection.collapsed(offset: draft.length),
+      );
+      final insertion = widget.viewModel.composerInsertion;
+      if (insertion != null) {
+        _appliedInsertionEpoch = insertion.epoch;
+        widget.viewModel.acknowledgeComposerInsertion(insertion.epoch);
+        if (insertion.focus) {
+          _scheduleComposerFocus();
+          _scheduleRevealCaret();
+        }
+      }
     }
     _inputController.addListener(_handleDraftChanged);
-    _inputController.addListener(_updateSlashSuggestions);
+    _inputController.addListener(_updateComposerSuggestions);
     _inputFocusNode.addListener(_handleInputFocusChanged);
+    widget.viewModel.promptLibraryNotifier.addListener(_onPromptLibraryChanged);
     // 焦点节点自身拦截 Ctrl+V：剪贴板无文本时尝试读取图片附件。
     // 挂在焦点节点 (冒泡链最内层) 保证先于 TextField 默认粘贴快捷键生效。
     _inputFocusNode.onKeyEvent = _handleInputNodeKeyEvent;
@@ -141,10 +166,52 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       }
       return;
     }
+
+    final insertion = widget.viewModel.composerInsertion;
+    if (insertion != null && insertion.epoch != _appliedInsertionEpoch) {
+      if (_scheduledInsertionEpoch != insertion.epoch) {
+        final epoch = insertion.epoch;
+        _scheduledInsertionEpoch = epoch;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _scheduledInsertionEpoch = null;
+          final current = widget.viewModel.composerInsertion;
+          if (current == null || current.epoch != epoch) return;
+          _appliedInsertionEpoch = epoch;
+          _applyComposerInsertion(current);
+        });
+      }
+      return;
+    }
+
     if (widget.viewModel.chatDraft != oldWidget.viewModel.chatDraft &&
         widget.viewModel.chatDraft != _inputController.text) {
       _inputController.text = widget.viewModel.chatDraft;
     }
+  }
+
+  void _applyComposerInsertion(ComposerInsertion insertion) {
+    final currentText = _inputController.text;
+    final draft = widget.viewModel.chatDraft;
+    final nextText = currentText == draft
+        ? currentText
+        : (draft.endsWith(insertion.text)
+              ? draft
+              : '$currentText${insertion.text}');
+    _inputController.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+    );
+    widget.viewModel.acknowledgeComposerInsertion(insertion.epoch);
+    if (insertion.focus) {
+      _scheduleComposerFocus();
+    }
+    _scheduleRevealCaret();
+  }
+
+  void _onPromptLibraryChanged() {
+    if (!mounted) return;
+    _updateComposerSuggestions();
   }
 
   void _applyComposerRestore(ComposerRestore restore) {
@@ -181,8 +248,11 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   @override
   void dispose() {
     _inputController.removeListener(_handleDraftChanged);
-    _inputController.removeListener(_updateSlashSuggestions);
+    _inputController.removeListener(_updateComposerSuggestions);
     _inputFocusNode.removeListener(_handleInputFocusChanged);
+    widget.viewModel.promptLibraryNotifier.removeListener(
+      _onPromptLibraryChanged,
+    );
     _inputController.dispose();
     _inputScrollController.dispose();
     _inputFocusNode.dispose();
@@ -196,7 +266,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   /// 失焦时收起补全面板，重新聚焦时按当前文本重算
   void _handleInputFocusChanged() {
     if (_inputFocusNode.hasFocus) {
-      _updateSlashSuggestions();
+      _updateComposerSuggestions();
     } else {
       _hideSuggestions();
     }
@@ -449,43 +519,79 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     );
   }
 
-  // ------------------ 斜杠指令自动补全 ------------------
+  // ------------------ 斜杠指令与 @ 角色自动补全 ------------------
 
-  /// 文本或光标变化时重算补全建议 (仅光标位于末尾时展示，避免编辑中段干扰)
-  void _updateSlashSuggestions() {
+  /// 文本或光标变化时重算补全建议 (支持 `/` 斜杠指令与 `@` 词库角色)
+  void _updateComposerSuggestions() {
     if (!mounted) return;
     final text = _inputController.text;
-    final cursor = _inputController.selection.baseOffset;
-    if (!text.startsWith('/') || cursor != text.length) {
+    final selection = _inputController.selection;
+    final cursor = selection.isValid && selection.isCollapsed
+        ? selection.baseOffset
+        : -1;
+
+    if (text == _dismissedToken) {
       _hideSuggestions();
       return;
     }
 
-    final suggestions = buildSlashSuggestions(
-      text: text,
-      skills: widget.viewModel.availableSkills,
-      presets: widget.viewModel.presets,
-      l10n: context.maybeL10n,
-    );
-    if (suggestions.isEmpty || text == _dismissedToken) {
-      _hideSuggestions();
-      return;
-    }
-
-    final width = _inputFieldKey.currentContext?.size?.width;
-    setState(() {
-      _suggestions = suggestions;
-      _suggestionsVisible = true;
-      if (width != null && width > 0) {
-        _fieldWidth = width;
+    // 1. 斜杠指令补全 (仅光标位于末尾时展示)
+    if (text.startsWith('/') && cursor == text.length) {
+      final suggestions = buildSlashSuggestions(
+        text: text,
+        skills: widget.viewModel.availableSkills,
+        presets: widget.viewModel.presets,
+        l10n: context.maybeL10n,
+      );
+      if (suggestions.isNotEmpty) {
+        final width = _inputFieldKey.currentContext?.size?.width;
+        setState(() {
+          _suggestions = suggestions;
+          _mentionSuggestions = const [];
+          _activeMention = null;
+          _suggestionsVisible = true;
+          if (width != null && width > 0) {
+            _fieldWidth = width;
+          }
+          if (_selectedIndex >= suggestions.length) _selectedIndex = 0;
+        });
+        _measureFieldWidth();
+        if (!_overlayController.isShowing) _overlayController.show();
+        return;
       }
-      if (_selectedIndex >= suggestions.length) _selectedIndex = 0;
-    });
-    _measureFieldWidth();
-    if (!_overlayController.isShowing) _overlayController.show();
+    }
+
+    // 2. `@` 词库角色补全
+    if (cursor >= 1) {
+      final mention = extractActiveCharacterMention(text, cursor);
+      if (mention != null) {
+        final matched = matchCharacterMentionSuggestions(
+          mention.query,
+          widget.viewModel.promptLibraryEntries,
+        );
+        if (matched.isNotEmpty) {
+          final width = _inputFieldKey.currentContext?.size?.width;
+          setState(() {
+            _suggestions = const [];
+            _mentionSuggestions = matched;
+            _activeMention = mention;
+            _suggestionsVisible = true;
+            if (width != null && width > 0) {
+              _fieldWidth = width;
+            }
+            if (_selectedIndex >= matched.length) _selectedIndex = 0;
+          });
+          _measureFieldWidth();
+          if (!_overlayController.isShowing) _overlayController.show();
+          return;
+        }
+      }
+    }
+
+    _hideSuggestions();
   }
 
-  /// 帖后回调里测量输入框宽度并缓存 (size 只能在布局完成后读取)
+  /// 帧后回调里测量输入框宽度并缓存 (size 只能在布局完成后读取)
   void _measureFieldWidth() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -501,9 +607,13 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     if (!_suggestionsVisible && !_overlayController.isShowing) return;
     if (AppMotion.shouldReduceMotion(context) || !_overlayController.isShowing) {
       if (_overlayController.isShowing) _overlayController.hide();
-      if (_suggestions.isNotEmpty || _suggestionsVisible) {
+      if (_suggestions.isNotEmpty ||
+          _mentionSuggestions.isNotEmpty ||
+          _suggestionsVisible) {
         setState(() {
           _suggestions = const [];
+          _mentionSuggestions = const [];
+          _activeMention = null;
           _suggestionsVisible = false;
           _selectedIndex = 0;
         });
@@ -516,16 +626,18 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   void _handleSlashOverlayDismissed() {
     if (!mounted || _suggestionsVisible) return;
     if (_overlayController.isShowing) _overlayController.hide();
-    if (_suggestions.isNotEmpty) {
+    if (_suggestions.isNotEmpty || _mentionSuggestions.isNotEmpty) {
       setState(() {
         _suggestions = const [];
+        _mentionSuggestions = const [];
+        _activeMention = null;
         _selectedIndex = 0;
       });
     }
   }
 
   /// 补全面板打开时拦截方向键/Tab/Enter/Esc
-  KeyEventResult _handleSlashKey(FocusNode node, KeyEvent event) {
+  KeyEventResult _handleComposerSuggestionKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent || _isComposing) return KeyEventResult.ignored;
     final keyboard = HardwareKeyboard.instance;
     if (keyboard.isShiftPressed ||
@@ -534,24 +646,30 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         keyboard.isAltPressed) {
       return KeyEventResult.ignored;
     }
-    if (_suggestions.isEmpty) return KeyEventResult.ignored;
+    final activeCount = _suggestions.isNotEmpty
+        ? _suggestions.length
+        : _mentionSuggestions.length;
+    if (activeCount == 0) return KeyEventResult.ignored;
 
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowDown) {
       setState(() {
-        _selectedIndex = (_selectedIndex + 1) % _suggestions.length;
+        _selectedIndex = (_selectedIndex + 1) % activeCount;
       });
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowUp) {
       setState(() {
-        _selectedIndex =
-            (_selectedIndex - 1 + _suggestions.length) % _suggestions.length;
+        _selectedIndex = (_selectedIndex - 1 + activeCount) % activeCount;
       });
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.tab || key == LogicalKeyboardKey.enter) {
-      _applySuggestion(_suggestions[_selectedIndex]);
+      if (_suggestions.isNotEmpty) {
+        _applySuggestion(_suggestions[_selectedIndex]);
+      } else if (_mentionSuggestions.isNotEmpty) {
+        _applyCharacterMention(_mentionSuggestions[_selectedIndex]);
+      }
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.escape) {
@@ -562,7 +680,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     return KeyEventResult.ignored;
   }
 
-  /// 应用补全: 替换指令名或第一个参数，并在末尾追加空格
+  /// 应用斜杠补全: 替换指令名或第一个参数，并在末尾追加空格
   void _applySuggestion(SlashSuggestion suggestion) {
     final text = _inputController.text;
     final spaceIdx = text.indexOf(' ');
@@ -579,9 +697,61 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     _scheduleRevealCaret();
   }
 
+  /// 应用 `@` 词库角色补全: 将 `@查询` 替换为 `@[标题] `
+  void _applyCharacterMention(PromptComboEntry entry) {
+    final text = _inputController.text;
+    final cursor = _inputController.selection.isValid
+        ? _inputController.selection.baseOffset
+        : text.length;
+    final mention =
+        _activeMention ?? extractActiveCharacterMention(text, cursor);
+    if (mention == null) return;
+
+    final inserted = '${formatCharacterMention(entry.title)} ';
+    final newText = text.replaceRange(
+      mention.atIndex,
+      mention.cursorOffset,
+      inserted,
+    );
+    final newOffset = mention.atIndex + inserted.length;
+    _inputController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newOffset),
+    );
+    _dismissedToken = '';
+    _hideSuggestions();
+    _inputFocusNode.requestFocus();
+    _scheduleRevealCaret();
+  }
+
   /// 悬浮于输入框上方的补全面板 (Overlay + Follower 锚定)
   Widget _buildSlashOverlay(BuildContext overlayContext) {
-    if (_suggestions.isEmpty) return const SizedBox.shrink();
+    if (_suggestions.isEmpty && _mentionSuggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final Widget panel = _suggestions.isNotEmpty
+        ? SlashSuggestionPanel(
+            suggestions: _suggestions,
+            selectedIndex: _selectedIndex,
+            onSelected: (index) => _applySuggestion(_suggestions[index]),
+            onHovered: (index) {
+              if (index != _selectedIndex) {
+                setState(() => _selectedIndex = index);
+              }
+            },
+          )
+        : CharacterMentionPanel(
+            entries: _mentionSuggestions,
+            selectedIndex: _selectedIndex,
+            onSelected: (index) =>
+                _applyCharacterMention(_mentionSuggestions[index]),
+            onHovered: (index) {
+              if (index != _selectedIndex) {
+                setState(() => _selectedIndex = index);
+              }
+            },
+          );
+
     return Align(
       alignment: Alignment.topLeft,
       child: CompositedTransformFollower(
@@ -595,16 +765,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           child: SlashCommandOverlayShell(
             visible: _suggestionsVisible,
             onDismissComplete: _handleSlashOverlayDismissed,
-            child: SlashSuggestionPanel(
-              suggestions: _suggestions,
-              selectedIndex: _selectedIndex,
-              onSelected: (index) => _applySuggestion(_suggestions[index]),
-              onHovered: (index) {
-                if (index != _selectedIndex) {
-                  setState(() => _selectedIndex = index);
-                }
-              },
-            ),
+            child: panel,
           ),
         ),
       ),
@@ -710,6 +871,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildAttachmentPreview(),
+          _buildLinkedCharactersBar(),
           field,
           Padding(
             padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
@@ -738,6 +900,100 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     );
   }
 
+  /// 已显式关联的词库角色芯片栏（输入栏顶部，有 `@[角色]` 引用时平滑展开）
+  Widget _buildLinkedCharactersBar() {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        _inputController,
+        widget.viewModel.promptLibraryNotifier,
+      ]),
+      builder: (context, _) {
+        final linked = extractLinkedCharacters(
+          _inputController.text,
+          widget.viewModel.promptLibraryEntries,
+        );
+        final colors = context.colors;
+        final l10n = context.l10n;
+        return AppPanelReveal(
+          visible: linked.isNotEmpty,
+          openDuration: AppMotionDurations.fast,
+          closeDuration: AppMotionDurations.quick,
+          slideOffset: AppMotionDistances.base,
+          enableBlur: false,
+          animateSize: true,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final entry in linked)
+                  Tooltip(
+                    message: entry.prompt,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(7, 3, 4, 3),
+                      decoration: BoxDecoration(
+                        color: colors.errorSurface,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.person_outline_rounded,
+                            size: 12,
+                            color: colors.error,
+                          ),
+                          const SizedBox(width: 4),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 160),
+                            child: Text(
+                              entry.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: colors.error,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Tooltip(
+                            message: l10n.chatLinkedCharacterRemoveTooltip,
+                            child: GestureDetector(
+                              onTap: () {
+                                final updated = removeCharacterMention(
+                                  _inputController.text,
+                                  entry,
+                                );
+                                _inputController.value = TextEditingValue(
+                                  text: updated,
+                                  selection: TextSelection.collapsed(
+                                    offset: updated.length,
+                                  ),
+                                );
+                              },
+                              behavior: HitTestBehavior.opaque,
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 13,
+                                color: colors.error.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildMessageField() {
     final colors = context.colors;
     return CompositedTransformTarget(
@@ -746,7 +1002,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         onKeyEvent: _handleMessageKeyEvent,
         // 焦点冒泡先处理补全，避免 Enter 被外层发送快捷键抢走。
         child: Focus(
-          onKeyEvent: _handleSlashKey,
+          onKeyEvent: _handleComposerSuggestionKey,
           child: StableEdgeSelection(
             controller: _inputScrollController,
             child: TextField(

@@ -1,22 +1,28 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderEditable;
 import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/overlay_anchor.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/models/prompt_library_models.dart';
+import '../../../../data/services/prompt_image_probe.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../view_models/studio_view_model.dart';
 import 'character_card_item.dart';
 import 'fixed_affixes_panel.dart';
+import 'prompt_combo_edit_dialog.dart';
 
 String _genderLabel(AppLocalizations l10n, NaiCharacterGender gender) =>
     switch (gender) {
@@ -302,7 +308,7 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     );
   }
 
-  /// 固定词缀二级操作工具栏 (右侧统一芯片开关)
+  /// 固定词缀二级操作工具栏 (画风库一键填入 / 存为画风 / 启用开关)
   Widget _buildFixedAffixesToolbar({
     required StudioViewModel viewModel,
     required bool isAffixesEnabled,
@@ -312,22 +318,80 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
     final l10n = context.l10n;
     return KeyedSubtree(
       key: const ValueKey('affix_toolbar'),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: AppToolChip(
-          icon: isAffixesEnabled ? Icons.check_rounded : Icons.close_rounded,
-          label:
-              '${l10n.charPromptDeckTabAffixes}: ${isAffixesEnabled ? l10n.charPromptEnabled : l10n.charPromptDisabled}',
-          isSelected: isAffixesEnabled,
-          height: 28,
-          radius: 6,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          unselectedBackgroundColor: colors.cardBackground,
-          borderColor: colors.borderDefault,
-          onTap: () => viewModel.updateParams(
-            params.copyWith(applyFixedPrompts: !isAffixesEnabled),
-          ),
+      child: SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _StyleLibraryPickerButton(viewModel: viewModel),
+                const SizedBox(width: 6),
+                AppToolChip(
+                  icon: Icons.bookmark_add_outlined,
+                  label: l10n.affixSaveStyleLabel,
+                  tooltip: l10n.affixSaveStyleTooltip,
+                  height: 28,
+                  radius: 6,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  unselectedBackgroundColor: colors.cardBackground,
+                  borderColor: colors.borderDefault,
+                  onTap: () => _openSaveStyleDialog(viewModel),
+                ),
+              ],
+            ),
+            AppToolChip(
+              icon: isAffixesEnabled ? Icons.check_rounded : Icons.close_rounded,
+              label:
+                  '${l10n.charPromptDeckTabAffixes}: ${isAffixesEnabled ? l10n.charPromptEnabled : l10n.charPromptDisabled}',
+              isSelected: isAffixesEnabled,
+              height: 28,
+              radius: 6,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              unselectedBackgroundColor: colors.cardBackground,
+              borderColor: colors.borderDefault,
+              onTap: () => viewModel.updateParams(
+                params.copyWith(applyFixedPrompts: !isAffixesEnabled),
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  void _openSaveStyleDialog(StudioViewModel viewModel) {
+    final l10n = context.l10n;
+    final params = viewModel.params;
+    final prefix = (params.prefixPrompt ?? '').trim();
+    final suffix = (params.suffixPrompt ?? '').trim();
+    final negative = params.negativePrompt.trim();
+    if (prefix.isEmpty && suffix.isEmpty && negative.isEmpty) {
+      showAppToast(
+        context,
+        message: l10n.affixSaveStyleEmptyNotice,
+        tone: AppToastTone.info,
+        duration: const Duration(milliseconds: 1400),
+      );
+      return;
+    }
+    final now = DateTime.now();
+    PromptComboEditDialog.show(
+      context,
+      viewModel: viewModel,
+      initialEntry: PromptComboEntry(
+        id: '',
+        title: '',
+        category: PromptComboCategories.style,
+        prefixPrompt: prefix,
+        suffixPrompt: suffix,
+        negativePrompt: negative,
+        createdAt: now,
+        updatedAt: now,
       ),
     );
   }
@@ -641,6 +705,179 @@ class _AddCharacterLimitChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 词库画风快速选择下拉按钮 (点击弹出「风格」条目浮层，一键填入前后缀与负面词)
+class _StyleLibraryPickerButton extends StatelessWidget {
+  final StudioViewModel viewModel;
+
+  const _StyleLibraryPickerButton({required this.viewModel});
+
+  Future<void> _openPopover(BuildContext triggerContext) async {
+    final l10n = triggerContext.l10n;
+    final styleEntries = viewModel.promptLibraryEntries
+        .where((e) => e.isStyle)
+        .toList(growable: false);
+
+    final selected = await showAnchoredPopover<PromptComboEntry>(
+      context: triggerContext,
+      preferAbove: false,
+      gap: 4,
+      minWidth: 220,
+      maxWidth: 320,
+      maxHeight: 340,
+      builder: (popoverContext) {
+        final colors = popoverContext.colors;
+        if (styleEntries.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            child: Text(
+              l10n.affixStylePresetsEmpty,
+              style: TextStyle(fontSize: 12, color: colors.textMuted),
+            ),
+          );
+        }
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final entry in styleEntries)
+                _StylePresetPopoverItem(
+                  entry: entry,
+                  onTap: () => Navigator.of(popoverContext).pop(entry),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selected != null && triggerContext.mounted) {
+      viewModel.applyPromptCombo(selected, asStyle: true, replace: true);
+      showAppToast(
+        triggerContext,
+        message: l10n.affixAppliedStyleNotice(selected.title),
+        tone: AppToastTone.success,
+        duration: const Duration(milliseconds: 1400),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    return ListenableBuilder(
+      listenable: viewModel.promptLibraryNotifier,
+      builder: (context, _) {
+        final styleCount = viewModel.promptLibraryEntries
+            .where((e) => e.isStyle)
+            .length;
+        final label = styleCount > 0
+            ? '${l10n.affixStylePresetsLabel} ($styleCount)'
+            : l10n.affixStylePresetsLabel;
+        return Builder(
+          builder: (triggerContext) => AppToolChip(
+            icon: Icons.palette_outlined,
+            label: label,
+            tooltip: l10n.affixStylePresetsTooltip,
+            height: 28,
+            radius: 6,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            unselectedBackgroundColor: colors.cardBackground,
+            borderColor: colors.borderDefault,
+            onTap: () => _openPopover(triggerContext),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StylePresetPopoverItem extends StatelessWidget {
+  final PromptComboEntry entry;
+  final VoidCallback onTap;
+
+  const _StylePresetPopoverItem({required this.entry, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final rawPath = entry.previewImagePath?.trim();
+    final hasThumb =
+        rawPath != null &&
+        rawPath.isNotEmpty &&
+        !PromptImageProbe.isKnownMissing(rawPath);
+    final summary = entry.displayPromptSummary.replaceAll('\n', ' · ');
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          child: Row(
+            children: [
+              if (hasThumb) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: Image(
+                      image: ResizeImage(
+                        FileImage(File(rawPath)),
+                        width: 64,
+                        height: 64,
+                        policy: ResizeImagePolicy.fit,
+                      ),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          Icon(Icons.palette_outlined, size: 16, color: colors.textMuted),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ] else ...[
+                Icon(Icons.palette_outlined, size: 15, color: colors.primary),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      entry.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    if (summary.isNotEmpty)
+                      Text(
+                        summary,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: colors.textMuted),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

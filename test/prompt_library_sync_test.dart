@@ -236,7 +236,10 @@ void main() {
           id: 'local_only',
           title: 'Local Only',
           category: '风格',
-          prompt: 'local style',
+          prompt: '',
+          prefixPrompt: 'artist:local',
+          suffixPrompt: 'very aesthetic',
+          negativePrompt: 'lowres style',
           createdAt: t1,
           updatedAt: t1,
         ),
@@ -335,6 +338,15 @@ void main() {
         plan.nextTombstones.keys.toSet(),
         equals({'deleted_on_remote', 'deleted_locally'}),
       );
+
+      // 校验风格条目的 prefixPrompt / suffixPrompt / negativePrompt 经远端协议往返无损
+      final pushedStyle = plan.toPush.firstWhere((e) => e.id == 'local_only');
+      final roundTripped = RemotePromptEntryRecord.fromJson(
+        pushedStyle.toJson(),
+      ).toLocalEntry();
+      expect(roundTripped.prefixPrompt, 'artist:local');
+      expect(roundTripped.suffixPrompt, 'very aesthetic');
+      expect(roundTripped.negativePrompt, 'lowres style');
     });
   });
 

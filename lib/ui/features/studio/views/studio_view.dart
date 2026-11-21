@@ -504,6 +504,12 @@ class _StudioViewState extends State<StudioView> {
                           onExpandSidebar: isLeftCollapsed
                               ? _viewModel.toggleLeftSidebarCollapsed
                               : null,
+                          onSentToChat: () {
+                            _viewModel.setActiveSidebarTab(
+                              _previousSidebarTab,
+                              expandSidebar: false,
+                            );
+                          },
                           onClose: () {
                             _viewModel.setActiveSidebarTab(
                               _previousSidebarTab,
@@ -676,6 +682,13 @@ class _StudioViewState extends State<StudioView> {
                     child: PromptLibraryView(
                       compact: true,
                       viewModel: _viewModel,
+                      onSentToChat: () {
+                        _viewModel.setActiveSidebarTab(
+                          _previousSidebarTab,
+                          expandSidebar: false,
+                        );
+                        _setMobilePage(2);
+                      },
                       onClose: () {
                         _viewModel.setActiveSidebarTab(
                           _previousSidebarTab,

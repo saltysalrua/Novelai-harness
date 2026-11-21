@@ -52,6 +52,7 @@ import '../../../../data/services/rtx_upscale_service.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../data/services/inpaint_service.dart';
 import '../../../../data/services/watermark_service.dart';
+import '../../../../data/services/prompt_library_mention.dart';
 import '../../../../data/services/prompt_library_service.dart';
 import '../../../../data/services/prompt_library_sync_service.dart';
 import '../../../../data/services/session_log_service.dart';
@@ -222,6 +223,11 @@ mixin _StudioCore on ChangeNotifier {
   ComposerRestore? _composerRestore;
 
   int _composerRestoreEpoch = 0;
+
+  /// 词库角色快捷插入到输入框的一次文本插入事件。
+  ComposerInsertion? _composerInsertion;
+
+  int _composerInsertionEpoch = 0;
 
   /// 分割线宽度防抖落盘计时器 (拖动过程每帧回调，写盘必须节流)
   Timer? _splitWidthSaveTimer;

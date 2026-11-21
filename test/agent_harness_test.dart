@@ -396,6 +396,39 @@ void main() {
     );
 
     test(
+      'AgentHarness.send injects llmContext into LLM request without mutating user message',
+      () async {
+        List<AgentMessage>? capturedMessages;
+        final provider = MockLlmProvider((messages, tools) {
+          capturedMessages = messages;
+          return [ContentDeltaEvent('Done')];
+        });
+
+        harness = AgentHarness(tools: tools, provider: provider);
+        await harness
+            .send(
+              '让 @[初音未来] 站在樱花树下',
+              llmContext: '<library_characters>\n- 标题: 初音未来\n</library_characters>',
+            )
+            .toList();
+
+        // 对话流中保留干净的用户原文
+        final storedUser = harness.messages.firstWhere(
+          (m) => m.role == AgentRole.user,
+        );
+        expect(storedUser.content, '让 @[初音未来] 站在樱花树下');
+        expect(storedUser.llmContext, contains('<library_characters>'));
+
+        // 发送给 LLM 的用户消息携带关联角色上下文
+        final sentUser = capturedMessages!.firstWhere(
+          (m) => m.role == AgentRole.user,
+        );
+        expect(sentUser.content, contains('让 @[初音未来] 站在樱花树下'));
+        expect(sentUser.content, contains('<library_characters>'));
+      },
+    );
+
+    test(
       'rewindToMessage truncates in-memory messages list accurately',
       () async {
         harness = AgentHarness(tools: tools);

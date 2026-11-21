@@ -10,9 +10,9 @@ const schemaSql = fs.readFileSync(
   'utf8',
 );
 
-function createD1Mock() {
+function createD1Mock(sql = schemaSql) {
   const sqlite = new DatabaseSync(':memory:');
-  sqlite.exec(schemaSql);
+  sqlite.exec(sql);
 
   class BoundStmt {
     constructor(sql, params) {
@@ -154,8 +154,22 @@ test('health, push merge, timestamp guard, tombstone and replace mode', async ()
             id: 'c2',
             title: 'Watercolor',
             category: '风格',
-            prompt: 'watercolor style',
-            negativePrompt: 'ignored for non-char',
+            prompt: '',
+            prefixPrompt: 'watercolor style',
+            suffixPrompt: 'very aesthetic',
+            negativePrompt: '3d, photorealistic',
+            tags: [],
+            createdAt: '2026-11-18T10:00:00.000Z',
+            updatedAt: '2026-11-18T10:00:00.000Z',
+          },
+          {
+            id: 'c3',
+            title: 'Kimono',
+            category: '服装',
+            prompt: 'kimono',
+            prefixPrompt: 'ignored prefix',
+            suffixPrompt: 'ignored suffix',
+            negativePrompt: 'ignored for non-char-or-style',
             tags: [],
             createdAt: '2026-11-18T10:00:00.000Z',
             updatedAt: '2026-11-18T10:00:00.000Z',
@@ -168,7 +182,7 @@ test('health, push merge, timestamp guard, tombstone and replace mode', async ()
   assert.equal(pushRes.status, 200);
   const pushJson = await pushRes.json();
   assert.equal(pushJson.revision, 1);
-  assert.equal(pushJson.appliedCount, 2);
+  assert.equal(pushJson.appliedCount, 3);
 
   // Stale merge update must NOT overwrite newer server entry
   const staleRes = await handleRequest(
@@ -197,7 +211,14 @@ test('health, push merge, timestamp guard, tombstone and replace mode', async ()
 
   const syncAfterStale = await (await handleRequest(authedRequest('/api/sync'), env)).json();
   assert.equal(syncAfterStale.entries.find((e) => e.id === 'c1').title, 'Miku');
-  assert.equal(syncAfterStale.entries.find((e) => e.id === 'c2').negativePrompt, '');
+  const c2Synced = syncAfterStale.entries.find((e) => e.id === 'c2');
+  assert.equal(c2Synced.prefixPrompt, 'watercolor style');
+  assert.equal(c2Synced.suffixPrompt, 'very aesthetic');
+  assert.equal(c2Synced.negativePrompt, '3d, photorealistic');
+  const c3Synced = syncAfterStale.entries.find((e) => e.id === 'c3');
+  assert.equal(c3Synced.prefixPrompt, '');
+  assert.equal(c3Synced.suffixPrompt, '');
+  assert.equal(c3Synced.negativePrompt, '');
 
   // Replace mode marks missing active entry as tombstone
   const replaceRes = await handleRequest(
@@ -308,4 +329,43 @@ test('chunked image upload, deduplication, download, and GC', async () => {
 
   const afterGc = await handleRequest(authedRequest(`/api/images/${hash}`), env);
   assert.equal(afterGc.status, 404);
+});
+
+test('auto-migrates legacy sync_entries table missing style affix columns', async () => {
+  const legacySchema = schemaSql
+    .replace(/\s*prefix_prompt TEXT NOT NULL DEFAULT '',?\n/, '\n')
+    .replace(/\s*suffix_prompt TEXT NOT NULL DEFAULT '',?\n/, '\n');
+  const env = makeEnv(createD1Mock(legacySchema));
+
+  const pushRes = await handleRequest(
+    authedRequest('/api/sync/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        namespace: 'default',
+        mode: 'merge',
+        entries: [
+          {
+            id: 'legacy_style_1',
+            title: 'Legacy Style',
+            category: '风格',
+            prompt: '',
+            prefixPrompt: 'artist:legacy',
+            suffixPrompt: 'best quality',
+            negativePrompt: 'blurry',
+            createdAt: '2026-11-18T10:00:00.000Z',
+            updatedAt: '2026-11-18T10:00:00.000Z',
+          },
+        ],
+      }),
+    }),
+    env,
+  );
+  assert.equal(pushRes.status, 200);
+
+  const syncJson = await (await handleRequest(authedRequest('/api/sync'), env)).json();
+  assert.equal(syncJson.entries.length, 1);
+  assert.equal(syncJson.entries[0].prefixPrompt, 'artist:legacy');
+  assert.equal(syncJson.entries[0].suffixPrompt, 'best quality');
+  assert.equal(syncJson.entries[0].negativePrompt, 'blurry');
 });

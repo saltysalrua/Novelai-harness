@@ -413,6 +413,10 @@ class AgentMessage {
   /// 用户消息附带的图片 (粘贴/选择文件上传，仅 role == user)
   final List<AgentMessageImage> images;
 
+  /// 仅注入到 LLM 请求上下文的附加说明（如自动关联的词库角色设定），
+  /// 不直接显示在用户可见消息气泡中。
+  final String? llmContext;
+
   /// 图片所属的发送轮次 (AgentHarness 每次自增)。
   /// 只有与当前轮次相等时图片数据才会真正发给模型 (一次性展示)，
   /// 更早轮次的图片在构建请求时折叠为固定占位文本，控制视觉 Token
@@ -455,6 +459,7 @@ class AgentMessage {
     this.imageBase64,
     this.imageMimeType = 'image/png',
     this.images = const [],
+    this.llmContext,
     this.imageEpoch = 0,
     this.isStreaming = false,
     DateTime? createdAt,
@@ -480,6 +485,7 @@ class AgentMessage {
     String? imageBase64,
     String? imageMimeType,
     List<AgentMessageImage>? images,
+    String? llmContext,
     int? imageEpoch,
   }) {
     final nextImageBase64 = imageBase64 ?? this.imageBase64;
@@ -501,6 +507,7 @@ class AgentMessage {
       imageBase64: nextImageBase64,
       imageMimeType: imageMimeType ?? this.imageMimeType,
       images: images ?? this.images,
+      llmContext: llmContext ?? this.llmContext,
       imageEpoch: imageEpoch ?? this.imageEpoch,
       isStreaming: isStreaming ?? this.isStreaming,
       createdAt: createdAt ?? this.createdAt,
@@ -539,6 +546,7 @@ class AgentMessage {
       model: model,
       imageMimeType: imageMimeType,
       images: const [],
+      llmContext: llmContext,
       imageEpoch: imageEpoch,
       isStreaming: isStreaming,
       createdAt: createdAt,

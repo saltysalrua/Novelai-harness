@@ -13,6 +13,19 @@ class ComposerRestore {
   });
 }
 
+/// 词库角色发送到输入框的一次文本插入请求。
+class ComposerInsertion {
+  final int epoch;
+  final String text;
+  final bool focus;
+
+  const ComposerInsertion({
+    required this.epoch,
+    required this.text,
+    this.focus = true,
+  });
+}
+
 /// 只翻译应用内置错误；供应商返回的详情与协议原文保持不变。
 String localizeHarnessError(AppLocalizations l10n, ErrorEvent event) =>
     switch (event.code) {
@@ -45,6 +58,33 @@ mixin _StudioChatMixin on _StudioCore {
     if (_composerRestore?.epoch == epoch) {
       _composerRestore = null;
     }
+  }
+
+  /// 待插入输入框的词库角色文本事件；没有待插入内容时为 null。
+  ComposerInsertion? get composerInsertion => _composerInsertion;
+
+  /// 输入栏已把该次文本插入到输入框后调用，避免重复插入。
+  void acknowledgeComposerInsertion(int epoch) {
+    if (_composerInsertion?.epoch == epoch) {
+      _composerInsertion = null;
+    }
+  }
+
+  /// 将词库角色引用 `@[标题] ` 插入到 Agent 输入框草稿并请求聚焦。
+  void insertCharacterToChatInput(PromptComboEntry combo) {
+    final mention = '${formatCharacterMention(combo.title)} ';
+    final current = _chatDraft;
+    final needsSpace =
+        current.isNotEmpty && !RegExp(r'\s$').hasMatch(current);
+    final inserted = needsSpace ? ' $mention' : mention;
+    updateChatDraft('$current$inserted');
+    _composerInsertionEpoch++;
+    _composerInsertion = ComposerInsertion(
+      epoch: _composerInsertionEpoch,
+      text: inserted,
+      focus: true,
+    );
+    notifyListeners();
   }
 
   /// 更新 Agent 对话草稿输入文本 (300ms 防抖落盘)
@@ -106,10 +146,16 @@ mixin _StudioChatMixin on _StudioCore {
     _chatCompletion = completer;
 
     try {
+      final llmContext = resolveLibraryCharactersForMessage(
+        trimmed,
+        _promptLibraryEntries,
+        sanitizeText: _params.textForAgent,
+      );
       final stream = _harness.send(
         trimmed,
         temperature: _config.llmTemperature,
         images: images,
+        llmContext: llmContext,
       );
 
       _chatSubscription = stream.listen(

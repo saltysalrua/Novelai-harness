@@ -661,6 +661,18 @@
   "affixResizePrefixTooltip": "拖动调整前置词高度 (双击重置)",
   "affixSuffixTitle": "后缀词 (放置于主提示词最后)",
   "affixResizeSuffixTooltip": "拖动调整后缀词高度 (双击重置)",
+  "affixSaveStyleLabel": "存为画风",
+  "affixSaveStyleTooltip": "将当前前缀词、后缀词和负面提示词保存为画风预设",
+  "affixStylePresetsLabel": "画风库",
+  "affixStylePresetsTooltip": "从词库一键填入画风预设（前置词、后置词与负面词）",
+  "affixStylePresetsEmpty": "词库暂无风格条目，可先点击「存为画风」创建",
+  "affixSaveStyleEmptyNotice": "当前前置词、后缀词和负面提示词均为空",
+  "affixAppliedStyleNotice": "已填入画风预设: {title}",
+  "@affixAppliedStyleNotice": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
   "bannedWordsTitle": "排除违禁词",
   "bannedWordsSubtitle": "仅对助手隐藏，不影响生图",
   "bannedWordsHint": "输入要对助手隐藏的词条，用逗号分隔...",
@@ -1055,9 +1067,26 @@
   "libraryMenuAppendToPrompt": "追加到工作台提示词",
   "libraryMenuReplacePrompt": "替换工作台提示词",
   "libraryMenuAddAsCharacter": "添加为多角色卡片",
+  "libraryMenuSendToAgent": "发送到助手输入框",
+  "libraryMenuApplyStyleReplace": "一键填入画风 (覆盖词缀与负面词)",
+  "libraryMenuApplyStyleAppend": "追加到词缀与负面词",
   "libraryMenuCopyPrompt": "复制提示词",
   "libraryMenuEdit": "编辑",
   "libraryCardApply": "应用到工作台",
+  "libraryCardApplyStyle": "应用画风",
+  "libraryCardSendToAgentTooltip": "发送到助手输入框",
+  "librarySentCharacterToAgent": "已将角色「{title}」发送到助手输入框",
+  "@librarySentCharacterToAgent": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "libraryApplyStyleSuccess": "已填入画风预设: {title}",
+  "@libraryApplyStyleSuccess": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
   "libraryCardAddAsCharacterTooltip": "添加为工作台多角色卡片",
   "libraryCardAddCharacter": "+ 角色",
   "libraryCardNoPreview": "无预览图",
@@ -1101,10 +1130,17 @@
   "libraryEditFieldPrompt": "主提示词",
   "libraryEditFillFromPrompt": "填入工作台主词",
   "libraryEditFieldPromptHint": "输入正向提示词 (如: 1girl, hatsune miku, cybernetic...)",
+  "libraryEditFieldPrefix": "前置词 (Prefix)",
+  "libraryEditFieldPrefixHint": "放置于主提示词最前的画风/画师前缀 (如: artist:..., watercolor style...)",
+  "libraryEditFieldSuffix": "后置词 (Suffix)",
+  "libraryEditFieldSuffixHint": "放置于主提示词最后的画风后缀 (如: very aesthetic, soft lighting...)",
+  "libraryEditFillAllStyleFromWorkbench": "从工作台填入画风",
+  "libraryEditWorkspaceStyleEmpty": "工作台前置词、后缀词和负面提示词均为空",
+  "libraryEditStyleContentEmpty": "请至少填写前置词、后缀词或负面提示词中的一项",
   "libraryEditFieldNegative": "负面提示词",
-  "libraryEditCharacterOnlyBadge": "仅角色分类可用",
+  "libraryEditCharacterOnlyBadge": "角色 / 风格可用",
   "libraryEditFillFromNegative": "填入工作台负向词",
-  "libraryEditFieldNegativeHint": "角色专有负面词 (如: worst quality, bad hands, mutated...)",
+  "libraryEditFieldNegativeHint": "角色/画风专有负面词 (如: worst quality, bad hands, mutated...)",
   "libraryEditFieldTags": "检索标签 (Tags)",
   "libraryEditFieldTagsHint": "用于快速筛选，用逗号分隔 (例如：miku, 水彩, 二次元, 赛博)",
   "libraryEditSaveButton": "保存修改",
@@ -1146,7 +1182,9 @@
   },
   "chatImageParseFailedNotice": "图片解析失败，请换一张图片重试",
   "chatModelNoVisionBeforeSendNotice": "当前模型不支持图片输入，发送前请切换到多模态模型",
-  "chatInputHint": "输入绘画构思，或输入 /nai <词> 快速生图...",
+  "chatInputHint": "输入绘画构思，@ 关联词库角色，或 /nai 快速生图...",
+  "chatCharacterMentionHeader": "词库角色",
+  "chatLinkedCharacterRemoveTooltip": "移除关联角色",
   "chatSendTooltip": "发送（Enter）",
   "chatSendingTooltip": "正在回复",
   "chatThinkingLabel": "思考:",

@@ -2876,6 +2876,48 @@ abstract class AppLocalizations {
   /// **'拖动调整后缀词高度 (双击重置)'**
   String get affixResizeSuffixTooltip;
 
+  /// No description provided for @affixSaveStyleLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'存为画风'**
+  String get affixSaveStyleLabel;
+
+  /// No description provided for @affixSaveStyleTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'将当前前缀词、后缀词和负面提示词保存为画风预设'**
+  String get affixSaveStyleTooltip;
+
+  /// No description provided for @affixStylePresetsLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'画风库'**
+  String get affixStylePresetsLabel;
+
+  /// No description provided for @affixStylePresetsTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'从词库一键填入画风预设（前置词、后置词与负面词）'**
+  String get affixStylePresetsTooltip;
+
+  /// No description provided for @affixStylePresetsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'词库暂无风格条目，可先点击「存为画风」创建'**
+  String get affixStylePresetsEmpty;
+
+  /// No description provided for @affixSaveStyleEmptyNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前前置词、后缀词和负面提示词均为空'**
+  String get affixSaveStyleEmptyNotice;
+
+  /// No description provided for @affixAppliedStyleNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'已填入画风预设: {title}'**
+  String affixAppliedStyleNotice(String title);
+
   /// No description provided for @bannedWordsTitle.
   ///
   /// In zh, this message translates to:
@@ -4310,6 +4352,24 @@ abstract class AppLocalizations {
   /// **'添加为多角色卡片'**
   String get libraryMenuAddAsCharacter;
 
+  /// No description provided for @libraryMenuSendToAgent.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送到助手输入框'**
+  String get libraryMenuSendToAgent;
+
+  /// No description provided for @libraryMenuApplyStyleReplace.
+  ///
+  /// In zh, this message translates to:
+  /// **'一键填入画风 (覆盖词缀与负面词)'**
+  String get libraryMenuApplyStyleReplace;
+
+  /// No description provided for @libraryMenuApplyStyleAppend.
+  ///
+  /// In zh, this message translates to:
+  /// **'追加到词缀与负面词'**
+  String get libraryMenuApplyStyleAppend;
+
   /// No description provided for @libraryMenuCopyPrompt.
   ///
   /// In zh, this message translates to:
@@ -4327,6 +4387,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'应用到工作台'**
   String get libraryCardApply;
+
+  /// No description provided for @libraryCardApplyStyle.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用画风'**
+  String get libraryCardApplyStyle;
+
+  /// No description provided for @libraryCardSendToAgentTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送到助手输入框'**
+  String get libraryCardSendToAgentTooltip;
+
+  /// No description provided for @librarySentCharacterToAgent.
+  ///
+  /// In zh, this message translates to:
+  /// **'已将角色「{title}」发送到助手输入框'**
+  String librarySentCharacterToAgent(String title);
+
+  /// No description provided for @libraryApplyStyleSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已填入画风预设: {title}'**
+  String libraryApplyStyleSuccess(String title);
 
   /// No description provided for @libraryCardAddAsCharacterTooltip.
   ///
@@ -4466,6 +4550,48 @@ abstract class AppLocalizations {
   /// **'输入正向提示词 (如: 1girl, hatsune miku, cybernetic...)'**
   String get libraryEditFieldPromptHint;
 
+  /// No description provided for @libraryEditFieldPrefix.
+  ///
+  /// In zh, this message translates to:
+  /// **'前置词 (Prefix)'**
+  String get libraryEditFieldPrefix;
+
+  /// No description provided for @libraryEditFieldPrefixHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'放置于主提示词最前的画风/画师前缀 (如: artist:..., watercolor style...)'**
+  String get libraryEditFieldPrefixHint;
+
+  /// No description provided for @libraryEditFieldSuffix.
+  ///
+  /// In zh, this message translates to:
+  /// **'后置词 (Suffix)'**
+  String get libraryEditFieldSuffix;
+
+  /// No description provided for @libraryEditFieldSuffixHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'放置于主提示词最后的画风后缀 (如: very aesthetic, soft lighting...)'**
+  String get libraryEditFieldSuffixHint;
+
+  /// No description provided for @libraryEditFillAllStyleFromWorkbench.
+  ///
+  /// In zh, this message translates to:
+  /// **'从工作台填入画风'**
+  String get libraryEditFillAllStyleFromWorkbench;
+
+  /// No description provided for @libraryEditWorkspaceStyleEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'工作台前置词、后缀词和负面提示词均为空'**
+  String get libraryEditWorkspaceStyleEmpty;
+
+  /// No description provided for @libraryEditStyleContentEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'请至少填写前置词、后缀词或负面提示词中的一项'**
+  String get libraryEditStyleContentEmpty;
+
   /// No description provided for @libraryEditFieldNegative.
   ///
   /// In zh, this message translates to:
@@ -4475,7 +4601,7 @@ abstract class AppLocalizations {
   /// No description provided for @libraryEditCharacterOnlyBadge.
   ///
   /// In zh, this message translates to:
-  /// **'仅角色分类可用'**
+  /// **'角色 / 风格可用'**
   String get libraryEditCharacterOnlyBadge;
 
   /// No description provided for @libraryEditFillFromNegative.
@@ -4487,7 +4613,7 @@ abstract class AppLocalizations {
   /// No description provided for @libraryEditFieldNegativeHint.
   ///
   /// In zh, this message translates to:
-  /// **'角色专有负面词 (如: worst quality, bad hands, mutated...)'**
+  /// **'角色/画风专有负面词 (如: worst quality, bad hands, mutated...)'**
   String get libraryEditFieldNegativeHint;
 
   /// No description provided for @libraryEditFieldTags.
@@ -4613,8 +4739,20 @@ abstract class AppLocalizations {
   /// No description provided for @chatInputHint.
   ///
   /// In zh, this message translates to:
-  /// **'输入绘画构思，或输入 /nai <词> 快速生图...'**
+  /// **'输入绘画构思，@ 关联词库角色，或 /nai 快速生图...'**
   String get chatInputHint;
+
+  /// No description provided for @chatCharacterMentionHeader.
+  ///
+  /// In zh, this message translates to:
+  /// **'词库角色'**
+  String get chatCharacterMentionHeader;
+
+  /// No description provided for @chatLinkedCharacterRemoveTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除关联角色'**
+  String get chatLinkedCharacterRemoveTooltip;
 
   /// No description provided for @chatSendTooltip.
   ///
