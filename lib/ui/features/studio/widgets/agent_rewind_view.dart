@@ -584,7 +584,9 @@ class _CheckpointCardState extends State<_CheckpointCard> {
               : colors.elevatedBackground);
     final borderColor = widget.isSelected
         ? colors.primary.withValues(alpha: 0.65)
-        : (_hovered ? colors.borderHover : Colors.transparent);
+        : (_hovered
+              ? colors.borderHover
+              : colors.borderHover.withValues(alpha: 0.0));
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,

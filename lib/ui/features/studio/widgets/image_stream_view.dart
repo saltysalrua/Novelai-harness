@@ -727,66 +727,73 @@ class CanvasGeneratingCard extends StatelessWidget {
             maxWidth: maxCardWidth,
             maxHeight: maxCardHeight,
           ),
+          padding: const EdgeInsets.all(1.0),
           decoration: _canvasCardDecoration(context, isSelected),
-          clipBehavior: Clip.antiAlias,
-          child: AspectRatio(
-            aspectRatio: aspectRatio,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // 去噪中间帧仅在本占位卡内部局部重绘，
-                // 生图期间主工作台零重建
-                ListenableBuilder(
-                  listenable: viewModel.liveProgressController,
-                  builder: (context, _) {
-                    final previewBytes = viewModel.livePreviewBytes;
-                    if (previewBytes != null) {
-                      return Image.memory(
-                        previewBytes,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                        cacheWidth: previewCacheWidth,
-                      );
-                    }
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        const AppSkeletonBox(
-                          width: double.infinity,
-                          height: double.infinity,
-                          radius: 0,
-                        ),
-                        Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              AppMatrixDotLoader(
-                                dotSize: 4.0,
-                                gap: 3.0,
-                                variant: AppMatrixDotVariant.orbit,
-                                activeColor: context.colors.primary,
-                              ),
-                              if (viewModel.liveTotalSteps > 0 &&
-                                  viewModel.liveCurrentStep > 0) ...[
-                                const SizedBox(height: 10),
-                                Text(
-                                  '${viewModel.liveCurrentStep} / ${viewModel.liveTotalSteps}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: context.colors.textSecondary,
-                                    fontFamily: 'monospace',
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ],
+          foregroundDecoration: _canvasCardForegroundDecoration(
+            context,
+            isSelected,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.md - 1.0),
+            child: AspectRatio(
+              aspectRatio: aspectRatio,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // 去噪中间帧仅在本占位卡内部局部重绘，
+                  // 生图期间主工作台零重建
+                  ListenableBuilder(
+                    listenable: viewModel.liveProgressController,
+                    builder: (context, _) {
+                      final previewBytes = viewModel.livePreviewBytes;
+                      if (previewBytes != null) {
+                        return Image.memory(
+                          previewBytes,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                          cacheWidth: previewCacheWidth,
+                        );
+                      }
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          const AppSkeletonBox(
+                            width: double.infinity,
+                            height: double.infinity,
+                            radius: 0,
                           ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
+                          Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AppMatrixDotLoader(
+                                  dotSize: 4.0,
+                                  gap: 3.0,
+                                  variant: AppMatrixDotVariant.orbit,
+                                  activeColor: context.colors.primary,
+                                ),
+                                if (viewModel.liveTotalSteps > 0 &&
+                                    viewModel.liveCurrentStep > 0) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    '${viewModel.liveCurrentStep} / ${viewModel.liveTotalSteps}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: context.colors.textSecondary,
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -873,73 +880,82 @@ class CanvasImageCard extends StatelessWidget {
               maxWidth: maxCardWidth,
               maxHeight: maxCardHeight,
             ),
+            padding: const EdgeInsets.all(1.0),
             decoration: _canvasCardDecoration(context, isSelected),
-            clipBehavior: Clip.antiAlias,
-            child: AspectRatio(
-              aspectRatio: imageAspectRatioOf(item.params),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ValueListenableBuilder<Map<String, Uint8List>>(
-                    valueListenable: viewModel.imageBytesNotifier,
-                    builder: (context, bytesMap, _) {
-                      final fullBytes = item.bytes.isNotEmpty
-                          ? item.bytes
-                          : bytesMap[item.id];
-                      final thumb = item.thumbnailBytes;
-                      final displayBytes =
-                          (fullBytes != null && fullBytes.isNotEmpty)
-                          ? fullBytes
-                          : ((thumb != null && thumb.isNotEmpty) ? thumb : null);
+            foregroundDecoration: _canvasCardForegroundDecoration(
+              context,
+              isSelected,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.md - 1.0),
+              child: AspectRatio(
+                aspectRatio: imageAspectRatioOf(item.params),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ValueListenableBuilder<Map<String, Uint8List>>(
+                      valueListenable: viewModel.imageBytesNotifier,
+                      builder: (context, bytesMap, _) {
+                        final fullBytes = item.bytes.isNotEmpty
+                            ? item.bytes
+                            : bytesMap[item.id];
+                        final thumb = item.thumbnailBytes;
+                        final displayBytes =
+                            (fullBytes != null && fullBytes.isNotEmpty)
+                            ? fullBytes
+                            : ((thumb != null && thumb.isNotEmpty)
+                                  ? thumb
+                                  : null);
 
-                      if (isSelected &&
-                          (fullBytes == null || fullBytes.isEmpty)) {
-                        viewModel.ensureImageLoaded(item);
-                      }
+                        if (isSelected &&
+                            (fullBytes == null || fullBytes.isEmpty)) {
+                          viewModel.ensureImageLoaded(item);
+                        }
 
-                      final hasImage = displayBytes != null;
-                      return AppSkeletonReveal(
-                        isLoaded: hasImage,
-                        enableBlur: false,
-                        skeleton: SizedBox.expand(
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              const AppSkeletonBox(
-                                width: double.infinity,
-                                height: double.infinity,
-                                radius: 0,
-                              ),
-                              Center(
-                                child: AppMatrixDotLoader(
-                                  dotSize: 3.5,
-                                  gap: 2.5,
-                                  variant: AppMatrixDotVariant.pulse,
-                                  activeColor: context.colors.primary,
+                        final hasImage = displayBytes != null;
+                        return AppSkeletonReveal(
+                          isLoaded: hasImage,
+                          enableBlur: false,
+                          skeleton: SizedBox.expand(
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                const AppSkeletonBox(
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  radius: 0,
                                 ),
-                              ),
-                            ],
+                                Center(
+                                  child: AppMatrixDotLoader(
+                                    dotSize: 3.5,
+                                    gap: 2.5,
+                                    variant: AppMatrixDotVariant.pulse,
+                                    activeColor: context.colors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        child: hasImage
-                            ? SizedBox.expand(
-                                child: Image.memory(
-                                  displayBytes,
-                                  fit: BoxFit.contain,
-                                  gaplessPlayback: true,
-                                  cacheWidth: cacheWidth,
-                                ),
-                              )
-                            : const SizedBox.expand(),
-                      );
-                    },
-                  ),
-                  if (isPositionOverlayActive)
-                    if (viewModel.isEditingWatermarkPosition)
-                      WatermarkPositionOverlay(viewModel: viewModel)
-                    else
-                      CharacterPositionOverlay(viewModel: viewModel),
-                ],
+                          child: hasImage
+                              ? SizedBox.expand(
+                                  child: Image.memory(
+                                    displayBytes,
+                                    fit: BoxFit.contain,
+                                    gaplessPlayback: true,
+                                    cacheWidth: cacheWidth,
+                                  ),
+                                )
+                              : const SizedBox.expand(),
+                        );
+                      },
+                    ),
+                    if (isPositionOverlayActive)
+                      if (viewModel.isEditingWatermarkPosition)
+                        WatermarkPositionOverlay(viewModel: viewModel)
+                      else
+                        CharacterPositionOverlay(viewModel: viewModel),
+                  ],
+                ),
               ),
             ),
           ),
@@ -955,10 +971,6 @@ BoxDecoration _canvasCardDecoration(BuildContext context, bool isSelected) {
   return BoxDecoration(
     color: colors.cardBackground,
     borderRadius: BorderRadius.circular(AppRadius.md),
-    border: Border.all(
-      color: isSelected ? colors.primary : colors.borderDefault,
-      width: 2.0,
-    ),
     boxShadow: [
       BoxShadow(
         color: isSelected
@@ -970,5 +982,20 @@ BoxDecoration _canvasCardDecoration(BuildContext context, bool isSelected) {
         offset: const Offset(0, 4),
       ),
     ],
+  );
+}
+
+/// 画板流卡片的前景描边装饰 (叠于内层圆角裁剪之上，防止内容区直角覆盖选中圆角边框)
+BoxDecoration _canvasCardForegroundDecoration(
+  BuildContext context,
+  bool isSelected,
+) {
+  final colors = context.colors;
+  return BoxDecoration(
+    borderRadius: BorderRadius.circular(AppRadius.md),
+    border: Border.all(
+      color: isSelected ? colors.primary : colors.borderDefault,
+      width: isSelected ? 2.0 : 1.0,
+    ),
   );
 }

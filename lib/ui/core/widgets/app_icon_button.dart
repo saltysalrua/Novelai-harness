@@ -91,6 +91,14 @@ class _AppIconButtonState extends State<AppIconButton> {
   bool _isHovered = false;
 
   @override
+  void didUpdateWidget(covariant AppIconButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!(widget.enabled && widget.onPressed != null) && _isHovered) {
+      _isHovered = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final isInteractive = widget.enabled && widget.onPressed != null;
@@ -150,8 +158,8 @@ class _AppIconButtonState extends State<AppIconButton> {
       ),
     };
 
-    final effectiveBg = isInteractive
-        ? bg
+    final Color? effectiveBg = isInteractive
+        ? (bg.a == 0 ? null : bg)
         : colors.mutedBackground.withValues(alpha: 0.5);
     final effectiveFg = isInteractive
         ? fg
@@ -162,6 +170,8 @@ class _AppIconButtonState extends State<AppIconButton> {
       onTap: isInteractive ? widget.onPressed : null,
       borderRadius: BorderRadius.circular(widget.radius),
       hoverColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      focusColor: Colors.transparent,
       splashColor: isInteractive
           ? colors.primaryTint.withValues(alpha: 0.3)
           : Colors.transparent,
@@ -173,7 +183,7 @@ class _AppIconButtonState extends State<AppIconButton> {
         decoration: BoxDecoration(
           color: effectiveBg,
           borderRadius: BorderRadius.circular(widget.radius),
-          border: effectiveBorder != Colors.transparent
+          border: effectiveBorder.a > 0
               ? Border.all(color: effectiveBorder)
               : null,
           boxShadow: shadow,

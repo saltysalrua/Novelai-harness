@@ -65,7 +65,7 @@ class ToolCard extends StatelessWidget {
                       color: isEnabled ? colors.primary : colors.borderDefault,
                       width: 1.5,
                     ),
-                    color: isEnabled ? colors.primary : Colors.transparent,
+                    color: isEnabled ? colors.primary : null,
                   ),
                   child: AppIconSwap(
                     swapKey: isEnabled,

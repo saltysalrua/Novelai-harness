@@ -62,7 +62,7 @@ class ModelCard extends StatelessWidget {
                     color: isSelected ? colors.primary : colors.borderDefault,
                     width: 1.5,
                   ),
-                  color: isSelected ? colors.primary : Colors.transparent,
+                  color: isSelected ? colors.primary : null,
                 ),
                 child: AppIconSwap(
                   swapKey: isSelected,

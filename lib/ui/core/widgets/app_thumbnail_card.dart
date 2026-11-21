@@ -94,12 +94,6 @@ class _AppThumbnailCardState extends State<AppThumbnailCard> {
             decoration: BoxDecoration(
               color: colors.mutedBackground,
               borderRadius: BorderRadius.circular(widget.radius),
-              border: Border.all(
-                color: isSelected
-                    ? colors.primary
-                    : (_isHovered ? colors.borderHover : colors.borderDefault),
-                width: isSelected ? 2.0 : 1.0,
-              ),
               boxShadow: isSelected
                   ? AppShadows.subtle(
                       colors.primary,
@@ -112,75 +106,89 @@ class _AppThumbnailCardState extends State<AppThumbnailCard> {
                           )
                         : null),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: AspectRatio(
-              aspectRatio: clampedRatio,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // 图片渲染
-                  if (widget.imageWidget != null)
-                    widget.imageWidget!
-                  else if (widget.imageBytes != null)
-                    Image.memory(
-                      widget.imageBytes!,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                      cacheWidth: widget.cacheWidth,
-                    ),
+            foregroundDecoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.radius),
+              border: Border.all(
+                color: isSelected
+                    ? colors.primary
+                    : (_isHovered ? colors.borderHover : colors.borderDefault),
+                width: isSelected ? 2.0 : 1.0,
+              ),
+            ),
+            padding: const EdgeInsets.all(1.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(
+                (widget.radius - 1.0).clamp(0.0, widget.radius),
+              ),
+              child: AspectRatio(
+                aspectRatio: clampedRatio,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 图片渲染
+                    if (widget.imageWidget != null)
+                      widget.imageWidget!
+                    else if (widget.imageBytes != null)
+                      Image.memory(
+                        widget.imageBytes!,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        cacheWidth: widget.cacheWidth,
+                      ),
 
-                  // 角标覆盖层 (如 "放大" / "未保存" / "修复" / "AI编辑")
-                  if (widget.badgeLabel != null)
-                    Positioned(
-                      top: 5,
-                      left: badgeOnLeft ? 5 : null,
-                      right: badgeOnLeft ? null : 5,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: (widget.badgeColor ?? colors.primary)
-                              .withValues(alpha: 0.88),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 3,
-                              offset: const Offset(0, 1),
+                    // 角标覆盖层 (如 "放大" / "未保存" / "修复" / "AI编辑")
+                    if (widget.badgeLabel != null)
+                      Positioned(
+                        top: 5,
+                        left: badgeOnLeft ? 5 : null,
+                        right: badgeOnLeft ? null : 5,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (widget.badgeColor ?? colors.primary)
+                                .withValues(alpha: 0.88),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 3,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            widget.badgeLabel!,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              height: 1.1,
                             ),
-                          ],
-                        ),
-                        child: Text(
-                          widget.badgeLabel!,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            height: 1.1,
                           ),
                         ),
                       ),
-                    ),
 
-                  // 悬停操作栏扩展槽：落在角标对侧角落，未悬停时隐藏且不拦截手势
-                  if (widget.hoverActions != null)
-                    Positioned(
-                      top: 5,
-                      left: badgeOnLeft ? null : 5,
-                      right: badgeOnLeft ? 5 : null,
-                      child: IgnorePointer(
-                        ignoring: !_isHovered,
-                        child: AnimatedOpacity(
-                          duration: hoverDuration,
-                          curve: AppMotionCurves.smoothOut,
-                          opacity: _isHovered ? 1.0 : 0.0,
-                          child: widget.hoverActions,
+                    // 悬停操作栏扩展槽：落在角标对侧角落，未悬停时隐藏且不拦截手势
+                    if (widget.hoverActions != null)
+                      Positioned(
+                        top: 5,
+                        left: badgeOnLeft ? null : 5,
+                        right: badgeOnLeft ? 5 : null,
+                        child: IgnorePointer(
+                          ignoring: !_isHovered,
+                          child: AnimatedOpacity(
+                            duration: hoverDuration,
+                            curve: AppMotionCurves.smoothOut,
+                            opacity: _isHovered ? 1.0 : 0.0,
+                            child: widget.hoverActions,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

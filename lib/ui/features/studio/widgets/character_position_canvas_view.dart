@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_pan_gesture_region.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../view_models/studio_view_model.dart';
@@ -467,10 +468,10 @@ class CanvasPositionPlaceholderCard extends StatelessWidget {
           maxWidth: maxCardWidth,
           maxHeight: maxCardHeight,
         ),
+        padding: const EdgeInsets.all(1.0),
         decoration: BoxDecoration(
           color: colors.cardBackground,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colors.primary, width: 2.0),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           boxShadow: [
             BoxShadow(
               color: colors.primary.withValues(alpha: 0.12),
@@ -479,49 +480,55 @@ class CanvasPositionPlaceholderCard extends StatelessWidget {
             ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: AspectRatio(
-          aspectRatio: aspectRatio,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // 优雅的浅灰微网格底纹
-              CustomPaint(
-                painter: _PlaceholderGridPainter(
-                  gridColor: colors.borderSubtle,
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: colors.primary, width: 2.0),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.md - 1.0),
+          child: AspectRatio(
+            aspectRatio: aspectRatio,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // 优雅的浅灰微网格底纹
+                CustomPaint(
+                  painter: _PlaceholderGridPainter(
+                    gridColor: colors.borderSubtle,
+                  ),
                 ),
-              ),
 
-              // 尺寸标注
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.elevatedBackground,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: colors.borderSubtle),
-                  ),
-                  child: Text(
-                    l10n.charPosCanvasTempBoard(params.width, params.height),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.w600,
-                      color: colors.textSecondary,
+                // 尺寸标注
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.elevatedBackground,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: colors.borderSubtle),
+                    ),
+                    child: Text(
+                      l10n.charPosCanvasTempBoard(params.width, params.height),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              // 叠加角色或水印位置交互层
-              if (viewModel.isEditingWatermarkPosition)
-                WatermarkPositionOverlay(viewModel: viewModel)
-              else
-                CharacterPositionOverlay(viewModel: viewModel),
-            ],
+                // 叠加角色或水印位置交互层
+                if (viewModel.isEditingWatermarkPosition)
+                  WatermarkPositionOverlay(viewModel: viewModel)
+                else
+                  CharacterPositionOverlay(viewModel: viewModel),
+              ],
+            ),
           ),
         ),
       ),

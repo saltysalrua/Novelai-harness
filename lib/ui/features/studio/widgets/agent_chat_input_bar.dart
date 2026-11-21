@@ -1073,19 +1073,12 @@ class _ModelThinkingPickerSheetState extends State<_ModelThinkingPickerSheet> {
                                 horizontal: 10,
                                 vertical: 9,
                               ),
-                              decoration: isSelected
-                                  ? BoxDecoration(
-                                      color: colors.primaryTint,
-                                      borderRadius: BorderRadius.circular(
-                                        AppRadius.md,
-                                      ),
-                                    )
-                                  : BoxDecoration(
-                                      color: Colors.transparent,
-                                      borderRadius: BorderRadius.circular(
-                                        AppRadius.md,
-                                      ),
-                                    ),
+                              decoration: BoxDecoration(
+                                color: isSelected ? colors.primaryTint : null,
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.md,
+                                ),
+                              ),
                               child: Row(
                                 children: [
                                   Expanded(

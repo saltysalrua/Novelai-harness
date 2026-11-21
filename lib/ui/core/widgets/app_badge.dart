@@ -239,7 +239,7 @@ class _AppBadgeState extends State<AppBadge>
       curve: AppMotionCurves.smoothOut,
       padding: effectivePadding,
       decoration: BoxDecoration(
-        color: effectiveBg,
+        color: effectiveBg.a == 0 ? null : effectiveBg,
         borderRadius: BorderRadius.circular(borderRadiusVal),
         border: effectiveBorder != null
             ? Border.all(color: effectiveBorder)

@@ -264,7 +264,7 @@ class SlashSuggestionPanel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           color: isSelected
               ? colors.primary.withValues(alpha: 0.08)
-              : Colors.transparent,
+              : colors.primary.withValues(alpha: 0.0),
           child: Row(
             children: [
               AnimatedContainer(
@@ -274,7 +274,7 @@ class SlashSuggestionPanel extends StatelessWidget {
                 height: 18,
                 margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? colors.primary : Colors.transparent,
+                  color: isSelected ? colors.primary : null,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

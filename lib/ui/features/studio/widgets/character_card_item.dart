@@ -170,8 +170,12 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
     final card = AnimatedContainer(
       duration: animDuration,
       curve: AppMotionCurves.smoothOut,
+      padding: const EdgeInsets.all(1.0),
       decoration: BoxDecoration(
         color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      foregroundDecoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
           color: isSelectedInCanvas
@@ -182,8 +186,9 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
           width: isSelectedInCanvas ? 1.8 : 1.0,
         ),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: AnimatedOpacity(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.lg - 1.0),
+        child: AnimatedOpacity(
         duration: animDuration,
         curve: AppMotionCurves.smoothOut,
         opacity: character.enabled ? 1.0 : 0.55,
@@ -371,6 +376,7 @@ class _CharacterCardItemState extends State<CharacterCardItem> {
             ),
           ],
         ),
+      ),
       ),
     );
 

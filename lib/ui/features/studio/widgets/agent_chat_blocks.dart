@@ -191,12 +191,13 @@ class _CollapsibleTileState extends State<CollapsibleTile>
       return Padding(padding: widget.margin, child: column);
     }
 
+    final bgColor = widget.backgroundColor;
     return AnimatedContainer(
       duration: AppMotion.resolveDuration(context, AppMotionDurations.fast),
       curve: AppMotionCurves.smoothOut,
       margin: widget.margin,
       decoration: BoxDecoration(
-        color: widget.backgroundColor,
+        color: (bgColor != null && bgColor.a == 0) ? null : bgColor,
         borderRadius: BorderRadius.circular(widget.borderRadius),
         border: widget.borderColor != null
             ? Border.all(color: widget.borderColor!)

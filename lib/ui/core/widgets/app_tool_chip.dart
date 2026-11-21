@@ -87,6 +87,14 @@ class _AppToolChipState extends State<AppToolChip> {
   bool _isHovered = false;
 
   @override
+  void didUpdateWidget(covariant AppToolChip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.onTap == null && _isHovered) {
+      _isHovered = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final isSelected = widget.isSelected;
@@ -142,7 +150,7 @@ class _AppToolChipState extends State<AppToolChip> {
       transformAlignment: Alignment.center,
       padding: widget.padding,
       decoration: BoxDecoration(
-        color: bgColor,
+        color: bgColor.a == 0 ? null : bgColor,
         borderRadius: BorderRadius.circular(widget.radius),
         border: effectiveBorderColor != null
             ? Border.all(color: effectiveBorderColor)

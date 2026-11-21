@@ -92,6 +92,15 @@ class _AppAsyncIconButtonState extends State<AppAsyncIconButton> {
   bool _isHovered = false;
 
   @override
+  void didUpdateWidget(covariant AppAsyncIconButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!(widget.enabled && !widget.isLoading && widget.onPressed != null) &&
+        _isHovered) {
+      _isHovered = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final isInteractive =
@@ -151,8 +160,8 @@ class _AppAsyncIconButtonState extends State<AppAsyncIconButton> {
       ),
     };
 
-    final effectiveBg = isInteractive || widget.isLoading
-        ? bg
+    final Color? effectiveBg = isInteractive || widget.isLoading
+        ? (bg.a == 0 ? null : bg)
         : colors.mutedBackground.withValues(alpha: 0.5);
     final effectiveFg = isInteractive || widget.isLoading
         ? fg
@@ -194,6 +203,8 @@ class _AppAsyncIconButtonState extends State<AppAsyncIconButton> {
       onTap: isInteractive ? widget.onPressed : null,
       borderRadius: BorderRadius.circular(widget.radius),
       hoverColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      focusColor: Colors.transparent,
       splashColor: isInteractive
           ? colors.primaryTint.withValues(alpha: 0.3)
           : Colors.transparent,
@@ -205,7 +216,7 @@ class _AppAsyncIconButtonState extends State<AppAsyncIconButton> {
         decoration: BoxDecoration(
           color: effectiveBg,
           borderRadius: BorderRadius.circular(widget.radius),
-          border: effectiveBorder != Colors.transparent
+          border: effectiveBorder.a > 0
               ? Border.all(color: effectiveBorder)
               : null,
           boxShadow: shadow,

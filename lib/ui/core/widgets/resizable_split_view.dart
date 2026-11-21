@@ -229,7 +229,9 @@ class _ResizableThreeSplitViewState extends State<ResizableThreeSplitView> {
             duration: const Duration(milliseconds: 150),
             width: isDragging ? 2 : 0,
             height: double.infinity,
-            color: isDragging ? colors.primary : Colors.transparent,
+            color: isDragging
+                ? colors.primary
+                : colors.primary.withValues(alpha: 0.0),
           ),
         ),
       ),

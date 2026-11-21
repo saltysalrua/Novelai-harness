@@ -71,7 +71,7 @@ class AppFloatingDock extends StatelessWidget {
         border: Border.all(color: effectiveBorder),
         boxShadow: effectiveShadows,
       ),
-      child: child,
+      child: Material(type: MaterialType.transparency, child: child),
     );
 
     if (enableBlur) {

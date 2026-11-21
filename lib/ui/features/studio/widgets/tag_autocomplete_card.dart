@@ -177,7 +177,7 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
                         ),
                         color: isSelected
                             ? colors.primary.withValues(alpha: 0.08)
-                            : Colors.transparent,
+                            : colors.primary.withValues(alpha: 0.0),
                         child: Row(
                           children: [
                             // 分类标识胶囊

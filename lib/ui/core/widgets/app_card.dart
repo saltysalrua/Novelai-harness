@@ -127,7 +127,9 @@ class _AppCardState extends State<AppCard> {
     if (widget.clipBehavior != Clip.none) {
       // 使用 ClipRRect 生成 ClipRRectLayer，避免 Container(clipBehavior) 触发开销更高的 ClipPathLayer
       inner = ClipRRect(
-        borderRadius: borderRadius,
+        borderRadius: BorderRadius.circular(
+          (widget.radius - resolvedBorderWidth).clamp(0.0, widget.radius),
+        ),
         clipBehavior: widget.clipBehavior,
         child: inner,
       );

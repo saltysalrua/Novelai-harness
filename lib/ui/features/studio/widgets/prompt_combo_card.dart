@@ -579,9 +579,7 @@ class _ComboCopyButtonState extends State<_ComboCopyButton> {
             decoration: BoxDecoration(
               color: _copied
                   ? colors.success.withValues(alpha: 0.14)
-                  : (_hovered
-                        ? colors.mutedBackground
-                        : Colors.transparent),
+                  : (_hovered ? colors.mutedBackground : null),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: AppIconSwap(

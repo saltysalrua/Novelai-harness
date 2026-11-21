@@ -695,7 +695,9 @@ class _SessionCardSurfaceState extends State<_SessionCardSurface> {
               : colors.elevatedBackground);
     final borderColor = highlighted
         ? colors.primary.withValues(alpha: _hovered ? 0.85 : 0.6)
-        : (_hovered ? colors.borderHover : Colors.transparent);
+        : (_hovered
+              ? colors.borderHover
+              : colors.borderHover.withValues(alpha: 0.0));
 
     return MouseRegion(
       cursor: widget.onTap != null

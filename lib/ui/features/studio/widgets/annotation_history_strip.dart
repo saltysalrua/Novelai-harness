@@ -109,14 +109,10 @@ class AnnotationHistoryStrip extends StatelessWidget {
                               : AppMotionDurations.quick,
                           curve: AppMotionCurves.smoothOut,
                           width: double.infinity,
+                          padding: const EdgeInsets.all(1.0),
                           decoration: BoxDecoration(
+                            color: colors.mutedBackground,
                             borderRadius: BorderRadius.circular(AppRadius.sm),
-                            border: Border.all(
-                              color: isSelected
-                                  ? colors.primary
-                                  : colors.borderDefault,
-                              width: isSelected ? 2.0 : 1.0,
-                            ),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
@@ -129,62 +125,73 @@ class AnnotationHistoryStrip extends StatelessWidget {
                                   ]
                                 : null,
                           ),
-                          clipBehavior: Clip.antiAlias,
-                          child: AspectRatio(
-                            aspectRatio:
-                                (item.params.width / item.params.height).clamp(
-                                  0.5,
-                                  1.8,
-                                ),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Builder(
-                                  builder: (context) {
-                                    final thumb =
-                                        item.thumbnailBytes ??
-                                        (item.bytes.isNotEmpty
-                                            ? item.bytes
-                                            : null);
-                                    if (thumb != null && thumb.isNotEmpty) {
-                                      return Image.memory(
-                                        thumb,
-                                        fit: BoxFit.cover,
-                                        gaplessPlayback: true,
-                                        cacheWidth: 240,
+                          foregroundDecoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                            border: Border.all(
+                              color: isSelected
+                                  ? colors.primary
+                                  : colors.borderDefault,
+                              width: isSelected ? 2.0 : 1.0,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.sm - 1.0,
+                            ),
+                            child: AspectRatio(
+                              aspectRatio:
+                                  (item.params.width / item.params.height)
+                                      .clamp(0.5, 1.8),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Builder(
+                                    builder: (context) {
+                                      final thumb =
+                                          item.thumbnailBytes ??
+                                          (item.bytes.isNotEmpty
+                                              ? item.bytes
+                                              : null);
+                                      if (thumb != null && thumb.isNotEmpty) {
+                                        return Image.memory(
+                                          thumb,
+                                          fit: BoxFit.cover,
+                                          gaplessPlayback: true,
+                                          cacheWidth: 240,
+                                        );
+                                      }
+                                      return const AppSkeletonBox(
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        radius: 0,
                                       );
-                                    }
-                                    return const AppSkeletonBox(
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      radius: 0,
-                                    );
-                                  },
-                                ),
-                                // 批注条数徽章
-                                if (annCount > 0)
-                                  Positioned(
-                                    top: 4,
-                                    right: 4,
-                                    child: AppBadge(
-                                      label: '$annCount',
-                                      variant: AppBadgeVariant.primary,
-                                      shape: AppBadgeShape.pill,
-                                      fontSize: 10,
-                                    ),
+                                    },
                                   ),
-                                // 外部参考图 REF 标记
-                                if (item.isImportedReference)
-                                  Positioned(
-                                    bottom: 4,
-                                    left: 4,
-                                    child: AppBadge(
-                                      label: l10n.referenceImageBadge,
-                                      variant: AppBadgeVariant.dark,
-                                      fontSize: 9,
+                                  // 批注条数徽章
+                                  if (annCount > 0)
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: AppBadge(
+                                        label: '$annCount',
+                                        variant: AppBadgeVariant.primary,
+                                        shape: AppBadgeShape.pill,
+                                        fontSize: 10,
+                                      ),
                                     ),
-                                  ),
-                              ],
+                                  // 外部参考图 REF 标记
+                                  if (item.isImportedReference)
+                                    Positioned(
+                                      bottom: 4,
+                                      left: 4,
+                                      child: AppBadge(
+                                        label: l10n.referenceImageBadge,
+                                        variant: AppBadgeVariant.dark,
+                                        fontSize: 9,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         );

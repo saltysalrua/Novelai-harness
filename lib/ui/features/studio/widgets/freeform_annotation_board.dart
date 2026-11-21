@@ -793,8 +793,14 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                               },
                               borderRadius: BorderRadius.circular(AppRadius.sm),
                               child: Container(
+                                padding: const EdgeInsets.all(1.0),
                                 decoration: BoxDecoration(
                                   color: colors.mutedBackground,
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.sm,
+                                  ),
+                                ),
+                                foregroundDecoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(
                                     AppRadius.sm,
                                   ),
@@ -805,18 +811,22 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
                                     width: isSelected ? 2 : 1,
                                   ),
                                 ),
-                                clipBehavior: Clip.antiAlias,
-                                child: thumb != null && thumb.isNotEmpty
-                                    ? Image.memory(
-                                        thumb,
-                                        fit: BoxFit.cover,
-                                        gaplessPlayback: true,
-                                        cacheWidth: 240,
-                                      )
-                                    : Icon(
-                                        Icons.image_outlined,
-                                        color: colors.textMuted,
-                                      ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.sm - 1.0,
+                                  ),
+                                  child: thumb != null && thumb.isNotEmpty
+                                      ? Image.memory(
+                                          thumb,
+                                          fit: BoxFit.cover,
+                                          gaplessPlayback: true,
+                                          cacheWidth: 240,
+                                        )
+                                      : Icon(
+                                          Icons.image_outlined,
+                                          color: colors.textMuted,
+                                        ),
+                                ),
                               ),
                             );
                           },

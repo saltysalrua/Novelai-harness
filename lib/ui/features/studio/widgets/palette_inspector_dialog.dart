@@ -285,8 +285,12 @@ class _PaletteSwatchTileState extends State<_PaletteSwatchTile> {
             duration: reduceMotion ? Duration.zero : AppMotionDurations.quick,
             curve: AppMotionCurves.smoothOut,
             width: 92,
+            padding: const EdgeInsets.all(1.0),
             decoration: BoxDecoration(
               color: colors.mutedBackground,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            foregroundDecoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(
                 color: _hovered
@@ -294,40 +298,42 @@ class _PaletteSwatchTileState extends State<_PaletteSwatchTile> {
                     : colors.borderDefault,
               ),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 44,
-                  decoration: BoxDecoration(color: Color(widget.color.argb)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.md - 1.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 44,
+                    decoration: BoxDecoration(color: Color(widget.color.argb)),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        seedColorText(widget.color.argb) ?? '',
-                        style: context.typography.bodySmall?.copyWith(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.w500,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          seedColorText(widget.color.argb) ?? '',
+                          style: context.typography.bodySmall?.copyWith(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                      Text(
-                        '${(widget.color.share * 100).toStringAsFixed(1)}%',
-                        style: context.typography.bodySmall?.copyWith(
-                          color: colors.textMuted,
-                          fontSize: 10,
+                        Text(
+                          '${(widget.color.share * 100).toStringAsFixed(1)}%',
+                          style: context.typography.bodySmall?.copyWith(
+                            color: colors.textMuted,
+                            fontSize: 10,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
