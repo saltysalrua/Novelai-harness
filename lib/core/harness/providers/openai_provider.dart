@@ -3,26 +3,23 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../tools/agent_tool.dart';
 import '../types.dart';
-import 'anthropic_messages.dart';
+import 'endpoint_capability_cache.dart';
 import 'google_interactions_provider.dart';
 import 'llm_provider.dart';
-import 'openai_responses.dart';
+import 'llm_provider_factory.dart';
 import 'prompt_cache_policy.dart';
 import 'prompt_tool_codec.dart';
+import 'protocol_stream_executors.dart';
+import 'provider_http_transport.dart';
 import 'tool_call_ids.dart';
 import '../../../data/models/llm_cache_config.dart';
 
 /// OpenAI 兼容格式提供商 (兼容 DeepSeek, Qwen, Moonshot, OpenAI, Ollama, LocalAI 等)
 class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
-  static const Duration _requestStartupTimeout = Duration(seconds: 60);
-  static const Duration _streamIdleTimeout = Duration(seconds: 90);
-
-  /// 拒绝记录按端点、模型、字段隔离，不能让一个中转站关闭所有供应商的缓存键。
-  static final Set<(String, String, String)> _unsupportedCacheFields = {};
-
-  /// 拒绝 `include: ["reasoning.encrypted_content"]` 的网关记录，
-  /// 首次 400 降级后同一端点+模型不再附带，推理回放退化为明文/已存项。
-  static final Set<(String, String)> _unsupportedEncryptedReasoning = {};
+  static const Duration _requestStartupTimeout =
+      ProviderHttpTransport.requestStartupTimeout;
+  static const Duration _streamIdleTimeout =
+      ProviderHttpTransport.streamIdleTimeout;
 
   static String? clampPromptCacheKey(String? key) =>
       PromptCachePolicy.clampKey(key);
@@ -38,6 +35,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
   final String? thinkingParamFormat;
   final http.Client _client;
   final bool _ownsClient;
+  final EndpointCapabilityCache _capabilityCache;
   final LlmCacheConfig cacheConfig;
 
   /// 纯聊天渠道兼容模式：提示词声明工具，正文解析调用。
@@ -57,8 +55,10 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     this.promptToolUse = false,
     this.streaming = true,
     http.Client? client,
+    EndpointCapabilityCache? capabilityCache,
   }) : _client = client ?? http.Client(),
-       _ownsClient = client == null;
+       _ownsClient = client == null,
+       _capabilityCache = capabilityCache ?? EndpointCapabilityCache.shared;
 
   @override
   void close() {
@@ -164,7 +164,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
 
   /// 判定 HTTP 状态码是否为瞬态可重试错误 (请求超时 / 频控 / 服务端临时故障)
   static bool isTransientStatus(int code) =>
-      code == 408 || code == 429 || (code >= 500 && code <= 599);
+      ProviderHttpTransport.isTransientStatus(code);
 
   /// 解析实际生效的思考参数格式 (显式配置优先，auto 按端点域名识别)
   String get resolvedThinkingFormat {
@@ -385,8 +385,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     String? promptCacheKey,
   }) async* {
     String endpoint = baseUrl.trim();
-    if (endpoint.endsWith('/interactions') ||
-        endpoint.endsWith('/interactions/')) {
+    if (LlmProviderFactory.isInteractionsEndpoint(endpoint)) {
       final interactionsProvider = GoogleInteractionsProvider(
         apiKey: apiKey,
         baseUrl: endpoint,
@@ -428,7 +427,21 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     final normalizedMessages = normalizeToolCallIds(messages);
     final promptParser = promptToolUse ? PromptToolStreamParser(tools) : null;
     if (endpoint.endsWith('/responses')) {
-      yield* _streamResponses(
+      yield* OpenAiResponsesExecutor(
+        apiKey: apiKey,
+        model: model,
+        reasoning: reasoning,
+        thinkingEffort: thinkingEffort,
+        cacheConfig: cacheConfig,
+        promptToolUse: promptToolUse,
+        streaming: streaming,
+        client: _client,
+        capabilityCache: _capabilityCache,
+        isGoogleHost: _isGoogleHost,
+        isGoogleOrGemini: _isGoogleOrGemini,
+        shouldOmitTemperature: _shouldOmitResponsesTemperature,
+        clampGeminiReasoningEffort: _clampGeminiReasoningEffort,
+      ).execute(
         endpoint: endpoint,
         messages: normalizedMessages,
         tools: tools,
@@ -439,7 +452,16 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       return;
     }
     if (endpoint.endsWith('/messages')) {
-      yield* _streamAnthropic(
+      yield* AnthropicMessagesExecutor(
+        apiKey: apiKey,
+        model: model,
+        reasoning: reasoning,
+        thinkingEffort: thinkingEffort,
+        cacheConfig: cacheConfig,
+        promptToolUse: promptToolUse,
+        streaming: streaming,
+        client: _client,
+      ).execute(
         endpoint: endpoint,
         messages: normalizedMessages,
         tools: tools,
@@ -495,7 +517,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         'prompt_cache_key',
         'prompt_cache_retention',
       ]) {
-        if (_unsupportedCacheFields.contains((endpoint, model.trim(), field))) {
+        if (_capabilityCache.isCacheFieldUnsupported(endpoint, model, field)) {
           requestBody.remove(field);
         }
       }
@@ -504,12 +526,24 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     http.StreamedResponse streamedResponse;
     String? badRequestBody;
     try {
-      final (response, errBody) = await _drainRejectedCacheFields(
-        await _send(endpoint, requestBody, cacheHeaders),
-        endpoint,
-        requestBody,
-        cacheHeaders,
+      final initialResponse = await ProviderHttpTransport.sendJsonPost(
+        client: _client,
+        endpoint: endpoint,
+        apiKey: apiKey,
+        requestBody: requestBody,
+        cacheHeaders: cacheHeaders,
       );
+      final (response, errBody) =
+          await ProviderHttpTransport.drainRejectedCacheFields(
+            initialResponse: initialResponse,
+            client: _client,
+            apiKey: apiKey,
+            model: model,
+            endpoint: endpoint,
+            requestBody: requestBody,
+            cacheHeaders: cacheHeaders,
+            capabilityCache: _capabilityCache,
+          );
       streamedResponse = response;
       badRequestBody = errBody;
     } catch (e) {
@@ -523,17 +557,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     }
 
     if (streamedResponse.statusCode != 200) {
-      try {
-        final errBody = await streamedResponse.stream.bytesToString().timeout(
-          _requestStartupTimeout,
-        );
-        yield ErrorEvent(
-          'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
-          transient: isTransientStatus(streamedResponse.statusCode),
-        );
-      } catch (e) {
-        yield ErrorEvent('网络请求异常: $e', transient: true);
-      }
+      yield await ProviderHttpTransport.readHttpErrorEvent(streamedResponse);
       return;
     }
 
@@ -834,7 +858,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         return;
       }
       if (completedCalls.isNotEmpty) {
-        for (final call in _normalizePendingToolCalls(
+        for (final call in ProviderHttpTransport.normalizePendingToolCalls(
           normalizedMessages,
           completedCalls,
         )) {
@@ -853,92 +877,6 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     if (finalUsage != null) {
       yield UsageEvent(finalUsage);
     }
-  }
-
-  /// HTTP 400 降级重试：错误体明确拒绝 prompt_cache_key / prompt_cache_retention
-  /// 时移除该字段、记入能力记录并重发，最多重试两次；其余 400 原样返回给调用方。
-  /// Chat Completions 与 Responses 两条路径共用。
-  Future<(http.StreamedResponse, String?)> _drainRejectedCacheFields(
-    http.StreamedResponse streamedResponse,
-    String endpoint,
-    Map<String, dynamic> requestBody,
-    Map<String, String> cacheHeaders,
-  ) async {
-    while (streamedResponse.statusCode == 400) {
-      final errBody = await streamedResponse.stream.bytesToString().timeout(
-        _requestStartupTimeout,
-      );
-      final lower = errBody.toLowerCase();
-      String? rejectedField;
-      if (RegExp(
-        r'unsupported|not supported|unknown|unrecognized|not permitted|not allowed|extra inputs',
-      ).hasMatch(lower)) {
-        for (final field in const [
-          'prompt_cache_key',
-          'prompt_cache_retention',
-        ]) {
-          if (requestBody.containsKey(field) && lower.contains(field)) {
-            rejectedField = field;
-            break;
-          }
-        }
-      }
-      if (rejectedField == null) {
-        // 部分 newapi 风格网关不支持 include 参数：拒绝
-        // reasoning.encrypted_content 时去掉 include 重发一次，
-        // 并记住该端点+模型组合，后续请求不再附带。
-        final include = requestBody['include'];
-        if (include is List &&
-            include.contains('reasoning.encrypted_content') &&
-            (lower.contains('include') ||
-                lower.contains('encrypted_content'))) {
-          _unsupportedEncryptedReasoning.add((endpoint, model.trim()));
-          requestBody.remove('include');
-          streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
-          continue;
-        }
-        return (streamedResponse, errBody);
-      }
-      _unsupportedCacheFields.add((endpoint, model.trim(), rejectedField));
-      requestBody.remove(rejectedField);
-      streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
-    }
-    return (streamedResponse, null);
-  }
-
-  /// 发送 POST 请求 (缓存键降级重试复用)
-  Future<http.StreamedResponse> _send(
-    String endpoint,
-    Map<String, dynamic> requestBody,
-    Map<String, String> cacheHeaders,
-  ) {
-    final request = http.Request('POST', Uri.parse(endpoint));
-    request.headers['Content-Type'] = 'application/json';
-    request.headers.addAll(cacheHeaders);
-    if (endpoint.endsWith('/messages')) {
-      request.headers['x-api-key'] = apiKey.trim();
-      request.headers['anthropic-version'] = '2023-06-01';
-    }
-    final trimmedKey = apiKey.trim();
-    if (trimmedKey.isNotEmpty) {
-      request.headers['Authorization'] = 'Bearer $trimmedKey';
-    }
-    request.body = jsonEncode(requestBody);
-    return _client.send(request).timeout(_requestStartupTimeout);
-  }
-
-  List<ToolCall> _normalizePendingToolCalls(
-    List<AgentMessage> messages,
-    List<ToolCall> pendingCalls,
-  ) {
-    return normalizeToolCallIds([
-      ...messages,
-      AgentMessage(
-        id: 'pending_tool_calls',
-        role: AgentRole.assistant,
-        toolCalls: pendingCalls,
-      ),
-    ]).last.toolCalls!;
   }
 
   /// 非流式 Chat Completions：读完整 JSON，发出与流式相同的事件。
@@ -1012,7 +950,10 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
 
     final calls = <ToolCall>[...?promptParser?.calls, ...parsed.toolCalls];
     if (calls.isNotEmpty) {
-      for (final call in _normalizePendingToolCalls(messages, calls)) {
+      for (final call in ProviderHttpTransport.normalizePendingToolCalls(
+        messages,
+        calls,
+      )) {
         yield ToolCallEvent(call);
       }
     }
@@ -1193,533 +1134,6 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       inThink = !inThink;
     }
     return (text: text.toString(), reasoning: reasoning.toString());
-  }
-
-  /// `POST /v1/messages`：请求体与 SSE 按 Anthropic Messages，回放 thinking 块。
-  Stream<HarnessEvent> _streamAnthropic({
-    required String endpoint,
-    required List<AgentMessage> messages,
-    required List<AgentTool> tools,
-    required double temperature,
-    required PromptToolStreamParser? promptParser,
-    String? promptCacheKey,
-  }) async* {
-    final requestBody = AnthropicMessages.buildRequestBody(
-      model: model.trim(),
-      messages: messages,
-      tools: tools,
-      temperature: temperature,
-      reasoning: reasoning,
-      thinkingEffort: thinkingEffort,
-      promptToolUse: promptToolUse,
-      stream: streaming,
-    );
-    final cachePolicy = PromptCachePolicy(
-      config: cacheConfig,
-      endpoint: Uri.parse(endpoint),
-      model: model,
-    );
-    final cacheHeaders = cachePolicy.headers(promptCacheKey);
-    // 只套用 Anthropic cache_control。OpenAI 的 prompt_cache_key 不是 Messages 字段。
-    if (cachePolicy.mode == LlmCacheMode.anthropic &&
-        requestBody['messages'] is List) {
-      cachePolicy.apply(requestBody, promptCacheKey);
-    }
-
-    http.StreamedResponse streamedResponse;
-    try {
-      streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
-    } catch (e) {
-      yield ErrorEvent('网络请求异常: $e', transient: true);
-      return;
-    }
-
-    if (streamedResponse.statusCode != 200) {
-      try {
-        final errBody = await streamedResponse.stream.bytesToString().timeout(
-          _requestStartupTimeout,
-        );
-        yield ErrorEvent(
-          'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
-          transient: isTransientStatus(streamedResponse.statusCode),
-        );
-      } catch (e) {
-        yield ErrorEvent('网络请求异常: $e', transient: true);
-      }
-      return;
-    }
-
-    FormatException? promptParseError;
-    var streamCompleted = false;
-    var failed = false;
-    final calls = <ToolCall>[];
-    TokenUsage? latestUsage;
-    final parser = AnthropicMessagesStreamParser();
-
-    List<ContentDeltaEvent> contentEvents(String text) {
-      if (text.isEmpty || promptParseError != null) return const [];
-      try {
-        return promptParser?.add(text) ?? [ContentDeltaEvent(text)];
-      } on FormatException catch (error) {
-        promptParseError = error;
-        return const [];
-      }
-    }
-
-    Iterable<HarnessEvent> absorb(List<HarnessEvent> events) sync* {
-      for (final event in events) {
-        if (event is ContentDeltaEvent) {
-          yield* contentEvents(event.delta);
-        } else if (event is ToolCallEvent) {
-          calls.add(event.toolCall);
-        } else if (event is ErrorEvent) {
-          failed = true;
-          yield event;
-        } else if (event is UsageEvent) {
-          latestUsage = event.usage;
-        } else {
-          yield event;
-        }
-      }
-    }
-
-    final prelude = StringBuffer();
-    var sawSse = false;
-    String? pendingEvent;
-
-    try {
-      final lineStream = streamedResponse.stream
-          .timeout(_streamIdleTimeout)
-          .transform(const Utf8Decoder(allowMalformed: true))
-          .transform(const LineSplitter());
-
-      await for (final line in lineStream) {
-        final trimmed = line.trim();
-        if (!sawSse) {
-          if (trimmed.startsWith('data:') || trimmed.startsWith('event:')) {
-            sawSse = true;
-          } else {
-            prelude.writeln(line);
-            continue;
-          }
-        }
-        if (trimmed.isEmpty) {
-          pendingEvent = null;
-          continue;
-        }
-        if (trimmed.startsWith(':')) continue;
-        if (trimmed.startsWith('event:')) {
-          pendingEvent = trimmed.substring(6).trim();
-          continue;
-        }
-        if (!trimmed.startsWith('data:')) continue;
-
-        final data = trimmed.substring(5).trim();
-        if (data.isEmpty) continue;
-        if (data == '[DONE]') {
-          streamCompleted = true;
-          pendingEvent = null;
-          break;
-        }
-
-        Map<String, dynamic> json;
-        try {
-          final decoded = jsonDecode(data);
-          if (decoded is! Map) {
-            pendingEvent = null;
-            continue;
-          }
-          json = Map<String, dynamic>.from(decoded);
-        } catch (_) {
-          pendingEvent = null;
-          continue;
-        }
-
-        if (json['type'] == 'message_stop' || pendingEvent == 'message_stop') {
-          streamCompleted = true;
-        }
-        for (final evt in absorb(parser.add(json, eventType: pendingEvent))) {
-          yield evt;
-        }
-        pendingEvent = null;
-      }
-    } catch (e) {
-      failed = true;
-      yield ErrorEvent('解析流式数据异常: $e', transient: true);
-    }
-
-    if (!sawSse) {
-      final raw = prelude.toString().trim();
-      if (raw.isEmpty) return;
-      try {
-        final decoded = jsonDecode(raw);
-        if (decoded is! Map) {
-          yield const ErrorEvent('解析流式数据异常: 非 JSON 响应', transient: true);
-          return;
-        }
-        final completion = AnthropicMessages.parseResponse(
-          Map<String, dynamic>.from(decoded),
-        );
-        if (completion.error != null) {
-          failed = true;
-          yield ErrorEvent(
-            completion.error!,
-            transient: completion.transientError,
-          );
-        } else {
-          if (completion.reasoningRecords.isNotEmpty) {
-            yield ReasoningSnapshotEvent(completion.reasoningRecords);
-          }
-          if (completion.reasoning.isNotEmpty) {
-            yield ThoughtDeltaEvent(completion.reasoning);
-          }
-          for (final record in completion.reasoningRecords) {
-            final sig = record.signature;
-            if (sig != null && sig.isNotEmpty) {
-              yield ThoughtSignatureEvent(sig);
-            }
-          }
-          for (final evt in contentEvents(completion.text)) {
-            yield evt;
-          }
-          calls.addAll(completion.toolCalls);
-          streamCompleted = true;
-        }
-        latestUsage = completion.usage;
-      } catch (e) {
-        yield ErrorEvent('解析流式数据异常: $e', transient: true);
-        return;
-      }
-    } else {
-      for (final evt in absorb(parser.finish())) {
-        yield evt;
-      }
-    }
-
-    if (promptParser != null && !failed) {
-      final parseError = promptParseError;
-      if (parseError != null) {
-        failed = true;
-        yield ErrorEvent('工具调用格式错误: ${parseError.message}');
-      } else if (!streamCompleted) {
-        failed = true;
-        yield const ErrorEvent('提示词工具调用响应流提前结束，未执行。');
-      } else {
-        try {
-          for (final evt in promptParser.finish()) {
-            yield evt;
-          }
-        } on FormatException catch (e) {
-          failed = true;
-          yield ErrorEvent('工具调用格式错误: ${e.message}');
-        }
-      }
-    } else if (promptParser == null && !failed && !streamCompleted) {
-      failed = true;
-      yield const ErrorEvent('Anthropic 响应流提前结束，未执行工具调用。', transient: true);
-    }
-
-    final promptCalls =
-        !failed && promptParser != null && promptParseError == null
-        ? promptParser.calls
-        : const <ToolCall>[];
-    if (!failed && (calls.isNotEmpty || promptCalls.isNotEmpty)) {
-      for (final call in _normalizePendingToolCalls(
-        messages,
-        [...calls, ...promptCalls],
-      )) {
-        yield ToolCallEvent(call);
-      }
-    }
-
-    final usage = latestUsage;
-    if (usage != null && usage.total > 0) {
-      yield UsageEvent(usage);
-    }
-  }
-
-  /// Responses API 的思考强度。只在开启思考时发送 `reasoning.effort`。
-  String? _responsesReasoningEffort() {
-    if (!reasoning) return null;
-    final effort = thinkingEffort?.trim();
-    if (effort == null || effort.isEmpty) return null;
-    final effective = _isGoogleOrGemini
-        ? _clampGeminiReasoningEffort(effort)
-        : effort;
-    if (_isGoogleOrGemini && effective == 'none') return null;
-    return effective;
-  }
-
-  /// `POST /v1/responses`：请求体与 SSE 都按 Responses API，不复用 Chat Completions。
-  Stream<HarnessEvent> _streamResponses({
-    required String endpoint,
-    required List<AgentMessage> messages,
-    required List<AgentTool> tools,
-    required double temperature,
-    required PromptToolStreamParser? promptParser,
-    String? promptCacheKey,
-  }) async* {
-    // 先算出思考强度：非空时官方推理模型不接受 temperature。
-    final effort = _responsesReasoningEffort();
-    final requestBody = OpenAiResponses.buildRequestBody(
-      model: _isGoogleHost
-          ? GoogleInteractionsProvider.normalizeModelId(model)
-          : model.trim(),
-      messages: messages,
-      tools: tools,
-      temperature: temperature,
-      stream: streaming,
-      reasoningEffort: effort,
-      includeEncryptedReasoning: reasoning,
-      includeTemperature: !_shouldOmitResponsesTemperature(endpoint, effort),
-      promptToolUse: promptToolUse,
-    );
-    // 该端点+模型曾拒绝 include 参数时不再附带（推理回放退化为明文/已存项）。
-    if (_unsupportedEncryptedReasoning.contains((endpoint, model.trim()))) {
-      requestBody.remove('include');
-    }
-
-    // 提示缓存：仅 openai 模式在 Responses 请求体上写 prompt_cache_key /
-    // prompt_cache_retention；anthropic 模式的 apply 依赖 body['messages']，
-    // 在 Responses 请求体 (input/instructions) 上调用会崩溃，故不调用。
-    final cachePolicy = PromptCachePolicy(
-      config: cacheConfig,
-      endpoint: Uri.parse(endpoint),
-      model: model,
-    );
-    final cacheHeaders = <String, String>{};
-    if (cachePolicy.mode == LlmCacheMode.openai) {
-      cachePolicy.apply(requestBody, promptCacheKey);
-      cacheHeaders.addAll(cachePolicy.headers(promptCacheKey));
-      for (final field in const [
-        'prompt_cache_key',
-        'prompt_cache_retention',
-      ]) {
-        if (_unsupportedCacheFields.contains((endpoint, model.trim(), field))) {
-          requestBody.remove(field);
-        }
-      }
-    }
-
-    http.StreamedResponse streamedResponse;
-    String? badRequestBody;
-    try {
-      final (response, errBody) = await _drainRejectedCacheFields(
-        await _send(endpoint, requestBody, cacheHeaders),
-        endpoint,
-        requestBody,
-        cacheHeaders,
-      );
-      streamedResponse = response;
-      badRequestBody = errBody;
-    } catch (e) {
-      yield ErrorEvent('网络请求异常: $e', transient: true);
-      return;
-    }
-    if (badRequestBody != null) {
-      yield ErrorEvent('LLM API 响应错误 (HTTP 400): $badRequestBody');
-      return;
-    }
-
-    if (streamedResponse.statusCode != 200) {
-      try {
-        final errBody = await streamedResponse.stream.bytesToString().timeout(
-          _requestStartupTimeout,
-        );
-        yield ErrorEvent(
-          'LLM API 响应错误 (HTTP ${streamedResponse.statusCode}): $errBody',
-          transient: isTransientStatus(streamedResponse.statusCode),
-        );
-      } catch (e) {
-        yield ErrorEvent('网络请求异常: $e', transient: true);
-      }
-      return;
-    }
-
-    FormatException? promptParseError;
-    var streamCompleted = false;
-    var failed = false;
-    final calls = <ToolCall>[];
-    TokenUsage? latestUsage;
-    final parser = OpenAiResponsesStreamParser();
-
-    List<ContentDeltaEvent> contentEvents(String text) {
-      if (text.isEmpty || promptParseError != null) return const [];
-      try {
-        return promptParser?.add(text) ?? [ContentDeltaEvent(text)];
-      } on FormatException catch (error) {
-        promptParseError = error;
-        return const [];
-      }
-    }
-
-    Iterable<HarnessEvent> absorb(List<HarnessEvent> events) sync* {
-      for (final event in events) {
-        if (event is ContentDeltaEvent) {
-          yield* contentEvents(event.delta);
-        } else if (event is ToolCallEvent) {
-          calls.add(event.toolCall);
-        } else if (event is ErrorEvent) {
-          failed = true;
-          yield event;
-        } else if (event is UsageEvent) {
-          latestUsage = event.usage;
-        } else {
-          yield event;
-        }
-      }
-    }
-
-    final prelude = StringBuffer();
-    var sawSse = false;
-    String? pendingEvent;
-
-    try {
-      final lineStream = streamedResponse.stream
-          .timeout(_streamIdleTimeout)
-          .transform(const Utf8Decoder(allowMalformed: true))
-          .transform(const LineSplitter());
-
-      await for (final line in lineStream) {
-        final trimmed = line.trim();
-        if (!sawSse) {
-          if (trimmed.startsWith('data:') || trimmed.startsWith('event:')) {
-            sawSse = true;
-          } else {
-            prelude.writeln(line);
-            continue;
-          }
-        }
-        if (trimmed.isEmpty) {
-          pendingEvent = null;
-          continue;
-        }
-        if (trimmed.startsWith(':')) continue;
-        if (trimmed.startsWith('event:')) {
-          pendingEvent = trimmed.substring(6).trim();
-          continue;
-        }
-        if (!trimmed.startsWith('data:')) continue;
-
-        final data = trimmed.substring(5).trim();
-        if (data.isEmpty) continue;
-        if (data == '[DONE]') {
-          streamCompleted = true;
-          pendingEvent = null;
-          break;
-        }
-
-        Map<String, dynamic> json;
-        try {
-          final decoded = jsonDecode(data);
-          if (decoded is! Map) {
-            pendingEvent = null;
-            continue;
-          }
-          json = Map<String, dynamic>.from(decoded);
-        } catch (_) {
-          pendingEvent = null;
-          continue;
-        }
-
-        if (json['type'] == 'response.completed' ||
-            pendingEvent == 'response.completed') {
-          streamCompleted = true;
-        }
-        for (final evt in absorb(parser.add(json, eventType: pendingEvent))) {
-          yield evt;
-        }
-        pendingEvent = null;
-      }
-    } catch (e) {
-      failed = true;
-      yield ErrorEvent('解析流式数据异常: $e', transient: true);
-    }
-
-    if (!sawSse) {
-      final raw = prelude.toString().trim();
-      if (raw.isEmpty) return;
-      try {
-        final decoded = jsonDecode(raw);
-        if (decoded is! Map) {
-          yield const ErrorEvent('解析流式数据异常: 非 JSON 响应', transient: true);
-          return;
-        }
-        final completion = OpenAiResponses.parseResponse(
-          Map<String, dynamic>.from(decoded),
-        );
-        if (completion.error != null) {
-          failed = true;
-          yield ErrorEvent(
-            completion.error!,
-            transient: completion.transientError,
-          );
-        } else {
-          if (completion.reasoningRecords.isNotEmpty) {
-            yield ReasoningSnapshotEvent(completion.reasoningRecords);
-          }
-          if (completion.reasoning.isNotEmpty) {
-            yield ThoughtDeltaEvent(completion.reasoning);
-          }
-          for (final evt in contentEvents(completion.text)) {
-            yield evt;
-          }
-          calls.addAll(completion.toolCalls);
-          streamCompleted = true;
-        }
-        latestUsage = completion.usage;
-      } catch (e) {
-        yield ErrorEvent('解析流式数据异常: $e', transient: true);
-        return;
-      }
-    } else {
-      for (final evt in absorb(parser.finish())) {
-        yield evt;
-      }
-    }
-
-    if (promptParser != null && !failed) {
-      final parseError = promptParseError;
-      if (parseError != null) {
-        failed = true;
-        yield ErrorEvent('工具调用格式错误: ${parseError.message}');
-      } else if (!streamCompleted) {
-        failed = true;
-        yield const ErrorEvent('提示词工具调用响应流提前结束，未执行。');
-      } else {
-        try {
-          for (final evt in promptParser.finish()) {
-            yield evt;
-          }
-        } on FormatException catch (e) {
-          failed = true;
-          yield ErrorEvent('工具调用格式错误: ${e.message}');
-        }
-      }
-    } else if (promptParser == null && !failed && !streamCompleted) {
-      // 原生工具模式：流未正常结束（无 completed/[DONE]）时，残缺的
-      // 工具调用参数不可信，报瞬态错误并跳过执行。
-      failed = true;
-      yield const ErrorEvent('Responses 响应流提前结束，未执行工具调用。', transient: true);
-    }
-
-    final promptCalls =
-        !failed && promptParser != null && promptParseError == null
-        ? promptParser.calls
-        : const <ToolCall>[];
-    if (!failed && (calls.isNotEmpty || promptCalls.isNotEmpty)) {
-      for (final call in _normalizePendingToolCalls(
-        messages,
-        [...calls, ...promptCalls],
-      )) {
-        yield ToolCallEvent(call);
-      }
-    }
-
-    final usage = latestUsage;
-    if (usage != null && usage.total > 0) {
-      yield UsageEvent(usage);
-    }
   }
 }
 

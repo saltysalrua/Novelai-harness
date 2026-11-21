@@ -7,6 +7,7 @@ import '../../../../core/harness/agent_harness.dart';
 import '../../../../core/harness/context_memory.dart';
 import '../../../../core/harness/tools/context_memory_tool.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
+import '../../../../core/harness/providers/llm_provider_factory.dart';
 import '../../../../core/harness/providers/openai_provider.dart';
 import '../../../../core/harness/skills/skills.dart';
 import '../../../../core/harness/tools/agent_tool.dart';
@@ -276,11 +277,15 @@ mixin _StudioCore on ChangeNotifier {
 
   @visibleForTesting
   OpenAiCompatibleProvider? get providerForTesting =>
-      _harness.provider as OpenAiCompatibleProvider?;
+      _harness.provider is OpenAiCompatibleProvider
+      ? _harness.provider as OpenAiCompatibleProvider
+      : null;
 
   @visibleForTesting
   OpenAiCompatibleProvider? get compactionProviderForTesting =>
-      _harness.compactionProvider as OpenAiCompatibleProvider?;
+      _harness.compactionProvider is OpenAiCompatibleProvider
+      ? _harness.compactionProvider as OpenAiCompatibleProvider
+      : null;
 
   @visibleForTesting
   void setAccountInfoForTest(NaiAccountInfo? info) {

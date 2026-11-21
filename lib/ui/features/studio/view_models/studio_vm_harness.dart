@@ -337,7 +337,7 @@ mixin _StudioHarnessMixin on _StudioCore {
       final isReasoningActive =
           supportsThinking && _currentThinkingEffort != ThinkingEffort.none;
 
-      _harness.provider = OpenAiCompatibleProvider(
+      _harness.provider = LlmProviderFactory.create(
         baseUrl: activeLlm.fullEndpointUrl,
         apiKey: activeLlm.apiKey,
         model: activeModel.id,
@@ -397,7 +397,7 @@ mixin _StudioHarnessMixin on _StudioCore {
                 ? ThinkingEffort.none
                 : summaryModel.defaultThinkingEffort)
           : null;
-      _harness.compactionProvider = OpenAiCompatibleProvider(
+      _harness.compactionProvider = LlmProviderFactory.create(
         baseUrl: summaryProvider.fullEndpointUrl,
         apiKey: summaryProvider.apiKey,
         model: summaryModel.id,
