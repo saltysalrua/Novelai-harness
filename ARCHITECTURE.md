@@ -56,8 +56,14 @@ graph TD
 
 ```text
 Novelai-harness/
+├── .github/workflows/
+│   ├── ci.yml                                  # 日常 PR/Push CI (analyze / flutter test / worker test / gitleaks)
+│   └── release.yml                             # 三端构建与 GitHub Release 自动发布流水线
+├── cloudflare/prompt-library-sync/             # 词库云同步后端 (Cloudflare Workers + D1 SQLite)
+│   ├── src/worker.js                           # 增量合并/分块图床/鉴权路由实现
+│   └── test/worker.test.mjs                    # Node 内置测试 (node:sqlite D1 Mock)
 ├── lib/
-│   ├── main.dart                               # 桌面端初始化、窗口托管与应用启动入口
+│   ├── main.dart                               # 跨平台初始化、桌面窗口托管、启动容错降级与根主题装配
 │   │
 │   ├── core/                                   # 极简 AI Harness 运行时
 │   │   └── harness/
@@ -66,12 +72,19 @@ Novelai-harness/
 │   │       ├── agent_context.dart              # 请求上下文生命周期、回复编号与会话笔记状态
 │   │       ├── agent_compaction.dart           # 单飞后台压缩快照、分批摘要与版本校验提交
 │   │       ├── context_memory.dart             # 会话笔记/请求侧释放与上下文用量快照
+│   │       ├── reply_marker.dart               # `[回复 #N]` 标记剥离单一事实源
 │   │       ├── session_recorder.dart           # 会话记录器抽象接口 (Pi 格式落盘钩子)
 │   │       ├── presets/
 │   │       │   └── agent_preset.dart           # Agent 预设模型 (系统提示词/可用Skills/工具与参数权限白名单)
 │   │       ├── providers/
 │   │       │   ├── llm_provider.dart           # LLM 提供商通用接口抽象
-│   │       │   └── openai_provider.dart        # OpenAI 兼容协议流式实现 (SSE 解析、思考链状态机提取与 Token 统计)
+│   │       │   ├── openai_provider.dart        # OpenAI Chat 兼容协议及多协议调度入口
+│   │       │   ├── openai_responses.dart       # OpenAI Responses API (`/v1/responses`) 编解码
+│   │       │   ├── anthropic_messages.dart     # Anthropic Messages API (`/v1/messages`) 编解码与思考回放
+│   │       │   ├── google_interactions_provider.dart # Google Gemini Interactions API 客户端
+│   │       │   ├── prompt_cache_policy.dart    # Prompt Cache 键与保留策略
+│   │       │   ├── prompt_tool_codec.dart      # 纯聊天渠道提示词工具调用编解码与流式解析
+│   │       │   └── tool_call_ids.dart          # 工具调用 ID 规范化与去重
 │   │       ├── tools/
 │   │       │   ├── agent_tool.dart             # 工具抽象基类、执行上下文与工具注册中心
 │   │       │   ├── annotation_tools.dart       # 画板批注五件套工具与覆盖层离屏绘制 (view/add/update/remove/clear)
@@ -81,40 +94,47 @@ Novelai-harness/
 │   │       │   ├── canvas_view_tool.dart       # 画板历史图片查看工具 (view_canvas_image，支持索引与覆盖层)
 │   │       │   ├── character_prompt_tools.dart  # 多角色提示词增删改查四件套工具
 │   │       │   ├── danbooru_search_tools.dart  # Danbooru 离线/在线语义搜索与 NPMI 画师推荐工具
+│   │       │   ├── describe_tools_tool.dart    # 精简工具表面按需展开 Schema (describe_tools)
 │   │       │   ├── load_skill_tool.dart        # 技能指令、资源清单与包内文件按需加载 (load_skill)
 │   │       │   ├── novelai_tools.dart          # 生图、新版超分、官方标签联想与账号查询工具
 │   │       │   ├── novelai_inpaint_tool.dart   # 局部修复与焦点特写工具 (novelai_inpaint / get_inpaint_geometry)
 │   │       │   ├── ai_edit_image_tool.dart    # AI 整图编辑工具 (ai_edit_image，外部多模态模型整图重绘)
+│   │       │   ├── pipeline_tool.dart          # 双轨 CodeMode 批量编排工具 (run_pipeline)
 │   │       │   ├── prompt_library_tools.dart   # 词组合预设库增删改查与预览图设置工具
 │   │       │   ├── studio_params_tool.dart     # 工作台生图参数查询与批量同步修改工具
 │   │       │   └── vision_image_codec.dart     # 视觉附件压缩 (最长边 1024 等比缩小 PNG) 与 MIME 嗅探
 │   │       └── skills/
-│   │           └── skills.dart                 # 内置技能库 (V5 自然语言架构师、艺术总监、Danbooru 标签大师)
+│   │           ├── skill_format_exception.dart # 技能包导入/解析结构化异常
+│   │           └── skills.dart                 # 内置技能库与 SkillRegistry
 │   │
 │   ├── data/                                   # 数据与服务层
 │   │   ├── models/
 │   │   │   ├── novelai_models.dart             # 聚合导出 barrel 文件 (保持模块引用解耦)
 │   │   │   ├── anysearch_models.dart           # AnySearch 协议实体 (搜索结果/子域目录/正文提取/异常)
+│   │   │   ├── banned_word_sanitizer.dart      # 禁词过滤与规范化引擎
+│   │   │   ├── danbooru_search_models.dart     # 在线 Danbooru 搜索与关联推荐模型
 │   │   │   ├── image_palette.dart              # 图片主色盘模型 (ImagePalette/PaletteColor) 与种子色文本互转
 │   │   │   ├── inpaint_models.dart             # 局部修复与焦点特写模型 (InpaintMode/Geometry/BrushStroke/Params)
+│   │   │   ├── llm_cache_config.dart           # LLM 缓存策略配置模型
 │   │   │   ├── nai_catalog.dart                # NaiModel/采样器/噪声调度/分辨率预设枚举 (含 inpaintModelId)
 │   │   │   ├── nai_character_prompt.dart       # 多角色提示词模型、位置布局与坐标量化
 │   │   │   ├── nai_generation_params.dart      # 生图参数实体与官方 Payload 构建 (含 toInfillApiPayload)
 │   │   │   ├── nai_image_result.dart           # 图片生成结果、流式进度帧与导出标记 (含角标文案)
 │   │   │   ├── nai_account_info.dart           # 账号等级、V5 体力池余量与官方 Tag 联想模型
 │   │   │   ├── nai_prompt_presets.dart         # 质量词/UC 预设与提示词文本后处理
-│   │   │   ├── prompt_library_models.dart     # 词组合预设分类常量与 PromptComboEntry 实体
-│   │   │   ├── skill_package.dart             # 技能包导入预览快照 (Skill + 相对路径文件字节)
-│   │   │   ├── llm_models.dart                # LLM 供应商、模型卡片、思考参数格式与图像输出能力
+│   │   │   ├── prompt_library_models.dart      # 词组合预设分类常量与 PromptComboEntry 实体
+│   │   │   ├── prompt_library_sync_models.dart # 词库云同步配置与状态结果模型
+│   │   │   ├── skill_package.dart              # 技能包导入预览快照 (Skill + 相对路径文件字节)
+│   │   │   ├── llm_models.dart                 # LLM 供应商、模型卡片、思考参数格式与图像输出能力
 │   │   │   ├── tag_models.dart                 # Danbooru 标签分类、联想条目与 NovelAI Token 结构
 │   │   │   ├── nai_special_tags.dart           # NovelAI 官方专属标签事实源 (画质/美学/复杂度/数据集/透明通道/改名/其他 + 年代样例)
 │   │   │   ├── image_annotation.dart           # 图像批注模型 (rect 选区/point 图钉/global，归一化坐标+调色板)
 │   │   │   ├── canvas_board_models.dart        # 自由大画布节点模型 (图片卡/便利贴/连线/视口矩阵，含 JSON 序列化)
 │   │   │   ├── image_metadata_models.dart      # 图像元数据模型与水印配置实体 (WatermarkConfig)
-│   │   │   └── comfyui_models.dart            # ComfyUI 模式实体 (Bridge 状态快照/参数补丁/实时选项清单/图片条目)
+│   │   │   └── comfyui_models.dart             # ComfyUI 模式实体 (Bridge 状态快照/参数补丁/实时选项清单/图片条目)
 │   │   ├── services/
 │   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与纯内存 ZIP 解包
-│   │   │   ├── anysearch_service.dart           # AnySearch 官方 REST 客户端 (搜索/子域目录/正文提取，信封解析与 Bearer/匿名双模式)
+│   │   │   ├── anysearch_service.dart          # AnySearch 官方 REST 客户端 (搜索/子域目录/正文提取，信封解析与 Bearer/匿名双模式)
 │   │   │   ├── anlas_calculator.dart           # 现代 Anlas 消耗计算单一事实源 (Opus 免费档/分档超分计费)
 │   │   │   ├── inpaint_service.dart            # 焦点特写几何计算 (1MP 潜空间超采样/64 步长)、量化蒙版与无损回贴
 │   │   │   ├── watermark_service.dart          # 图像导出管道单一事实源 (可见水印/自动对比度/智能选位/Koch-Zhao DCT 盲水印)
@@ -125,13 +145,19 @@ Novelai-harness/
 │   │   │   ├── image_edit_service.dart         # 外部绘图模型整图编辑服务 (OpenAI 兼容 /chat/completions 传图返图)
 │   │   │   ├── rtx_upscale_service.dart        # Windows NVIDIA 驱动 VSR 子进程、取消/超时与临时文件清理
 │   │   │   ├── comfyui_service.dart            # ComfyUI PromptToolkit AI Bridge 客户端 (注册表探测/参数下发/采样器选项实时拉取)
+│   │   │   ├── danbooru_search_service.dart    # Danbooru 在线标签语义与共现检索客户端
 │   │   │   ├── image_metadata_service.dart     # PNG Chunks 与 Alpha LSB 隐写读取、元数据脱敏抹除与注入
+│   │   │   ├── media_store_service.dart        # Android MediaStore / SAF 树目录导出与系统剪贴板通道
+│   │   │   ├── notification_history_service.dart # 应用内通知中心持久化记录
 │   │   │   ├── palette_service.dart            # 图片主色盘提取 (MD3 Celebi 量化+Score 打分，后台 Isolate，LRU 缓存)
-│   │   │   ├── tag_dictionary_service.dart     # 32万+ Danbooru 离线词库检索、官方专属词同构合并、年代标签动态合成、多模态反查与缓存服务 (后台 Isolate)
+│   │   │   ├── preset_transfer_service.dart    # Agent 预设安全 JSON 导入导出服务
+│   │   │   ├── tag_dictionary_service.dart     # 32万+ Danbooru 离线词库检索、官方专属词同构合并、年代标签动态合成与缓存服务 (后台 Isolate)
+│   │   │   ├── tag_dictionary_update_service.dart # Danbooru 词库在线热更新检查与校验
 │   │   │   ├── prompt_ast_engine.dart          # NovelAI 提示词 AST 分词、权重增减、注释禁用与 SD 语法转换引擎
 │   │   │   ├── prompt_token_counter_service.dart # 提示词 Token 计数单一事实源 (T5/Qwen 真分词、V3 CLIP 启发式、黄/红双档阈值)
 │   │   │   ├── tokenizers/                     # 分词器实现 (T5 SentencePiece / Qwen3.5 BPE，词表资产 assets/tokenizers/)
 │   │   │   ├── prompt_library_service.dart     # 词组合预设库本地持久化、检索与 JSON 导入导出
+│   │   │   ├── prompt_library_sync_service.dart # 词库云同步双向增量合并与预览图去重传输客户端
 │   │   │   ├── skill_package_service.dart      # 技能目录/ZIP 安全导入、应用托管存储、资源读取与整包导出
 │   │   │   ├── config_service.dart             # 本地配置与 ~/.pi/agent/novelai.json 自动识别与内置预设同步
 │   │   │   ├── session_log_service.dart        # Pi 官方标准 JSONL 格式会话记录与多分支恢复
@@ -175,7 +201,8 @@ Novelai-harness/
 │           │       ├── tool_card.dart           # 工具卡片 (启用开关/Schema 查看)
 │           │       └── tool_editor_dialog.dart  # 自定义模板工具编辑弹窗
 │           └── studio/                         # 核心工作台功能区
-│               ├── view_models/                # Studio 状态管理中枢 (Mixin 分部架构)
+│               ├── view_models/                # Studio 状态管理中枢 (Mixin 分部 + 独立领域控制器)
+│               │   ├── board/board_controller.dart # 自由大画布独立领域控制器 (经 BoardControllerHost 与宿主解耦)
 │               │   ├── studio_view_model.dart  # 状态管理中枢：核心状态 Mixin + ViewModel 主体初始化与桥接
 │               │   ├── studio_vm_layout.dart    # 布局分部：三栏分割线拖拽防抖落盘与侧栏页签切换
 │               │   ├── studio_vm_harness.dart   # Harness 分部：工具装配/LLM切换/思考强度切换/预设与技能管理
@@ -185,9 +212,9 @@ Novelai-harness/
 │               │   ├── studio_vm_sessions.dart  # 会话分部：会话切换/新建/重命名/删除与消息树回溯
 │               │   ├── studio_vm_characters.dart # 角色分部：多角色提示词 CRUD 与画板定位同步
 │               │   ├── studio_vm_slash.dart     # 斜杠分部：斜杠指令分发与参数解析
-│               │   ├── studio_vm_library.dart  # 词库分部：词组合预设库检索/增删改/导入导出与一键应用
-│               │   ├── studio_vm_annotations.dart # 批注分部：自由大画布节点/便利贴 CRUD 与批注持久化同步
+│               │   ├── studio_vm_library.dart  # 词库分部：词组合预设库检索/增删改/云同步与一键应用
 │               │   ├── studio_vm_comfyui.dart  # ComfyUI 分部：Bridge 连接探测/选项清单拉取/参数推送/排队轮询与统一落图
+│               │   ├── streaming_controllers.dart # 高频瞬态控制器 (StreamingTextController / LiveProgressController)
 │               │   ├── chat_checkpoints.dart   # 消息树分支检查点 (回溯视图数据模型)
 │               │   ├── param_snapshot_journal.dart # 生图参数快照日志 (记录 Agent 参数修改差异)
 │               │   └── slash_command_catalog.dart # 内置斜杠指令目录单一事实源 (自动补全与 /help 共享)
@@ -244,8 +271,7 @@ Novelai-harness/
 │                   ├── agent_rewind_view.dart   # 历史时刻回溯视图 (双击 ESC 唤出)
 │                   ├── agent_session_list_view.dart # 会话抽屉列表视图 (管理多会话)
 │                   ├── inline_agent_question_card.dart # ask_user 结构化提问内嵌卡片
-│                   ├── pill_widgets.dart       # 胶囊选择器通用组件 (PillDropdown / ToggleChip)
-│                   ├── editable_slider.dart    # 精准数值微调滑块 (整型与浮点统一封装)
+│                   ├── app_dropdown.dart / app_number_slider.dart / app_segmented_controls.dart / app_toggle_controls.dart # 见 lib/ui/core/widgets/
 │                   └── studio_shared.dart       # 共享原子组件 (分组标题/清空按钮/Token 状态条)
 ```
 
@@ -459,9 +485,9 @@ $$\text{原始原图} \xrightarrow{\text{步骤 1}} \text{可见水印合成} \x
 
 ---
 
-### 3.6 StudioViewModel MVVM 分部组合架构
+### 3.6 StudioViewModel MVVM 分部组合与领域控制器架构
 
-为了避免单一 ViewModel 文件膨胀为千行上帝类，`StudioViewModel` 采用 Dart `part` 与 `Mixin` 机制解耦组合：
+为了避免单一 ViewModel 文件膨胀为千行上帝类，`StudioViewModel` 采用 Dart `part` + `Mixin` 分部组合，并试点将高内聚的自由大画布状态迁出为独立控制器 `BoardController`（经 `BoardControllerHost` 最小接口与宿主通信）：
 
 ```mermaid
 classDiagram
@@ -469,6 +495,7 @@ classDiagram
         +init()
         +updateConfig()
         +selectModel()
+        +board: BoardController
     }
     class _StudioCore {
         <<Fields>>
@@ -486,8 +513,8 @@ classDiagram
     class _StudioCharactersMixin
     class _StudioSlashMixin
     class _StudioLibraryMixin
-    class _StudioAnnotationsMixin
     class _StudioComfyMixin
+    class BoardController
 
     StudioViewModel --|> _StudioCore
     StudioViewModel ..> _StudioLayoutMixin
@@ -499,12 +526,12 @@ classDiagram
     StudioViewModel ..> _StudioCharactersMixin
     StudioViewModel ..> _StudioSlashMixin
     StudioViewModel ..> _StudioLibraryMixin
-    StudioViewModel ..> _StudioAnnotationsMixin
     StudioViewModel ..> _StudioComfyMixin
+    StudioViewModel *-- BoardController
 ```
 
 - **`_StudioCore`**：统一定义所有私有核心状态字段与数据访问契约；
-- **各领域 Mixin**：将布局、Harness 调度、生图流水线、修复处理、对话与流式节流、会话分支、角色管理、斜杠指令、词库、大画布批注、ComfyUI 桥接等逻辑高内聚拆分到各个独立分部中，保持各业务职责极其明确。
+- **各领域 Mixin 与控制器**：将布局、Harness 调度、生图流水线、修复处理、对话与流式节流、会话分支、角色管理、斜杠指令、词库、ComfyUI 桥接等逻辑拆分到独立分部，并将自由大画布批注域独立为 `BoardController`。
 
 ---
 

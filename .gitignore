@@ -82,3 +82,8 @@ output/
 
 # Personal terminal themes (not project files)
 /themes/
+
+# Local scratch, review, lint cache and DevTools stub
+/.review_tmp/
+/.ruff_cache/
+/devtools_options.yaml

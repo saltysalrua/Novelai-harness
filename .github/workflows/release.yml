@@ -139,8 +139,11 @@ jobs:
   # 阶段二 A：构建 Windows 发行包
   build-windows:
     name: Build Windows (x64)
-    needs: check
-    if: needs.check.outputs.should_build == 'true'
+    needs: [check, verify]
+    if: >-
+      !failure() && !cancelled() &&
+      needs.check.outputs.should_build == 'true' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -183,8 +186,11 @@ jobs:
   # 各 APK 自动携带互不冲突的 versionCode，可直接上架/侧载。
   build-android:
     name: Build Android (split ABI)
-    needs: check
-    if: needs.check.outputs.should_build == 'true'
+    needs: [check, verify]
+    if: >-
+      !failure() && !cancelled() &&
+      needs.check.outputs.should_build == 'true' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -253,8 +259,11 @@ jobs:
   # 阶段二 C：构建 macOS (Apple Silicon / arm64) 发行包
   build-macos:
     name: Build macOS (arm64)
-    needs: check
-    if: needs.check.outputs.should_build == 'true'
+    needs: [check, verify]
+    if: >-
+      !failure() && !cancelled() &&
+      needs.check.outputs.should_build == 'true' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     runs-on: macos-15
     timeout-minutes: 45
     steps:

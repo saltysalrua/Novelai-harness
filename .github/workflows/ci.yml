@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+  pull_request:
+    branches: [master]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.47.4"
+  FLUTTER_CHANNEL: "stable"
+  GITLEAKS_VERSION: "8.24.3"
+
+jobs:
+  analyze-and-test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Resolve dependencies
+        run: |
+          flutter config --no-analytics
+          flutter pub get
+
+      - name: Static analysis
+        run: dart run tool/gates.dart analyze
+
+      - name: Run Flutter tests
+        run: dart run tool/gates.dart test --concurrency=2 --reporter=expanded --dart-define=HARNESS_AUTO_IMPORT_CREDENTIALS=false
+
+  cloudflare-worker:
+    name: Cloudflare Worker Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Run Worker tests
+        working-directory: cloudflare/prompt-library-sync
+        run: npm test
+
+  secret-scan:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0
+
+      - name: Install and run gitleaks
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks git --config .gitleaks.toml --no-banner --redact
+          /tmp/gitleaks dir --config .gitleaks.toml --no-banner --redact .
