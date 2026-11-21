@@ -277,7 +277,7 @@ mixin _StudioGenerationMixin on _StudioCore {
         _isGenerating = false;
         _liveProgressController.clear();
         notifyListeners();
-        refreshAccountInfo();
+        unawaited(refreshAccountInfo());
       }
     } else {
       try {
@@ -317,7 +317,7 @@ mixin _StudioGenerationMixin on _StudioCore {
         _isGenerating = false;
         _liveProgressController.clear();
         notifyListeners();
-        refreshAccountInfo();
+        unawaited(refreshAccountInfo());
       }
     }
   }
@@ -427,7 +427,7 @@ mixin _StudioGenerationMixin on _StudioCore {
     } finally {
       _isGenerating = false;
       notifyListeners();
-      refreshAccountInfo();
+      unawaited(refreshAccountInfo());
     }
   }
 

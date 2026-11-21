@@ -371,10 +371,14 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
   @override
   Widget build(BuildContext context) {
     final viewModel = widget.viewModel;
-    final boardData = viewModel.board.boardData;
-    final colors = context.colors;
 
-    return LayoutBuilder(
+    return ListenableBuilder(
+      listenable: viewModel.board,
+      builder: (context, _) {
+        final boardData = viewModel.board.boardData;
+        final colors = context.colors;
+
+        return LayoutBuilder(
       builder: (context, constraints) {
         if (_viewportSize != constraints.biggest) {
           _viewportSize = constraints.biggest;
@@ -687,6 +691,8 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
             },
           ),
         );
+      },
+    );
       },
     );
   }

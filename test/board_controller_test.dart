@@ -145,23 +145,32 @@ class _FakeBoardHost implements BoardControllerHost {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('BoardController 隔离用例 (阶段 4D 试点契约)', () {
-    test('通知边界：状态变更借用宿主广播，视口更新不广播', () {
+  group('BoardController 局部通知与宿主契约', () {
+    test('通知边界：画板内部变更仅局部通知，外壳切换同步宿主广播，视口更新不广播', () {
       final host = _FakeBoardHost();
       final controller = BoardController(
         host: host,
         repository: NovelAiRepository(),
       );
+      var localNotifyCount = 0;
+      controller.addListener(() => localNotifyCount++);
 
       controller.addNoteNode(text: '通知边界');
-      expect(host.notifyCount, 1, reason: '便签变更应经宿主全局广播');
+      expect(localNotifyCount, 1, reason: '便签变更应触发画板局部通知');
+      expect(host.notifyCount, 0, reason: '便签变更不应触发宿主全局广播');
 
       controller.selectAnnotationId('ann-x');
-      expect(host.notifyCount, 2, reason: '选中批注应经宿主全局广播');
+      expect(localNotifyCount, 2, reason: '选中批注应触发画板局部通知');
+      expect(host.notifyCount, 0, reason: '选中批注不应触发宿主全局广播');
 
-      // 视口矩阵只更新数据并防抖落盘，不触发任何广播 (决策门 §4-3 契约)
+      controller.setAnnotatingImage(true);
+      expect(localNotifyCount, 3, reason: '切换批注模式应同步触发画板局部通知');
+      expect(host.notifyCount, 1, reason: '切换批注模式属于外壳状态，应触发宿主全局广播');
+
+      // 视口矩阵只更新数据并防抖落盘，不触发任何广播
       controller.updateBoardViewport(1.2, 10.0, 20.0);
-      expect(host.notifyCount, 2);
+      expect(localNotifyCount, 3);
+      expect(host.notifyCount, 1);
       expect(controller.boardData.viewScale, 1.2);
       expect(controller.boardData.viewTx, 10.0);
       expect(controller.boardData.viewTy, 20.0);
@@ -175,17 +184,26 @@ void main() {
         host: host,
         repository: NovelAiRepository(),
       );
+      var localNotifyCount = 0;
+      controller.addListener(() => localNotifyCount++);
 
       controller.addNoteNode(text: '第一批');
+      expect(localNotifyCount, 1);
+      expect(host.notifyCount, 0);
+
+      controller.setAnnotatingImage(true);
+      expect(localNotifyCount, 2);
       expect(host.notifyCount, 1);
+
       controller.dispose();
 
-      // dispose 后的迟到写入：不再触碰宿主 (不抛异常、不广播)
+      // dispose 后的迟到写入：不再触发局部通知或宿主广播 (不抛异常)
       controller.addNoteNode(text: '迟到批次');
-      expect(host.notifyCount, 1, reason: 'dispose 后广播必须被 _alive 卫语句拦截');
       controller.updateBoardViewport(2.0, 1.0, 1.0);
       controller.selectAnnotationId('late');
-      expect(host.notifyCount, 1);
+      controller.setAnnotatingImage(false);
+      expect(localNotifyCount, 2, reason: 'dispose 后局部通知必须被 _alive 卫语句拦截');
+      expect(host.notifyCount, 1, reason: 'dispose 后宿主广播必须被 _alive 卫语句拦截');
     });
 
     test('sendChatMessage 回调注入：批注汇总消息经宿主发送', () async {

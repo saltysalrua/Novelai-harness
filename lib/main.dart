@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -24,7 +26,7 @@ void main() async {
   AppWidgetsFlutterBinding.ensureInitialized();
 
   // 异步预热 Danbooru 词库索引 (后台 isolate，零阻塞 UI)
-  TagDictionaryService.instance.ensureLoaded();
+  unawaited(TagDictionaryService.instance.ensureLoaded());
 
   if (!kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||

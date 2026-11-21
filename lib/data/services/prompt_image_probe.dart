@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -95,7 +96,7 @@ abstract final class PromptImageProbe {
       } catch (_) {
         return null;
       } finally {
-        _inFlight.remove(key);
+        unawaited(_inFlight.remove(key));
       }
     });
   }

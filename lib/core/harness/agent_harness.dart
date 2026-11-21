@@ -1140,11 +1140,10 @@ class _HarnessRun {
     late final StreamController<T> controller;
     StreamSubscription<T>? subscription;
     void cancelSource() {
-      final current = subscription;
-      subscription = null;
       // 上游可能阻塞在网络或 async* await；清理不能反向阻塞中断。
-      if (current != null) {
-        unawaited(current.cancel().catchError((Object _) {}));
+      if (subscription != null) {
+        unawaited(subscription!.cancel().catchError((Object _) {}));
+        subscription = null;
       }
     }
 

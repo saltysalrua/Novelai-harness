@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/tools/canvas_view_tool.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
+import 'package:novelai_harness/data/services/annotation_overlay_renderer.dart';
 
 /// 用离屏绘制生成一张纯色测试 PNG
 Future<Uint8List> makeTestPng(int width, int height, int colorValue) async {
@@ -266,6 +267,7 @@ void main() {
           ),
         ],
         isModelMultimodal: () => true,
+        renderOverlay: renderImageWithCharacterOverlay,
       );
 
       final result = await tool.execute('t1', {});

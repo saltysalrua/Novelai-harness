@@ -39,6 +39,7 @@ import '../../../../data/models/prompt_library_sync_models.dart';
 import '../../../../data/models/skill_package.dart';
 import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
+import '../../../../data/services/annotation_overlay_renderer.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/comfyui_service.dart';
 import '../../../../data/services/image_file_store.dart';
@@ -63,7 +64,7 @@ import '../../../../l10n/app_localizations.dart'
 import '../../../core/widgets/app_toast.dart';
 import 'param_snapshot_journal.dart';
 import 'board/board_controller.dart';
-import 'slash_command_catalog.dart';
+import 'slash_command_dispatcher.dart';
 import 'streaming_controllers.dart';
 
 part 'studio_vm_characters.dart';
@@ -999,7 +1000,7 @@ class StudioViewModel extends ChangeNotifier
       );
       if (_repository.history.isNotEmpty && _selectedImage == null) {
         _selectedImage = _repository.history.first;
-        ensureImageLoaded(_selectedImage!);
+        unawaited(ensureImageLoaded(_selectedImage!));
         _scheduleAdaptiveAccent(_selectedImage!);
       }
 
@@ -1145,7 +1146,7 @@ class StudioViewModel extends ChangeNotifier
           );
           if (_repository.history.isNotEmpty && _selectedImage == null) {
             _selectedImage = _repository.history.first;
-            ensureImageLoaded(_selectedImage!);
+            unawaited(ensureImageLoaded(_selectedImage!));
             _scheduleAdaptiveAccent(_selectedImage!);
           }
         } else {
@@ -1404,7 +1405,7 @@ class StudioViewModel extends ChangeNotifier
             ? deletedIndex
             : gallery.length - 1;
         _selectedImage = gallery[nextIndex];
-        ensureImageLoaded(_selectedImage!);
+        unawaited(ensureImageLoaded(_selectedImage!));
         _scheduleAdaptiveAccent(_selectedImage!);
       } else {
         _selectedImage = null;

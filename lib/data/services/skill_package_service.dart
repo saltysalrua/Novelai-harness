@@ -521,10 +521,14 @@ class SkillPackageService {
       );
     }
     final sink = _LimitedByteSink(limit);
-    await for (final chunk in file.openRead()) {
-      sink.add(chunk);
+    try {
+      await for (final chunk in file.openRead()) {
+        sink.add(chunk);
+      }
+      return sink.bytes.takeBytes();
+    } finally {
+      sink.close();
     }
-    return sink.bytes.takeBytes();
   }
 }
 

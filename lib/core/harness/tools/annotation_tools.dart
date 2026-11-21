@@ -1,9 +1,6 @@
 import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' as ui;
-
-import 'package:flutter/painting.dart';
+import 'dart:ui' show Offset, Rect;
 
 import '../../../data/models/novelai_models.dart';
 import '../../../data/services/anlas_calculator.dart';
@@ -33,330 +30,27 @@ class AnnotationOverlayRenderResult {
   });
 }
 
-/// 将批注覆盖层 (选区边框、锚点、编号徽章与标签) 离屏绘制到图像字节上
-Future<AnnotationOverlayRenderResult> renderImageWithAnnotationOverlay(
-  Uint8List imageBytes,
-  List<ImageAnnotation> annotations, {
-  int maxDimension = 1536,
-  bool whiteBackground = false,
-}) async {
-  ui.Codec? codec;
-  ui.Image? source;
-  ui.Picture? picture;
-  ui.Image? outImage;
-  try {
-    codec = await ui.instantiateImageCodec(imageBytes);
-    final frame = await codec.getNextFrame();
-    source = frame.image;
-
-    final longSide = math.max(source.width, source.height);
-    final scale = longSide > maxDimension ? maxDimension / longSide : 1.0;
-    final outW = math.max(1, (source.width * scale).round());
-    final outH = math.max(1, (source.height * scale).round());
-
-    final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(
-      recorder,
-      ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
-    );
-
-    if (whiteBackground) {
-      canvas.drawRect(
-        ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
-        ui.Paint()..color = const ui.Color(0xFFFFFFFF),
-      );
-    }
-
-    // 1. 绘制底图
-    canvas.drawImageRect(
-      source,
-      ui.Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
-      ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
-      ui.Paint()..filterQuality = ui.FilterQuality.medium,
-    );
-
-  final canvasSize = ui.Size(outW.toDouble(), outH.toDouble());
-
-  // 2. 依次绘制各条批注
-  for (var i = 0; i < annotations.length; i++) {
-    final ann = annotations[i];
-    final color = ann.color;
-    final indexNum = i + 1;
-
-    switch (ann.type) {
-      case AnnotationType.rect:
-        if (ann.rect != null) {
-          final r = ann.rect!;
-          final drawRect = ui.Rect.fromLTWH(
-            r.left * canvasSize.width,
-            r.top * canvasSize.height,
-            r.width * canvasSize.width,
-            r.height * canvasSize.height,
-          );
-
-          // 半透明高亮填充
-          canvas.drawRect(
-            drawRect,
-            ui.Paint()
-              ..color = color.withValues(alpha: 0.18)
-              ..style = ui.PaintingStyle.fill,
-          );
-
-          // 矩形边框
-          canvas.drawRect(
-            drawRect,
-            ui.Paint()
-              ..color = color
-              ..style = ui.PaintingStyle.stroke
-              ..strokeWidth = math.max(2.0, canvasSize.shortestSide * 0.0035),
-          );
-
-          // 编号图钉锚点 (绘制在选区左上角)
-          final badgeDiameter = (canvasSize.width * 0.035).clamp(24.0, 52.0);
-          final badgeCenter = ui.Offset(
-            (drawRect.left + badgeDiameter * 0.6).clamp(
-              badgeDiameter / 2,
-              canvasSize.width - badgeDiameter / 2,
-            ),
-            (drawRect.top + badgeDiameter * 0.6).clamp(
-              badgeDiameter / 2,
-              canvasSize.height - badgeDiameter / 2,
-            ),
-          );
-
-          _drawPinBadge(canvas, badgeCenter, badgeDiameter, indexNum, color);
-
-          // 批注简要文字标签 (若有)
-          if (ann.note.trim().isNotEmpty) {
-            _drawNoteLabelBadge(
-              canvas,
-              canvasSize,
-              ann.note.trim(),
-              badgeCenter.dx + badgeDiameter * 0.7,
-              badgeCenter.dy - badgeDiameter * 0.5,
-              color,
-            );
-          }
-        }
-        break;
-
-      case AnnotationType.point:
-        if (ann.point != null) {
-          final p = ann.point!;
-          final badgeDiameter = (canvasSize.width * 0.035).clamp(24.0, 52.0);
-          final center = ui.Offset(
-            p.dx * canvasSize.width,
-            p.dy * canvasSize.height,
-          );
-
-          _drawPinBadge(canvas, center, badgeDiameter, indexNum, color);
-
-          if (ann.note.trim().isNotEmpty) {
-            _drawNoteLabelBadge(
-              canvas,
-              canvasSize,
-              ann.note.trim(),
-              center.dx + badgeDiameter * 0.7,
-              center.dy - badgeDiameter * 0.5,
-              color,
-            );
-          }
-        }
-        break;
-
-      case AnnotationType.global:
-        // 整图全局批注在右上角绘制醒目标签
-        final noteText = ann.note.trim().isNotEmpty ? ann.note.trim() : '整图批注';
-        _drawGlobalBanner(canvas, canvasSize, indexNum, noteText, color, i);
-        break;
-    }
-  }
-
-    picture = recorder.endRecording();
-    outImage = await picture.toImage(outW, outH);
-    final data = await outImage.toByteData(format: ui.ImageByteFormat.png);
-
-    final bytes = data?.buffer.asUint8List();
-    if (bytes == null || bytes.isEmpty) {
-      throw StateError('批注覆盖层编码失败');
-    }
-
-    return AnnotationOverlayRenderResult(
-      bytes: bytes,
-      width: outW,
-      height: outH,
-      overlayApplied: true,
-    );
-  } finally {
-    outImage?.dispose();
-    picture?.dispose();
-    source?.dispose();
-    codec?.dispose();
-  }
-}
-
-void _drawPinBadge(
-  ui.Canvas canvas,
-  ui.Offset center,
-  double diameter,
-  int number,
-  ui.Color color,
-) {
-  // 外阴影白描边
-  canvas.drawCircle(
-    center,
-    diameter / 2 + 2.5,
-    ui.Paint()..color = const ui.Color(0xFFFFFFFF),
-  );
-  // 实色底圆
-  canvas.drawCircle(center, diameter / 2, ui.Paint()..color = color);
-  // 编号数字
-  final fontSize = diameter * 0.48;
-  final painter = TextPainter(
-    text: TextSpan(
-      text: '$number',
-      style: TextStyle(
-        color: const ui.Color(0xFFFFFFFF),
-        fontSize: fontSize,
-        fontWeight: FontWeight.w800,
-      ),
-    ),
-    textAlign: TextAlign.center,
-    textDirection: TextDirection.ltr,
-  );
-  try {
-    painter.layout();
-    painter.paint(
-      canvas,
-      center - ui.Offset(painter.width / 2, painter.height / 2),
-    );
-  } finally {
-    painter.dispose();
-  }
-}
-
-void _drawNoteLabelBadge(
-  ui.Canvas canvas,
-  ui.Size canvasSize,
-  String text,
-  double left,
-  double top,
-  ui.Color color,
-) {
-  final singleLineText = text.replaceAll('\n', ' ');
-  final truncated = singleLineText.length > 24
-      ? '${singleLineText.substring(0, 24)}...'
-      : singleLineText;
-
-  final fontSize = (canvasSize.width * 0.015).clamp(11.0, 22.0);
-  final painter = TextPainter(
-    text: TextSpan(
-      text: truncated,
-      style: TextStyle(
-        color: const ui.Color(0xFFFFFFFF),
-        fontSize: fontSize,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-    textDirection: TextDirection.ltr,
-  );
-  try {
-    painter.layout();
-
-    const padH = 7.0;
-    const padV = 3.5;
-    final badgeW = painter.width + padH * 2;
-    final badgeH = painter.height + padV * 2;
-
-    final clampedL = left
-        .clamp(0.0, math.max(0.0, canvasSize.width - badgeW))
-        .toDouble();
-    final clampedT = top
-        .clamp(0.0, math.max(0.0, canvasSize.height - badgeH))
-        .toDouble();
-
-    final rrect = ui.RRect.fromRectAndRadius(
-      ui.Rect.fromLTWH(clampedL, clampedT, badgeW, badgeH),
-      const ui.Radius.circular(5),
-    );
-    canvas.drawRRect(rrect, ui.Paint()..color = const ui.Color(0xEB1E1E24));
-    canvas.drawRRect(
-      rrect,
-      ui.Paint()
-        ..color = color.withValues(alpha: 0.8)
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.2,
-    );
-    painter.paint(canvas, ui.Offset(clampedL + padH, clampedT + padV));
-  } finally {
-    painter.dispose();
-  }
-}
-
-void _drawGlobalBanner(
-  ui.Canvas canvas,
-  ui.Size canvasSize,
-  int number,
-  String noteText,
-  ui.Color color,
-  int index,
-) {
-  final text = '#$number 整图: $noteText';
-  final singleLineText = text.replaceAll('\n', ' ');
-  final truncated = singleLineText.length > 32
-      ? '${singleLineText.substring(0, 32)}...'
-      : singleLineText;
-
-  final fontSize = (canvasSize.width * 0.015).clamp(11.0, 20.0);
-  final painter = TextPainter(
-    text: TextSpan(
-      text: truncated,
-      style: TextStyle(
-        color: const ui.Color(0xFFFFFFFF),
-        fontSize: fontSize,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-    textDirection: TextDirection.ltr,
-  );
-  try {
-    painter.layout();
-
-    const padH = 10.0;
-    const padV = 5.0;
-    final badgeW = painter.width + padH * 2;
-    final badgeH = painter.height + padV * 2;
-    final top = 12.0 + index * (badgeH + 6.0);
-    final left = (canvasSize.width - badgeW - 12.0).clamp(0.0, canvasSize.width);
-
-    final rrect = ui.RRect.fromRectAndRadius(
-      ui.Rect.fromLTWH(left, top, badgeW, badgeH),
-      const ui.Radius.circular(6),
-    );
-    canvas.drawRRect(rrect, ui.Paint()..color = const ui.Color(0xF018181B));
-    canvas.drawRRect(
-      rrect,
-      ui.Paint()
-        ..color = color
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
-    painter.paint(canvas, ui.Offset(left + padH, top + padV));
-  } finally {
-    painter.dispose();
-  }
-}
+/// 离屏绘制批注覆盖层的回调签名（由数据/渲染层注入，保持 core 层无 Flutter painting 依赖）。
+typedef AnnotationOverlayRenderFn =
+    Future<AnnotationOverlayRenderResult> Function(
+      Uint8List imageBytes,
+      List<ImageAnnotation> annotations, {
+      int maxDimension,
+      bool whiteBackground,
+    });
 
 /// 查看画板图片批注工具：获取历史图片及其全部圈选批注、锚点与整图备注
 class ViewImageAnnotationsTool extends AgentTool {
   final CanvasHistoryGetter getHistory;
   final ModelVisionChecker isModelMultimodal;
   final CanvasImageBytesLoader? loadImageBytes;
+  final AnnotationOverlayRenderFn? renderOverlay;
 
   ViewImageAnnotationsTool({
     required this.getHistory,
     required this.isModelMultimodal,
     this.loadImageBytes,
+    this.renderOverlay,
   }) : super(
          name: 'view_image_annotations',
          label: '查看图片批注',
@@ -456,9 +150,10 @@ class ViewImageAnnotationsTool extends AgentTool {
     var overlayApplied = false;
 
     if (attachImage) {
-      if (withOverlay && annotations.isNotEmpty) {
+      final renderer = renderOverlay;
+      if (withOverlay && annotations.isNotEmpty && renderer != null) {
         try {
-          final rendered = await renderImageWithAnnotationOverlay(
+          final rendered = await renderer(
             imageBytes,
             annotations,
             maxDimension: fullResolution ? 1536 : kVisionImageMaxSide,

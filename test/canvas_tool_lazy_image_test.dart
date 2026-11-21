@@ -15,6 +15,7 @@ import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/data/services/anlas_calculator.dart';
+import 'package:novelai_harness/data/services/annotation_overlay_renderer.dart';
 
 import 'view_canvas_image_tool_test.dart' show makeTestPng;
 
@@ -86,11 +87,13 @@ void main() {
           getHistory: () => restored.history,
           loadImageBytes: loader ?? restored.loadHistoryImageBytes,
           isModelMultimodal: () => true,
+          renderOverlay: renderImageWithAnnotationOverlay,
         )
       : ViewCanvasImageTool(
           getHistory: () => restored.history,
           loadImageBytes: loader ?? restored.loadHistoryImageBytes,
           isModelMultimodal: () => true,
+          renderOverlay: renderImageWithCharacterOverlay,
         );
 
   for (final annotations in [false, true]) {

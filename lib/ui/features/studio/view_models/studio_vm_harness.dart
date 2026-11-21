@@ -219,6 +219,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         loadImageBytes: _repository.loadHistoryImageBytes,
         isModelMultimodal: () =>
             _config.activeLlmProvider.activeModel.isMultimodal,
+        renderOverlay: renderImageWithCharacterOverlay,
       ),
     );
     // Agent 批注增删改查四件套工具：写入口统一走 board.replaceImageAnnotations
@@ -229,6 +230,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         loadImageBytes: _repository.loadHistoryImageBytes,
         isModelMultimodal: () =>
             _config.activeLlmProvider.activeModel.isMultimodal,
+        renderOverlay: renderImageWithAnnotationOverlay,
       ),
     );
     _toolRegistry.register(

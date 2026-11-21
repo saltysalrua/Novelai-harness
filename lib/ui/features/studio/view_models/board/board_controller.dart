@@ -4,12 +4,12 @@ import 'dart:ui' show Offset;
 
 import 'package:flutter/foundation.dart';
 
-import '../../../../../core/harness/tools/annotation_tools.dart';
 import '../../../../../core/harness/tools/vision_image_codec.dart';
 import '../../../../../core/harness/types.dart';
 import '../../../../../data/models/novelai_models.dart';
 import '../../../../../data/repositories/novelai_repository.dart';
 import '../../../../../data/services/anlas_calculator.dart';
+import '../../../../../data/services/annotation_overlay_renderer.dart';
 
 /// 自由大画布领域控制器的宿主回调接口。
 ///
@@ -54,9 +54,11 @@ abstract interface class BoardControllerHost {
 /// 阶段 4D 批准的唯一拆分试点，整域自 studio_vm_annotations.dart (930 行)
 /// 平移而来，方法签名保持不变；宿主经 [BoardControllerHost] 最小接口交互。
 ///
-/// 通知策略：继承 ChangeNotifier 供未来局部监听，但试点期所有状态变更统一
-/// 经 [BoardControllerHost.requestGlobalNotify] 借用宿主广播，自身不直接
-/// notifyListeners (避免 UI 层连锁改造)。
+/// 通知策略：
+/// - 画板内部节点/连线/选区/便签等变更仅经 [_broadcast] 触发局部 `super.notifyListeners()`，
+///   由 [FreeformAnnotationBoard] 局部重建消费，不触发宿主全局刷新；
+/// - 批注模式开关切换或宿主选中图片历史批注变更时经 [_broadcastShell] 同步触发
+///   局部通知与 [BoardControllerHost.requestGlobalNotify]。
 ///
 /// 迟到写入防护：dispose 后所有广播与宿主回调用 [_alive] 卫语句拦截，
 /// 异步链 (await 仓库落盘 / 字节解码) 在恢复执行前必须复查存活状态。
@@ -102,9 +104,16 @@ class BoardController extends ChangeNotifier {
 
   // ------------------------- 宿主交互封装 -------------------------
 
-  /// 借用宿主全局广播 (dispose 后静默丢弃，保护已释放宿主)
+  /// 触发大画板局部通知 (dispose 后静默丢弃)
   void _broadcast() {
     if (!_alive) return;
+    super.notifyListeners();
+  }
+
+  /// 同步触发局部通知与宿主壳全局广播 (批注模式切换、历史选图批注变更等)
+  void _broadcastShell() {
+    if (!_alive) return;
+    super.notifyListeners();
     _host.requestGlobalNotify();
   }
 
@@ -342,7 +351,7 @@ class BoardController extends ChangeNotifier {
       // 保留画布数据供下次进入恢复，仅清理选中高亮
       _activeAnnotationId = null;
     }
-    _broadcast();
+    _broadcastShell();
   }
 
   /// 记录大画布视口矩阵 (InteractiveViewer 平移/缩放，仅更新数据并防抖落盘，
@@ -875,7 +884,7 @@ class BoardController extends ChangeNotifier {
     if (_host.boardSelectedImage?.id == imageId) {
       _host.onBoardSelectedImageChanged(_repository.history[index]);
     }
-    _broadcast();
+    _broadcastShell();
     return true;
   }
 
@@ -921,7 +930,8 @@ class BoardController extends ChangeNotifier {
       createdAt: DateTime.now(),
     );
 
-    if (_isAnnotatingImage) {
+    final wasAnnotating = _isAnnotatingImage;
+    if (wasAnnotating) {
       addImageNodeToBoard(refImage, position: dropPosition);
     } else {
       // 进入批注模式展示参考图，但绝不占据主图位、不劫持当前选中图：
@@ -945,7 +955,11 @@ class BoardController extends ChangeNotifier {
       }
       addImageNodeToBoard(refImage, position: dropPosition);
     }
-    _broadcast();
+    if (wasAnnotating) {
+      _broadcast();
+    } else {
+      _broadcastShell();
+    }
     return refImage;
   }
 
@@ -1098,7 +1112,7 @@ class BoardController extends ChangeNotifier {
 
     // 退出批注模式并发送对话
     _isAnnotatingImage = false;
-    _broadcast();
+    _broadcastShell();
 
     await _host.sendChatMessage(
       buffer.toString(),

@@ -4,6 +4,7 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/tools/annotation_tools.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
+import 'package:novelai_harness/data/services/annotation_overlay_renderer.dart';
 
 Future<Uint8List> createTestPngBytes({
   int width = 100,
@@ -139,6 +140,7 @@ void main() {
         final tool = ViewImageAnnotationsTool(
           getHistory: () => [image],
           isModelMultimodal: () => true,
+          renderOverlay: renderImageWithAnnotationOverlay,
         );
 
         final result = await tool.execute('call-3', {
