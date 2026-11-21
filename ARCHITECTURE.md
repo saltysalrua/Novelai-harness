@@ -46,7 +46,7 @@ graph TD
     Core --> Data
 ```
 
-- **Core Harness Layer (`lib/core/`)**：轻量级 AI Agent 运行时。不依赖 Flutter UI 控件，通过事件流（Event Stream）驱动，负责对话生命周期、瞬态错误退避重试、Token 驱动的自适应上下文压缩、工具注册与执行、以及技能动态加载。
+- **Core Harness Layer (`lib/core/`)**：轻量级 AI Agent 运行时。完全不含 `package:flutter/` 依赖，通过事件流（Event Stream）驱动，负责对话生命周期、瞬态错误退避重试、Token 驱动的自适应上下文压缩、工具注册与执行、以及技能动态加载。
 - **Data Layer (`lib/data/`)**：负责外部 API 通信、数据持久化、复杂数学/图像处理与底层服务。包含 NovelAI 协议适配、焦点重绘几何算法、DCT 盲水印管道、32万+ Danbooru 离线字典检索等核心服务。
 - **UI Presentation Layer (`lib/ui/`)**：纯声明式 Flutter 界面，严格践行 MVVM 模式。视图（View）只负责布局、用户手势与视觉渲染，所有业务状态与事件分发完全由 `StudioViewModel`（通过 Mixin 分部组合）集中调度。
 
@@ -78,7 +78,11 @@ Novelai-harness/
 │   │       │   └── agent_preset.dart           # Agent 预设模型 (系统提示词/可用Skills/工具与参数权限白名单)
 │   │       ├── providers/
 │   │       │   ├── llm_provider.dart           # LLM 提供商通用接口抽象
-│   │       │   ├── openai_provider.dart        # OpenAI Chat 兼容协议及多协议调度入口
+│   │       │   ├── llm_provider_factory.dart   # 多协议客户端统一装配工厂 (/interactions 与 OpenAI 兼容直出分发)
+│   │       │   ├── openai_provider.dart        # OpenAI Chat 兼容协议与多协议编排入口
+│   │       │   ├── endpoint_capability_cache.dart # 按端点+模型实例隔离的能力降级缓存 (消除全局可变静态集)
+│   │       │   ├── provider_http_transport.dart # 跨协议共享 HTTP/SSE 流式传输、工具 ID 规范化与重试状态机
+│   │       │   ├── protocol_stream_executors.dart # Anthropic Messages 与 OpenAI Responses 独立流式执行器
 │   │       │   ├── openai_responses.dart       # OpenAI Responses API (`/v1/responses`) 编解码
 │   │       │   ├── anthropic_messages.dart     # Anthropic Messages API (`/v1/messages`) 编解码与思考回放
 │   │       │   ├── google_interactions_provider.dart # Google Gemini Interactions API 客户端
@@ -87,11 +91,11 @@ Novelai-harness/
 │   │       │   └── tool_call_ids.dart          # 工具调用 ID 规范化与去重
 │   │       ├── tools/
 │   │       │   ├── agent_tool.dart             # 工具抽象基类、执行上下文与工具注册中心
-│   │       │   ├── annotation_tools.dart       # 画板批注五件套工具与覆盖层离屏绘制 (view/add/update/remove/clear)
+│   │       │   ├── annotation_tools.dart       # 画板批注五件套工具 (view/add/update/remove/clear，覆盖层渲染经回调注入)
 │   │       │   ├── anysearch_tools.dart       # AnySearch 网络搜索三件套工具 (web_search / get_search_domains / web_extract)
 │   │       │   ├── ask_user_tool.dart          # 向用户提出结构化单选/多选/填空问题 (ask_user)
 │   │       │   ├── context_memory_tool.dart    # 会话笔记与请求侧释放 (context_memory)
-│   │       │   ├── canvas_view_tool.dart       # 画板历史图片查看工具 (view_canvas_image，支持索引与覆盖层)
+│   │       │   ├── canvas_view_tool.dart       # 画板历史图片查看工具 (view_canvas_image，覆盖层渲染经回调注入)
 │   │       │   ├── character_prompt_tools.dart  # 多角色提示词增删改查四件套工具
 │   │       │   ├── danbooru_search_tools.dart  # Danbooru 离线/在线语义搜索与 NPMI 画师推荐工具
 │   │       │   ├── describe_tools_tool.dart    # 精简工具表面按需展开 Schema (describe_tools)
@@ -159,7 +163,9 @@ Novelai-harness/
 │   │   │   ├── prompt_library_service.dart     # 词组合预设库本地持久化、检索与 JSON 导入导出
 │   │   │   ├── prompt_library_sync_service.dart # 词库云同步双向增量合并与预览图去重传输客户端
 │   │   │   ├── skill_package_service.dart      # 技能目录/ZIP 安全导入、应用托管存储、资源读取与整包导出
-│   │   │   ├── config_service.dart             # 本地配置与 ~/.pi/agent/novelai.json 自动识别与内置预设同步
+│   │   │   ├── annotation_overlay_renderer.dart # 批注与角色锚点覆盖层 Flutter 离屏绘制服务
+│   │   │   ├── secret_store.dart             # API 密钥/云同步令牌存储边界抽象 (SecretStore / SharedPreferencesSecretStore)
+│   │   │   ├── config_service.dart             # 全局协调配置与统一串行写队列 (`ConfigService.shared` + SecretStore)
 │   │   │   ├── session_log_service.dart        # Pi 官方标准 JSONL 格式会话记录与多分支恢复
 │   │   │   ├── usage_ledger_service.dart       # Token 增量账本记录、去重与多维聚合统计
 │   │   │   ├── llm_model_fetcher.dart          # 在线拉取远程 LLM 模型列表与能力元数据自动解析
@@ -202,7 +208,7 @@ Novelai-harness/
 │           │       └── tool_editor_dialog.dart  # 自定义模板工具编辑弹窗
 │           └── studio/                         # 核心工作台功能区
 │               ├── view_models/                # Studio 状态管理中枢 (Mixin 分部 + 独立领域控制器)
-│               │   ├── board/board_controller.dart # 自由大画布独立领域控制器 (经 BoardControllerHost 与宿主解耦)
+│               │   ├── board/board_controller.dart # 自由大画布独立领域控制器 (局部 ChangeNotifier + 外壳广播分级)
 │               │   ├── studio_view_model.dart  # 状态管理中枢：核心状态 Mixin + ViewModel 主体初始化与桥接
 │               │   ├── studio_vm_layout.dart    # 布局分部：三栏分割线拖拽防抖落盘与侧栏页签切换
 │               │   ├── studio_vm_harness.dart   # Harness 分部：工具装配/LLM切换/思考强度切换/预设与技能管理
@@ -211,7 +217,8 @@ Novelai-harness/
 │               │   ├── studio_vm_chat.dart      # 对话分部：多轮对话/图片附件/ask_user提问/付费确认/通知节流
 │               │   ├── studio_vm_sessions.dart  # 会话分部：会话切换/新建/重命名/删除与消息树回溯
 │               │   ├── studio_vm_characters.dart # 角色分部：多角色提示词 CRUD 与画板定位同步
-│               │   ├── studio_vm_slash.dart     # 斜杠分部：斜杠指令分发与参数解析
+│               │   ├── studio_vm_slash.dart     # 斜杠分部：实现 _StudioSlashHost 最小适配并委托分发器
+│               │   ├── slash_command_dispatcher.dart # 无状态斜杠指令分发器 + SlashCommandHost 最小接口 (解耦环依赖)
 │               │   ├── studio_vm_library.dart  # 词库分部：词组合预设库检索/增删改/云同步与一键应用
 │               │   ├── studio_vm_comfyui.dart  # ComfyUI 分部：Bridge 连接探测/选项清单拉取/参数推送/排队轮询与统一落图
 │               │   ├── streaming_controllers.dart # 高频瞬态控制器 (StreamingTextController / LiveProgressController)
@@ -477,8 +484,9 @@ $$\text{原始原图} \xrightarrow{\text{步骤 1}} \text{可见水印合成} \x
 
 自由大画布支持无限漫游、多图参考、矩形/图钉批注与便利贴动态连线：
 
-- **局部覆盖重绘架构 (`BoardLiveOverrides`)**：
-  - 卡片拖拽、选区调节与手柄拉伸期间，完全通过 `ValueNotifier<BoardLiveOverrides>` 局部驱动，连线层 `BoardWirePainter` 仅重绘连线 CustomPaint，绝不在拖拽过程中频繁触发整个工作台的 `notifyListeners()`，确保 60fps 满帧丝滑交互。
+- **局部通知与覆盖重绘架构 (`BoardController` + `BoardLiveOverrides`)**：
+  - 画板内部节点、便签、连线与批注变更仅经 `BoardController` 自身 `ChangeNotifier` 触发 `FreeformAnnotationBoard` 局部 `ListenableBuilder` 重建，不引发外层工作台全局重建；仅批注模式开关切换或历史选中图批注同步时触发宿主壳全局广播。
+  - 卡片拖拽、选区调节与手柄拉伸期间，完全通过 `ValueNotifier<BoardLiveOverrides>` 局部驱动，连线层 `BoardWirePainter` 仅重绘连线 CustomPaint，绝不在拖拽过程中频繁触发 `notifyListeners()`，确保 60fps 满帧丝滑交互。
 - **分层绘制与命中测试**：
   - 背景网格位于卡片底层（`painter`），动态连线位于卡片顶层（`foregroundPainter`），节点卡片位于中间；
   - 连线端口支持一对多关系，参考图与便利贴连线自动进行锚点边缘回缩，避免遮挡编号徽章。
@@ -531,7 +539,7 @@ classDiagram
 ```
 
 - **`_StudioCore`**：统一定义所有私有核心状态字段与数据访问契约；
-- **各领域 Mixin 与控制器**：将布局、Harness 调度、生图流水线、修复处理、对话与流式节流、会话分支、角色管理、斜杠指令、词库、ComfyUI 桥接等逻辑拆分到独立分部，并将自由大画布批注域独立为 `BoardController`。
+- **各领域 Mixin 与控制器**：将布局、Harness 调度、生图流水线、修复处理、对话与流式节流、会话分支、角色管理、词库、ComfyUI 桥接等逻辑拆分到独立分部；斜杠指令收口至无状态 `SlashCommandDispatcher` + `SlashCommandHost` 契约以解耦 `chat/sessions` 环依赖，自由大画布批注域独立为 `BoardController`。
 
 ---
 
