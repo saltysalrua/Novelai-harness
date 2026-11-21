@@ -403,9 +403,9 @@ void main() {
         await tester.pumpWidget(const NovelAiHarnessApp());
         await tester.pumpAndSettle();
 
-        final chatField = find.widgetWithText(
-          TextField,
-          '输入绘画构思，或输入 /nai <词> 快速生图...',
+        final chatField = find.descendant(
+          of: find.byType(AgentChatInputBar),
+          matching: find.byType(TextField),
         );
         await tester.tap(chatField);
         await tester.pump();
