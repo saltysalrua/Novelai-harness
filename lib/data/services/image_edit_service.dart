@@ -27,6 +27,7 @@ class ImageEditResult {
 /// 4. 图片为 http(s) 临时链接时自动下载取回字节
 class ImageEditService {
   final http.Client _client;
+  final bool _ownsClient;
 
   /// 429 频控重试前的等待时长 (测试可注入短时长)
   final Duration retryDelay;
@@ -34,7 +35,15 @@ class ImageEditService {
   ImageEditService({
     http.Client? client,
     this.retryDelay = const Duration(milliseconds: 2500),
-  }) : _client = client ?? http.Client();
+  }) : _client = client ?? http.Client(),
+       _ownsClient = client == null;
+
+  /// 关闭内部自建的 HTTP 客户端；外部注入时保持原生命周期不变。
+  void close() {
+    if (_ownsClient) {
+      _client.close();
+    }
+  }
 
   /// 计算 /chat/completions 完整端点 (复用 LlmProviderConfig 的拼接语义)
   static String chatCompletionsEndpoint(String baseUrl) {

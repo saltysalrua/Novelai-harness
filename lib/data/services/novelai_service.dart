@@ -59,6 +59,7 @@ class NovelAiService {
 
   final AsyncLock _lock = AsyncLock();
   final http.Client _httpClient;
+  final bool _ownsClient;
   final Duration requestTimeout;
   final Duration streamIdleTimeout;
   final Duration metaTimeout;
@@ -70,7 +71,15 @@ class NovelAiService {
     this.streamIdleTimeout = defaultStreamIdleTimeout,
     this.metaTimeout = defaultMetaTimeout,
     this.retryDelay = const Duration(milliseconds: 2500),
-  }) : _httpClient = httpClient ?? http.Client();
+  }) : _httpClient = httpClient ?? http.Client(),
+       _ownsClient = httpClient == null;
+
+  /// 关闭内部自建的 HTTP 客户端；若由外部注入客户端则交由调用方管理。
+  void close() {
+    if (_ownsClient) {
+      _httpClient.close();
+    }
+  }
 
   /// 实时流式生成插画 (输出中间去噪步数预览与最终成图)
   Stream<NaiStreamProgress> generateImageStream({

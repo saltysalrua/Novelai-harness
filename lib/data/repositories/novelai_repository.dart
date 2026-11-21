@@ -23,6 +23,9 @@ class NovelAiRepository {
   final NovelAiService _service;
   final ImageEditService _imageEditService;
   final RtxUpscaleService _rtxUpscaleService;
+  final bool _ownsService;
+  final bool _ownsImageEditService;
+  bool _disposed = false;
 
   int _rtxEpoch = 0;
   bool get supportsRtxUpscale => _rtxUpscaleService.isSupported;
@@ -54,7 +57,18 @@ class NovelAiRepository {
   }
 
   void _publishImageCache() {
+    if (_disposed) return;
     imageBytesNotifier.value = Map.unmodifiable(_lruImageCache);
+  }
+
+  /// 释放仓储自建的网络客户端与大图缓存通知器；外部注入的服务不越权关闭。
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    cancelRtxUpscale();
+    if (_ownsService) _service.close();
+    if (_ownsImageEditService) _imageEditService.close();
+    imageBytesNotifier.dispose();
   }
 
   void _clearImageCache() {
@@ -83,7 +97,9 @@ class NovelAiRepository {
     RtxUpscaleService? rtxUpscaleService,
   }) : _service = service ?? NovelAiService(),
        _imageEditService = imageEditService ?? ImageEditService(),
-       _rtxUpscaleService = rtxUpscaleService ?? RtxUpscaleService();
+       _rtxUpscaleService = rtxUpscaleService ?? RtxUpscaleService(),
+       _ownsService = service == null,
+       _ownsImageEditService = imageEditService == null;
 
   List<NaiGeneratedImage> get history => List.unmodifiable(_history);
 
@@ -137,7 +153,10 @@ class NovelAiRepository {
           : path == null || path.isEmpty
           ? null
           : await File(path).readAsBytes();
-      if (bytes != null && bytes.isNotEmpty && epoch == _cacheEpoch) {
+      if (bytes != null &&
+          bytes.isNotEmpty &&
+          epoch == _cacheEpoch &&
+          !_disposed) {
         _cacheImageBytes(image.id, bytes);
       }
       return bytes;

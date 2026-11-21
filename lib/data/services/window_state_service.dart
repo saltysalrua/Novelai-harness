@@ -7,7 +7,7 @@ import 'config_service.dart';
 class WindowStateService with WindowListener {
   static final WindowStateService instance = WindowStateService._();
   WindowStateService._({ConfigService? configService})
-    : _configService = configService ?? ConfigService();
+    : _configService = configService ?? ConfigService.shared;
 
   @visibleForTesting
   WindowStateService.forTesting({required ConfigService configService})

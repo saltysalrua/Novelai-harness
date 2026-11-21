@@ -32,7 +32,7 @@ void main() async {
           defaultTargetPlatform == TargetPlatform.macOS)) {
     await windowManager.ensureInitialized();
 
-    final configService = ConfigService();
+    final configService = ConfigService.shared;
     final windowState = await configService.loadWindowState();
 
     final bool hasValidPosition =
@@ -90,10 +90,9 @@ Future<Object?> _syncControllersFromBootConfig({
   bool tolerateStorageDirectoryFailure = false,
 }) async {
   try {
-    final configService = ConfigService();
     final bootConfig = tolerateStorageDirectoryFailure
-        ? await configService.loadConfigTolerant()
-        : await configService.loadConfig();
+        ? await ConfigService.shared.loadConfigTolerant()
+        : await ConfigService.shared.loadConfig();
     AppThemeModeController.instance.syncFromConfig(bootConfig);
     AppAccentController.instance.syncFromConfig(bootConfig);
     AppLocaleController.instance.syncFromConfig(bootConfig);

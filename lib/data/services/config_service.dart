@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
@@ -7,6 +8,7 @@ import '../../core/harness/skills/skills.dart';
 import '../../core/harness/tools/agent_tool.dart';
 import '../models/novelai_models.dart';
 import 'image_storage_directory_service.dart';
+import 'secret_store.dart';
 
 /// 主题模式偏好 (跟随系统 / 亮色 / 深色)
 ///
@@ -518,11 +520,18 @@ class ConfigService {
     defaultValue: true,
   );
 
-  ConfigService({ImageStorageDirectoryService? imageStorageDirectoryService})
-    : _imageStorageDirectories =
-          imageStorageDirectoryService ?? ImageStorageDirectoryService();
+  ConfigService({
+    ImageStorageDirectoryService? imageStorageDirectoryService,
+    SecretStore? secretStore,
+  }) : _imageStorageDirectories =
+           imageStorageDirectoryService ?? ImageStorageDirectoryService(),
+       _secretStore = secretStore ?? const SharedPreferencesSecretStore();
+
+  /// 应用内默认共享实例，确保窗口服务与 ViewModel 复用统一配置与写入队列。
+  static final ConfigService shared = ConfigService();
 
   final ImageStorageDirectoryService _imageStorageDirectories;
+  final SecretStore _secretStore;
 
   /// 启动与设置变更共用：安卓需真实读写探测，失败回退应用文档目录。
   Future<String> resolveImageSaveDirectory(String configuredDirectory) =>
@@ -692,8 +701,9 @@ class ConfigService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    String naiKey = prefs.getString(_keyNovelAiKey) ?? '';
-    final String anySearchKey = prefs.getString(_keyAnySearchApiKey) ?? '';
+    String naiKey = await _secretStore.read(_keyNovelAiKey) ?? '';
+    final String anySearchKey =
+        await _secretStore.read(_keyAnySearchApiKey) ?? '';
     String prefix = prefs.getString(_keyPrefix) ?? '';
     String suffix = prefs.getString(_keySuffix) ?? '';
     String negative = prefs.getString(_keyNegative) ?? '';
@@ -801,7 +811,7 @@ class ConfigService {
       final resolvedSaveDir = await resolveImageSaveDirectory(saveDir);
       if (resolvedSaveDir != saveDir) {
         saveDir = resolvedSaveDir;
-        await prefs.setString(_keySaveDir, saveDir);
+        await _enqueueWrite(() => prefs.setString(_keySaveDir, saveDir));
       }
     } catch (_) {
       if (!tolerateStorageDirectoryFailure) rethrow;
@@ -941,7 +951,8 @@ class ConfigService {
     final String comfyScheduler = prefs.getString(_keyComfyUiScheduler) ?? '';
     final String promptSyncEndpoint =
         prefs.getString(_keyPromptSyncEndpoint) ?? '';
-    final String promptSyncToken = prefs.getString(_keyPromptSyncToken) ?? '';
+    final String promptSyncToken =
+        await _secretStore.read(_keyPromptSyncToken) ?? '';
     final String promptSyncNamespace =
         prefs.getString(_keyPromptSyncNamespace) ?? 'default';
 
@@ -1025,19 +1036,23 @@ class ConfigService {
     );
   }
 
-  // 多个配置快照按调用顺序提交，避免交错写入混合的新旧配置。
-  Future<void> _configWriteQueue = Future<void>.value();
-  final _unconfirmedPreferenceKeys = <String>{};
+  // 同一实例内所有 SharedPreferences 写入共用串行队列；生产代码共享 ConfigService.shared，
+  // 从而跨窗口/配置/工作台参数串行落盘，同时保持测试实例隔离。
+  Future<void> _writeQueue = Future<void>.value();
+  final Set<String> _unconfirmedPreferenceKeys = <String>{};
+
+  Future<T> _enqueueWrite<T>(Future<T> Function() action) {
+    final task = _writeQueue
+        .catchError((Object _) {})
+        .then((_) => action());
+    _writeQueue = task;
+    return task;
+  }
 
   /// 仅保存变化的字段；Windows 每个 setter 都会重写整个偏好文件。
   /// 保持现有 keys，避免关闭窗口时重复写入几十次大型 Skills/预设 JSON。
-  Future<void> saveConfig(AppConfig config) {
-    final task = _configWriteQueue
-        .catchError((Object _) {})
-        .then((_) => _saveConfig(config));
-    _configWriteQueue = task;
-    return task;
-  }
+  Future<void> saveConfig(AppConfig config) =>
+      _enqueueWrite(() => _saveConfig(config));
 
   Future<void> _saveConfig(AppConfig config) async {
     final prefs = await SharedPreferences.getInstance();
@@ -1054,9 +1069,15 @@ class ConfigService {
     final customToolsJson = jsonEncode(
       config.customTools.map((t) => t.toJson()).toList(),
     );
-    final values = <String, Object?>{
+    final secrets = <String, String>{
       _keyNovelAiKey: config.novelAiKey,
       _keyAnySearchApiKey: config.anySearchApiKey,
+      _keyPromptSyncToken: config.promptSyncToken,
+    };
+    for (final entry in secrets.entries) {
+      await _saveChangedSecret(entry.key, entry.value);
+    }
+    final values = <String, Object?>{
       _keyModel: config.defaultModel.id,
       _keySampler: config.defaultSampler.id,
       _keyNoiseSchedule: config.defaultNoiseSchedule.id,
@@ -1102,7 +1123,6 @@ class ConfigService {
       _keyComfyUiSampler: config.comfyUiSampler,
       _keyComfyUiScheduler: config.comfyUiScheduler,
       _keyPromptSyncEndpoint: config.promptSyncEndpoint,
-      _keyPromptSyncToken: config.promptSyncToken,
       _keyPromptSyncNamespace: config.promptSyncNamespace,
       _keyLlmProviders: providersJson,
       _keyActiveLlmProviderId: config.activeLlmProviderId,
@@ -1126,6 +1146,16 @@ class ConfigService {
     for (final entry in values.entries) {
       await _saveChangedPreference(prefs, entry.key, entry.value);
     }
+  }
+
+  Future<void> _saveChangedSecret(String key, String value) async {
+    final current = await _secretStore.read(key);
+    if (current == value && !_unconfirmedPreferenceKeys.contains(key)) {
+      return;
+    }
+    _unconfirmedPreferenceKeys.add(key);
+    await _secretStore.write(key, value);
+    _unconfirmedPreferenceKeys.remove(key);
   }
 
   Future<void> _saveChangedPreference(
@@ -1195,7 +1225,7 @@ class ConfigService {
   Future<void> saveStudioParameters(
     NaiGenerationParams generation,
     InpaintParams inpaint,
-  ) async {
+  ) => _enqueueWrite(() async {
     final encoded = jsonEncode({
       'generation': generation.toJson(),
       'inpaint': inpaint
@@ -1210,7 +1240,7 @@ class ConfigService {
     if (!await prefs.setString(_keyStudioParameters, encoded)) {
       throw const FileSystemException('工作台参数保存失败');
     }
-  }
+  });
 
   /// 加载上次保存的草稿提示词
   Future<String> loadLastPrompt() async {
@@ -1219,10 +1249,10 @@ class ConfigService {
   }
 
   /// 保存当前草稿提示词
-  Future<void> saveLastPrompt(String prompt) async {
+  Future<void> saveLastPrompt(String prompt) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyLastPrompt, prompt);
-  }
+  });
 
   /// 加载固定词缀开关状态
   Future<bool> loadApplyFixedPrompts() async {
@@ -1231,10 +1261,10 @@ class ConfigService {
   }
 
   /// 保存固定词缀开关状态
-  Future<void> saveApplyFixedPrompts(bool apply) async {
+  Future<void> saveApplyFixedPrompts(bool apply) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyApplyFixedPrompts, apply);
-  }
+  });
 
   /// 加载多角色提示词列表
   Future<List<NaiCharacterPrompt>> loadCharacterPrompts() async {
@@ -1254,13 +1284,14 @@ class ConfigService {
   }
 
   /// 保存多角色提示词列表
-  Future<void> saveCharacterPrompts(List<NaiCharacterPrompt> characters) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _keyCharacterPrompts,
-      jsonEncode(characters.map((c) => c.toJson()).toList()),
-    );
-  }
+  Future<void> saveCharacterPrompts(List<NaiCharacterPrompt> characters) =>
+      _enqueueWrite(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          _keyCharacterPrompts,
+          jsonEncode(characters.map((c) => c.toJson()).toList()),
+        );
+      });
 
   /// 加载全局角色位置模式 (true = AI 自动布局，false = 自定义定位)
   Future<bool> loadCharacterAiPosition() async {
@@ -1269,10 +1300,11 @@ class ConfigService {
   }
 
   /// 保存全局角色位置模式
-  Future<void> saveCharacterAiPosition(bool aiPosition) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyCharacterAiPosition, aiPosition);
-  }
+  Future<void> saveCharacterAiPosition(bool aiPosition) =>
+      _enqueueWrite(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_keyCharacterAiPosition, aiPosition);
+      });
 
   /// 加载种子模式 (random, increase, fixed)
   Future<NaiSeedMode> loadSeedMode() async {
@@ -1282,10 +1314,10 @@ class ConfigService {
   }
 
   /// 保存种子模式
-  Future<void> saveSeedMode(NaiSeedMode mode) async {
+  Future<void> saveSeedMode(NaiSeedMode mode) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySeedMode, mode.id);
-  }
+  });
 
   /// 加载种子生成控制时机 (before, after)
   Future<NaiSeedTiming> loadSeedTiming() async {
@@ -1295,10 +1327,10 @@ class ConfigService {
   }
 
   /// 保存种子生成控制时机
-  Future<void> saveSeedTiming(NaiSeedTiming timing) async {
+  Future<void> saveSeedTiming(NaiSeedTiming timing) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySeedTiming, timing.id);
-  }
+  });
 
   // --- 页面布局状态持久化 ---
 
@@ -1341,17 +1373,18 @@ class ConfigService {
   static const double minWindowHeight = 500.0;
 
   /// 快捷键即时调整 UI 缩放时的单字段落盘 (不整包重写 config)
-  Future<void> saveUiZoom(double zoom) async {
+  Future<void> saveUiZoom(double zoom) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await _saveChangedPreference(prefs, _keyUiZoom, clampUiZoom(zoom));
-  }
+  });
 
   /// 保存分栏左右宽度
-  Future<void> saveSplitWidths(double left, double right) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_keySplitLeftWidth, left);
-    await prefs.setDouble(_keySplitRightWidth, right);
-  }
+  Future<void> saveSplitWidths(double left, double right) =>
+      _enqueueWrite(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setDouble(_keySplitLeftWidth, left);
+        await prefs.setDouble(_keySplitRightWidth, right);
+      });
 
   /// 加载侧边栏激活标签
   Future<String> loadSidebarActiveTab({
@@ -1362,10 +1395,10 @@ class ConfigService {
   }
 
   /// 保存侧边栏激活标签
-  Future<void> saveSidebarActiveTab(String tab) async {
+  Future<void> saveSidebarActiveTab(String tab) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySidebarActiveTab, tab);
-  }
+  });
 
   /// 加载提示词管理模式 (true: 标签页, false: 垂直堆叠)
   Future<bool> loadPromptTabbedMode({bool defaultMode = false}) async {
@@ -1374,10 +1407,10 @@ class ConfigService {
   }
 
   /// 保存提示词管理模式
-  Future<void> savePromptTabbedMode(bool isTabbed) async {
+  Future<void> savePromptTabbedMode(bool isTabbed) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyPromptTabbedMode, isTabbed);
-  }
+  });
 
   /// 加载提示词标签页激活项 (0: Prompt, 1: Undesired Content)
   Future<int> loadPromptActiveTab({int defaultTab = 0}) async {
@@ -1386,10 +1419,10 @@ class ConfigService {
   }
 
   /// 保存提示词标签页激活项
-  Future<void> savePromptActiveTab(int tab) async {
+  Future<void> savePromptActiveTab(int tab) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyPromptActiveTab, tab);
-  }
+  });
 
   /// 加载提示词扩展甲板激活项 (0: Character Prompts, 1: Fixed Affixes)
   Future<int> loadDeckActiveTab({int defaultTab = 0}) async {
@@ -1398,10 +1431,10 @@ class ConfigService {
   }
 
   /// 保存提示词扩展甲板激活项
-  Future<void> saveDeckActiveTab(int tab) async {
+  Future<void> saveDeckActiveTab(int tab) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyDeckActiveTab, tab);
-  }
+  });
 
   /// 加载画板历史侧栏展开状态
   Future<bool> loadCanvasHistoryOpen({bool defaultOpen = false}) async {
@@ -1410,10 +1443,10 @@ class ConfigService {
   }
 
   /// 保存画板历史侧栏展开状态
-  Future<void> saveCanvasHistoryOpen(bool isOpen) async {
+  Future<void> saveCanvasHistoryOpen(bool isOpen) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyCanvasHistoryOpen, isOpen);
-  }
+  });
 
   /// 加载左侧边栏收起状态
   Future<bool> loadLeftSidebarCollapsed({bool defaultCollapsed = false}) async {
@@ -1422,10 +1455,11 @@ class ConfigService {
   }
 
   /// 保存左侧边栏收起状态
-  Future<void> saveLeftSidebarCollapsed(bool isCollapsed) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyLeftSidebarCollapsed, isCollapsed);
-  }
+  Future<void> saveLeftSidebarCollapsed(bool isCollapsed) =>
+      _enqueueWrite(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_keyLeftSidebarCollapsed, isCollapsed);
+      });
 
   /// 加载提示词输入框高度
   Future<
@@ -1480,7 +1514,7 @@ class ConfigService {
     double? suffix,
     double? characterPrompt,
     double? characterNegative,
-  }) async {
+  }) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     if (promptStacked != null) {
       await prefs.setDouble(_keyPromptHeightStacked, promptStacked);
@@ -1506,7 +1540,7 @@ class ConfigService {
     if (characterNegative != null) {
       await prefs.setDouble(_keyCharacterNegativeHeight, characterNegative);
     }
-  }
+  });
 
   /// 加载 Agent 对话草稿输入文本
   Future<String> loadChatDraft() async {
@@ -1515,10 +1549,10 @@ class ConfigService {
   }
 
   /// 保存 Agent 对话草稿输入文本
-  Future<void> saveChatDraft(String draft) async {
+  Future<void> saveChatDraft(String draft) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyChatDraft, draft);
-  }
+  });
 
   // --- 桌面窗口状态持久化 ---
 
@@ -1564,7 +1598,7 @@ class ConfigService {
     double? posX,
     double? posY,
     bool isMaximized = false,
-  }) async {
+  }) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await _saveChangedPreference(prefs, _keyWindowWidth, width);
     await _saveChangedPreference(prefs, _keyWindowHeight, height);
@@ -1575,13 +1609,13 @@ class ConfigService {
       await _saveChangedPreference(prefs, _keyWindowPosY, posY);
     }
     await _saveChangedPreference(prefs, _keyWindowMaximized, isMaximized);
-  }
+  });
 
   /// 保存窗口最大化状态
-  Future<void> saveWindowMaximized(bool isMaximized) async {
+  Future<void> saveWindowMaximized(bool isMaximized) => _enqueueWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await _saveChangedPreference(prefs, _keyWindowMaximized, isMaximized);
-  }
+  });
 
   /// 是否已在 Android 端引导请求过存储/图片权限（避免用户拒绝后每次重启重复弹窗）
   Future<bool> hasPromptedAndroidStoragePermission() async {
@@ -1590,10 +1624,11 @@ class ConfigService {
   }
 
   /// 记录已触发过 Android 存储/图片权限引导弹窗
-  Future<void> markAndroidStoragePermissionPrompted() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyAndroidStoragePermissionPrompted, true);
-  }
+  Future<void> markAndroidStoragePermissionPrompted() =>
+      _enqueueWrite(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_keyAndroidStoragePermissionPrompted, true);
+      });
 
   Map<String, dynamic>? _tryLoadLocalPiNovelAiJson() {
     try {

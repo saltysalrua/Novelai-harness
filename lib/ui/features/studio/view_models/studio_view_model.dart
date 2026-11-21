@@ -96,6 +96,7 @@ enum StudioSidebarTab { parameters, prompts, inpaint, library }
 mixin _StudioCore on ChangeNotifier {
   late final ConfigService _configService;
   late final NovelAiRepository _repository;
+  late final bool _ownsRepository;
   PromptLibraryService _promptLibraryService = PromptLibraryService.instance;
   late final PromptLibrarySyncService _promptLibrarySyncService;
   late final SkillPackageService _skillPackageService;
@@ -775,7 +776,8 @@ class StudioViewModel extends ChangeNotifier
     String? sessionLogBaseDir,
   }) {
     // Mixin 的 late final 字段无法进初始化列表，统一在构造体内注入
-    _configService = configService ?? ConfigService();
+    _configService = configService ?? ConfigService.shared;
+    _ownsRepository = repository == null;
     _repository = repository ?? NovelAiRepository();
     _promptLibraryService =
         promptLibraryService ?? PromptLibraryService.instance;
@@ -1672,7 +1674,11 @@ class StudioViewModel extends ChangeNotifier
     _previewDisposed = true;
     inpaintPreviewNotifier.dispose();
     _rtxDisposed = true;
-    _repository.cancelRtxUpscale();
+    if (_ownsRepository) {
+      _repository.dispose();
+    } else {
+      _repository.cancelRtxUpscale();
+    }
     _comfyService?.close();
     _comfyService = null;
     _harness.dispose();
