@@ -659,7 +659,8 @@ class _AppPanelRevealState extends State<AppPanelReveal>
 /// 方向感知左右侧滑切页动效 (`08-page-side-by-side`)
 ///
 /// 适用场景：设置页分栏切换、向导步骤页、列表 <-> 详情视图切换。
-/// 根据 [index] 增减自动判定前进或后退方向，旧页反方向滑出、新页同向滑入并交叉淡入。
+/// 根据 [index] 增减自动判定前进或后退方向，仅对当前新页做轻量入场滑入与透明度收拢，
+/// 不叠放旧页避免透明底输入框产生文字残影。
 class AppPageSideBySide extends StatefulWidget {
   /// 当前页面索引 (用于计算切换方向)
   final int index;
@@ -667,7 +668,7 @@ class AppPageSideBySide extends StatefulWidget {
   /// 当前索引对应的页面内容
   final Widget child;
 
-  /// 滑动与淡入淡出时长，默认 [AppMotionDurations.fast] (250ms)
+  /// 滑动与淡入时长，默认 [AppMotionDurations.quick] (150ms)
   final Duration duration;
 
   /// 缓动曲线，默认 [AppMotionCurves.smoothOut]
@@ -682,14 +683,14 @@ class AppPageSideBySide extends StatefulWidget {
   /// 是否启用跨页模糊 (整页高频重建场景默认关闭以避免大图层 saveLayer 开销)
   final bool enableBlur;
 
-  /// 叠放对齐方式，默认 [Alignment.topCenter]
+  /// 叠放对齐方式，默认 [Alignment.topCenter] (保留兼容参数)
   final AlignmentGeometry alignment;
 
   const AppPageSideBySide({
     super.key,
     required this.index,
     required this.child,
-    this.duration = AppMotionDurations.fast,
+    this.duration = AppMotionDurations.quick,
     this.curve = AppMotionCurves.smoothOut,
     this.slideDistance = AppMotionDistances.base,
     this.blurSigma = AppMotionBlurs.medium,
@@ -701,63 +702,78 @@ class AppPageSideBySide extends StatefulWidget {
   State<AppPageSideBySide> createState() => _AppPageSideBySideState();
 }
 
-class _AppPageSideBySideState extends State<AppPageSideBySide> {
+class _AppPageSideBySideState extends State<AppPageSideBySide>
+    with SingleTickerProviderStateMixin {
+  static const double _enterStartOpacity = 0.78;
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+    value: 1.0,
+  );
+  bool _reduceMotion = false;
   int _direction = 1;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = AppMotion.shouldReduceMotion(context);
+    if (_reduceMotion) _controller.value = 1.0;
+  }
 
   @override
   void didUpdateWidget(covariant AppPageSideBySide oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.duration != oldWidget.duration) {
+      _controller.duration = widget.duration;
+    }
     if (widget.index != oldWidget.index) {
       _direction = widget.index > oldWidget.index ? 1 : -1;
+      if (_reduceMotion) {
+        _controller.value = 1.0;
+      } else {
+        _controller.forward(from: 0.0);
+      }
     }
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final reduceMotion = AppMotion.shouldReduceMotion(context);
-    final effectiveDuration = reduceMotion ? Duration.zero : widget.duration;
-    final activeKey = ValueKey<int>(widget.index);
+    final keyedChild = KeyedSubtree(
+      key: ValueKey<int>(widget.index),
+      child: widget.child,
+    );
+    if (_reduceMotion) {
+      return ClipRect(child: keyedChild);
+    }
 
     return ClipRect(
-      child: AnimatedSwitcher(
-        duration: effectiveDuration,
-        reverseDuration: effectiveDuration,
-        layoutBuilder: (currentChild, previousChildren) {
-          return Stack(
-            alignment: widget.alignment,
-            children: [
-              ...previousChildren,
-              ?currentChild,
-            ],
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, innerChild) {
+          final t = widget.curve.transform(_controller.value).clamp(0.0, 1.0);
+          final opacity = _enterStartOpacity + (1.0 - _enterStartOpacity) * t;
+          final dx = _direction * widget.slideDistance * (1.0 - t);
+          final sigma = widget.blurSigma * (1.0 - t);
+          return Opacity(
+            opacity: opacity,
+            child: Transform.translate(
+              offset: Offset(dx, 0),
+              child: _maybeBlur(
+                enableBlur: widget.enableBlur,
+                sigma: sigma,
+                child: innerChild!,
+              ),
+            ),
           );
         },
-        transitionBuilder: (targetChild, animation) {
-          if (reduceMotion) return targetChild;
-          final isIncoming = targetChild.key == activeKey;
-          return AnimatedBuilder(
-            animation: animation,
-            builder: (context, innerChild) {
-              final t = widget.curve.transform(animation.value).clamp(0.0, 1.0);
-              final dx = isIncoming
-                  ? _direction * widget.slideDistance * (1.0 - t)
-                  : -_direction * widget.slideDistance * (1.0 - t);
-              final sigma = widget.blurSigma * (1.0 - t);
-              return Opacity(
-                opacity: t,
-                child: Transform.translate(
-                  offset: Offset(dx, 0),
-                  child: _maybeBlur(
-                    enableBlur: widget.enableBlur,
-                    sigma: sigma,
-                    child: innerChild!,
-                  ),
-                ),
-              );
-            },
-            child: targetChild,
-          );
-        },
-        child: KeyedSubtree(key: activeKey, child: widget.child),
+        child: keyedChild,
       ),
     );
   }

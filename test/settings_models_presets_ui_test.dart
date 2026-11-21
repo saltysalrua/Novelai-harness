@@ -4,14 +4,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
 import 'package:novelai_harness/core/harness/skills/skills.dart';
 import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
+import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/llm_model_fetcher.dart';
+import 'package:novelai_harness/data/services/usage_ledger_service.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/theme/app_theme.dart';
 import 'package:novelai_harness/ui/core/widgets/app_dialog_scaffold.dart';
+import 'package:novelai_harness/ui/core/widgets/app_empty_state.dart';
 import 'package:novelai_harness/ui/core/widgets/app_search_field.dart';
 import 'package:novelai_harness/ui/features/settings/views/settings_dialog.dart';
+import 'package:novelai_harness/ui/features/settings/widgets/bill_settings_tab.dart';
 import 'package:novelai_harness/ui/features/settings/widgets/model_card.dart';
 import 'package:novelai_harness/ui/features/settings/widgets/models_settings_tab.dart';
 import 'package:novelai_harness/ui/features/settings/widgets/presets_settings_tab.dart';
@@ -20,11 +24,25 @@ import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeStudioViewModel implements StudioViewModel {
+  final Map<BillPeriod, BillSummary> billSummaries;
+
+  _FakeStudioViewModel({this.billSummaries = const {}});
+
   @override
   AppConfig get config => const AppConfig(
     localePreference: AppLocalePreference.zh,
     enableTagDictionaryAutoUpdate: false,
   );
+
+  @override
+  BillSummary buildBillSummary(BillPeriod period) =>
+      billSummaries[period] ??
+      BillSummary(
+        period: period,
+        requests: 0,
+        usage: const TokenUsage(),
+        models: const [],
+      );
 
   @override
   List<Skill> get availableSkills => const [
@@ -501,6 +519,74 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(find.byType(SettingsDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'BillSettingsTab updates table and empty state in place without stacking duplicate views',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(900, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final fakeVm = _FakeStudioViewModel(
+        billSummaries: const {
+          BillPeriod.today: BillSummary(
+            period: BillPeriod.today,
+            requests: 1,
+            usage: TokenUsage(input: 120, output: 30),
+            models: [
+              BillModelUsage(
+                name: 'TodayModel',
+                requests: 1,
+                usage: TokenUsage(input: 120, output: 30),
+              ),
+            ],
+          ),
+          BillPeriod.last7d: BillSummary(
+            period: BillPeriod.last7d,
+            requests: 3,
+            usage: TokenUsage(input: 450, output: 90),
+            models: [
+              BillModelUsage(
+                name: 'WeekModel',
+                requests: 3,
+                usage: TokenUsage(input: 450, output: 90),
+              ),
+            ],
+          ),
+        },
+      );
+
+      await tester.pumpWidget(_wrapApp(BillSettingsTab(viewModel: fakeVm)));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Table), findsOneWidget);
+      expect(find.text('TodayModel'), findsOneWidget);
+      expect(find.text('1 次请求 · 总计 150 tokens'), findsOneWidget);
+
+      // 非空 -> 非空周期切换：复用同一表格结构及汇总文案原地更新，过渡期不叠放旧内容
+      await tester.tap(find.text('近 7 天'));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byType(Table), findsOneWidget);
+      expect(find.text('WeekModel'), findsOneWidget);
+      expect(find.text('TodayModel'), findsNothing);
+      expect(find.text('3 次请求 · 总计 540 tokens'), findsOneWidget);
+      expect(find.text('1 次请求 · 总计 150 tokens'), findsNothing);
+      await tester.pumpAndSettle();
+
+      // 非空 -> 空周期切换
+      await tester.tap(find.text('近 30 天'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Table), findsNothing);
+      expect(find.byType(AppEmptyState), findsOneWidget);
+
+      // 空 -> 空周期切换：保持单个空状态，不叠放双层空状态
+      await tester.tap(find.text('全部'));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byType(AppEmptyState), findsOneWidget);
+      await tester.pumpAndSettle();
+
       expect(tester.takeException(), isNull);
     },
   );

@@ -10,7 +10,6 @@ import '../../../core/widgets/app_control_flow.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
-import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../../studio/view_models/studio_view_model.dart';
 
@@ -95,13 +94,11 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
                     onValueChanged: (period) =>
                         setState(() => _billPeriod = period),
                   ),
-                  AppTextSwap(
-                    text: l10n.billSummaryRequestsAndTokens(
+                  Text(
+                    l10n.billSummaryRequestsAndTokens(
                       summary.requests,
                       UsageLedgerService.formatTokens(summary.usage.total),
                     ),
-                    distance: AppMotionDistances.micro,
-                    enableBlur: false,
                     style: TextStyle(fontSize: 12, color: colors.textMuted),
                   ),
                 ],
@@ -115,11 +112,17 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
               context,
               AppMotionDurations.quick,
             ),
-            switchInCurve: AppMotionCurves.smoothOut,
-            switchOutCurve: AppMotionCurves.smoothOut,
+            switchInCurve: AppMotionCurves.inOut,
+            switchOutCurve: AppMotionCurves.inOut,
+            layoutBuilder: (currentChild, previousChildren) {
+              return Stack(
+                alignment: Alignment.topCenter,
+                children: [...previousChildren, ?currentChild],
+              );
+            },
             child: summary.models.isEmpty
                 ? KeyedSubtree(
-                    key: ValueKey<String>('empty_${_billPeriod.name}'),
+                    key: const ValueKey<String>('empty'),
                     child: AppEmptyState(
                       icon: Icons.receipt_long_rounded,
                       title: l10n.billEmptyRecords,
@@ -127,7 +130,7 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
                     ),
                   )
                 : KeyedSubtree(
-                    key: ValueKey<String>('table_${_billPeriod.name}'),
+                    key: const ValueKey<String>('table'),
                     child: _buildBillTable(summary),
                   ),
           ),

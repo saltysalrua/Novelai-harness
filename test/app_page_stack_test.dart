@@ -83,6 +83,10 @@ void main() {
       matching: find.byType(FadeTransition),
     );
     expect(tester.widget<FadeTransition>(fade).opacity.value, lessThan(1));
+    expect(
+      tester.widget<FadeTransition>(fade).opacity.value,
+      greaterThanOrEqualTo(0.7),
+    );
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }

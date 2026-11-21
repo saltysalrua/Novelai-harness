@@ -27,13 +27,21 @@ class AppPageStack extends StatefulWidget {
 
 class _AppPageStackState extends State<AppPageStack>
     with SingleTickerProviderStateMixin {
+  static const double _enterStartOpacity = 0.78;
+
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: AppMotionDurations.fast,
+    duration: AppMotionDurations.quick,
     value: 1,
   );
   late final Animation<double> _curved = _controller.drive(
     CurveTween(curve: AppMotionCurves.smoothOut),
+  );
+  late final Animation<double> _opacity = _controller.drive(
+    Tween<double>(
+      begin: _enterStartOpacity,
+      end: 1.0,
+    ).chain(CurveTween(curve: AppMotionCurves.smoothOut)),
   );
   final List<Widget?> _pages = [];
   bool _reduceMotion = false;
@@ -89,7 +97,7 @@ class _AppPageStackState extends State<AppPageStack>
 
     return ClipRect(
       child: FadeTransition(
-        opacity: _curved,
+        opacity: _opacity,
         child: AnimatedBuilder(
           animation: _curved,
           builder: (context, child) {

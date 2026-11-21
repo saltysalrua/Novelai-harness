@@ -1036,12 +1036,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(vm.params.prompt, '1girl, silver hair, smile');
 
-    // 切换到负向提示词标签页并编辑
+    // 切换到负向提示词标签页并编辑（切换瞬间与动画中均不得叠加残留旧编辑器）
     await tester.tap(
       find.descendant(
         of: popoverFinder,
         matching: find.byKey(const Key('segmented_card_undesired')),
       ),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('compact_prompt_positive_card')), findsNothing);
+    expect(
+      find.byKey(const Key('compact_prompt_negative_card')),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byKey(const Key('compact_prompt_positive_card')), findsNothing);
+    expect(
+      find.byKey(const Key('compact_prompt_negative_card')),
+      findsOneWidget,
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('compact_prompt_positive_card')), findsNothing);
