@@ -18,9 +18,8 @@ highres\t5256195\t高分辨率\thires
 ''';
 
     setUp(() async {
-      await TagDictionaryService.instance.ensureLoaded(
-        rawTsvContent: sampleTsv,
-      );
+      await TagDictionaryService.instance.replaceWithContent(sampleTsv);
+      TagDictionaryService.instance.clearQueryCache();
     });
 
     test('loads TSV entries and builds lookup maps', () {
@@ -135,6 +134,68 @@ highres\t5256195\t高分辨率\thires
       expect(results, isNotEmpty);
       expect(results.first.tag, 'murasaki shion');
       expect(results.first.translation, '紫');
+    });
+  });
+
+  group('TagDictionaryService v2 五列词库格式', () {
+    const sampleTsv = '''
+hatsune_miku\t144505\t初音未来\tmiku_hatsune\t4
+as109\t1535\tAS109\t\t1
+touhou\t1091543\t东方Project\t\t3
+highres\t8077196\t高分辨率\thires\t5
+blue_eyes\t1762765\t蓝眼\tblueeyes\t0
+weird_tag_name\t500\t怪东西\t\t
+''';
+
+    setUp(() async {
+      await TagDictionaryService.instance.replaceWithContent(sampleTsv);
+      TagDictionaryService.instance.clearQueryCache();
+    });
+
+    test('第 5 列官方分类优先于启发式推断', () {
+      expect(
+        TagDictionaryService.instance.categoryOf('hatsune miku'),
+        DanbooruTagCategory.character,
+      );
+      expect(
+        TagDictionaryService.instance.categoryOf('as109'),
+        DanbooruTagCategory.artist,
+      );
+      expect(
+        TagDictionaryService.instance.categoryOf('touhou'),
+        DanbooruTagCategory.copyright,
+      );
+      expect(
+        TagDictionaryService.instance.categoryOf('highres'),
+        DanbooruTagCategory.meta,
+      );
+      expect(
+        TagDictionaryService.instance.categoryOf('blue eyes'),
+        DanbooruTagCategory.general,
+      );
+      expect(
+        TagDictionaryService.instance.categoryOf('weird tag name'),
+        DanbooruTagCategory.general,
+      );
+    });
+
+    test('官方别名列参与联想搜索', () async {
+      final results = await TagDictionaryService.instance.search(
+        'miku_hatsune',
+        limit: 3,
+      );
+      expect(results.isNotEmpty, isTrue);
+      expect(results.first.tag, 'hatsune miku');
+      expect(results.first.category, DanbooruTagCategory.character);
+    });
+
+    test('搜索结果携带官方分类胶囊', () async {
+      final results = await TagDictionaryService.instance.search(
+        'touhou',
+        limit: 3,
+      );
+      expect(results.isNotEmpty, isTrue);
+      expect(results.first.category, DanbooruTagCategory.copyright);
     });
   });
 }

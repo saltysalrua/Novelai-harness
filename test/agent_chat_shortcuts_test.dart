@@ -11,8 +11,34 @@ import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/ui/features/studio/views/studio_view.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_card.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_input_bar.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_messages.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/agent_rewind_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _StreamingEscapeViewModel extends StudioViewModel {
+  _StreamingEscapeViewModel(String directory)
+    : super(sessionLogBaseDir: directory);
+  bool _streaming = true;
+  int abortCount = 0;
+
+  @override
+  bool get isChatStreaming => _streaming;
+
+  @override
+  Future<void> abortChat() async {
+    abortCount++;
+    _streaming = false;
+    notifyListeners();
+  }
+}
+
+Future<void> _sendDoubleEsc(WidgetTester tester) async {
+  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+  await tester.pumpAndSettle();
+}
 
 Widget _wrapChatCard(StudioViewModel viewModel) {
   return MaterialApp(
@@ -35,24 +61,25 @@ Widget _wrapChatCard(StudioViewModel viewModel) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late Directory tempDir;
-  late StudioViewModel cardViewModel;
+  group('思考块展开与多行粘贴', () {
+    late Directory tempDir;
+    late StudioViewModel cardViewModel;
 
-  setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    tempDir = await Directory.systemTemp.createTemp('ctrl_o_anchor_test');
-    cardViewModel = StudioViewModel();
-    await cardViewModel.init();
-  });
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      tempDir = await Directory.systemTemp.createTemp('ctrl_o_anchor_test');
+      cardViewModel = StudioViewModel();
+      await cardViewModel.init();
+    });
 
-  tearDown(() async {
-    cardViewModel.dispose();
-    try {
-      await tempDir.delete(recursive: true);
-    } catch (_) {}
-  });
+    tearDown(() async {
+      cardViewModel.dispose();
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
+    });
 
-  testWidgets('完整应用: Ctrl+O 经 HardwareKeyboard 全局分发展开思考块', (tester) async {
+    testWidgets('完整应用: Ctrl+O 经 HardwareKeyboard 全局分发展开思考块', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -272,5 +299,216 @@ void main() {
 
     // 等待草稿防抖落盘计时器 (300ms) 触发完毕，避免悬空 Timer 报错
     await tester.pump(const Duration(milliseconds: 350));
+  });
+  });
+
+  group('ESC 中断与双击回溯', () {
+    group('单击 Esc 中断', () {
+      late Directory escapeDir;
+      late _StreamingEscapeViewModel streamingVm;
+
+      setUp(() async {
+        escapeDir = Directory.systemTemp.createTempSync('escape_test_');
+        SharedPreferences.setMockInitialValues({});
+        streamingVm = _StreamingEscapeViewModel(escapeDir.path);
+        await streamingVm.init();
+      });
+
+      tearDown(() async {
+        streamingVm.dispose();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        if (escapeDir.existsSync()) escapeDir.deleteSync(recursive: true);
+      });
+
+      testWidgets('输入框聚焦时单击 Esc 中断，长按不触发回溯', (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                child: AgentChatCard(viewModel: streamingVm),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.byType(TextField).last);
+        await tester.pump();
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+        expect(streamingVm.abortCount, 1);
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.escape);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+        expect(streamingVm.abortCount, 1);
+        expect(find.text('回溯历史时刻'), findsNothing);
+      });
+    });
+
+    group('双击 ESC 回溯', () {
+      setUp(() {
+        SharedPreferences.setMockInitialValues({});
+        AppLocaleController.instance.syncFromConfig(
+          const AppConfig(localePreference: AppLocalePreference.zh),
+        );
+      });
+
+      tearDown(() {
+        AppLocaleController.instance.resetForTest();
+      });
+
+      testWidgets('double ESC opens rewind from root focus (fresh start)', (
+        WidgetTester tester,
+      ) async {
+        tester.view.physicalSize = const Size(1400, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        await tester.pumpWidget(const NovelAiHarnessApp());
+        await tester.pumpAndSettle();
+
+        await _sendDoubleEsc(tester);
+        expect(find.byType(AgentRewindView), findsOneWidget);
+      });
+
+      testWidgets('double ESC opens rewind from left prompt panel focus', (
+        WidgetTester tester,
+      ) async {
+        tester.view.physicalSize = const Size(1400, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        await tester.pumpWidget(const NovelAiHarnessApp());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('提示词'));
+        await tester.pumpAndSettle();
+        final promptField = find.widgetWithText(
+          TextField,
+          '输入核心提示词或自然语言散文描述，如: 1girl, solo, silver hair, masterpiece...',
+        );
+        await tester.tap(promptField.first);
+        await tester.pump();
+
+        await _sendDoubleEsc(tester);
+        expect(find.byType(AgentRewindView), findsOneWidget);
+      });
+
+      testWidgets('double ESC opens rewind from chat input focus', (
+        WidgetTester tester,
+      ) async {
+        tester.view.physicalSize = const Size(1400, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        await tester.pumpWidget(const NovelAiHarnessApp());
+        await tester.pumpAndSettle();
+
+        final chatField = find.widgetWithText(
+          TextField,
+          '输入绘画构思，或输入 /nai <词> 快速生图...',
+        );
+        await tester.tap(chatField);
+        await tester.pump();
+
+        await _sendDoubleEsc(tester);
+        expect(find.byType(AgentRewindView), findsOneWidget);
+
+        // 单击 ESC 退出回溯
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.byType(AgentRewindView), findsNothing);
+      });
+    });
+  });
+
+  group('输入法组合与剪贴板快捷键', () {
+    late StudioViewModel imeVm;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({
+        'novelai_enable_tag_dictionary_auto_update': false,
+        'novelai_enable_image_persistence': false,
+      });
+      imeVm = StudioViewModel();
+      await imeVm.init();
+    });
+
+    tearDown(() {
+      imeVm.dispose();
+    });
+
+    testWidgets(
+      'macOS composition Enter keeps the draft; Shift+Enter inserts a line',
+      (tester) async {
+        var sends = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: AgentChatInputBar(viewModel: imeVm, onSent: () => sends++),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final field = find.byType(TextField).first;
+        await tester.tap(field);
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: '中文输入',
+            selection: TextSelection.collapsed(offset: 4),
+            composing: TextRange(start: 0, end: 4),
+          ),
+        );
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(sends, 0);
+        expect(imeVm.chatDraft, '中文输入');
+
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: '中文输入',
+            selection: TextSelection.collapsed(offset: 4),
+          ),
+        );
+        await tester.pump();
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+        expect(sends, 0);
+        expect(imeVm.chatDraft, '中文输入\n');
+
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+              if (call.method == 'Clipboard.getData') {
+                return {'text': '粘贴😀\n第二行'};
+              }
+              return null;
+            });
+        addTearDown(
+          () => TestDefaultBinaryMessengerBinding
+              .instance
+              .defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, null),
+        );
+        final controller = tester.widget<TextField>(field).controller!;
+        controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: controller.text.length,
+        );
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+        await tester.pumpAndSettle();
+        expect(imeVm.chatDraft, '粘贴😀\n第二行');
+        expect(sends, 0);
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 }

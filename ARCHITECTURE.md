@@ -340,7 +340,7 @@ sequenceDiagram
 
 ### 3.1.0 工具调用协议与渠道兼容
 
-- **原生协议 ID 修复**：`tool_call_ids.dart` 在请求侧规范化空、非法或重复的工具 ID，同步按原 ID/工具名/顺序配对结果，确保 Claude 中转上游要求的全请求 ID 唯一性。新 SSE 调用也与历史 ID 去重；UI 与磁盘历史不被重写，旧会话无需删除。展示层 `AssistantMessageItem` 以消息 ID + 工具 ID + 调用位置作为组件 Key，兼容旧历史中的重复/空 ID，避免撞键并保留各工具块独立折叠状态；回归见 `agent_chat_tool_identity_test.dart`。
+- **原生协议 ID 修复**：`tool_call_ids.dart` 在请求侧规范化空、非法或重复的工具 ID，同步按原 ID/工具名/顺序配对结果，确保 Claude 中转上游要求的全请求 ID 唯一性。新 SSE 调用也与历史 ID 去重；UI 与磁盘历史不被重写，旧会话无需删除。展示层 `AssistantMessageItem` 以消息 ID + 工具 ID + 调用位置作为组件 Key，兼容旧历史中的重复/空 ID，避免撞键并保留各工具块独立折叠状态；回归见 `agent_composer_stop_and_rewind_test.dart`。
 - **提示词工具调用**：设置 → 模型 → 供应商配置中的开关默认关闭，`LlmProviderConfig.promptToolUse` 随供应商 JSON 持久化。用于 Claude 等渠道原生工具协议不兼容，也适用于只支持聊天的渠道；不是自动失败重试切换。开启后 `PromptToolCodec` 将白名单内的工具 Schema 注入系统文本，历史调用转换为 Hermes 风格 `<tool_call>` JSON，结果转换为用户消息中的不可信 `<tool_response>` JSON；完全不发送 `tools`、`tool_choice`、`tool_calls`、`tool_call_id` 或 `tool` 角色。
 - **解析与执行边界**：仅解析正文里的独立调用块，思考、围栏、引用与行内示例不执行。增量正文保持流式输出，调用需包含严格 JSON 对象与对象类型的 arguments，单块 64 KiB、每条回复最多 32 个调用。完整流结束后才一次性提交；非法/截断/越权调用整组拒绝，格式错误仍消费尾部 usage。实际执行复用 Harness 的串行工具链、预设权限、点数确认、取消及轮数收尾，不执行任意脚本。
 - **图片与上下文**：请求转换发生在 imageEpoch 折叠之后。原生模式对齐 `reference/pi`：`tool` 角色只回传文本与调用 ID，连续工具结果全部配对后，再插入携带来源标识与 `image_url` 的 `user` 多模态消息；不把图片放进网关可能丢弃的 `tool.content` 数组。兼容模式的工具结果本就以 `user` 多模态消息回传，提示词明确文本调用协议不关闭视觉输入。已折叠图片不重新发送，直接用户附件路径不变。`llm_tool_image_request_test.dart` 从 Harness 到实际 HTTP 请求验证两种模式的用户/工具附件、单轮多个工具结果连续配对以及跨轮折叠；额外协议文本通过 `LlmRequestOverhead` 纳入无用量锚点时的上下文估算。压缩模型也沿用所属供应商开关，无工具摘要轮只要求直接回答。
