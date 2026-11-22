@@ -560,6 +560,72 @@ void main() {
       expect(afterPull.length, 1);
       expect(afterPull.first.id, 'keep_1');
     });
+
+    test(
+      'surfaces Worker upgrade guidance when legacy server rejects affix-only style entry with 400',
+      () async {
+        libA.setCustomStorageDirectory(dirA.path);
+        final t1 = DateTime.utc(2026, 11, 22, 10, 0, 0);
+        await libA.saveEntries([
+          PromptComboEntry(
+            id: 'style_affix_only',
+            title: '纯前后缀画风',
+            category: '风格',
+            prompt: '',
+            prefixPrompt: 'artist:example',
+            suffixPrompt: 'best quality',
+            createdAt: t1,
+            updatedAt: t1,
+          ),
+        ]);
+
+        final legacyClient = MockClient((req) async {
+          if (req.method == 'GET' && req.url.path == '/api/sync') {
+            return http.Response.bytes(
+              utf8.encode(
+                jsonEncode({
+                  'ok': true,
+                  'namespace': 'default',
+                  'revision': 1,
+                  'entries': const [],
+                  'serverTime': t1.toIso8601String(),
+                }),
+              ),
+              200,
+              headers: const {'content-type': 'application/json; charset=utf-8'},
+            );
+          }
+          if (req.method == 'POST' && req.url.path == '/api/sync/push') {
+            return http.Response.bytes(
+              utf8.encode(
+                jsonEncode({
+                  'ok': false,
+                  'error': '条目 style_affix_only 缺少 title 或 prompt',
+                  'code': 'INVALID_ENTRY',
+                }),
+              ),
+              400,
+              headers: const {'content-type': 'application/json; charset=utf-8'},
+            );
+          }
+          return http.Response('not found', 404);
+        });
+
+        final legacySync = PromptLibrarySyncService(
+          libraryService: libA,
+          httpClient: legacyClient,
+        );
+
+        await expectLater(
+          () => legacySync.sync(syncConfig),
+          throwsA(
+            isA<PromptLibrarySyncException>()
+                .having((e) => e.statusCode, 'statusCode', 400)
+                .having((e) => e.message, 'message', contains('npm run deploy')),
+          ),
+        );
+      },
+    );
   });
 
   group('PromptLibraryView & PromptLibrarySyncDialog Widget Tests', () {

@@ -215,19 +215,32 @@ function mapRowToEntry(row) {
 
 const migratedStyleColumnDbs = new WeakSet();
 
+async function addColumnIfMissing(db, sql) {
+  try {
+    await db.prepare(sql).run();
+  } catch (err) {
+    const msg = String(err?.message || err || '').toLowerCase();
+    if (!msg.includes('duplicate column')) {
+      throw err;
+    }
+  }
+}
+
 async function ensureStyleColumns(db) {
   if (migratedStyleColumnDbs.has(db)) return;
   const { results } = await db.prepare('PRAGMA table_info(sync_entries)').all();
   const cols = new Set((results || []).map((r) => r.name));
   if (!cols.has('prefix_prompt')) {
-    await db
-      .prepare("ALTER TABLE sync_entries ADD COLUMN prefix_prompt TEXT NOT NULL DEFAULT ''")
-      .run();
+    await addColumnIfMissing(
+      db,
+      "ALTER TABLE sync_entries ADD COLUMN prefix_prompt TEXT NOT NULL DEFAULT ''",
+    );
   }
   if (!cols.has('suffix_prompt')) {
-    await db
-      .prepare("ALTER TABLE sync_entries ADD COLUMN suffix_prompt TEXT NOT NULL DEFAULT ''")
-      .run();
+    await addColumnIfMissing(
+      db,
+      "ALTER TABLE sync_entries ADD COLUMN suffix_prompt TEXT NOT NULL DEFAULT ''",
+    );
   }
   migratedStyleColumnDbs.add(db);
 }

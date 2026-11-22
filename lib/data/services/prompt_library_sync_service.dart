@@ -922,6 +922,30 @@ class PromptLibrarySyncService {
     return savedPath;
   }
 
+  Never _rethrowPushError(
+    PromptLibrarySyncException e,
+    List<RemotePromptEntryRecord> records,
+  ) {
+    final hasAffixOnlyStyle = records.any(
+      (r) =>
+          !r.isDeleted &&
+          PromptComboEntry.isStyleCategory(r.category) &&
+          r.prompt.trim().isEmpty &&
+          (r.prefixPrompt.trim().isNotEmpty ||
+              r.suffixPrompt.trim().isNotEmpty ||
+              r.negativePrompt.trim().isNotEmpty),
+    );
+    if (e.statusCode == 400 &&
+        hasAffixOnlyStyle &&
+        e.message.contains('缺少 title 或 prompt')) {
+      throw PromptLibrarySyncException(
+        '云端 Worker 版本过旧，不支持新版「风格」前后缀词条同步，请在 cloudflare/prompt-library-sync 目录重新执行 npm run deploy 升级后重试 (${e.message})',
+        statusCode: e.statusCode,
+      );
+    }
+    throw e;
+  }
+
   Future<int> _pushRecords(
     http.Client client,
     PromptLibrarySyncConfig config, {
@@ -944,8 +968,12 @@ class PromptLibrarySyncService {
             }),
           )
           .timeout(const Duration(seconds: 60));
-      final data = _decodeJsonResponse(resp);
-      return (data['revision'] as num?)?.toInt() ?? 0;
+      try {
+        final data = _decodeJsonResponse(resp);
+        return (data['revision'] as num?)?.toInt() ?? 0;
+      } on PromptLibrarySyncException catch (e) {
+        _rethrowPushError(e, records);
+      }
     }
 
     var latestRevision = 0;
@@ -968,8 +996,12 @@ class PromptLibrarySyncService {
             }),
           )
           .timeout(const Duration(seconds: 60));
-      final data = _decodeJsonResponse(resp);
-      latestRevision = (data['revision'] as num?)?.toInt() ?? latestRevision;
+      try {
+        final data = _decodeJsonResponse(resp);
+        latestRevision = (data['revision'] as num?)?.toInt() ?? latestRevision;
+      } on PromptLibrarySyncException catch (e) {
+        _rethrowPushError(e, slice);
+      }
     }
     return latestRevision;
   }
