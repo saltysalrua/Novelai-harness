@@ -72,6 +72,9 @@ class _FakeStudioViewModel implements StudioViewModel {
   ];
 
   @override
+  bool isBuiltinSkillOverridden(String skillId) => false;
+
+  @override
   List<AgentTool> get availableTools => [
     CustomAgentTool(
       name: 'tool_one',
