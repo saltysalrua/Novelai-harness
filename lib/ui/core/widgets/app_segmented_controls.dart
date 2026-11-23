@@ -404,7 +404,9 @@ class _AppSegmentedPillBarState<T> extends State<AppSegmentedPillBar<T>>
       AppPillVariant.solid => (
         isSelected ? accent : colors.cardBackground,
         isSelected ? accent : colors.borderDefault,
-        isSelected ? Colors.white : colors.textSecondary,
+        isSelected
+            ? (item.activeColor == null ? colors.onPrimary : Colors.white)
+            : colors.textSecondary,
       ),
       AppPillVariant.soft => (
         isSelected ? activeBackground : colors.cardBackground,

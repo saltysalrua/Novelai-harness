@@ -339,7 +339,7 @@ class _FloatingCharacterChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: isSelected ? Colors.white : colors.textPrimary,
+                color: isSelected ? colors.onPrimary : colors.textPrimary,
               ),
             ),
             if (display.genderIcon != null) ...[
@@ -347,7 +347,7 @@ class _FloatingCharacterChip extends StatelessWidget {
               Icon(
                 display.genderIcon,
                 size: 13,
-                color: isSelected ? Colors.white : display.color,
+                color: isSelected ? colors.onPrimary : display.color,
               ),
             ],
             if (display.label.isNotEmpty) ...[
@@ -363,7 +363,7 @@ class _FloatingCharacterChip extends StatelessWidget {
                     fontWeight: isSelected
                         ? FontWeight.w600
                         : FontWeight.normal,
-                    color: isSelected ? Colors.white : colors.textPrimary,
+                    color: isSelected ? colors.onPrimary : colors.textPrimary,
                   ),
                 ),
               ),

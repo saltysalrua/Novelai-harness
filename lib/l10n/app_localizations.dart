@@ -476,6 +476,60 @@ abstract class AppLocalizations {
   /// **'手动模式下生效：点击打开取色器自由指定任意颜色'**
   String get settingsAccentSeedSubtitle;
 
+  /// No description provided for @settingsBackgroundMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'背景色'**
+  String get settingsBackgroundMode;
+
+  /// No description provided for @settingsBackgroundModeSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换工作台画布与面板底色：默认纸本/暗灰、跟随强调色微染或自由指定'**
+  String get settingsBackgroundModeSubtitle;
+
+  /// No description provided for @backgroundModeDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认'**
+  String get backgroundModeDefault;
+
+  /// No description provided for @backgroundModeFollowAccent.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随强调色'**
+  String get backgroundModeFollowAccent;
+
+  /// No description provided for @backgroundModeCustom.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义'**
+  String get backgroundModeCustom;
+
+  /// No description provided for @settingsBackgroundLightColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'亮色背景'**
+  String get settingsBackgroundLightColor;
+
+  /// No description provided for @settingsBackgroundDarkColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'深色背景'**
+  String get settingsBackgroundDarkColor;
+
+  /// No description provided for @settingsBackgroundColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'画布背景色'**
+  String get settingsBackgroundColor;
+
+  /// No description provided for @settingsBackgroundReset.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复默认'**
+  String get settingsBackgroundReset;
+
   /// No description provided for @colorPickerTitle.
   ///
   /// In zh, this message translates to:

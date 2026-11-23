@@ -530,7 +530,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                   label: l10n.sessionCurrentBadge,
                   variant: AppBadgeVariant.primary,
                   customBackgroundColor: colors.primary,
-                  customForegroundColor: Colors.white,
+                  customForegroundColor: colors.onPrimary,
                   fontSize: 10,
                 ),
                 const SizedBox(width: 6),

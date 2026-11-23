@@ -103,7 +103,7 @@ class _AppActionButtonState extends State<AppActionButton> {
       AppActionButtonVariant.outlined =>
         visuallyActive ? colors.textPrimary : colors.textMuted,
       AppActionButtonVariant.primary =>
-        visuallyActive ? Colors.white : colors.textMuted,
+        visuallyActive ? colors.onPrimary : colors.textMuted,
       AppActionButtonVariant.ghost =>
         visuallyActive ? colors.textSecondary : colors.textMuted,
     };

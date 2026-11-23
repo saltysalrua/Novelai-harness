@@ -456,7 +456,7 @@ class _WatermarkPositionPill extends StatelessWidget {
               Icon(
                 Icons.open_with_rounded,
                 size: 12,
-                color: isSelected ? Colors.white : colors.primary,
+                color: isSelected ? colors.onPrimary : colors.primary,
               ),
               const SizedBox(width: 4),
               Text(
@@ -464,7 +464,7 @@ class _WatermarkPositionPill extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : colors.primary,
+                  color: isSelected ? colors.onPrimary : colors.primary,
                 ),
               ),
             ],

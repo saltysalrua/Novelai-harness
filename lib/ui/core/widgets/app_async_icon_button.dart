@@ -138,7 +138,7 @@ class _AppAsyncIconButtonState extends State<AppAsyncIconButton> {
         widget.backgroundColor ??
             (_isHovered && isInteractive ? colors.primaryDark : colors.primary),
         widget.borderColor ?? Colors.transparent,
-        widget.iconColor ?? Colors.white,
+        widget.iconColor ?? colors.onPrimary,
         isInteractive && _isHovered
             ? AppShadows.subtle(
                 colors.primary,
@@ -172,7 +172,7 @@ class _AppAsyncIconButtonState extends State<AppAsyncIconButton> {
     final effectiveLoadingColor =
         widget.loadingColor ??
         (widget.variant == AppIconButtonVariant.primary
-            ? Colors.white
+            ? colors.onPrimary
             : colors.primary);
 
     final Widget innerContent = AppIconSwap(

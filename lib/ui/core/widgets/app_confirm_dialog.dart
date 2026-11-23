@@ -103,7 +103,7 @@ class AppConfirmDialog extends StatelessWidget {
           onPressed: onConfirm ?? () => Navigator.of(context).pop(true),
           style: FilledButton.styleFrom(
             backgroundColor: confirmBgColor,
-            foregroundColor: Colors.white,
+            foregroundColor: isDestructive ? Colors.white : colors.onPrimary,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),

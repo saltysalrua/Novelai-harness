@@ -207,7 +207,7 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
           onPressed: _handleSubmit,
           style: FilledButton.styleFrom(
             backgroundColor: colors.primary,
-            foregroundColor: Colors.white,
+            foregroundColor: colors.onPrimary,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),

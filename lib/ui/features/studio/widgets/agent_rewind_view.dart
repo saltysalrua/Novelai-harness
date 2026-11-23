@@ -409,7 +409,7 @@ class _AgentRewindViewState extends State<AgentRewindView> {
                     customBackgroundColor: isSelected
                         ? colors.primary
                         : colors.cardBackground,
-                    customForegroundColor: isSelected ? Colors.white : null,
+                    customForegroundColor: isSelected ? colors.onPrimary : null,
                     fontSize: 10.5,
                   ),
                   if (isLastTurn) ...[

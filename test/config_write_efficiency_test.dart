@@ -71,6 +71,34 @@ void main() {
     expect(writes, isEmpty);
   });
 
+  test('自定义背景色模式持久化往返与清空删除零冗余写入', () async {
+    final custom = const AppConfig().copyWith(
+      backgroundMode: AppBackgroundMode.custom,
+      customLightBackgroundColor: '#F6F0E4',
+      customDarkBackgroundColor: '#131822',
+    );
+    await service.saveConfig(custom);
+    final loaded = await service.loadConfigTolerant();
+    expect(loaded.backgroundMode, AppBackgroundMode.custom);
+    expect(loaded.customLightBackgroundColor, '#F6F0E4');
+    expect(loaded.customDarkBackgroundColor, '#131822');
+
+    writes.clear();
+    await service.saveConfig(custom);
+    expect(writes, isEmpty);
+
+    final cleared = custom.copyWith(
+      backgroundMode: AppBackgroundMode.defaultNotion,
+      clearCustomLightBackgroundColor: true,
+      clearCustomDarkBackgroundColor: true,
+    );
+    await service.saveConfig(cleared);
+    final reloaded = await service.loadConfigTolerant();
+    expect(reloaded.backgroundMode, AppBackgroundMode.defaultNotion);
+    expect(reloaded.customLightBackgroundColor, isNull);
+    expect(reloaded.customDarkBackgroundColor, isNull);
+  });
+
   test('并行提交配置按调用顺序完成，旧快照不会覆盖新值', () async {
     await service.saveConfig(const AppConfig());
     writes.clear();

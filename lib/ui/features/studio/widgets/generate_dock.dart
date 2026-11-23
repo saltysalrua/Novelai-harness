@@ -100,93 +100,109 @@ class GenerateDock extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
 
               // 主操作按钮 (修复页签 = 开始修复；其余 = 生成图片)
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isInpaintTab
+              Builder(
+                builder: (context) {
+                  final buttonBg = isInpaintTab
                       ? colors.primary
-                      : _buildButtonColor(context, estimatedCost),
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: colors.mutedBackground,
-                  disabledForegroundColor: colors.textMuted,
-                  minimumSize: Size(double.infinity, compact ? 44 : 38),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: compact ? 10 : 8,
-                  ),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  elevation: 0,
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                  ),
-                ),
-                onPressed: isInpaintTab
-                    ? (isRepairing || viewModel.isGenerating
-                          ? null
-                          : () => viewModel.executeInpaint())
-                    : (viewModel.isGenerating
-                          ? () => viewModel.abortGeneration()
-                          : () => viewModel.generateImage()),
-                icon: AppIconSwap(
-                  swapKey: (isInpaintTab, isAiEditMode, viewModel.isGenerating),
-                  enableBlur: false,
-                  child: Icon(
-                    isInpaintTab
-                        ? (isAiEditMode
-                              ? Icons.auto_awesome
-                              : Icons.auto_fix_high_outlined)
-                        : (viewModel.isGenerating
-                              ? Icons.stop_circle_outlined
-                              : Icons.auto_awesome),
-                    size: 16,
-                  ),
-                ),
-                label: isInpaintTab
-                    ? (isRepairing
-                          ? AppShimmerText(
-                              text: isAiEditMode
-                                  ? context.l10n.dockAiEditing
-                                  : context.l10n.dockInpainting,
-                              style: labelStyle,
-                              baseColor: colors.textMuted,
-                              highlightColor: colors.textPrimary,
-                              textAlign: TextAlign.center,
-                            )
-                          : AppTextSwap(
-                              text: isAiEditMode
-                                  ? context.l10n.startAiEdit
-                                  : context.l10n.startInpaint,
-                              style: labelStyle,
-                              textAlign: TextAlign.center,
-                              alignment: Alignment.center,
-                              enableBlur: false,
-                            ))
-                    : ListenableBuilder(
-                        // 生成中的步数文案仅随实时进度控制器局部刷新
-                        listenable: viewModel.liveProgressController,
-                        builder: (context, _) {
-                          final label = _buildButtonLabel(
-                            context,
-                            estimatedCost,
-                          );
-                          if (viewModel.isGenerating) {
-                            return AppShimmerText(
-                              text: label,
-                              style: labelStyle,
-                              baseColor: Colors.white.withValues(alpha: 0.78),
-                              highlightColor: Colors.white,
-                              textAlign: TextAlign.center,
-                            );
-                          }
-                          return AppTextSwap(
-                            text: label,
-                            style: labelStyle,
-                            textAlign: TextAlign.center,
-                            alignment: Alignment.center,
-                            enableBlur: false,
-                          );
-                        },
+                      : _buildButtonColor(context, estimatedCost);
+                  final buttonFg =
+                      (isInpaintTab ||
+                          (!viewModel.isGenerating && estimatedCost == 0))
+                      ? colors.onPrimary
+                      : Colors.white;
+                  return ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: buttonBg,
+                      foregroundColor: buttonFg,
+                      disabledBackgroundColor: colors.mutedBackground,
+                      disabledForegroundColor: colors.textMuted,
+                      minimumSize: Size(double.infinity, compact ? 44 : 38),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: compact ? 10 : 8,
                       ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      elevation: 0,
+                      side: BorderSide(
+                        color: buttonFg.withValues(alpha: 0.14),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                    ),
+                    onPressed: isInpaintTab
+                        ? (isRepairing || viewModel.isGenerating
+                              ? null
+                              : () => viewModel.executeInpaint())
+                        : (viewModel.isGenerating
+                              ? () => viewModel.abortGeneration()
+                              : () => viewModel.generateImage()),
+                    icon: AppIconSwap(
+                      swapKey: (
+                        isInpaintTab,
+                        isAiEditMode,
+                        viewModel.isGenerating,
+                      ),
+                      enableBlur: false,
+                      child: Icon(
+                        isInpaintTab
+                            ? (isAiEditMode
+                                  ? Icons.auto_awesome
+                                  : Icons.auto_fix_high_outlined)
+                            : (viewModel.isGenerating
+                                  ? Icons.stop_circle_outlined
+                                  : Icons.auto_awesome),
+                        size: 16,
+                      ),
+                    ),
+                    label: isInpaintTab
+                        ? (isRepairing
+                              ? AppShimmerText(
+                                  text: isAiEditMode
+                                      ? context.l10n.dockAiEditing
+                                      : context.l10n.dockInpainting,
+                                  style: labelStyle,
+                                  baseColor: colors.textMuted,
+                                  highlightColor: colors.textPrimary,
+                                  textAlign: TextAlign.center,
+                                )
+                              : AppTextSwap(
+                                  text: isAiEditMode
+                                      ? context.l10n.startAiEdit
+                                      : context.l10n.startInpaint,
+                                  style: labelStyle,
+                                  textAlign: TextAlign.center,
+                                  alignment: Alignment.center,
+                                  enableBlur: false,
+                                ))
+                        : ListenableBuilder(
+                            // 生成中的步数文案仅随实时进度控制器局部刷新
+                            listenable: viewModel.liveProgressController,
+                            builder: (context, _) {
+                              final label = _buildButtonLabel(
+                                context,
+                                estimatedCost,
+                              );
+                              if (viewModel.isGenerating) {
+                                return AppShimmerText(
+                                  text: label,
+                                  style: labelStyle,
+                                  baseColor: buttonFg.withValues(alpha: 0.78),
+                                  highlightColor: buttonFg,
+                                  textAlign: TextAlign.center,
+                                );
+                              }
+                              return AppTextSwap(
+                                text: label,
+                                style: labelStyle,
+                                textAlign: TextAlign.center,
+                                alignment: Alignment.center,
+                                enableBlur: false,
+                              );
+                            },
+                          ),
+                  );
+                },
               ),
             ],
           ),

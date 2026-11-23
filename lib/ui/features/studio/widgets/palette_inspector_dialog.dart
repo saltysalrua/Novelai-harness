@@ -368,7 +368,11 @@ class _M3PreviewRow extends StatelessWidget {
         Expanded(
           child: Row(
             children: [
-              _tokenChip(l10n.paletteM3TokenPrimary, tokens.primary),
+              _tokenChip(
+                l10n.paletteM3TokenPrimary,
+                tokens.primary,
+                foreground: tokens.onPrimary,
+              ),
               _tokenChip(l10n.paletteM3TokenLight, tokens.primaryLight),
               _tokenChip(l10n.paletteM3TokenDark, tokens.primaryDark),
               _tokenChip(l10n.paletteM3TokenTint, tokens.primaryTint),
@@ -379,7 +383,7 @@ class _M3PreviewRow extends StatelessWidget {
     );
   }
 
-  Widget _tokenChip(String label, Color color) {
+  Widget _tokenChip(String label, Color color, {Color? foreground}) {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
@@ -387,10 +391,21 @@ class _M3PreviewRow extends StatelessWidget {
           children: [
             Container(
               height: 28,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: color,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
+              child: foreground == null
+                  ? null
+                  : Text(
+                      'Aa',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: foreground,
+                      ),
+                    ),
             ),
             const SizedBox(height: AppSpacing.xs),
             Builder(

@@ -23,31 +23,63 @@ class AccentThemeState {
   /// 当前种子色 (null = 默认 Notion 蓝，不注入)
   final Color? seed;
 
+  /// 背景色来源模式 (默认 Notion / 跟随强调色微染 / 自定义背景色)
+  final AppBackgroundMode backgroundMode;
+
+  /// 自定义亮色画布背景色 (null = 默认暖纸)
+  final Color? customLightBackground;
+
+  /// 自定义深色画布背景色 (null = 默认暗灰)
+  final Color? customDarkBackground;
+
   const AccentThemeState({
     required this.mode,
     required this.variant,
     this.seed,
+    this.backgroundMode = AppBackgroundMode.defaultNotion,
+    this.customLightBackground,
+    this.customDarkBackground,
   });
 
   bool get isAdaptive => mode == AppAccentMode.adaptive;
 
   /// 种子或方案变化才视为状态变化 (mode 变化但种子未定不触发重建)
-  AccentThemeState copyWith({Color? seed, AppAccentVariant? variant}) =>
-      AccentThemeState(
-        mode: mode,
-        variant: variant ?? this.variant,
-        seed: seed ?? this.seed,
-      );
+  AccentThemeState copyWith({
+    Color? seed,
+    AppAccentVariant? variant,
+    AppBackgroundMode? backgroundMode,
+    Color? customLightBackground,
+    Color? customDarkBackground,
+  }) => AccentThemeState(
+    mode: mode,
+    variant: variant ?? this.variant,
+    seed: seed ?? this.seed,
+    backgroundMode: backgroundMode ?? this.backgroundMode,
+    customLightBackground: customLightBackground ?? this.customLightBackground,
+    customDarkBackground: customDarkBackground ?? this.customDarkBackground,
+  );
 
   @override
   bool operator ==(Object other) =>
       other is AccentThemeState &&
       other.mode == mode &&
       other.variant == variant &&
-      other.seed?.toARGB32() == seed?.toARGB32();
+      other.seed?.toARGB32() == seed?.toARGB32() &&
+      other.backgroundMode == backgroundMode &&
+      other.customLightBackground?.toARGB32() ==
+          customLightBackground?.toARGB32() &&
+      other.customDarkBackground?.toARGB32() ==
+          customDarkBackground?.toARGB32();
 
   @override
-  int get hashCode => Object.hash(mode, variant, seed?.toARGB32());
+  int get hashCode => Object.hash(
+    mode,
+    variant,
+    seed?.toARGB32(),
+    backgroundMode,
+    customLightBackground?.toARGB32(),
+    customDarkBackground?.toARGB32(),
+  );
 }
 
 class AppAccentController {
@@ -56,7 +88,7 @@ class AppAccentController {
   /// 全局唯一实例 (应用生命周期级别，永不 dispose)
   static final AppAccentController instance = AppAccentController._();
 
-  /// 当前生效的强调色状态 (初始默认蓝，main 启动时会按配置立即校正)
+  /// 当前生效的强调色与背景色状态 (初始默认蓝 + Notion 背景，main 启动时会按配置立即校正)
   final ValueNotifier<AccentThemeState> state = ValueNotifier(
     const AccentThemeState(
       mode: AppAccentMode.defaultBlue,
@@ -67,6 +99,29 @@ class AppAccentController {
   /// 配置保存/加载后同步；仅状态真正变化时通知。
   void syncFromConfig(AppConfig config) {
     final seedArgb = parseSeedColorText(config.accentSeedColor);
+    final lightBgArgb = parseSeedColorText(config.customLightBackgroundColor);
+    final darkBgArgb = parseSeedColorText(config.customDarkBackgroundColor);
+    final lightBg = lightBgArgb == null ? null : Color(lightBgArgb);
+    final darkBg = darkBgArgb == null ? null : Color(darkBgArgb);
+
+    // 自适应模式保留运行时已提取的种子 (配置里没有“当前图片色”)，
+    // 只同步方案与背景色配置变化
+    if (config.accentMode == AppAccentMode.adaptive) {
+      final current = state.value;
+      final target = AccentThemeState(
+        mode: AppAccentMode.adaptive,
+        variant: config.accentVariant,
+        seed: current.isAdaptive ? current.seed : null,
+        backgroundMode: config.backgroundMode,
+        customLightBackground: lightBg,
+        customDarkBackground: darkBg,
+      );
+      if (current != target) {
+        state.value = target;
+      }
+      return;
+    }
+
     final target = AccentThemeState(
       mode: config.accentMode,
       variant: config.accentVariant,
@@ -75,23 +130,10 @@ class AppAccentController {
       seed: config.accentMode == AppAccentMode.defaultBlue || seedArgb == null
           ? null
           : Color(seedArgb),
+      backgroundMode: config.backgroundMode,
+      customLightBackground: lightBg,
+      customDarkBackground: darkBg,
     );
-    // 自适应模式保留运行时已提取的种子 (配置里没有“当前图片色”)，
-    // 只同步方案变化；mode 必须显式写入 (copyWith 不携带 mode)
-    if (config.accentMode == AppAccentMode.adaptive) {
-      final current = state.value;
-      if (current.isAdaptive &&
-          current.variant == config.accentVariant &&
-          current.seed != null) {
-        return;
-      }
-      state.value = AccentThemeState(
-        mode: AppAccentMode.adaptive,
-        variant: config.accentVariant,
-        seed: current.isAdaptive ? current.seed : null,
-      );
-      return;
-    }
     if (state.value != target) {
       state.value = target;
     }
@@ -106,6 +148,9 @@ class AppAccentController {
       mode: current.mode,
       variant: current.variant,
       seed: seed,
+      backgroundMode: current.backgroundMode,
+      customLightBackground: current.customLightBackground,
+      customDarkBackground: current.customDarkBackground,
     );
   }
 
@@ -116,6 +161,9 @@ class AppAccentController {
       mode: AppAccentMode.manual,
       variant: current.variant,
       seed: seed,
+      backgroundMode: current.backgroundMode,
+      customLightBackground: current.customLightBackground,
+      customDarkBackground: current.customDarkBackground,
     );
   }
 

@@ -21,13 +21,31 @@ class AppColorPickerDialog extends StatefulWidget {
   /// 初始颜色 (缺省 Notion 蓝)
   final Color initialColor;
 
-  const AppColorPickerDialog({super.key, required this.initialColor});
+  /// 自定义弹窗标题 (未指定时使用通用「选择颜色」)
+  final String? title;
 
-  static Future<Color?> show(BuildContext context, {Color? initialColor}) {
+  /// 自定义预设色板 (未指定时使用默认强调色预设)
+  final List<Color>? presets;
+
+  const AppColorPickerDialog({
+    super.key,
+    required this.initialColor,
+    this.title,
+    this.presets,
+  });
+
+  static Future<Color?> show(
+    BuildContext context, {
+    Color? initialColor,
+    String? title,
+    List<Color>? presets,
+  }) {
     return AppDialogScaffold.show<Color>(
       context: context,
       builder: (ctx) => AppColorPickerDialog(
         initialColor: initialColor ?? const Color(0xFF0075DE),
+        title: title,
+        presets: presets,
       ),
     );
   }
@@ -118,8 +136,10 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
     final colors = context.colors;
     final current = _currentColor;
 
+    final effectivePresets = widget.presets ?? _kPresets;
+
     return AppDialogScaffold(
-      title: l10n.colorPickerTitle,
+      title: widget.title ?? l10n.colorPickerTitle,
       width: 420,
       onClose: () => Navigator.of(context).pop(),
       actions: [
@@ -139,7 +159,7 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
           onPressed: () => Navigator.of(context).pop(current),
           style: FilledButton.styleFrom(
             backgroundColor: colors.primary,
-            foregroundColor: Colors.white,
+            foregroundColor: colors.onPrimary,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
@@ -253,7 +273,7 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
                 children: [
-                  for (final preset in _kPresets)
+                  for (final preset in effectivePresets)
                     _PresetSwatch(
                       color: preset,
                       selected: preset.toARGB32() == current.toARGB32(),

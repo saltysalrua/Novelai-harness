@@ -136,7 +136,7 @@ class _AppIconButtonState extends State<AppIconButton> {
         widget.backgroundColor ??
             (_isHovered && isInteractive ? colors.primaryDark : colors.primary),
         widget.borderColor ?? Colors.transparent,
-        widget.iconColor ?? Colors.white,
+        widget.iconColor ?? colors.onPrimary,
         isInteractive && _isHovered
             ? AppShadows.subtle(
                 colors.primary,

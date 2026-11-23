@@ -111,7 +111,10 @@ class _AppSwitchState extends State<AppSwitch>
     final enabled = widget.onChanged != null;
     final activeTrack = widget.activeColor ?? colors.primary;
     final inactiveTrack = widget.inactiveColor ?? colors.mutedBackground;
-    final thumbFill = widget.thumbColor ?? Colors.white;
+    final inactiveThumb = widget.thumbColor ?? Colors.white;
+    final activeThumb =
+        widget.thumbColor ??
+        (widget.activeColor == null ? colors.onPrimary : Colors.white);
 
     final thumbDiameter = (widget.height - 4.0).clamp(10.0, widget.height);
     final travel = (widget.width - thumbDiameter - 4.0).clamp(
@@ -146,6 +149,9 @@ class _AppSwitchState extends State<AppSwitch>
                       colorT,
                     ) ??
                     colors.borderDefault;
+                final thumbFill =
+                    Color.lerp(inactiveThumb, activeThumb, colorT) ??
+                    inactiveThumb;
                 final thumbLeft = 2.0 + travel * _thumbCurve.value;
 
                 return Container(
@@ -296,7 +302,9 @@ class _AppCheckboxState extends State<AppCheckbox>
     final enabled = widget.onChanged != null;
     final activeBg = widget.activeColor ?? colors.primary;
     final inactiveBorder = widget.borderColor ?? colors.borderHover;
-    final strokeColor = widget.checkColor ?? Colors.white;
+    final strokeColor =
+        widget.checkColor ??
+        (widget.activeColor == null ? colors.onPrimary : Colors.white);
     final boxDuration = AppMotion.resolveDuration(
       context,
       AppMotionDurations.quick,

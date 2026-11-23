@@ -186,7 +186,7 @@ class _InlineAgentQuestionCardState extends State<InlineAgentQuestionCard> {
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: colors.primary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: colors.onPrimary,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadius.md),

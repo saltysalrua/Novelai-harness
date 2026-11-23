@@ -162,6 +162,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
       accentSeedColor:
           _generalDraft.accentSeedColor ??
           widget.viewModel.config.accentSeedColor,
+      backgroundMode: _generalDraft.backgroundMode,
+      customLightBackgroundColor: _generalDraft.customLightBackgroundColor,
+      clearCustomLightBackgroundColor:
+          _generalDraft.customLightBackgroundColor == null,
+      customDarkBackgroundColor: _generalDraft.customDarkBackgroundColor,
+      clearCustomDarkBackgroundColor:
+          _generalDraft.customDarkBackgroundColor == null,
       localePreference: _generalDraft.localePreference,
       uiZoom: _generalDraft.uiZoom,
       maxFrameRate: _generalDraft.maxFrameRate,

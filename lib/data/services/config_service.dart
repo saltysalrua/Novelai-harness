@@ -126,6 +126,25 @@ String? seedColorText(int? argb) {
   return '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 }
 
+/// 界面背景色来源 (默认 Notion 纸本/暗灰 / 跟随强调色柔和微染 / 自定义背景色)
+///
+/// 纯 Dart 枚举；四层背景与对比度推导见 ui/core/theme/md3_accent.dart。
+enum AppBackgroundMode { defaultNotion, followAccent, custom }
+
+/// 存储字符串 → 枚举 (未知/缺失值回退默认 Notion 背景)
+AppBackgroundMode parseBackgroundMode(String? raw) => switch (raw) {
+  'follow_accent' => AppBackgroundMode.followAccent,
+  'custom' => AppBackgroundMode.custom,
+  _ => AppBackgroundMode.defaultNotion,
+};
+
+/// 枚举 → 存储字符串
+String backgroundModeStorage(AppBackgroundMode mode) => switch (mode) {
+  AppBackgroundMode.defaultNotion => 'default',
+  AppBackgroundMode.followAccent => 'follow_accent',
+  AppBackgroundMode.custom => 'custom',
+};
+
 /// 全局配置数据模型
 class AppConfig {
   // NovelAI 设置
@@ -155,6 +174,15 @@ class AppConfig {
 
   /// 手动模式下的种子色 (存储为 #RRGGBB 文本，null = 未指定)
   final String? accentSeedColor;
+
+  /// 背景色来源 (默认 Notion / 跟随强调色微染 / 自定义背景色)
+  final AppBackgroundMode backgroundMode;
+
+  /// 自定义亮色模式画布背景色 (#RRGGBB，null = 使用默认暖纸 #F6F5F4)
+  final String? customLightBackgroundColor;
+
+  /// 自定义深色模式画布背景色 (#RRGGBB，null = 使用默认暗灰 #191919)
+  final String? customDarkBackgroundColor;
 
   /// 语言偏好 (跟随系统/中文/English)，由 AppLocaleController 映射到 MaterialApp
   final AppLocalePreference localePreference;
@@ -317,6 +345,9 @@ class AppConfig {
     this.accentMode = AppAccentMode.defaultBlue,
     this.accentVariant = AppAccentVariant.tonalSpot,
     this.accentSeedColor,
+    this.backgroundMode = AppBackgroundMode.defaultNotion,
+    this.customLightBackgroundColor,
+    this.customDarkBackgroundColor,
     this.localePreference = AppLocalePreference.system,
     this.uiZoom = 1.0,
     this.maxFrameRate = 0,
@@ -385,6 +416,11 @@ class AppConfig {
     AppAccentMode? accentMode,
     AppAccentVariant? accentVariant,
     String? accentSeedColor,
+    AppBackgroundMode? backgroundMode,
+    String? customLightBackgroundColor,
+    bool clearCustomLightBackgroundColor = false,
+    String? customDarkBackgroundColor,
+    bool clearCustomDarkBackgroundColor = false,
     AppLocalePreference? localePreference,
     double? uiZoom,
     int? maxFrameRate,
@@ -454,6 +490,13 @@ class AppConfig {
       accentMode: accentMode ?? this.accentMode,
       accentVariant: accentVariant ?? this.accentVariant,
       accentSeedColor: accentSeedColor ?? this.accentSeedColor,
+      backgroundMode: backgroundMode ?? this.backgroundMode,
+      customLightBackgroundColor: clearCustomLightBackgroundColor
+          ? null
+          : (customLightBackgroundColor ?? this.customLightBackgroundColor),
+      customDarkBackgroundColor: clearCustomDarkBackgroundColor
+          ? null
+          : (customDarkBackgroundColor ?? this.customDarkBackgroundColor),
       localePreference: localePreference ?? this.localePreference,
       uiZoom: uiZoom ?? this.uiZoom,
       maxFrameRate: maxFrameRate ?? this.maxFrameRate,
@@ -558,6 +601,11 @@ class ConfigService {
   static const String _keyAccentMode = 'novelai_accent_mode';
   static const String _keyAccentVariant = 'novelai_accent_variant';
   static const String _keyAccentSeedColor = 'novelai_accent_seed_color';
+  static const String _keyBackgroundMode = 'novelai_background_mode';
+  static const String _keyCustomLightBackground =
+      'novelai_custom_light_background';
+  static const String _keyCustomDarkBackground =
+      'novelai_custom_dark_background';
   static const String _keyLocalePreference = 'novelai_locale_preference';
   static const String _keyUiZoom = 'novelai_ui_zoom';
   static const String _keyMaxFrameRate = 'novelai_max_frame_rate';
@@ -729,6 +777,13 @@ class ConfigService {
       prefs.getString(_keyAccentVariant),
     );
     final accentSeedColor = prefs.getString(_keyAccentSeedColor);
+    final backgroundMode = parseBackgroundMode(
+      prefs.getString(_keyBackgroundMode),
+    );
+    final customLightBackgroundColor = prefs.getString(
+      _keyCustomLightBackground,
+    );
+    final customDarkBackgroundColor = prefs.getString(_keyCustomDarkBackground);
     final localePref = parseLocalePreference(
       prefs.getString(_keyLocalePreference),
     );
@@ -1001,6 +1056,9 @@ class ConfigService {
       accentMode: accentMode,
       accentVariant: accentVariant,
       accentSeedColor: accentSeedColor,
+      backgroundMode: backgroundMode,
+      customLightBackgroundColor: customLightBackgroundColor,
+      customDarkBackgroundColor: customDarkBackgroundColor,
       localePreference: localePref,
       uiZoom: uiZoom,
       maxFrameRate: maxFrameRate,
@@ -1115,6 +1173,9 @@ class ConfigService {
       _keyAccentMode: accentModeStorage(config.accentMode),
       _keyAccentVariant: accentVariantStorage(config.accentVariant),
       _keyAccentSeedColor: config.accentSeedColor,
+      _keyBackgroundMode: backgroundModeStorage(config.backgroundMode),
+      _keyCustomLightBackground: config.customLightBackgroundColor,
+      _keyCustomDarkBackground: config.customDarkBackgroundColor,
       _keyLocalePreference: localePreferenceStorage(config.localePreference),
       _keyUiZoom: clampUiZoom(config.uiZoom),
       _keyMaxFrameRate: clampMaxFrameRate(config.maxFrameRate),

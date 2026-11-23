@@ -87,34 +87,67 @@ class AppTheme {
   static ThemeData _buildAccent(
     Brightness brightness,
     AccentThemeState? accent,
-  ) => buildTheme(
-    brightness,
-    // 防御兑底：默认蓝模式一律忽略种子 (即使种子意外残留也不注入)，
-    // 保证切回默认后必然恢复原生 Notion 蓝
-    seed: accent != null && accent.mode == AppAccentMode.defaultBlue
-        ? null
-        : accent?.seed,
-    variant: accent?.variant ?? AppAccentVariant.tonalSpot,
-  );
+  ) {
+    final isDark = brightness == Brightness.dark;
+    return buildTheme(
+      brightness,
+      // 防御兜底：默认蓝模式一律忽略种子 (即使种子意外残留也不注入)，
+      // 保证切回默认后必然恢复原生 Notion 蓝
+      seed: accent != null && accent.mode == AppAccentMode.defaultBlue
+          ? null
+          : accent?.seed,
+      variant: accent?.variant ?? AppAccentVariant.tonalSpot,
+      backgroundMode:
+          accent?.backgroundMode ?? AppBackgroundMode.defaultNotion,
+      customBackground: isDark
+          ? accent?.customDarkBackground
+          : accent?.customLightBackground,
+    );
+  }
 
-  /// 通用主题构建：[seed] 非空时经 MD3 DynamicScheme 推导强调色族注入
+  /// 通用主题构建：支持背景层级定制 (默认 Notion / 跟随强调色微染 / 自定义背景)
+  /// 与 HCT 护眼 MD3 强调色令牌推导注入。
   static ThemeData buildTheme(
     Brightness brightness, {
     Color? seed,
     AppAccentVariant variant = AppAccentVariant.tonalSpot,
+    AppBackgroundMode backgroundMode = AppBackgroundMode.defaultNotion,
+    Color? customBackground,
   }) {
     final isDark = brightness == Brightness.dark;
     final baseColors = isDark
         ? AppColorsExtension.dark
         : AppColorsExtension.light;
+    final AppSurfaceTokens? surfaceTokens = buildSurfaceTokens(
+      brightness: brightness,
+      mode: backgroundMode,
+      customColor: customBackground,
+      accentSeed: seed,
+      accentVariant: variant,
+    );
+    final surfacedColors = _applySurfaceTokens(baseColors, surfaceTokens);
+    final bool effectiveDark = surfaceTokens?.isDarkSurface ?? isDark;
     final M3AccentTokens? tokens = seed == null
         ? null
         : buildM3AccentTokens(
             seed: seed,
-            brightness: brightness,
+            brightness: effectiveDark ? Brightness.dark : Brightness.light,
             variant: variant,
+            surfaceColor: surfacedColors.cardBackground,
           );
-    final colors = _applyAccentTokens(baseColors, tokens);
+    final colors = _applyAccentTokens(
+      surfacedColors,
+      tokens,
+      harmonizeDefaultTint: surfaceTokens != null,
+      isDarkSurface: effectiveDark,
+    );
+
+    final Color darkContainerMid =
+        Color.lerp(colors.cardBackground, colors.elevatedBackground, 0.5) ??
+        colors.elevatedBackground;
+    final Color darkSurfaceBright =
+        Color.lerp(colors.mutedBackground, Colors.white, 0.06) ??
+        colors.mutedBackground;
 
     return ThemeData(
       useMaterial3: true,
@@ -128,16 +161,16 @@ class AppTheme {
               secondary: colors.primaryLight,
               surface: colors.cardBackground,
               // M3 原生组件 (Menu/DatePicker/Dialog) 依赖 surfaceContainer 层级取色，
-              // 缺省会回退紫色基底，与 Notion 冷灰风格撕裂
+              // 缺省会回退紫色基底，这里与当前自定义/动态表面层级完全对齐
               surfaceContainerLowest: colors.canvasBackground,
               surfaceContainerLow: colors.cardBackground,
-              surfaceContainer: const Color(0xFF242424),
+              surfaceContainer: darkContainerMid,
               surfaceContainerHigh: colors.elevatedBackground,
               surfaceContainerHighest: colors.mutedBackground,
               surfaceDim: colors.canvasBackground,
-              surfaceBright: const Color(0xFF2E2E2E),
+              surfaceBright: darkSurfaceBright,
               error: colors.error,
-              onPrimary: tokens?.onPrimary ?? Colors.white,
+              onPrimary: colors.onPrimary,
               onSurface: colors.textPrimary,
               onSurfaceVariant: colors.textSecondary,
             )
@@ -151,7 +184,7 @@ class AppTheme {
               surfaceContainerHigh: colors.elevatedBackground,
               surfaceContainerHighest: colors.mutedBackground,
               error: colors.error,
-              onPrimary: tokens?.onPrimary ?? Colors.white,
+              onPrimary: colors.onPrimary,
               onSurface: colors.textPrimary,
               onSurfaceVariant: colors.textSecondary,
             ),
@@ -244,13 +277,18 @@ class AppTheme {
         textStyle: TextStyle(
           fontFamily: fontFamily,
           fontSize: 12,
-          color: isDark ? colors.textPrimary : colors.cardBackground,
+          color: effectiveDark ? colors.textPrimary : colors.cardBackground,
         ),
         decoration: BoxDecoration(
-          color: isDark ? colors.elevatedBackground : colors.textPrimary,
+          color: effectiveDark ? colors.elevatedBackground : colors.textPrimary,
           borderRadius: BorderRadius.circular(radiusButton),
-          border: isDark ? Border.all(color: colors.borderDefault) : null,
-          boxShadow: AppShadows.elevated(Colors.black, brightness: brightness),
+          border: effectiveDark
+              ? Border.all(color: colors.borderDefault)
+              : null,
+          boxShadow: AppShadows.elevated(
+            Colors.black,
+            brightness: effectiveDark ? Brightness.dark : Brightness.light,
+          ),
         ),
       ),
       dialogTheme: DialogThemeData(
@@ -273,14 +311,47 @@ class AppTheme {
     );
   }
 
-  /// 将 MD3 强调色令牌覆盖到 Notion 基础色板 (仅强调色族，中性色不动)
-  static AppColorsExtension _applyAccentTokens(
+  /// 将背景与中性层级令牌覆盖到基础色板
+  static AppColorsExtension _applySurfaceTokens(
     AppColorsExtension base,
-    M3AccentTokens? tokens,
+    AppSurfaceTokens? tokens,
   ) {
     if (tokens == null) return base;
     return base.copyWith(
+          canvasBackground: tokens.canvasBackground,
+          cardBackground: tokens.cardBackground,
+          elevatedBackground: tokens.elevatedBackground,
+          mutedBackground: tokens.mutedBackground,
+          borderSubtle: tokens.borderSubtle,
+          borderDefault: tokens.borderDefault,
+          borderHover: tokens.borderHover,
+          textPrimary: tokens.textPrimary,
+          textSecondary: tokens.textSecondary,
+          textMuted: tokens.textMuted,
+        )
+        as AppColorsExtension;
+  }
+
+  /// 将护眼 MD3 强调色令牌覆盖到色板；自定义/微染背景下的默认蓝也同步融合 primaryTint
+  static AppColorsExtension _applyAccentTokens(
+    AppColorsExtension base,
+    M3AccentTokens? tokens, {
+    bool harmonizeDefaultTint = false,
+    bool isDarkSurface = false,
+  }) {
+    if (tokens == null) {
+      if (!harmonizeDefaultTint) return base;
+      return base.copyWith(
+            primaryTint: Color.alphaBlend(
+              base.primary.withValues(alpha: isDarkSurface ? 0.14 : 0.10),
+              base.cardBackground,
+            ),
+          )
+          as AppColorsExtension;
+    }
+    return base.copyWith(
           primary: tokens.primary,
+          onPrimary: tokens.onPrimary,
           primaryLight: tokens.primaryLight,
           primaryDark: tokens.primaryDark,
           primaryTint: tokens.primaryTint,

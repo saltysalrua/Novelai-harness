@@ -596,6 +596,9 @@ class CanvasQuickGenerateButton extends StatelessWidget {
         );
         final height = compact ? 40.0 : 38.0;
         final radius = compact ? AppRadius.lg : AppRadius.md;
+        final fgColor = (!isGenerating && estimatedCost == 0)
+            ? context.colors.onPrimary
+            : Colors.white;
 
         return Tooltip(
           message: fullTooltip,
@@ -621,7 +624,7 @@ class CanvasQuickGenerateButton extends StatelessWidget {
                   color: bgColor,
                   borderRadius: BorderRadius.circular(radius),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.14),
+                    color: fgColor.withValues(alpha: 0.14),
                   ),
                   boxShadow: context.shadowElevated,
                 ),
@@ -635,7 +638,7 @@ class CanvasQuickGenerateButton extends StatelessWidget {
                               : Icons.auto_awesome,
                           key: ValueKey<bool>(isGenerating),
                           size: 18,
-                          color: Colors.white,
+                          color: fgColor,
                         ),
                       )
                     : Row(
@@ -650,7 +653,7 @@ class CanvasQuickGenerateButton extends StatelessWidget {
                                   : Icons.auto_awesome,
                               key: ValueKey<bool>(isGenerating),
                               size: 16,
-                              color: Colors.white,
+                              color: fgColor,
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -659,7 +662,7 @@ class CanvasQuickGenerateButton extends StatelessWidget {
                             style: TextStyle(
                               fontSize: compact ? 12.5 : 13,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: fgColor,
                               fontFeatures: isGenerating
                                   ? const [FontFeature.tabularFigures()]
                                   : null,

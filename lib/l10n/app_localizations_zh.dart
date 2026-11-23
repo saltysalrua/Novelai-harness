@@ -211,6 +211,34 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsAccentSeedSubtitle => '手动模式下生效：点击打开取色器自由指定任意颜色';
 
   @override
+  String get settingsBackgroundMode => '背景色';
+
+  @override
+  String get settingsBackgroundModeSubtitle =>
+      '切换工作台画布与面板底色：默认纸本/暗灰、跟随强调色微染或自由指定';
+
+  @override
+  String get backgroundModeDefault => '默认';
+
+  @override
+  String get backgroundModeFollowAccent => '跟随强调色';
+
+  @override
+  String get backgroundModeCustom => '自定义';
+
+  @override
+  String get settingsBackgroundLightColor => '亮色背景';
+
+  @override
+  String get settingsBackgroundDarkColor => '深色背景';
+
+  @override
+  String get settingsBackgroundColor => '画布背景色';
+
+  @override
+  String get settingsBackgroundReset => '恢复默认';
+
+  @override
   String get colorPickerTitle => '选择颜色';
 
   @override

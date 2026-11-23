@@ -128,7 +128,7 @@ class _AppToolChipState extends State<AppToolChip> {
     final Color fgColor = switch (widget.variant) {
       AppToolChipVariant.filled =>
         isSelected
-            ? Colors.white
+            ? colors.onPrimary
             : (isEnabled ? colors.textPrimary : colors.textMuted),
       AppToolChipVariant.tinted =>
         isSelected

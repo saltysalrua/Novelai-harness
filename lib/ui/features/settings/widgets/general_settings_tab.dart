@@ -14,6 +14,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/md3_accent.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_color_picker_dialog.dart';
@@ -76,6 +77,9 @@ class GeneralSettingsDraft {
       accentMode = config.accentMode,
       accentVariant = config.accentVariant,
       accentSeedColor = config.accentSeedColor,
+      backgroundMode = config.backgroundMode,
+      customLightBackgroundColor = config.customLightBackgroundColor,
+      customDarkBackgroundColor = config.customDarkBackgroundColor,
       localePreference = config.localePreference,
       uiZoom = config.uiZoom,
       maxFrameRate = config.maxFrameRate,
@@ -145,6 +149,15 @@ class GeneralSettingsDraft {
 
   /// 手动模式种子色 (#RRGGBB 文本，null = 未指定)，保存时聚合进 AppConfig
   String? accentSeedColor;
+
+  /// 背景色来源 (默认 Notion / 跟随强调色 / 自定义)，保存时聚合进 AppConfig
+  AppBackgroundMode backgroundMode;
+
+  /// 自定义亮色模式背景色 (#RRGGBB，null = 默认暖纸)
+  String? customLightBackgroundColor;
+
+  /// 自定义深色模式背景色 (#RRGGBB，null = 默认暗灰)
+  String? customDarkBackgroundColor;
 
   /// 语言偏好 (跟随系统/中文/English)，保存时由 SettingsDialog 聚合进 AppConfig
   AppLocalePreference localePreference;
@@ -393,6 +406,122 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   },
                   width: 130,
                   onChanged: (mode) => setState(() => _draft.themeMode = mode),
+                ),
+              ),
+              AppSettingTile(
+                title: l10n.settingsBackgroundMode,
+                subtitle: l10n.settingsBackgroundModeSubtitle,
+                control: AppDropdown.simple(
+                  value: _draft.backgroundMode,
+                  items: AppBackgroundMode.values,
+                  labelOf: (mode) => switch (mode) {
+                    AppBackgroundMode.defaultNotion =>
+                      l10n.backgroundModeDefault,
+                    AppBackgroundMode.followAccent =>
+                      l10n.backgroundModeFollowAccent,
+                    AppBackgroundMode.custom => l10n.backgroundModeCustom,
+                  },
+                  width: 130,
+                  onChanged: (mode) =>
+                      setState(() => _draft.backgroundMode = mode),
+                ),
+              ),
+              AppPanelReveal(
+                visible: _draft.backgroundMode == AppBackgroundMode.custom,
+                enableBlur: false,
+                child: Column(
+                  children: [
+                    if (_draft.themeMode != AppThemeModePreference.dark)
+                      AppSettingTile(
+                        title: _draft.themeMode == AppThemeModePreference.system
+                            ? l10n.settingsBackgroundLightColor
+                            : l10n.settingsBackgroundColor,
+                        control: _BackgroundColorRow(
+                          currentColor:
+                              _seedColorOf(_draft.customLightBackgroundColor) ??
+                              kLightBackgroundPresets.first,
+                          defaultColor: kLightBackgroundPresets.first,
+                          presets: kLightBackgroundPresets,
+                          hasCustomValue:
+                              _draft.customLightBackgroundColor != null,
+                          tooltip: l10n.settingsBackgroundLightColor,
+                          resetTooltip: l10n.settingsBackgroundReset,
+                          onSelectPreset: (color) => setState(() {
+                            _draft.customLightBackgroundColor =
+                                color.toARGB32() ==
+                                    kLightBackgroundPresets.first.toARGB32()
+                                ? null
+                                : seedColorText(color.toARGB32());
+                          }),
+                          onPickCustom: () async {
+                            final picked = await AppColorPickerDialog.show(
+                              context,
+                              title: l10n.settingsBackgroundLightColor,
+                              initialColor:
+                                  _seedColorOf(
+                                    _draft.customLightBackgroundColor,
+                                  ) ??
+                                  kLightBackgroundPresets.first,
+                              presets: kLightBackgroundPresets,
+                            );
+                            if (picked == null) return;
+                            setState(() {
+                              _draft.customLightBackgroundColor = seedColorText(
+                                picked.toARGB32(),
+                              );
+                            });
+                          },
+                          onReset: () => setState(
+                            () => _draft.customLightBackgroundColor = null,
+                          ),
+                        ),
+                      ),
+                    if (_draft.themeMode != AppThemeModePreference.light)
+                      AppSettingTile(
+                        title: _draft.themeMode == AppThemeModePreference.system
+                            ? l10n.settingsBackgroundDarkColor
+                            : l10n.settingsBackgroundColor,
+                        control: _BackgroundColorRow(
+                          currentColor:
+                              _seedColorOf(_draft.customDarkBackgroundColor) ??
+                              kDarkBackgroundPresets.first,
+                          defaultColor: kDarkBackgroundPresets.first,
+                          presets: kDarkBackgroundPresets,
+                          hasCustomValue:
+                              _draft.customDarkBackgroundColor != null,
+                          tooltip: l10n.settingsBackgroundDarkColor,
+                          resetTooltip: l10n.settingsBackgroundReset,
+                          onSelectPreset: (color) => setState(() {
+                            _draft.customDarkBackgroundColor =
+                                color.toARGB32() ==
+                                    kDarkBackgroundPresets.first.toARGB32()
+                                ? null
+                                : seedColorText(color.toARGB32());
+                          }),
+                          onPickCustom: () async {
+                            final picked = await AppColorPickerDialog.show(
+                              context,
+                              title: l10n.settingsBackgroundDarkColor,
+                              initialColor:
+                                  _seedColorOf(
+                                    _draft.customDarkBackgroundColor,
+                                  ) ??
+                                  kDarkBackgroundPresets.first,
+                              presets: kDarkBackgroundPresets,
+                            );
+                            if (picked == null) return;
+                            setState(() {
+                              _draft.customDarkBackgroundColor = seedColorText(
+                                picked.toARGB32(),
+                              );
+                            });
+                          },
+                          onReset: () => setState(
+                            () => _draft.customDarkBackgroundColor = null,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               AppSettingTile(
@@ -930,14 +1059,19 @@ Color? _seedColorOf(String? text) {
 class _AccentSeedSwatch extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
+  final String? tooltip;
 
-  const _AccentSeedSwatch({required this.color, required this.onTap});
+  const _AccentSeedSwatch({
+    required this.color,
+    required this.onTap,
+    this.tooltip,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Tooltip(
-      message: context.l10n.settingsAccentSeed,
+      message: tooltip ?? context.l10n.settingsAccentSeed,
       child: AppHoverLift(
         lift: -1.5,
         cursor: SystemMouseCursors.click,
@@ -975,6 +1109,94 @@ class _AccentSeedSwatch extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 自定义背景色行控件：精选预设小色块 + 自定义取色器色块 + 恢复默认按钮
+class _BackgroundColorRow extends StatelessWidget {
+  final Color currentColor;
+  final Color defaultColor;
+  final List<Color> presets;
+  final bool hasCustomValue;
+  final String tooltip;
+  final String resetTooltip;
+  final ValueChanged<Color> onSelectPreset;
+  final VoidCallback onPickCustom;
+  final VoidCallback onReset;
+
+  const _BackgroundColorRow({
+    required this.currentColor,
+    required this.defaultColor,
+    required this.presets,
+    required this.hasCustomValue,
+    required this.tooltip,
+    required this.resetTooltip,
+    required this.onSelectPreset,
+    required this.onPickCustom,
+    required this.onReset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.end,
+      children: [
+        for (final preset in presets)
+          GestureDetector(
+            onTap: () => onSelectPreset(preset),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: AnimatedContainer(
+                duration: AppMotion.resolveDuration(
+                  context,
+                  AppMotionDurations.quick,
+                ),
+                curve: AppMotionCurves.smoothOut,
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: preset,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(
+                    color: currentColor.toARGB32() == preset.toARGB32()
+                        ? colors.primary
+                        : colors.borderDefault,
+                    width: currentColor.toARGB32() == preset.toARGB32()
+                        ? 2.0
+                        : 1.0,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(width: 2),
+        _AccentSeedSwatch(
+          color: currentColor,
+          tooltip: tooltip,
+          onTap: onPickCustom,
+        ),
+        if (hasCustomValue && currentColor.toARGB32() != defaultColor.toARGB32())
+          Tooltip(
+            message: resetTooltip,
+            child: InkWell(
+              onTap: onReset,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.refresh_rounded,
+                  size: 16,
+                  color: colors.textMuted,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

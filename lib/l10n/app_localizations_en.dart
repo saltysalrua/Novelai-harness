@@ -221,6 +221,34 @@ class AppLocalizationsEn extends AppLocalizations {
       'Applies in Manual mode: open the picker to choose any color';
 
   @override
+  String get settingsBackgroundMode => 'Background';
+
+  @override
+  String get settingsBackgroundModeSubtitle =>
+      'Customize workspace canvas and surfaces: default, softly tinted by accent, or custom color';
+
+  @override
+  String get backgroundModeDefault => 'Default';
+
+  @override
+  String get backgroundModeFollowAccent => 'Follow Accent';
+
+  @override
+  String get backgroundModeCustom => 'Custom';
+
+  @override
+  String get settingsBackgroundLightColor => 'Light Background';
+
+  @override
+  String get settingsBackgroundDarkColor => 'Dark Background';
+
+  @override
+  String get settingsBackgroundColor => 'Canvas Background';
+
+  @override
+  String get settingsBackgroundReset => 'Reset';
+
+  @override
   String get colorPickerTitle => 'Pick a Color';
 
   @override

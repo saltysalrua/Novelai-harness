@@ -71,11 +71,11 @@ class ToolCard extends StatelessWidget {
                     swapKey: isEnabled,
                     enableBlur: false,
                     child: isEnabled
-                        ? const Icon(
+                        ? Icon(
                             Icons.check,
-                            key: ValueKey<bool>(true),
+                            key: const ValueKey<bool>(true),
                             size: 11,
-                            color: Colors.white,
+                            color: colors.onPrimary,
                           )
                         : const SizedBox.shrink(key: ValueKey<bool>(false)),
                   ),

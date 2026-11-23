@@ -25,6 +25,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
 
   // --- 强调色 ---
   final Color primary;
+  final Color onPrimary;
   final Color primaryLight;
   final Color primaryDark;
   final Color primaryTint;
@@ -61,6 +62,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     required this.textSecondary,
     required this.textMuted,
     required this.primary,
+    required this.onPrimary,
     required this.primaryLight,
     required this.primaryDark,
     required this.primaryTint,
@@ -91,6 +93,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     textSecondary: Color(0xFF615D59),
     textMuted: Color(0xFF757575),
     primary: Color(0xFF0075DE),
+    onPrimary: Color(0xFFFFFFFF),
     primaryLight: Color(0xFF62AEF0),
     primaryDark: Color(0xFF097FE8),
     primaryTint: Color(0xFFE6F3FE),
@@ -122,6 +125,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     textSecondary: Color(0xFF9E9E9E),
     textMuted: Color(0xFF757575),
     primary: Color(0xFF2383E2),
+    onPrimary: Color(0xFFFFFFFF),
     primaryLight: Color(0xFF529CCA),
     primaryDark: Color(0xFF0C66C2),
     primaryTint: Color(0x262383E2),
@@ -153,6 +157,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     Color? textSecondary,
     Color? textMuted,
     Color? primary,
+    Color? onPrimary,
     Color? primaryLight,
     Color? primaryDark,
     Color? primaryTint,
@@ -181,6 +186,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
       textSecondary: textSecondary ?? this.textSecondary,
       textMuted: textMuted ?? this.textMuted,
       primary: primary ?? this.primary,
+      onPrimary: onPrimary ?? this.onPrimary,
       primaryLight: primaryLight ?? this.primaryLight,
       primaryDark: primaryDark ?? this.primaryDark,
       primaryTint: primaryTint ?? this.primaryTint,
@@ -225,6 +231,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textMuted: Color.lerp(textMuted, other.textMuted, t)!,
       primary: Color.lerp(primary, other.primary, t)!,
+      onPrimary: Color.lerp(onPrimary, other.onPrimary, t)!,
       primaryLight: Color.lerp(primaryLight, other.primaryLight, t)!,
       primaryDark: Color.lerp(primaryDark, other.primaryDark, t)!,
       primaryTint: Color.lerp(primaryTint, other.primaryTint, t)!,
