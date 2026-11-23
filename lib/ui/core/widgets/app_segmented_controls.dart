@@ -730,6 +730,13 @@ class _AppSlidingSelectionBarState extends State<AppSlidingSelectionBar>
     final startRect = fromOverride ?? _toRect;
 
     if (!animate || disableAnimations || startRect == null) {
+      // 布局尺寸微调（如滚动条显隐）若发生在滑动动画进行中，仅修正终点矩形而不掐断动画
+      if (!disableAnimations && _slideController.isAnimating && startRect != null) {
+        if (_toRect != targetRect) {
+          setState(() => _toRect = targetRect);
+        }
+        return;
+      }
       _slideController.stop();
       setState(() {
         _fromRect = targetRect;

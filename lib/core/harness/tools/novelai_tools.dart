@@ -80,7 +80,7 @@ class NovelAiGenerateTool extends AgentTool {
          name: 'novelai_generate',
          label: '图像生成',
          description:
-             '以工作台当前的参数配置（提示词、尺寸、步数、CFG、模型等）直接触发 NovelAI 官方绘图。在调用此工具前，如需构思或调整生图提示词与尺寸，必须先通过 update_studio_parameters 工具修改工作台参数。若预计消耗非零（超出 Opus 免费区间、非 Opus 订阅或 V5 体力透支），将自动向用户发出点数消耗申请。',
+             '使用工作台当前参数触发 NovelAI 绘图；如需改词或调参，应先调用 update_studio_parameters（可同轮按序调用）。预计扣点时自动向用户确认。',
          parameters: const {'type': 'object', 'properties': {}},
        );
 

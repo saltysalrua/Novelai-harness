@@ -428,4 +428,53 @@ void main() {
       expect(fromFallback.files.keys, contains('assets/template.bin'));
     },
   );
+
+  test(
+    'Windows backslash ZIP entries, lowercase skill.md, junk files and multi-skill archives work',
+    () async {
+      final winZip = _zip({
+        r'win-pack\skill.md': utf8.encode(_md),
+        r'win-pack\references\guide.md': utf8.encode('# Guide'),
+        '__MACOSX/win-pack/._skill.md': [0, 1, 2],
+        r'win-pack\Thumbs.db': [9, 9],
+      });
+      final single = SkillPackageService.decodeImport(winZip, 'win.zip');
+      expect(single.skill.id, 'example-skill');
+      expect(single.skill.resourcePaths, ['references/guide.md']);
+      expect(single.files.containsKey('SKILL.md'), isTrue);
+
+      final multiZip = _zip({
+        'bundle/alpha/SKILL.md': utf8.encode(
+          '---\nname: alpha-skill\ndescription: Alpha skill\n---\nalpha body',
+        ),
+        'bundle/alpha/ref.txt': utf8.encode('alpha ref'),
+        'bundle/beta/skill.md': utf8.encode(
+          '---\nname: beta-skill\ndescription: Beta skill\n---\nbeta body',
+        ),
+      });
+      final multi = SkillPackageService.decodeImportAll(multiZip, 'bundle.zip');
+      expect(multi.map((p) => p.skill.id), ['alpha-skill', 'beta-skill']);
+      expect(multi.first.skill.resourcePaths, ['ref.txt']);
+
+      // LoadSkillTool 规范化 ./ 与 \ 资源路径
+      final installed = await service.install(single, single.skill);
+      final tool = LoadSkillTool(
+        skillResolver: (_) => installed,
+        availableSkillIds: () => [installed.id],
+        readResource: service.readResource,
+      );
+      final r1 = await tool.execute('c1', {
+        'skill_name': installed.id,
+        'path': './references/guide.md',
+      });
+      expect(r1.isError, isFalse);
+      expect(r1.content, contains('# Guide'));
+      final r2 = await tool.execute('c2', {
+        'skill_name': installed.id,
+        'path': r'references\guide.md',
+      });
+      expect(r2.isError, isFalse);
+      expect(r2.content, contains('# Guide'));
+    },
+  );
 }

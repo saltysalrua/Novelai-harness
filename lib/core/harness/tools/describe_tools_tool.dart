@@ -18,8 +18,7 @@ class DescribeToolsTool extends AgentTool {
          name: 'describe_tools',
          label: '查看工具参数',
          description:
-             '按需查看未在顶层直接展开的二级工具完整参数 Schema 与说明。'
-             '传入 names 数组一次查询多个工具，或传入 query 关键词检索。',
+             '按需查看未在顶层展开的二级工具与已连接 MCP 工具（mcp_*）的完整参数 Schema。传入 names 数组一次查询多个，或用 query 关键词检索。',
          parameters: const {
            'type': 'object',
            'properties': {

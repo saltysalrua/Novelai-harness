@@ -4518,4 +4518,242 @@ class AppLocalizationsEn extends AppLocalizations {
   String vmAccountRefreshFailed(String error) {
     return 'Failed to refresh NovelAI account: $error';
   }
+
+  @override
+  String get settingsTabExtensions => 'Skills & MCP';
+
+  @override
+  String get settingsSubtitleExtensions =>
+      'Manage skill packages (drag & drop ZIP import) and external MCP servers via CodeMode';
+
+  @override
+  String get extensionsSegmentSkills => 'Skills';
+
+  @override
+  String get extensionsSegmentMcp => 'MCP Servers';
+
+  @override
+  String get skillFilterAll => 'All';
+
+  @override
+  String get skillFilterBuiltin => 'Built-in';
+
+  @override
+  String get skillFilterCustom => 'Custom';
+
+  @override
+  String get skillFilterPackaged => 'Packaged';
+
+  @override
+  String get skillBadgeModified => 'Modified';
+
+  @override
+  String get skillResetDefault => 'Reset to default';
+
+  @override
+  String skillResetDefaultSuccess(String name) {
+    return 'Reset built-in skill \"$name\" to default';
+  }
+
+  @override
+  String get skillBuiltinOverrideHint =>
+      'Editing a built-in skill saves a local override that can be reset at any time.';
+
+  @override
+  String get skillDropHintTitle =>
+      'Drop .zip / .skill / .md or a skill folder here to import';
+
+  @override
+  String get skillDropHintSubtitle =>
+      'Supports standard Agent Skills archives (single or multi-skill bundles) as well as buttons below';
+
+  @override
+  String get skillDropActiveTitle =>
+      'Release to parse and preview skill package';
+
+  @override
+  String get skillImportArchive => 'Import archive / file';
+
+  @override
+  String get skillBatchImportTitle => 'Batch Import Skills';
+
+  @override
+  String skillBatchImportSubtitle(int count) {
+    return 'Found $count skills in the archive. Select the ones to import:';
+  }
+
+  @override
+  String skillBatchImportButton(int count) {
+    return 'Import selected ($count)';
+  }
+
+  @override
+  String get skillBatchImportConflict => 'ID conflict (already exists)';
+
+  @override
+  String skillBatchImportSuccess(int count) {
+    return 'Imported $count skills';
+  }
+
+  @override
+  String get skillResourcePreviewEmpty =>
+      'Click a resource file above to preview its contents';
+
+  @override
+  String skillResourceBinaryHint(int bytes) {
+    return 'Binary resource ($bytes bytes), stored inside the managed skill package.';
+  }
+
+  @override
+  String get skillManageLibraryButton => 'Manage Skills';
+
+  @override
+  String get skillDuplicateAndEnable => 'Duplicate Preset & Enable';
+
+  @override
+  String get presetAllowMcpTools => 'Allow MCP Tools (CodeMode)';
+
+  @override
+  String get presetAllowMcpToolsHint =>
+      'Connected MCP server tools are indexed in CodeMode secondary tools and invoked via describe_tools & run_pipeline without bloating top-level schemas.';
+
+  @override
+  String get mcpCodeModeNotice =>
+      'Connected MCP tools are indexed lazily through CodeMode (describe_tools + run_pipeline), keeping top-level function schemas lean and prompt caches stable.';
+
+  @override
+  String get mcpAddServer => 'Add MCP Server';
+
+  @override
+  String get mcpImportJson => 'Import JSON';
+
+  @override
+  String get mcpExportJson => 'Copy JSON';
+
+  @override
+  String get mcpReconnectAll => 'Reconnect All';
+
+  @override
+  String get mcpEmptyTitle => 'No MCP servers configured';
+
+  @override
+  String get mcpEmptySubtitle =>
+      'Supports Streamable HTTP / SSE (all platforms) and local Stdio commands (desktop), or paste standard mcpServers JSON.';
+
+  @override
+  String get mcpStatusConnected => 'Connected';
+
+  @override
+  String get mcpStatusConnecting => 'Connecting';
+
+  @override
+  String get mcpStatusDisconnected => 'Disconnected';
+
+  @override
+  String get mcpStatusError => 'Error';
+
+  @override
+  String mcpToolsCount(int count) {
+    return '$count tools';
+  }
+
+  @override
+  String get mcpReconnect => 'Reconnect';
+
+  @override
+  String get mcpDialogNewTitle => 'Add MCP Server';
+
+  @override
+  String mcpDialogEditTitle(String name) {
+    return 'Edit MCP Server · $name';
+  }
+
+  @override
+  String get mcpFieldName => 'Server Name';
+
+  @override
+  String get mcpFieldNameHint => 'e.g. Filesystem / Context7 / Local Tools';
+
+  @override
+  String get mcpFieldId => 'Server ID';
+
+  @override
+  String get mcpFieldIdHint =>
+      'Used for tool prefix mcp_<id>_<tool>, auto-generated if empty';
+
+  @override
+  String get mcpFieldTransport => 'Transport';
+
+  @override
+  String get mcpTransportHttp => 'HTTP / SSE';
+
+  @override
+  String get mcpTransportStdio => 'Stdio Command';
+
+  @override
+  String get mcpFieldUrl => 'Endpoint URL';
+
+  @override
+  String get mcpFieldUrlHint =>
+      'https://example.com/mcp or http://127.0.0.1:3000/mcp';
+
+  @override
+  String get mcpFieldHeaders => 'HTTP Headers (Key: Value per line, optional)';
+
+  @override
+  String get mcpFieldHeadersHint => 'Authorization: Bearer your-token';
+
+  @override
+  String get mcpFieldCommand => 'Executable Command';
+
+  @override
+  String get mcpFieldCommandHint => 'e.g. npx / uvx / python / node';
+
+  @override
+  String get mcpFieldArgs => 'Arguments (one per line, optional)';
+
+  @override
+  String get mcpFieldArgsHint =>
+      '-y\n@modelcontextprotocol/server-filesystem\nD:/Workspace';
+
+  @override
+  String get mcpFieldEnv =>
+      'Environment Variables (KEY=VALUE per line, optional)';
+
+  @override
+  String get mcpFieldEnvHint => 'API_KEY=your-key';
+
+  @override
+  String get mcpFieldTimeout => 'Timeout (seconds)';
+
+  @override
+  String get mcpStdioDesktopOnly =>
+      'Stdio commands are only supported on desktop (Windows / macOS / Linux).';
+
+  @override
+  String get mcpImportJsonTitle => 'Import mcpServers JSON';
+
+  @override
+  String get mcpImportJsonHelp =>
+      'Compatible with Claude Desktop / Cursor / Antigravity mcpServers JSON format. Existing IDs will be updated.';
+
+  @override
+  String mcpImportJsonSuccess(int count) {
+    return 'Imported $count MCP server(s)';
+  }
+
+  @override
+  String get mcpExportJsonCopied => 'Copied mcpServers JSON to clipboard';
+
+  @override
+  String get mcpConfirmDeleteTitle => 'Delete MCP Server';
+
+  @override
+  String mcpConfirmDeleteMessage(String name) {
+    return 'Delete MCP server \"$name\" and disconnect it?';
+  }
+
+  @override
+  String get mcpValidationError =>
+      'Please enter a valid server name and endpoint URL (or command).';
 }

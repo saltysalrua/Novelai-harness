@@ -1851,5 +1851,118 @@
     "placeholders": {
       "error": {"type": "String"}
     }
-  }
+  },
+  "settingsTabExtensions": "技能与 MCP",
+  "settingsSubtitleExtensions": "管理专业技能包（支持压缩包拖拽导入）与外部 MCP 服务（通过 CodeMode 按需编排）",
+  "extensionsSegmentSkills": "技能库",
+  "extensionsSegmentMcp": "MCP 服务",
+  "skillFilterAll": "全部",
+  "skillFilterBuiltin": "内置",
+  "skillFilterCustom": "自定义",
+  "skillFilterPackaged": "含资源包",
+  "skillBadgeModified": "已修改",
+  "skillResetDefault": "恢复默认",
+  "skillResetDefaultSuccess": "已恢复内置技能「{name}」为出厂默认",
+  "@skillResetDefaultSuccess": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "skillBuiltinOverrideHint": "修改内置技能将保存为本地覆盖版本，可随时恢复出厂默认。",
+  "skillDropHintTitle": "拖拽 .zip / .skill / .md 或技能文件夹到此处导入",
+  "skillDropHintSubtitle": "支持标准 Agent Skills 压缩包（含单技能或多技能合集），也支持下方按钮导入",
+  "skillDropActiveTitle": "松开鼠标即可解析并预览技能包",
+  "skillImportArchive": "导入压缩包 / 文件",
+  "skillBatchImportTitle": "批量导入技能包",
+  "skillBatchImportSubtitle": "在压缩包中检测到 {count} 个技能，勾选需要导入的条目：",
+  "@skillBatchImportSubtitle": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "skillBatchImportButton": "导入选中 ({count})",
+  "@skillBatchImportButton": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "skillBatchImportConflict": "ID 冲突（已存在）",
+  "skillBatchImportSuccess": "已导入 {count} 个技能",
+  "@skillBatchImportSuccess": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "skillResourcePreviewEmpty": "点击上方文件名可预览包内资源内容",
+  "skillResourceBinaryHint": "该资源为二进制文件（{bytes} 字节），已随技能包托管保存。",
+  "@skillResourceBinaryHint": {
+    "placeholders": {
+      "bytes": {"type": "int"}
+    }
+  },
+  "skillManageLibraryButton": "管理技能库",
+  "skillDuplicateAndEnable": "复制预设并启用",
+  "presetAllowMcpTools": "允许 MCP 工具（CodeMode）",
+  "presetAllowMcpToolsHint": "开启后，已连接的 MCP 服务工具将自动收纳到 CodeMode 二级索引，由 describe_tools 与 run_pipeline 按需调度，不占用顶层上下文。",
+  "mcpCodeModeNotice": "所有已连接的 MCP 工具都会通过 CodeMode（describe_tools + run_pipeline）按需索引与编排，不直接塞入顶层工具 Schema，既省 Token 又稳缓存。",
+  "mcpAddServer": "添加 MCP 服务",
+  "mcpImportJson": "粘贴 JSON 导入",
+  "mcpExportJson": "复制 JSON",
+  "mcpReconnectAll": "全部重连",
+  "mcpEmptyTitle": "尚未配置 MCP 服务",
+  "mcpEmptySubtitle": "支持 Streamable HTTP / SSE（全平台）与本地 Stdio 命令（桌面端），也可直接粘贴标准 mcpServers JSON。",
+  "mcpStatusConnected": "已连接",
+  "mcpStatusConnecting": "连接中",
+  "mcpStatusDisconnected": "未连接",
+  "mcpStatusError": "连接失败",
+  "mcpToolsCount": "{count} 个工具",
+  "@mcpToolsCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "mcpReconnect": "重连",
+  "mcpDialogNewTitle": "添加 MCP 服务",
+  "mcpDialogEditTitle": "编辑 MCP 服务 · {name}",
+  "@mcpDialogEditTitle": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "mcpFieldName": "服务名称",
+  "mcpFieldNameHint": "例如：Filesystem / Context7 / 本地工具",
+  "mcpFieldId": "服务标识 (ID)",
+  "mcpFieldIdHint": "用于工具前缀 mcp_<id>_<tool>，留空自动生成",
+  "mcpFieldTransport": "传输协议",
+  "mcpTransportHttp": "HTTP / SSE",
+  "mcpTransportStdio": "Stdio 本地命令",
+  "mcpFieldUrl": "端点 URL",
+  "mcpFieldUrlHint": "https://example.com/mcp 或 http://127.0.0.1:3000/mcp",
+  "mcpFieldHeaders": "HTTP 请求头（每行 Key: Value，可选）",
+  "mcpFieldHeadersHint": "Authorization: Bearer your-token",
+  "mcpFieldCommand": "可执行命令 (command)",
+  "mcpFieldCommandHint": "例如：npx / uvx / python / node",
+  "mcpFieldArgs": "命令参数（每行一个参数，可选）",
+  "mcpFieldArgsHint": "-y\n@modelcontextprotocol/server-filesystem\nD:/Workspace",
+  "mcpFieldEnv": "环境变量（每行 KEY=VALUE，可选）",
+  "mcpFieldEnvHint": "API_KEY=your-key",
+  "mcpFieldTimeout": "请求超时（秒）",
+  "mcpStdioDesktopOnly": "Stdio 本地命令仅支持桌面端（Windows / macOS / Linux）。",
+  "mcpImportJsonTitle": "导入 mcpServers JSON",
+  "mcpImportJsonHelp": "兼容 Claude Desktop / Cursor / Antigravity 的 mcpServers JSON 格式，同名服务将覆盖更新。",
+  "mcpImportJsonSuccess": "已导入 {count} 个 MCP 服务",
+  "@mcpImportJsonSuccess": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "mcpExportJsonCopied": "已复制 mcpServers JSON 到剪贴板",
+  "mcpConfirmDeleteTitle": "删除 MCP 服务",
+  "mcpConfirmDeleteMessage": "确定要删除 MCP 服务「{name}」并断开其连接吗？",
+  "@mcpConfirmDeleteMessage": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "mcpValidationError": "请填写完整的服务名称与端点地址（或命令）。"
 }

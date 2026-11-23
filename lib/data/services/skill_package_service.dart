@@ -40,6 +40,19 @@ class SkillPackageService {
     return Isolate.run(() => decodeImport(bytes, resolvedName));
   }
 
+  /// 读取单个文件并支持多技能 ZIP 批量拆包。
+  Future<List<SkillPackage>> readImportFileAll(
+    String path, {
+    String? filename,
+  }) async {
+    final bytes = await _readBounded(File(path), maxPackageBytes);
+    final resolvedName =
+        (filename != null && filename.trim().isNotEmpty)
+        ? filename.trim()
+        : p.basename(path);
+    return Isolate.run(() => decodeImportAll(bytes, resolvedName));
+  }
+
   /// 直接从内存字节解码技能包（Android SAF 文件选择器未落盘本地路径时走此入口）。
   Future<SkillPackage> readImportBytes(Uint8List bytes, String filename) {
     if (bytes.length > maxPackageBytes) {
@@ -51,8 +64,32 @@ class SkillPackageService {
     return Isolate.run(() => decodeImport(bytes, filename));
   }
 
+  /// 直接从内存字节解码并支持多技能 ZIP 批量拆包。
+  Future<List<SkillPackage>> readImportBytesAll(
+    Uint8List bytes,
+    String filename,
+  ) {
+    if (bytes.length > maxPackageBytes) {
+      throw const SkillFormatException(
+        SkillFormatError.packageTooLarge,
+        '技能包不能超过 32 MiB。',
+      );
+    }
+    return Isolate.run(() => decodeImportAll(bytes, filename));
+  }
+
   /// .skill 是 ZIP 容器的常用扩展名；Markdown 继续兼容单文件导入。
   static SkillPackage decodeImport(Uint8List bytes, String filename) {
+    final packages = decodeImportAll(bytes, filename, allowMultiple: false);
+    return packages.single;
+  }
+
+  /// 解码技能导入文件；当 [allowMultiple] 为 true 时允许一个 ZIP 包含多个技能目录。
+  static List<SkillPackage> decodeImportAll(
+    Uint8List bytes,
+    String filename, {
+    bool allowMultiple = true,
+  }) {
     if (bytes.length > maxPackageBytes) {
       throw const SkillFormatException(
         SkillFormatError.packageTooLarge,
@@ -72,7 +109,7 @@ class SkillPackageService {
             ? 'imported-skill'
             : p.basenameWithoutExtension(filename),
       );
-      return SkillPackage(skill: skill, files: {'SKILL.md': bytes});
+      return [SkillPackage(skill: skill, files: {'SKILL.md': bytes})];
     }
     if (!['.zip', '.skill'].contains(p.extension(filename).toLowerCase())) {
       throw const SkillFormatException(
@@ -93,11 +130,15 @@ class SkillPackageService {
       final files = <String, Uint8List>{};
       var total = 0;
       for (final header in directory.fileHeaders) {
-        final name = header.filename;
-        final isDirectory = name.endsWith('/');
-        final path = validatePath(
-          isDirectory ? name.substring(0, name.length - 1) : name,
-        );
+        // 兼容 Windows 打包工具生成的反斜杠分隔符，同时保持 validatePath 的严格安全校验。
+        final rawName = header.filename.replaceAll('\\', '/');
+        final isDirectory = rawName.endsWith('/');
+        final trimmed = isDirectory
+            ? rawName.substring(0, rawName.length - 1)
+            : rawName;
+        if (trimmed.isEmpty) continue;
+        if (_ignoredPath(trimmed)) continue;
+        final path = validatePath(trimmed);
         final mode = (header.externalFileAttributes ?? 0) >> 16;
         final type = mode & 0xf000;
         if (type != 0 && type != 0x8000 && type != 0x4000) {
@@ -114,7 +155,6 @@ class SkillPackageService {
           );
         }
         if (isDirectory || type == 0x4000) continue;
-        if (_ignoredPath(path)) continue;
         final size = header.uncompressedSize ?? -1;
         if (size < 0 ||
             size > maxFileBytes ||
@@ -173,7 +213,7 @@ class SkillPackageService {
         }
         files[path] = content;
       }
-      return _fromFiles(files);
+      return _fromFilesAll(files, allowMultiple: allowMultiple);
     } on FormatException {
       rethrow;
     } catch (_) {
@@ -185,6 +225,14 @@ class SkillPackageService {
   }
 
   Future<SkillPackage> readImportDirectory(String path) async {
+    final packages = await readImportDirectoryAll(path, allowMultiple: false);
+    return packages.single;
+  }
+
+  Future<List<SkillPackage>> readImportDirectoryAll(
+    String path, {
+    bool allowMultiple = true,
+  }) async {
     if (await FileSystemEntity.type(path, followLinks: false) !=
         FileSystemEntityType.directory) {
       throw const SkillFormatException(
@@ -211,8 +259,8 @@ class SkillPackageService {
             .relative(entity.path, from: root.path)
             .split(p.separator)
             .join('/');
+        if (_ignoredPath(relative)) continue;
         final key = validatePath(relative);
-        if (_ignoredPath(key)) continue;
         if (!seen.add(key.toLowerCase())) {
           throw SkillFormatException(
             SkillFormatError.duplicatePath,
@@ -253,44 +301,90 @@ class SkillPackageService {
         }
       }
     }
-    return _fromFiles(files);
+    return _fromFilesAll(files, allowMultiple: allowMultiple);
   }
 
-  static bool _ignoredPath(String path) => path
-      .split('/')
-      .any((part) => ['.git', '__MACOSX', '.DS_Store'].contains(part));
+  static bool _ignoredPath(String path) => path.split('/').any((part) {
+    final lower = part.toLowerCase();
+    return lower == '.git' ||
+        lower == '__macosx' ||
+        lower == '.ds_store' ||
+        lower == 'thumbs.db' ||
+        lower == 'desktop.ini' ||
+        part.startsWith('._');
+  });
 
-  static SkillPackage _fromFiles(Map<String, Uint8List> files) {
+  static List<SkillPackage> _fromFilesAll(
+    Map<String, Uint8List> files, {
+    required bool allowMultiple,
+  }) {
     final entries = files.keys
-        .where((key) => p.posix.basename(key) == 'SKILL.md')
-        .toList();
-    if (entries.length != 1) {
+        .where((key) => p.posix.basename(key).toLowerCase() == 'skill.md')
+        .toList()
+      ..sort();
+    if (entries.isEmpty || (!allowMultiple && entries.length != 1)) {
       throw const SkillFormatException(
         SkillFormatError.oneEntry,
         '请选择包含一个 SKILL.md 的技能目录或压缩包；多个技能请分别导入。',
       );
     }
-    final entry = entries.single;
-    final bytes = files[entry]!;
-    if (bytes.length > maxInstructionBytes) {
-      throw const SkillFormatException(
-        SkillFormatError.instructionsTooLarge,
-        'SKILL.md 不能超过 256 KiB。',
+
+    // 预计算每个技能的目录前缀，若存在嵌套目录则较深前缀优先归属子技能。
+    final prefixes = <String, String>{
+      for (final entry in entries)
+        entry: entry.substring(
+          0,
+          entry.length - p.posix.basename(entry).length,
+        ),
+    };
+
+    final packages = <SkillPackage>[];
+    for (final entry in entries) {
+      final bytes = files[entry]!;
+      if (bytes.length > maxInstructionBytes) {
+        throw const SkillFormatException(
+          SkillFormatError.instructionsTooLarge,
+          'SKILL.md 不能超过 256 KiB。',
+        );
+      }
+      final prefix = prefixes[entry]!;
+      final defaultFolderId = prefix.isEmpty
+          ? ''
+          : p.posix.basename(prefix.substring(0, prefix.length - 1));
+      final skill = Skill.fromSkillMd(
+        utf8.decode(bytes),
+        defaultId: defaultFolderId,
+      );
+      validateSkill(skill);
+
+      final nestedChildPrefixes = prefixes.values
+          .where(
+            (other) =>
+                other != prefix &&
+                other.length > prefix.length &&
+                other.startsWith(prefix),
+          )
+          .toList();
+
+      final selected = <String, Uint8List>{};
+      for (final item in files.entries) {
+        if (!item.key.startsWith(prefix)) continue;
+        if (nestedChildPrefixes.any((child) => item.key.startsWith(child))) {
+          continue;
+        }
+        final rel = item.key.substring(prefix.length);
+        final normalizedRel = rel.toLowerCase() == 'skill.md' ? 'SKILL.md' : rel;
+        selected[normalizedRel] = item.value;
+      }
+      _validateFileTree(selected);
+      packages.add(
+        SkillPackage(
+          skill: skill.copyWith(resourcePaths: _resourcePaths(selected)),
+          files: selected,
+        ),
       );
     }
-    final skill = Skill.fromSkillMd(utf8.decode(bytes), defaultId: '');
-    validateSkill(skill);
-    final prefix = entry.substring(0, entry.length - 'SKILL.md'.length);
-    final selected = <String, Uint8List>{
-      for (final item in files.entries)
-        if (item.key.startsWith(prefix))
-          item.key.substring(prefix.length): item.value,
-    };
-    _validateFileTree(selected);
-    return SkillPackage(
-      skill: skill.copyWith(resourcePaths: _resourcePaths(selected)),
-      files: selected,
-    );
+    return packages;
   }
 
   static void validateSkill(Skill skill) {

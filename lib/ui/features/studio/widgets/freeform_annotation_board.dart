@@ -395,11 +395,19 @@ class _FreeformAnnotationBoardState extends State<FreeformAnnotationBoard> {
           });
         }
 
+        final canAcceptDrop =
+            (ModalRoute.of(context)?.isCurrent ?? true) &&
+            TickerMode.valuesOf(context).enabled;
         return DropTarget(
-          onDragEntered: (_) => setState(() => _isDraggingExternalOver = true),
+          enable: canAcceptDrop,
+          onDragEntered: (_) {
+            if (!canAcceptDrop) return;
+            setState(() => _isDraggingExternalOver = true);
+          },
           onDragExited: (_) => setState(() => _isDraggingExternalOver = false),
           onDragDone: (details) async {
             setState(() => _isDraggingExternalOver = false);
+            if (!canAcceptDrop) return;
             final dropPos = _localToBoard(details.localPosition);
             for (final file in details.files) {
               final bytes = await file.readAsBytes();

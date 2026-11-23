@@ -81,13 +81,8 @@ class ViewCanvasImageTool extends AgentTool {
          name: 'view_canvas_image',
          label: '查看画板图片',
          description:
-             '获取已生成的历史图片供视觉检查。通过 index 参数从新到旧指定图片（0 表示最新生成的一张，1 表示倒数第二张，以此类推。默认 0）。'
-             '默认返回叠加了角色位置覆盖层的版本 (各启用角色的编号锚点与名称标签，'
-             'V5 附带中心十字参考线，V4/V4.5 附带 5x5 网格)，便于核对多角色构图与布局；'
-             '传入 with_overlay=false 可获取未处理的原图。'
-             '返回的图片默认压缩到最长边 1024px 以控制视觉 Token；'
-             '若因分辨率不足看不清细节（小字、纹理、面部瑕疵等），可传 full_resolution=true 获取未压缩的原始尺寸图片。'
-             '注意：当前对话模型需要具备图像理解能力。',
+             '获取画板历史图片供视觉检查（index=0 为最新图；仅在用户要求审查画面时调用）。'
+             '默认附带角色定位覆盖层并压缩至最长边 1024px；可传 with_overlay=false 看原图、full_resolution=true 看未压缩原尺寸。',
          parameters: const {
            'type': 'object',
            'properties': {

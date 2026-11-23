@@ -218,7 +218,7 @@ class ViewImageAnnotationsTool extends AgentTool {
           final bbox = ann.toBBox();
           final pxR = ann.toPixelRect(width, height);
           lines.add(
-            '• 相对坐标 (归一化，可直接作为 novelai_inpaint / get_inpaint_geometry 的 rect 参数): [${bbox?[0]}, ${bbox?[1]}, ${bbox?[2]}, ${bbox?[3]}] (ymin, xmin, ymax, xmax)',
+            '• 相对坐标 (归一化，可直接作为 novelai_inpaint 的 rect 参数): [${bbox?[0]}, ${bbox?[1]}, ${bbox?[2]}, ${bbox?[3]}] (ymin, xmin, ymax, xmax)',
           );
           lines.add(
             '• 百分比坐标: x: ${(r.left * 100).toStringAsFixed(1)}%, y: ${(r.top * 100).toStringAsFixed(1)}%, w: ${(r.width * 100).toStringAsFixed(1)}%, h: ${(r.height * 100).toStringAsFixed(1)}%',
@@ -946,5 +946,125 @@ class ClearImageAnnotationsTool extends AgentTool {
       toolName: 'clear_image_annotations',
       content: '已清空图片 (索引 $index) 的 $count 条批注。',
     );
+  }
+}
+
+/// 统一画板图片批注管理工具（合并 view / add / update / remove / clear 为单工具 action 调度）
+class ImageAnnotationsTool extends AgentTool {
+  final ViewImageAnnotationsTool _viewTool;
+  final AddImageAnnotationTool _addTool;
+  final UpdateImageAnnotationTool _updateTool;
+  final RemoveImageAnnotationTool _removeTool;
+  final ClearImageAnnotationsTool _clearTool;
+
+  ImageAnnotationsTool({
+    required List<NaiGeneratedImage> Function() getHistory,
+    required Future<Uint8List?> Function(NaiGeneratedImage image) loadImageBytes,
+    required bool Function() isModelMultimodal,
+    AnnotationOverlayRenderFn? renderOverlay,
+    required Future<bool> Function(
+      String imageId,
+      List<ImageAnnotation> nextAnnotations,
+    )
+    writeAnnotations,
+  }) : _viewTool = ViewImageAnnotationsTool(
+         getHistory: getHistory,
+         loadImageBytes: loadImageBytes,
+         isModelMultimodal: isModelMultimodal,
+         renderOverlay: renderOverlay,
+       ),
+       _addTool = AddImageAnnotationTool(
+         getHistory: getHistory,
+         writeAnnotations: writeAnnotations,
+       ),
+       _updateTool = UpdateImageAnnotationTool(
+         getHistory: getHistory,
+         writeAnnotations: writeAnnotations,
+       ),
+       _removeTool = RemoveImageAnnotationTool(
+         getHistory: getHistory,
+         writeAnnotations: writeAnnotations,
+       ),
+       _clearTool = ClearImageAnnotationsTool(
+         getHistory: getHistory,
+         writeAnnotations: writeAnnotations,
+       ),
+       super(
+         name: 'image_annotations',
+         label: '图片批注管理',
+         description:
+             '统一查看与管理画板图片上的矩形选区/图钉/全局批注。通过 action 选择操作：\n'
+             '- view: 查看批注清单（可选附带批注叠层图）；\n'
+             '- add: 添加单条或批量批注（annotations 数组）；\n'
+             '- update: 按 id 或 updates 数组批量修改批注；\n'
+             '- remove: 按 id 或 ids 数组批量删除批注；\n'
+             '- clear: 清空目标图片上的全部批注。',
+         parameters: const {
+           'type': 'object',
+           'properties': {
+             'action': {
+               'type': 'string',
+               'enum': ['view', 'add', 'update', 'remove', 'clear'],
+               'description': '操作类型：view / add / update / remove / clear',
+             },
+             'image_index': {
+               'type': 'integer',
+               'description': '历史图片索引（0 表示最新图，默认 0）',
+             },
+             'include_image': {
+               'type': 'boolean',
+               'description': 'view 时是否附带标注叠层图，默认 true',
+             },
+             'id': {'type': 'string', 'description': '批注 ID (update / remove)'},
+             'ids': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '批量删除的批注 ID 列表 (remove)',
+             },
+             'type': {
+               'type': 'string',
+               'enum': ['rect', 'point', 'global'],
+               'description': '批注形状类型 (add / update)',
+             },
+             'text': {'type': 'string', 'description': '批注说明文本 (add / update)'},
+             'rect': {
+               'description': '矩形选区 [ymin, xmin, ymax, xmax] (0~1 归一化或 0~100 百分比)',
+             },
+             'point': {'description': '图钉锚点 [y, x]'},
+             'color': {'type': 'string', 'description': '批注颜色十六进制'},
+             'annotations': {
+               'type': 'array',
+               'items': {'type': 'object'},
+               'description': '批量新增的批注数组 (add)',
+             },
+             'updates': {
+               'type': 'array',
+               'items': {'type': 'object'},
+               'description': '批量修改的批注数组，每项需含 id (update)',
+             },
+           },
+           'required': ['action'],
+         },
+       );
+
+  @override
+  Future<ToolResult> execute(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final action = (args['action'] as String?)?.trim().toLowerCase() ?? '';
+    return switch (action) {
+      'view' || 'list' => _viewTool.execute(toolCallId, args),
+      'add' => _addTool.execute(toolCallId, args),
+      'update' => _updateTool.execute(toolCallId, args),
+      'remove' || 'delete' => _removeTool.execute(toolCallId, args),
+      'clear' => _clearTool.execute(toolCallId, args),
+      _ => ToolResult(
+        toolCallId: toolCallId,
+        content:
+            '错误：image_annotations 的 action 必须是 view / add / update / remove / clear。',
+        isError: true,
+      ),
+    };
   }
 }

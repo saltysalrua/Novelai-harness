@@ -4206,4 +4206,235 @@ class AppLocalizationsZh extends AppLocalizations {
   String vmAccountRefreshFailed(String error) {
     return '刷新 NovelAI 账号信息失败：$error';
   }
+
+  @override
+  String get settingsTabExtensions => '技能与 MCP';
+
+  @override
+  String get settingsSubtitleExtensions =>
+      '管理专业技能包（支持压缩包拖拽导入）与外部 MCP 服务（通过 CodeMode 按需编排）';
+
+  @override
+  String get extensionsSegmentSkills => '技能库';
+
+  @override
+  String get extensionsSegmentMcp => 'MCP 服务';
+
+  @override
+  String get skillFilterAll => '全部';
+
+  @override
+  String get skillFilterBuiltin => '内置';
+
+  @override
+  String get skillFilterCustom => '自定义';
+
+  @override
+  String get skillFilterPackaged => '含资源包';
+
+  @override
+  String get skillBadgeModified => '已修改';
+
+  @override
+  String get skillResetDefault => '恢复默认';
+
+  @override
+  String skillResetDefaultSuccess(String name) {
+    return '已恢复内置技能「$name」为出厂默认';
+  }
+
+  @override
+  String get skillBuiltinOverrideHint => '修改内置技能将保存为本地覆盖版本，可随时恢复出厂默认。';
+
+  @override
+  String get skillDropHintTitle => '拖拽 .zip / .skill / .md 或技能文件夹到此处导入';
+
+  @override
+  String get skillDropHintSubtitle =>
+      '支持标准 Agent Skills 压缩包（含单技能或多技能合集），也支持下方按钮导入';
+
+  @override
+  String get skillDropActiveTitle => '松开鼠标即可解析并预览技能包';
+
+  @override
+  String get skillImportArchive => '导入压缩包 / 文件';
+
+  @override
+  String get skillBatchImportTitle => '批量导入技能包';
+
+  @override
+  String skillBatchImportSubtitle(int count) {
+    return '在压缩包中检测到 $count 个技能，勾选需要导入的条目：';
+  }
+
+  @override
+  String skillBatchImportButton(int count) {
+    return '导入选中 ($count)';
+  }
+
+  @override
+  String get skillBatchImportConflict => 'ID 冲突（已存在）';
+
+  @override
+  String skillBatchImportSuccess(int count) {
+    return '已导入 $count 个技能';
+  }
+
+  @override
+  String get skillResourcePreviewEmpty => '点击上方文件名可预览包内资源内容';
+
+  @override
+  String skillResourceBinaryHint(int bytes) {
+    return '该资源为二进制文件（$bytes 字节），已随技能包托管保存。';
+  }
+
+  @override
+  String get skillManageLibraryButton => '管理技能库';
+
+  @override
+  String get skillDuplicateAndEnable => '复制预设并启用';
+
+  @override
+  String get presetAllowMcpTools => '允许 MCP 工具（CodeMode）';
+
+  @override
+  String get presetAllowMcpToolsHint =>
+      '开启后，已连接的 MCP 服务工具将自动收纳到 CodeMode 二级索引，由 describe_tools 与 run_pipeline 按需调度，不占用顶层上下文。';
+
+  @override
+  String get mcpCodeModeNotice =>
+      '所有已连接的 MCP 工具都会通过 CodeMode（describe_tools + run_pipeline）按需索引与编排，不直接塞入顶层工具 Schema，既省 Token 又稳缓存。';
+
+  @override
+  String get mcpAddServer => '添加 MCP 服务';
+
+  @override
+  String get mcpImportJson => '粘贴 JSON 导入';
+
+  @override
+  String get mcpExportJson => '复制 JSON';
+
+  @override
+  String get mcpReconnectAll => '全部重连';
+
+  @override
+  String get mcpEmptyTitle => '尚未配置 MCP 服务';
+
+  @override
+  String get mcpEmptySubtitle =>
+      '支持 Streamable HTTP / SSE（全平台）与本地 Stdio 命令（桌面端），也可直接粘贴标准 mcpServers JSON。';
+
+  @override
+  String get mcpStatusConnected => '已连接';
+
+  @override
+  String get mcpStatusConnecting => '连接中';
+
+  @override
+  String get mcpStatusDisconnected => '未连接';
+
+  @override
+  String get mcpStatusError => '连接失败';
+
+  @override
+  String mcpToolsCount(int count) {
+    return '$count 个工具';
+  }
+
+  @override
+  String get mcpReconnect => '重连';
+
+  @override
+  String get mcpDialogNewTitle => '添加 MCP 服务';
+
+  @override
+  String mcpDialogEditTitle(String name) {
+    return '编辑 MCP 服务 · $name';
+  }
+
+  @override
+  String get mcpFieldName => '服务名称';
+
+  @override
+  String get mcpFieldNameHint => '例如：Filesystem / Context7 / 本地工具';
+
+  @override
+  String get mcpFieldId => '服务标识 (ID)';
+
+  @override
+  String get mcpFieldIdHint => '用于工具前缀 mcp_<id>_<tool>，留空自动生成';
+
+  @override
+  String get mcpFieldTransport => '传输协议';
+
+  @override
+  String get mcpTransportHttp => 'HTTP / SSE';
+
+  @override
+  String get mcpTransportStdio => 'Stdio 本地命令';
+
+  @override
+  String get mcpFieldUrl => '端点 URL';
+
+  @override
+  String get mcpFieldUrlHint =>
+      'https://example.com/mcp 或 http://127.0.0.1:3000/mcp';
+
+  @override
+  String get mcpFieldHeaders => 'HTTP 请求头（每行 Key: Value，可选）';
+
+  @override
+  String get mcpFieldHeadersHint => 'Authorization: Bearer your-token';
+
+  @override
+  String get mcpFieldCommand => '可执行命令 (command)';
+
+  @override
+  String get mcpFieldCommandHint => '例如：npx / uvx / python / node';
+
+  @override
+  String get mcpFieldArgs => '命令参数（每行一个参数，可选）';
+
+  @override
+  String get mcpFieldArgsHint =>
+      '-y\n@modelcontextprotocol/server-filesystem\nD:/Workspace';
+
+  @override
+  String get mcpFieldEnv => '环境变量（每行 KEY=VALUE，可选）';
+
+  @override
+  String get mcpFieldEnvHint => 'API_KEY=your-key';
+
+  @override
+  String get mcpFieldTimeout => '请求超时（秒）';
+
+  @override
+  String get mcpStdioDesktopOnly =>
+      'Stdio 本地命令仅支持桌面端（Windows / macOS / Linux）。';
+
+  @override
+  String get mcpImportJsonTitle => '导入 mcpServers JSON';
+
+  @override
+  String get mcpImportJsonHelp =>
+      '兼容 Claude Desktop / Cursor / Antigravity 的 mcpServers JSON 格式，同名服务将覆盖更新。';
+
+  @override
+  String mcpImportJsonSuccess(int count) {
+    return '已导入 $count 个 MCP 服务';
+  }
+
+  @override
+  String get mcpExportJsonCopied => '已复制 mcpServers JSON 到剪贴板';
+
+  @override
+  String get mcpConfirmDeleteTitle => '删除 MCP 服务';
+
+  @override
+  String mcpConfirmDeleteMessage(String name) {
+    return '确定要删除 MCP 服务「$name」并断开其连接吗？';
+  }
+
+  @override
+  String get mcpValidationError => '请填写完整的服务名称与端点地址（或命令）。';
 }

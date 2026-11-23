@@ -23,13 +23,11 @@ class RunPipelineTool extends AgentTool {
          name: 'run_pipeline',
          label: '批量编排',
          description:
-             '在单轮内顺序执行多个工具步骤，支持变量组合与中间结果过滤，避免无谓的多次往返和上下文膨胀。\n'
-             '用法：\n'
-             '• vars: 可选变量表；支持 {"join": [", ", "@a", ["tag1", "tag2"]]} 或 {"concat": [...]} 组合字符串；\n'
-             '• steps: 工具步骤数组，每步含 {id?, tool, args?, when?, continue_on_error?, filter?}；\n'
-             '• 引用上一步输出: @step_id、@step_id.tags (逗号分隔标签串)、@step_id.tags_list、@step_id.lines、@step_id.first_line 或 "{{step_id}}"；\n'
-             '• filter: {extract_tags?: bool, grep?: string, max_lines?: int, max_chars?: int, silent?: bool}；\n'
-             '• return_steps: 可选，只返回指定步骤 id（如 ["last"]）的完整输出。',
+             '单轮顺序编排多个工具（含内置二级工具与已连接的 MCP 工具），支持变量组合与中间结果过滤，减少往返与上下文膨胀。\n'
+             '• vars: 可选变量表，支持 {"join": [", ", "@a", [...]]} / {"concat": [...]} 组合字符串；\n'
+             '• steps: 步骤数组 {id?, tool, args?, when?, continue_on_error?, filter?}；\n'
+             '• 引用上步输出: @id / @id.tags / @id.tags_list / @id.lines / @id.first_line / "{{id}}"；\n'
+             '• filter: {extract_tags?, grep?, max_lines?, max_chars?, silent?}；return_steps: 仅返回指定步骤详情（支持 "last"）。',
          parameters: const {
            'type': 'object',
            'properties': {

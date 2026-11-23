@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import '../../../../core/harness/agent_harness.dart';
 import '../../../../core/harness/context_memory.dart';
+import '../../../../core/harness/mcp/mcp_manager.dart';
+import '../../../../core/harness/mcp/mcp_models.dart';
 import '../../../../core/harness/tools/context_memory_tool.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
 import '../../../../core/harness/providers/llm_provider_factory.dart';
@@ -103,6 +105,8 @@ mixin _StudioCore on ChangeNotifier {
   PromptLibraryService _promptLibraryService = PromptLibraryService.instance;
   late final PromptLibrarySyncService _promptLibrarySyncService;
   late final SkillPackageService _skillPackageService;
+  late final McpManager _mcpManager;
+  final ValueNotifier<int> mcpStateNotifier = ValueNotifier<int>(0);
   Future<void> _skillWriteQueue = Future<void>.value();
   final SessionLogService _sessionLog = SessionLogService();
   final UsageLedgerService _usageLedger = UsageLedgerService();
@@ -799,6 +803,14 @@ class StudioViewModel extends ChangeNotifier
             ? PromptLibrarySyncService.instance
             : PromptLibrarySyncService(libraryService: _promptLibraryService));
     _skillPackageService = skillPackageService ?? SkillPackageService();
+    _mcpManager = McpManager(
+      httpClient: _llmHttpClient,
+      onStateChanged: () {
+        if (_disposed) return;
+        _syncMcpToolsToRegistry();
+        mcpStateNotifier.value++;
+      },
+    );
     _sessionLogBaseDir = sessionLogBaseDir;
     _toolRegistry = ToolRegistry();
     _harness = AgentHarness(
@@ -966,6 +978,7 @@ class StudioViewModel extends ChangeNotifier
     _harness.setPreset(_config.activePreset);
 
     _setupHarnessAndTools();
+    unawaited(_mcpManager.syncConfigs(_config.mcpServers));
 
     // 初始化会话日志并续接上次对话 (Pi --continue 语义)
     try {
@@ -1138,6 +1151,7 @@ class StudioViewModel extends ChangeNotifier
       _currentThinkingEffort = newActive.activeModel.defaultThinkingEffort;
     }
     _setupHarnessAndTools();
+    unawaited(_mcpManager.syncConfigs(_config.mcpServers));
 
     // 同步图片持久化状态与上限调整
     if (newConfig.enableImagePersistence != oldConfig.enableImagePersistence ||
@@ -1693,6 +1707,8 @@ class StudioViewModel extends ChangeNotifier
     }
     _comfyService?.close();
     _comfyService = null;
+    unawaited(_mcpManager.dispose());
+    mcpStateNotifier.dispose();
     _harness.dispose();
     _llmHttpClient.close();
     _generationSubscription?.cancel();

@@ -302,7 +302,7 @@ class AddPromptLibraryEntryTool extends AgentTool {
         return ToolResult(
           toolCallId: toolCallId,
           content:
-              '已存在同名条目「$title」。如需覆盖请先用 search_prompt_library 查到 ID 后调用更新工具。',
+              '已存在同名条目「$title」。如需覆盖请先用 prompt_library(action: "search") 查到 ID 后调用更新。',
           isError: true,
         );
       }
@@ -436,7 +436,7 @@ class SetPromptLibraryPreviewTool extends AgentTool {
     if (idx == -1) {
       return ToolResult(
         toolCallId: toolCallId,
-        content: '未找到 ID 为 "$id" 的词库条目。可先调用 search_prompt_library 查询。',
+        content: '未找到 ID 为 "$id" 的词库条目。可先调用 prompt_library(action: "search") 查询。',
         isError: true,
       );
     }
@@ -777,7 +777,7 @@ class UpdatePromptLibraryEntryTool extends AgentTool {
       if (!getEntries().any((e) => e.id == id)) {
         return ToolResult(
           toolCallId: toolCallId,
-          content: '未找到 ID 为 "$id" 的词库条目。可先调用 search_prompt_library 查询。',
+          content: '未找到 ID 为 "$id" 的词库条目。可先调用 prompt_library(action: "search") 查询。',
           isError: true,
         );
       }
@@ -945,4 +945,124 @@ List<String> _parseTags(dynamic raw) {
         .toList();
   }
   return const [];
+}
+
+/// 统一本地词组合预设库管理工具（合并 search / add / update / delete / set_preview 为单工具）
+class PromptLibraryTool extends AgentTool {
+  final SearchPromptLibraryTool _searchTool;
+  final AddPromptLibraryEntryTool _addTool;
+  final UpdatePromptLibraryEntryTool _updateTool;
+  final DeletePromptLibraryEntryTool _deleteTool;
+  final SetPromptLibraryPreviewTool _previewTool;
+
+  PromptLibraryTool({
+    required PromptLibraryEntriesGetter getEntries,
+    required PromptLibraryAddEntry addEntry,
+    required PromptLibraryUpdateEntry updateEntry,
+    required PromptLibraryDeleteEntry deleteEntry,
+    required PromptLibraryHistoryGetter getHistory,
+    required PromptLibraryImageBytesLoader loadImageBytes,
+    PromptLibraryPreviewBytesSaver? savePreviewBytes,
+    PromptLibraryPreviewPathCopier? copyPreviewFromPath,
+  }) : _searchTool = SearchPromptLibraryTool(getEntries: getEntries),
+       _addTool = AddPromptLibraryEntryTool(
+         getEntries: getEntries,
+         addEntry: addEntry,
+       ),
+       _updateTool = UpdatePromptLibraryEntryTool(
+         getEntries: getEntries,
+         updateEntry: updateEntry,
+       ),
+       _deleteTool = DeletePromptLibraryEntryTool(
+         getEntries: getEntries,
+         deleteEntry: deleteEntry,
+       ),
+       _previewTool = SetPromptLibraryPreviewTool(
+         getEntries: getEntries,
+         updateEntry: updateEntry,
+         getHistory: getHistory,
+         loadImageBytes: loadImageBytes,
+         savePreviewBytes: savePreviewBytes,
+         copyPreviewFromPath: copyPreviewFromPath,
+       ),
+       super(
+         name: 'prompt_library',
+         label: '本地词库管理',
+         description:
+             '统一检索与管理本地词组合预设库（画风/角色/光影/构图/服装等）。通过 action 选择操作：\n'
+             '- search: 按关键词/分类检索条目；\n'
+             '- add: 新增单个或批量词库条目（entries 数组）；\n'
+             '- update: 按 id 或 updates 数组修改条目；\n'
+             '- delete: 按 id 或 ids 数组删除条目；\n'
+             '- set_preview: 为词库条目设置/替换预览图（来自画板历史图或本地路径）。',
+         parameters: const {
+           'type': 'object',
+           'properties': {
+             'action': {
+               'type': 'string',
+               'enum': ['search', 'add', 'update', 'delete', 'set_preview'],
+               'description':
+                   '操作类型：search / add / update / delete / set_preview',
+             },
+             'query': {'type': 'string', 'description': '搜索关键词 (search)'},
+             'category': {'type': 'string', 'description': '条目分类 (search / add / update)'},
+             'limit': {'type': 'integer', 'description': '返回数量上限 (search)'},
+             'id': {'type': 'string', 'description': '条目 ID (update / delete / set_preview)'},
+             'ids': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '批量删除的条目 ID 列表 (delete)',
+             },
+             'title': {'type': 'string', 'description': '条目标题 (add / update)'},
+             'prompt': {'type': 'string', 'description': '正向提示词 (add / update)'},
+             'negative_prompt': {'type': 'string', 'description': '负向提示词 (add / update)'},
+             'tags': {'description': '标签数组或逗号分隔字符串 (add / update)'},
+             'note': {'type': 'string', 'description': '备注说明 (add / update)'},
+             'entries': {
+               'type': 'array',
+               'items': {'type': 'object'},
+               'description': '批量新增的条目数组 (add)',
+             },
+             'updates': {
+               'type': 'array',
+               'items': {'type': 'object'},
+               'description': '批量修改的条目数组，每项需含 id (update)',
+             },
+             'image_index': {
+               'type': 'integer',
+               'description': '画板历史图索引，0 表示最新图 (set_preview)',
+             },
+             'image_path': {
+               'type': 'string',
+               'description': '本地图片绝对路径 (set_preview)',
+             },
+             'clear_preview': {
+               'type': 'boolean',
+               'description': '是否清除预览图 (set_preview)',
+             },
+           },
+           'required': ['action'],
+         },
+       );
+
+  @override
+  Future<ToolResult> execute(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final action = (args['action'] as String?)?.trim().toLowerCase() ?? '';
+    return switch (action) {
+      'search' || 'list' => _searchTool.execute(toolCallId, args),
+      'add' => _addTool.execute(toolCallId, args),
+      'update' => _updateTool.execute(toolCallId, args),
+      'delete' || 'remove' => _deleteTool.execute(toolCallId, args),
+      'set_preview' || 'preview' => _previewTool.execute(toolCallId, args),
+      _ => ToolResult(
+        toolCallId: toolCallId,
+        content:
+            '错误：prompt_library 的 action 必须是 search / add / update / delete / set_preview。',
+        isError: true,
+      ),
+    };
+  }
 }

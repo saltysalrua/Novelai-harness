@@ -377,21 +377,21 @@ void main() {
   });
 
   group('PresetToolKeys 批注工具白名单', () {
-    test('五个批注工具键均在内置常量表中', () {
-      const annotationTools = [
-        PresetToolKeys.viewImageAnnotations,
-        PresetToolKeys.addImageAnnotation,
-        PresetToolKeys.updateImageAnnotation,
-        PresetToolKeys.removeImageAnnotation,
-        PresetToolKeys.clearImageAnnotations,
-      ];
-      for (final key in annotationTools) {
-        expect(
-          PresetToolKeys.labels.containsKey(key),
-          isTrue,
-          reason: 'PresetToolKeys.labels 缺少 $key，预设无法放行该工具',
-        );
-      }
+    test('统一批注工具键在内置常量表中，且旧键自动迁移', () {
+      expect(
+        PresetToolKeys.labels.containsKey(PresetToolKeys.imageAnnotations),
+        isTrue,
+      );
+      expect(
+        PresetToolKeys.migrateLegacyToolNames([
+          'view_image_annotations',
+          'add_image_annotation',
+          'update_image_annotation',
+          'remove_image_annotation',
+          'clear_image_annotations',
+        ]),
+        equals([PresetToolKeys.imageAnnotations]),
+      );
     });
   });
 }

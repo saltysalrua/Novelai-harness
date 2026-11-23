@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/harness/mcp/mcp_models.dart';
 import '../../core/harness/presets/agent_preset.dart';
 import '../../core/harness/skills/skills.dart';
 import '../../core/harness/tools/agent_tool.dart';
@@ -249,9 +250,10 @@ class AppConfig {
   final List<AgentPreset> presets;
   final String activePresetId;
 
-  // 自定义 Skill 库与自定义 Tool 库
+  // 自定义 Skill 库、自定义 Tool 库与 MCP 服务列表
   final List<Skill> customSkills;
   final List<CustomAgentTool> customTools;
+  final List<McpServerConfig> mcpServers;
 
   /// 当前激活的 LLM 供应商配置
   LlmProviderConfig get activeLlmProvider {
@@ -363,6 +365,7 @@ class AppConfig {
     this.activePresetId = 'v5-architect-preset',
     this.customSkills = const [],
     this.customTools = const [],
+    this.mcpServers = const [],
   });
 
   AppConfig copyWith({
@@ -430,6 +433,7 @@ class AppConfig {
     String? activePresetId,
     List<Skill>? customSkills,
     List<CustomAgentTool>? customTools,
+    List<McpServerConfig>? mcpServers,
   }) {
     var updatedProviders = llmProviders ?? this.llmProviders;
     var targetActiveId = activeLlmProviderId ?? this.activeLlmProviderId;
@@ -507,6 +511,7 @@ class AppConfig {
       activePresetId: activePresetId ?? this.activePresetId,
       customSkills: customSkills ?? this.customSkills,
       customTools: customTools ?? this.customTools,
+      mcpServers: mcpServers ?? this.mcpServers,
     );
   }
 }
@@ -673,6 +678,7 @@ class ConfigService {
   static const String _keyActivePresetId = 'active_preset_id';
   static const String _keyCustomSkills = 'agent_custom_skills_json';
   static const String _keyCustomTools = 'agent_custom_tools_json';
+  static const String _keyMcpServers = 'agent_mcp_servers_json';
 
   String _canonicalizeSelectedModelId(
     List<LlmProviderConfig> providers,
@@ -937,6 +943,19 @@ class ConfigService {
       } catch (_) {}
     }
 
+    // MCP 服务列表加载
+    List<McpServerConfig> mcpServers = [];
+    final mcpServersJson = prefs.getString(_keyMcpServers);
+    if (mcpServersJson != null && mcpServersJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(mcpServersJson) as List<dynamic>;
+        mcpServers = decoded
+            .whereType<Map<String, dynamic>>()
+            .map(McpServerConfig.fromJson)
+            .toList();
+      } catch (_) {}
+    }
+
     // ComfyUI 模式配置加载
     final bool comfyEnabled = prefs.getBool(_keyComfyUiEnabled) ?? false;
     final String comfyBaseUrl =
@@ -1033,6 +1052,7 @@ class ConfigService {
       activePresetId: activePresetId,
       customSkills: customSkills,
       customTools: customTools,
+      mcpServers: mcpServers,
     );
   }
 
@@ -1068,6 +1088,9 @@ class ConfigService {
     );
     final customToolsJson = jsonEncode(
       config.customTools.map((t) => t.toJson()).toList(),
+    );
+    final mcpServersJson = jsonEncode(
+      config.mcpServers.map((s) => s.toJson()).toList(),
     );
     final secrets = <String, String>{
       _keyNovelAiKey: config.novelAiKey,
@@ -1138,6 +1161,7 @@ class ConfigService {
       _keyActivePresetId: config.activePresetId,
       _keyCustomSkills: customSkillsJson,
       _keyCustomTools: customToolsJson,
+      _keyMcpServers: mcpServersJson,
       _keyLlmBaseUrl: active.baseUrl,
       _keyLlmApiKey: active.apiKey,
       _keyLlmModel: active.activeModel.id,

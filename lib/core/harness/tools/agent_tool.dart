@@ -9,13 +9,22 @@ abstract class AgentTool {
   final Map<String, dynamic> parameters;
   final bool isBuiltin;
 
+  /// 是否优先收纳到 CodeMode 精简工具表面（`<secondary_tools>` + `describe_tools` / `run_pipeline`）。
+  /// 为 null 时回退到 [isBuiltin]（内置二级工具收纳，用户自定义模板工具默认直出）；
+  /// MCP 等外部扩展工具显式设为 true，避免大量外部工具 Schema 污染顶层上下文。
+  final bool? preferCompactSurface;
+
   const AgentTool({
     required this.name,
     required this.label,
     required this.description,
     required this.parameters,
     this.isBuiltin = true,
+    this.preferCompactSurface,
   });
+
+  /// 该工具在精简工具表面模式下是否应收纳到二级索引
+  bool get usesCompactSurface => preferCompactSurface ?? isBuiltin;
 
   /// 执行工具逻辑
   Future<ToolResult> execute(String toolCallId, Map<String, dynamic> args);

@@ -7742,6 +7742,414 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'刷新 NovelAI 账号信息失败：{error}'**
   String vmAccountRefreshFailed(String error);
+
+  /// No description provided for @settingsTabExtensions.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能与 MCP'**
+  String get settingsTabExtensions;
+
+  /// No description provided for @settingsSubtitleExtensions.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理专业技能包（支持压缩包拖拽导入）与外部 MCP 服务（通过 CodeMode 按需编排）'**
+  String get settingsSubtitleExtensions;
+
+  /// No description provided for @extensionsSegmentSkills.
+  ///
+  /// In zh, this message translates to:
+  /// **'技能库'**
+  String get extensionsSegmentSkills;
+
+  /// No description provided for @extensionsSegmentMcp.
+  ///
+  /// In zh, this message translates to:
+  /// **'MCP 服务'**
+  String get extensionsSegmentMcp;
+
+  /// No description provided for @skillFilterAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部'**
+  String get skillFilterAll;
+
+  /// No description provided for @skillFilterBuiltin.
+  ///
+  /// In zh, this message translates to:
+  /// **'内置'**
+  String get skillFilterBuiltin;
+
+  /// No description provided for @skillFilterCustom.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义'**
+  String get skillFilterCustom;
+
+  /// No description provided for @skillFilterPackaged.
+  ///
+  /// In zh, this message translates to:
+  /// **'含资源包'**
+  String get skillFilterPackaged;
+
+  /// No description provided for @skillBadgeModified.
+  ///
+  /// In zh, this message translates to:
+  /// **'已修改'**
+  String get skillBadgeModified;
+
+  /// No description provided for @skillResetDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复默认'**
+  String get skillResetDefault;
+
+  /// No description provided for @skillResetDefaultSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已恢复内置技能「{name}」为出厂默认'**
+  String skillResetDefaultSuccess(String name);
+
+  /// No description provided for @skillBuiltinOverrideHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'修改内置技能将保存为本地覆盖版本，可随时恢复出厂默认。'**
+  String get skillBuiltinOverrideHint;
+
+  /// No description provided for @skillDropHintTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'拖拽 .zip / .skill / .md 或技能文件夹到此处导入'**
+  String get skillDropHintTitle;
+
+  /// No description provided for @skillDropHintSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持标准 Agent Skills 压缩包（含单技能或多技能合集），也支持下方按钮导入'**
+  String get skillDropHintSubtitle;
+
+  /// No description provided for @skillDropActiveTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'松开鼠标即可解析并预览技能包'**
+  String get skillDropActiveTitle;
+
+  /// No description provided for @skillImportArchive.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入压缩包 / 文件'**
+  String get skillImportArchive;
+
+  /// No description provided for @skillBatchImportTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'批量导入技能包'**
+  String get skillBatchImportTitle;
+
+  /// No description provided for @skillBatchImportSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'在压缩包中检测到 {count} 个技能，勾选需要导入的条目：'**
+  String skillBatchImportSubtitle(int count);
+
+  /// No description provided for @skillBatchImportButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入选中 ({count})'**
+  String skillBatchImportButton(int count);
+
+  /// No description provided for @skillBatchImportConflict.
+  ///
+  /// In zh, this message translates to:
+  /// **'ID 冲突（已存在）'**
+  String get skillBatchImportConflict;
+
+  /// No description provided for @skillBatchImportSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已导入 {count} 个技能'**
+  String skillBatchImportSuccess(int count);
+
+  /// No description provided for @skillResourcePreviewEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击上方文件名可预览包内资源内容'**
+  String get skillResourcePreviewEmpty;
+
+  /// No description provided for @skillResourceBinaryHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'该资源为二进制文件（{bytes} 字节），已随技能包托管保存。'**
+  String skillResourceBinaryHint(int bytes);
+
+  /// No description provided for @skillManageLibraryButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理技能库'**
+  String get skillManageLibraryButton;
+
+  /// No description provided for @skillDuplicateAndEnable.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制预设并启用'**
+  String get skillDuplicateAndEnable;
+
+  /// No description provided for @presetAllowMcpTools.
+  ///
+  /// In zh, this message translates to:
+  /// **'允许 MCP 工具（CodeMode）'**
+  String get presetAllowMcpTools;
+
+  /// No description provided for @presetAllowMcpToolsHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后，已连接的 MCP 服务工具将自动收纳到 CodeMode 二级索引，由 describe_tools 与 run_pipeline 按需调度，不占用顶层上下文。'**
+  String get presetAllowMcpToolsHint;
+
+  /// No description provided for @mcpCodeModeNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'所有已连接的 MCP 工具都会通过 CodeMode（describe_tools + run_pipeline）按需索引与编排，不直接塞入顶层工具 Schema，既省 Token 又稳缓存。'**
+  String get mcpCodeModeNotice;
+
+  /// No description provided for @mcpAddServer.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加 MCP 服务'**
+  String get mcpAddServer;
+
+  /// No description provided for @mcpImportJson.
+  ///
+  /// In zh, this message translates to:
+  /// **'粘贴 JSON 导入'**
+  String get mcpImportJson;
+
+  /// No description provided for @mcpExportJson.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制 JSON'**
+  String get mcpExportJson;
+
+  /// No description provided for @mcpReconnectAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部重连'**
+  String get mcpReconnectAll;
+
+  /// No description provided for @mcpEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未配置 MCP 服务'**
+  String get mcpEmptyTitle;
+
+  /// No description provided for @mcpEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持 Streamable HTTP / SSE（全平台）与本地 Stdio 命令（桌面端），也可直接粘贴标准 mcpServers JSON。'**
+  String get mcpEmptySubtitle;
+
+  /// No description provided for @mcpStatusConnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已连接'**
+  String get mcpStatusConnected;
+
+  /// No description provided for @mcpStatusConnecting.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接中'**
+  String get mcpStatusConnecting;
+
+  /// No description provided for @mcpStatusDisconnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'未连接'**
+  String get mcpStatusDisconnected;
+
+  /// No description provided for @mcpStatusError.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接失败'**
+  String get mcpStatusError;
+
+  /// No description provided for @mcpToolsCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个工具'**
+  String mcpToolsCount(int count);
+
+  /// No description provided for @mcpReconnect.
+  ///
+  /// In zh, this message translates to:
+  /// **'重连'**
+  String get mcpReconnect;
+
+  /// No description provided for @mcpDialogNewTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加 MCP 服务'**
+  String get mcpDialogNewTitle;
+
+  /// No description provided for @mcpDialogEditTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑 MCP 服务 · {name}'**
+  String mcpDialogEditTitle(String name);
+
+  /// No description provided for @mcpFieldName.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务名称'**
+  String get mcpFieldName;
+
+  /// No description provided for @mcpFieldNameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：Filesystem / Context7 / 本地工具'**
+  String get mcpFieldNameHint;
+
+  /// No description provided for @mcpFieldId.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务标识 (ID)'**
+  String get mcpFieldId;
+
+  /// No description provided for @mcpFieldIdHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'用于工具前缀 mcp_<id>_<tool>，留空自动生成'**
+  String get mcpFieldIdHint;
+
+  /// No description provided for @mcpFieldTransport.
+  ///
+  /// In zh, this message translates to:
+  /// **'传输协议'**
+  String get mcpFieldTransport;
+
+  /// No description provided for @mcpTransportHttp.
+  ///
+  /// In zh, this message translates to:
+  /// **'HTTP / SSE'**
+  String get mcpTransportHttp;
+
+  /// No description provided for @mcpTransportStdio.
+  ///
+  /// In zh, this message translates to:
+  /// **'Stdio 本地命令'**
+  String get mcpTransportStdio;
+
+  /// No description provided for @mcpFieldUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'端点 URL'**
+  String get mcpFieldUrl;
+
+  /// No description provided for @mcpFieldUrlHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://example.com/mcp 或 http://127.0.0.1:3000/mcp'**
+  String get mcpFieldUrlHint;
+
+  /// No description provided for @mcpFieldHeaders.
+  ///
+  /// In zh, this message translates to:
+  /// **'HTTP 请求头（每行 Key: Value，可选）'**
+  String get mcpFieldHeaders;
+
+  /// No description provided for @mcpFieldHeadersHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'Authorization: Bearer your-token'**
+  String get mcpFieldHeadersHint;
+
+  /// No description provided for @mcpFieldCommand.
+  ///
+  /// In zh, this message translates to:
+  /// **'可执行命令 (command)'**
+  String get mcpFieldCommand;
+
+  /// No description provided for @mcpFieldCommandHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：npx / uvx / python / node'**
+  String get mcpFieldCommandHint;
+
+  /// No description provided for @mcpFieldArgs.
+  ///
+  /// In zh, this message translates to:
+  /// **'命令参数（每行一个参数，可选）'**
+  String get mcpFieldArgs;
+
+  /// No description provided for @mcpFieldArgsHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'-y\n@modelcontextprotocol/server-filesystem\nD:/Workspace'**
+  String get mcpFieldArgsHint;
+
+  /// No description provided for @mcpFieldEnv.
+  ///
+  /// In zh, this message translates to:
+  /// **'环境变量（每行 KEY=VALUE，可选）'**
+  String get mcpFieldEnv;
+
+  /// No description provided for @mcpFieldEnvHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'API_KEY=your-key'**
+  String get mcpFieldEnvHint;
+
+  /// No description provided for @mcpFieldTimeout.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求超时（秒）'**
+  String get mcpFieldTimeout;
+
+  /// No description provided for @mcpStdioDesktopOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'Stdio 本地命令仅支持桌面端（Windows / macOS / Linux）。'**
+  String get mcpStdioDesktopOnly;
+
+  /// No description provided for @mcpImportJsonTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入 mcpServers JSON'**
+  String get mcpImportJsonTitle;
+
+  /// No description provided for @mcpImportJsonHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'兼容 Claude Desktop / Cursor / Antigravity 的 mcpServers JSON 格式，同名服务将覆盖更新。'**
+  String get mcpImportJsonHelp;
+
+  /// No description provided for @mcpImportJsonSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已导入 {count} 个 MCP 服务'**
+  String mcpImportJsonSuccess(int count);
+
+  /// No description provided for @mcpExportJsonCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制 mcpServers JSON 到剪贴板'**
+  String get mcpExportJsonCopied;
+
+  /// No description provided for @mcpConfirmDeleteTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除 MCP 服务'**
+  String get mcpConfirmDeleteTitle;
+
+  /// No description provided for @mcpConfirmDeleteMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要删除 MCP 服务「{name}」并断开其连接吗？'**
+  String mcpConfirmDeleteMessage(String name);
+
+  /// No description provided for @mcpValidationError.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写完整的服务名称与端点地址（或命令）。'**
+  String get mcpValidationError;
 }
 
 class _AppLocalizationsDelegate

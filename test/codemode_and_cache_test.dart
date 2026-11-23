@@ -4,6 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:novelai_harness/core/harness/agent_harness.dart';
+import 'package:novelai_harness/core/harness/mcp/mcp_client.dart';
+import 'package:novelai_harness/core/harness/mcp/mcp_manager.dart';
+import 'package:novelai_harness/core/harness/mcp/mcp_models.dart';
 import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
 import 'package:novelai_harness/core/harness/providers/google_interactions_provider.dart';
 import 'package:novelai_harness/core/harness/providers/openai_provider.dart';
@@ -629,5 +632,222 @@ void main() {
         hAnthropic.dispose();
       },
     );
+  });
+
+  group('MCP protocol and CodeMode integration', () {
+    test('parseMcpServersJson parses standard mcpServers format and round-trips', () {
+      const raw = '''
+      {
+        "mcpServers": {
+          "context7": {
+            "url": "https://mcp.context7.com/mcp",
+            "headers": {"Authorization": "Bearer secret"}
+          },
+          "local-fs": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", "D:/Work"],
+            "env": {"NODE_ENV": "production"}
+          }
+        }
+      }
+      ''';
+      final servers = McpServerConfig.parseMcpServersJson(raw);
+      expect(servers, hasLength(2));
+      expect(servers[0].id, 'context7');
+      expect(servers[0].transport, McpTransportType.http);
+      expect(servers[0].headers['Authorization'], 'Bearer secret');
+      expect(servers[1].id, 'local-fs');
+      expect(servers[1].transport, McpTransportType.stdio);
+      expect(servers[1].args, hasLength(3));
+
+      final encoded = McpServerConfig.encodeMcpServersJson(servers);
+      final reparsed = McpServerConfig.parseMcpServersJson(encoded);
+      expect(reparsed.map((s) => s.id), ['context7', 'local-fs']);
+    });
+
+    test('HttpMcpClient handles Streamable HTTP JSON, SSE and Mcp-Session-Id', () async {
+      String? capturedSessionHeader;
+      final mockClient = MockClient((req) async {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        final method = body['method'] as String;
+        final id = body['id'];
+        if (method == 'initialize') {
+          return http.Response(
+            jsonEncode({
+              'jsonrpc': '2.0',
+              'id': id,
+              'result': {'protocolVersion': '2025-03-26'},
+            }),
+            200,
+            headers: {
+              'content-type': 'application/json',
+              'mcp-session-id': 'sess_123',
+            },
+          );
+        }
+        if (method == 'notifications/initialized') {
+          return http.Response('', 202);
+        }
+        capturedSessionHeader = req.headers['Mcp-Session-Id'];
+        if (method == 'tools/list') {
+          // 模拟 text/event-stream SSE 响应
+          final sse =
+              'event: message\n'
+              'data: ${jsonEncode({
+                'jsonrpc': '2.0',
+                'id': id,
+                'result': {
+                  'tools': [
+                    {
+                      'name': 'search_docs',
+                      'description': 'Search documentation',
+                      'inputSchema': {
+                        'type': 'object',
+                        'properties': {
+                          'q': {'type': 'string'},
+                        },
+                        'required': ['q'],
+                      },
+                    },
+                  ],
+                },
+              })}\n\n';
+          return http.Response(
+            sse,
+            200,
+            headers: {'content-type': 'text/event-stream'},
+          );
+        }
+        if (method == 'tools/call') {
+          return http.Response(
+            jsonEncode({
+              'jsonrpc': '2.0',
+              'id': id,
+              'result': {
+                'content': [
+                  {'type': 'text', 'text': 'doc result: flutter'},
+                ],
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('not found', 404);
+      });
+
+      final client = HttpMcpClient(
+        config: const McpServerConfig(
+          id: 'docs',
+          name: 'Docs MCP',
+          transport: McpTransportType.http,
+          url: 'https://example.com/mcp',
+        ),
+        client: mockClient,
+      );
+
+      final tools = await client.listTools();
+      expect(capturedSessionHeader, 'sess_123');
+      expect(tools, hasLength(1));
+      expect(tools.single.exposedName, 'mcp_docs_search_docs');
+
+      final callResult = await client.callTool('search_docs', {'q': 'flutter'});
+      expect(callResult.isError, isFalse);
+      expect(callResult.text, 'doc result: flutter');
+      await client.close();
+    });
+
+    test('MCP tools stay in CodeMode secondary surface and execute via run_pipeline', () async {
+      final registry = ToolRegistry();
+      final mcpTool = McpAgentTool(
+        descriptor: const McpToolDescriptor(
+          serverId: 'docs',
+          serverName: 'Docs',
+          originalName: 'lookup',
+          exposedName: 'mcp_docs_lookup',
+          description: 'Lookup reference docs',
+          inputSchema: {
+            'type': 'object',
+            'properties': {
+              'topic': {'type': 'string'},
+            },
+            'required': ['topic'],
+          },
+        ),
+        invoke: (args) async =>
+            McpCallResult(text: 'found: ${args['topic']}'),
+      );
+      registry.register(mcpTool);
+
+      final sentTopLevelTools = <List<String>>[];
+      String? capturedSystem;
+      var turn = 0;
+      final provider = MockLlmProvider((messages, tools) {
+        turn++;
+        capturedSystem = messages.first.content;
+        sentTopLevelTools.add(tools.map((t) => t.name).toList());
+        if (turn == 1) {
+          return [
+            ToolCallEvent(
+              const ToolCall(
+                id: 'mcp_pipe',
+                name: 'run_pipeline',
+                arguments: {
+                  'steps': [
+                    {
+                      'id': 'doc',
+                      'tool': 'mcp_docs_lookup',
+                      'args': {'topic': 'lighting'},
+                    },
+                  ],
+                },
+              ),
+            ),
+          ];
+        }
+        return [ContentDeltaEvent('done')];
+      });
+
+      final harness = AgentHarness(
+        tools: registry,
+        provider: provider,
+        initialPreset: const AgentPreset(
+          id: 'mcp-preset',
+          name: 'MCP Test',
+          description: '',
+          systemPrompt: 'sys',
+          enabledToolNames: ['run_pipeline', 'describe_tools'],
+          allowMcpTools: true,
+        ),
+      )..compactToolSurface = true;
+
+      registry.register(
+        RunPipelineTool(
+          registry: registry,
+          isToolAllowed: harness.isToolExecutionAllowed,
+        ),
+      );
+      registry.register(
+        DescribeToolsTool(
+          registry: registry,
+          isToolAllowed: harness.isToolExecutionAllowed,
+        ),
+      );
+
+      final events = await harness.send('查光照文档').toList();
+      expect(sentTopLevelTools.first, isNot(contains('mcp_docs_lookup')));
+      expect(capturedSystem, contains('<secondary_tools>'));
+      expect(capturedSystem, contains('mcp_docs_lookup(topic)'));
+      final toolResult = events.whereType<ToolResultEvent>().single;
+      expect(toolResult.result.isError, isFalse);
+      expect(toolResult.result.content, contains('found: lighting'));
+
+      // 关闭 allowMcpTools 时拒绝调用
+      harness.setPreset(
+        harness.currentPreset.copyWith(allowMcpTools: false),
+      );
+      expect(harness.isToolExecutionAllowed('mcp_docs_lookup'), isFalse);
+      harness.dispose();
+    });
   });
 }

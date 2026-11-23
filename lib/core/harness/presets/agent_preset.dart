@@ -47,37 +47,20 @@ class PresetParamKeys {
 class PresetToolKeys {
   static const String generate = 'novelai_generate';
   static const String upscale = 'novelai_upscale';
-  static const String suggestTags = 'novelai_suggest_tags';
-  static const String danbooruSearch = 'danbooru_search_tags';
-  static const String danbooruRelated = 'danbooru_related_tags';
-  static const String danbooruArtists = 'danbooru_recommend_artists';
+  static const String inpaint = 'novelai_inpaint';
+  static const String aiEditImage = 'ai_edit_image';
   static const String accountInfo = 'novelai_account_info';
   static const String askUser = 'ask_user';
   static const String getParams = 'get_studio_parameters';
   static const String updateParams = 'update_studio_parameters';
-  static const String listCharacterPrompts = 'list_character_prompts';
-  static const String addCharacterPrompt = 'add_character_prompt';
-  static const String updateCharacterPrompt = 'update_character_prompt';
-  static const String removeCharacterPrompt = 'remove_character_prompt';
-  static const String loadSkill = 'load_skill';
+  static const String characterPrompts = 'character_prompts';
+  static const String imageAnnotations = 'image_annotations';
+  static const String promptLibrary = 'prompt_library';
+  static const String danbooruTags = 'danbooru_tags';
+  static const String webResearch = 'web_research';
   static const String viewCanvasImage = 'view_canvas_image';
-  static const String viewImageAnnotations = 'view_image_annotations';
-  static const String addImageAnnotation = 'add_image_annotation';
-  static const String updateImageAnnotation = 'update_image_annotation';
-  static const String removeImageAnnotation = 'remove_image_annotation';
-  static const String clearImageAnnotations = 'clear_image_annotations';
-  static const String inpaint = 'novelai_inpaint';
-  static const String inpaintGeometry = 'get_inpaint_geometry';
-  static const String aiEditImage = 'ai_edit_image';
-  static const String searchPromptLibrary = 'search_prompt_library';
-  static const String addPromptLibraryEntry = 'add_prompt_library_entry';
-  static const String updatePromptLibraryEntry = 'update_prompt_library_entry';
-  static const String deletePromptLibraryEntry = 'delete_prompt_library_entry';
-  static const String setPromptLibraryPreview = 'set_prompt_library_preview';
+  static const String loadSkill = 'load_skill';
   static const String contextMemory = 'context_memory';
-  static const String webSearch = 'web_search';
-  static const String webGetDomains = 'get_search_domains';
-  static const String webExtract = 'web_extract';
   static const String runPipeline = 'run_pipeline';
   static const String describeTools = 'describe_tools';
 
@@ -85,39 +68,65 @@ class PresetToolKeys {
     generate: '图像生成',
     upscale: '图像放大',
     inpaint: '局部修复',
-    inpaintGeometry: '修复几何计算',
     aiEditImage: 'AI 整图编辑',
-    suggestTags: '标签联想',
-    danbooruSearch: '语义搜词',
-    danbooruRelated: '关联推荐',
-    danbooruArtists: '画师推荐',
     accountInfo: '账号查询',
     askUser: '向用户提问',
     getParams: '读取参数',
     updateParams: '修改参数',
-    listCharacterPrompts: '角色列表',
-    addCharacterPrompt: '添加角色',
-    updateCharacterPrompt: '修改角色',
-    removeCharacterPrompt: '删除角色',
-    loadSkill: '加载技能',
+    characterPrompts: '角色提示词管理',
+    imageAnnotations: '图片批注管理',
+    promptLibrary: '本地词库管理',
+    danbooruTags: 'Danbooru 搜词与画师推荐',
+    webResearch: '网络搜索与网页提取',
     viewCanvasImage: '查看画板图片',
-    viewImageAnnotations: '查看图片批注',
-    addImageAnnotation: '添加图片批注',
-    updateImageAnnotation: '修改图片批注',
-    removeImageAnnotation: '删除图片批注',
-    clearImageAnnotations: '清空图片批注',
-    searchPromptLibrary: '搜索词库',
-    addPromptLibraryEntry: '新增词库条目',
-    updatePromptLibraryEntry: '修改词库条目',
-    deletePromptLibraryEntry: '删除词库条目',
-    setPromptLibraryPreview: '设置词库预览图',
+    loadSkill: '加载技能',
     contextMemory: '上下文与笔记',
-    webSearch: '网页搜索',
-    webGetDomains: '搜索域目录',
-    webExtract: '网页正文提取',
     runPipeline: '批量编排',
     describeTools: '查看工具参数',
   };
+
+  /// 旧版本拆分工具名到精简合并工具名的自动迁移映射（null 表示已废弃移除）
+  static const Map<String, String?> legacyToolMigration = {
+    'list_character_prompts': characterPrompts,
+    'add_character_prompt': characterPrompts,
+    'update_character_prompt': characterPrompts,
+    'remove_character_prompt': characterPrompts,
+    'view_image_annotations': imageAnnotations,
+    'add_image_annotation': imageAnnotations,
+    'update_image_annotation': imageAnnotations,
+    'remove_image_annotation': imageAnnotations,
+    'clear_image_annotations': imageAnnotations,
+    'search_prompt_library': promptLibrary,
+    'add_prompt_library_entry': promptLibrary,
+    'update_prompt_library_entry': promptLibrary,
+    'delete_prompt_library_entry': promptLibrary,
+    'set_prompt_library_preview': promptLibrary,
+    'danbooru_search_tags': danbooruTags,
+    'danbooru_related_tags': danbooruTags,
+    'danbooru_recommend_artists': danbooruTags,
+    'novelai_suggest_tags': danbooruTags,
+    'web_search': webResearch,
+    'get_search_domains': webResearch,
+    'web_extract': webResearch,
+    'get_inpaint_geometry': null,
+  };
+
+  /// 将旧预设中持久化的拆分工具名无损迁移为精简后的统一工具名（去重保序）
+  static List<String> migrateLegacyToolNames(Iterable<String> rawNames) {
+    final result = <String>[];
+    final seen = <String>{};
+    for (final name in rawNames) {
+      if (legacyToolMigration.containsKey(name)) {
+        final mapped = legacyToolMigration[name];
+        if (mapped != null && seen.add(mapped)) {
+          result.add(mapped);
+        }
+      } else if (seen.add(name)) {
+        result.add(name);
+      }
+    }
+    return result;
+  }
 
   /// 全部内置工具键 (完整权限预设直接复用)
   static final List<String> all = labels.keys.toList();
@@ -128,36 +137,19 @@ const List<String> _fullTools = [
   PresetToolKeys.generate,
   PresetToolKeys.upscale,
   PresetToolKeys.inpaint,
-  PresetToolKeys.inpaintGeometry,
   PresetToolKeys.aiEditImage,
-  PresetToolKeys.suggestTags,
-  PresetToolKeys.danbooruSearch,
-  PresetToolKeys.danbooruRelated,
-  PresetToolKeys.danbooruArtists,
   PresetToolKeys.accountInfo,
   PresetToolKeys.askUser,
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
-  PresetToolKeys.listCharacterPrompts,
-  PresetToolKeys.addCharacterPrompt,
-  PresetToolKeys.updateCharacterPrompt,
-  PresetToolKeys.removeCharacterPrompt,
-  PresetToolKeys.loadSkill,
+  PresetToolKeys.characterPrompts,
+  PresetToolKeys.imageAnnotations,
+  PresetToolKeys.promptLibrary,
+  PresetToolKeys.danbooruTags,
+  PresetToolKeys.webResearch,
   PresetToolKeys.viewCanvasImage,
-  PresetToolKeys.viewImageAnnotations,
-  PresetToolKeys.addImageAnnotation,
-  PresetToolKeys.updateImageAnnotation,
-  PresetToolKeys.removeImageAnnotation,
-  PresetToolKeys.clearImageAnnotations,
-  PresetToolKeys.searchPromptLibrary,
-  PresetToolKeys.addPromptLibraryEntry,
-  PresetToolKeys.updatePromptLibraryEntry,
-  PresetToolKeys.deletePromptLibraryEntry,
-  PresetToolKeys.setPromptLibraryPreview,
+  PresetToolKeys.loadSkill,
   PresetToolKeys.contextMemory,
-  PresetToolKeys.webSearch,
-  PresetToolKeys.webGetDomains,
-  PresetToolKeys.webExtract,
   PresetToolKeys.runPipeline,
   PresetToolKeys.describeTools,
 ];
@@ -165,34 +157,17 @@ const List<String> _fullTools = [
 const List<String> _coreTools = [
   PresetToolKeys.generate,
   PresetToolKeys.inpaint,
-  PresetToolKeys.inpaintGeometry,
-  PresetToolKeys.suggestTags,
-  PresetToolKeys.danbooruSearch,
-  PresetToolKeys.danbooruRelated,
-  PresetToolKeys.danbooruArtists,
   PresetToolKeys.askUser,
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
-  PresetToolKeys.listCharacterPrompts,
-  PresetToolKeys.addCharacterPrompt,
-  PresetToolKeys.updateCharacterPrompt,
-  PresetToolKeys.removeCharacterPrompt,
-  PresetToolKeys.loadSkill,
+  PresetToolKeys.characterPrompts,
+  PresetToolKeys.imageAnnotations,
+  PresetToolKeys.promptLibrary,
+  PresetToolKeys.danbooruTags,
+  PresetToolKeys.webResearch,
   PresetToolKeys.viewCanvasImage,
-  PresetToolKeys.viewImageAnnotations,
-  PresetToolKeys.addImageAnnotation,
-  PresetToolKeys.updateImageAnnotation,
-  PresetToolKeys.removeImageAnnotation,
-  PresetToolKeys.clearImageAnnotations,
-  PresetToolKeys.searchPromptLibrary,
-  PresetToolKeys.addPromptLibraryEntry,
-  PresetToolKeys.updatePromptLibraryEntry,
-  PresetToolKeys.deletePromptLibraryEntry,
-  PresetToolKeys.setPromptLibraryPreview,
+  PresetToolKeys.loadSkill,
   PresetToolKeys.contextMemory,
-  PresetToolKeys.webSearch,
-  PresetToolKeys.webGetDomains,
-  PresetToolKeys.webExtract,
   PresetToolKeys.runPipeline,
   PresetToolKeys.describeTools,
 ];
@@ -201,34 +176,17 @@ const List<String> _coreUpscaleTools = [
   PresetToolKeys.generate,
   PresetToolKeys.upscale,
   PresetToolKeys.inpaint,
-  PresetToolKeys.inpaintGeometry,
-  PresetToolKeys.suggestTags,
-  PresetToolKeys.danbooruSearch,
-  PresetToolKeys.danbooruRelated,
-  PresetToolKeys.danbooruArtists,
   PresetToolKeys.askUser,
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
-  PresetToolKeys.listCharacterPrompts,
-  PresetToolKeys.addCharacterPrompt,
-  PresetToolKeys.updateCharacterPrompt,
-  PresetToolKeys.removeCharacterPrompt,
-  PresetToolKeys.loadSkill,
+  PresetToolKeys.characterPrompts,
+  PresetToolKeys.imageAnnotations,
+  PresetToolKeys.promptLibrary,
+  PresetToolKeys.danbooruTags,
+  PresetToolKeys.webResearch,
   PresetToolKeys.viewCanvasImage,
-  PresetToolKeys.viewImageAnnotations,
-  PresetToolKeys.addImageAnnotation,
-  PresetToolKeys.updateImageAnnotation,
-  PresetToolKeys.removeImageAnnotation,
-  PresetToolKeys.clearImageAnnotations,
-  PresetToolKeys.searchPromptLibrary,
-  PresetToolKeys.addPromptLibraryEntry,
-  PresetToolKeys.updatePromptLibraryEntry,
-  PresetToolKeys.deletePromptLibraryEntry,
-  PresetToolKeys.setPromptLibraryPreview,
+  PresetToolKeys.loadSkill,
   PresetToolKeys.contextMemory,
-  PresetToolKeys.webSearch,
-  PresetToolKeys.webGetDomains,
-  PresetToolKeys.webExtract,
   PresetToolKeys.runPipeline,
   PresetToolKeys.describeTools,
 ];
@@ -270,6 +228,9 @@ class AgentPreset {
   /// 允许 Agent 修改的生图参数键 (显式白名单)
   final List<String> allowedModifiableParams;
 
+  /// 是否允许通过 CodeMode 调用已连接的 MCP 服务工具（默认开启）
+  final bool allowMcpTools;
+
   final bool isBuiltin;
 
   const AgentPreset({
@@ -280,11 +241,17 @@ class AgentPreset {
     this.enabledSkillIds = const [],
     this.enabledToolNames = const [],
     this.allowedModifiableParams = const [],
+    this.allowMcpTools = true,
     this.isBuiltin = false,
   });
 
   /// 检查某项工具是否在该预设中开放
-  bool isToolEnabled(String toolName) => enabledToolNames.contains(toolName);
+  bool isToolEnabled(String toolName) {
+    if (toolName.startsWith('mcp_')) {
+      return allowMcpTools;
+    }
+    return enabledToolNames.contains(toolName);
+  }
 
   /// 检查某个生图参数是否允许被 Agent 修改
   bool isParamModifiable(String paramKey) =>
@@ -298,6 +265,7 @@ class AgentPreset {
     List<String>? enabledSkillIds,
     List<String>? enabledToolNames,
     List<String>? allowedModifiableParams,
+    bool? allowMcpTools,
     bool? isBuiltin,
   }) {
     return AgentPreset(
@@ -309,6 +277,7 @@ class AgentPreset {
       enabledToolNames: enabledToolNames ?? List.from(this.enabledToolNames),
       allowedModifiableParams:
           allowedModifiableParams ?? List.from(this.allowedModifiableParams),
+      allowMcpTools: allowMcpTools ?? this.allowMcpTools,
       isBuiltin: isBuiltin ?? this.isBuiltin,
     );
   }
@@ -322,6 +291,7 @@ class AgentPreset {
       'enabledSkillIds': enabledSkillIds,
       'enabledToolNames': enabledToolNames,
       'allowedModifiableParams': allowedModifiableParams,
+      'allowMcpTools': allowMcpTools,
       'isBuiltin': isBuiltin,
     };
   }
@@ -347,11 +317,14 @@ class AgentPreset {
               ?.map((e) => e.toString())
               .toList() ??
           const [],
-      enabledToolNames: parseList('enabledToolNames', PresetToolKeys.all),
+      enabledToolNames: PresetToolKeys.migrateLegacyToolNames(
+        parseList('enabledToolNames', PresetToolKeys.all),
+      ),
       allowedModifiableParams: parseList(
         'allowedModifiableParams',
         PresetParamKeys.all,
       ),
+      allowMcpTools: json['allowMcpTools'] as bool? ?? true,
       isBuiltin: json['isBuiltin'] as bool? ?? false,
     );
   }

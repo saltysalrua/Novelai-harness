@@ -309,11 +309,19 @@ class _ImageCanvasCardState extends State<ImageCanvasCard>
           onClose: () => _setHistoryOpen(false),
         );
 
+        final canAcceptDrop =
+            (ModalRoute.of(context)?.isCurrent ?? true) &&
+            TickerMode.valuesOf(context).enabled;
         return DropTarget(
-      onDragEntered: (_) => setState(() => _isDraggingOver = true),
+      enable: canAcceptDrop,
+      onDragEntered: (_) {
+        if (!canAcceptDrop) return;
+        setState(() => _isDraggingOver = true);
+      },
       onDragExited: (_) => setState(() => _isDraggingOver = false),
       onDragDone: (details) async {
         setState(() => _isDraggingOver = false);
+        if (!canAcceptDrop) return;
         for (final file in details.files) {
           final bytes = await file.readAsBytes();
           if (bytes.isNotEmpty) {

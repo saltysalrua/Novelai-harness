@@ -249,7 +249,7 @@ const double kPointAnnotationHalfExtent = 0.06;
     return (
       rect: null,
       error:
-          '未在目标图片上找到批注 $annotationId。可先调用 view_image_annotations 查看批注列表与其 ID。',
+          '未在目标图片上找到批注 $annotationId。可先调用 image_annotations(action: "view") 查看批注列表与其 ID。',
     );
   }
   switch (found.type) {
@@ -306,14 +306,9 @@ class NovelAiInpaintTool extends AgentTool {
          name: 'novelai_inpaint',
          label: '局部修复 / 焦点特写重绘',
          description:
-             '对画板图片或指定本地图片执行局部重绘 (Inpaint) 或高分辨率焦点特写修复 (Focus Inpaint)。\n'
-             '在 focus 模式下，算法会自动将选区扩展外延上下文 (Context Padding) 并等比上采样至 1MP (1024x1024) 潜空间，'
-             '经 NovelAI 官方 infill 渲染后再高精度无损贴回原图，极大提升眼睛、面部、手部与服饰细节且享受 Opus 免费。\n'
-             '修复区域二选一：rect 坐标，或 annotation_id 复用画板既有批注 (矩形批注直用其选区，图钉锚点自动转为以锚点为中心的小选区；'
-             '批注只提供修复区域，批注文字是用户修改意见、不会自动作为提示词——需按批注意见修复时应把意见翻译成绘制描述后显式传 prompt)。\n'
-             'rect 自动识别三种坐标系：归一化数组 [ymin, xmin, ymax, xmax] (0.0~1.0，推荐，可直接复制 view_image_annotations 输出的相对坐标)、'
-             '百分比坐标 (0~100，与批注工具同体系) 与像素坐标 (按图片尺寸自动换算)；对象写法支持 {left, top, width, height} 或 {left, top, right, bottom}。\n'
-             'focus 模式必须提供 rect 或 annotation_id (整图重绘请用 standard 模式)。',
+             '对画板图片或本地图片执行局部修复：focus（默认，自动外延并上采样至 1MP 潜空间，适合五官/手部/细节，须传 rect 或 annotation_id）或 standard（大面积重绘）。\n'
+             '选区二选一：rect（自动识别归一化 [ymin,xmin,ymax,xmax]、百分比 0~100、像素坐标或 {left,top,width,height}）或 annotation_id（来自 image_annotations(action: "view")）。\n'
+             '批注只提供几何选区，批注文字不会自动作为提示词；需按批注意见修改时请将其转为绘制描述传入 prompt，留空则复用工作台提示词。',
          parameters: {
            'type': 'object',
            'properties': {

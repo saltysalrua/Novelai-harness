@@ -319,7 +319,7 @@ class NovelAiUpdateParamsTool extends AgentTool {
          name: 'update_studio_parameters',
          label: '修改参数',
          description:
-             '按需修改工作台的生图参数。只需传入需要修改的一个或多个字段（如 prompt、steps、scale 等），未传入的字段将保持原设置不变。修改后会实时同步更新 UI 界面。',
+             '增量修改工作台生图参数并实时同步 UI；只需传入要改的字段（如 prompt/negative_prompt/resolution/steps/scale），未传字段保持不变。',
          parameters: {
            'type': 'object',
            'properties': {

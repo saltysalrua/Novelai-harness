@@ -169,14 +169,17 @@ class AgentHarness {
     );
     if (!hasBridge) return false;
     return enabledTools.any(
-      (t) => t.isBuiltin && !defaultPrimaryToolNames.contains(t.name),
+      (t) => t.usesCompactSurface && !defaultPrimaryToolNames.contains(t.name),
     );
   }
 
   List<AgentTool> _resolveProviderTools(List<AgentTool> enabledTools) {
     if (!_shouldUseCompactToolSurface(enabledTools)) return enabledTools;
     return enabledTools
-        .where((t) => !t.isBuiltin || defaultPrimaryToolNames.contains(t.name))
+        .where(
+          (t) =>
+              !t.usesCompactSurface || defaultPrimaryToolNames.contains(t.name),
+        )
         .toList();
   }
 
@@ -219,12 +222,16 @@ class AgentHarness {
     final enabledTools = _enabledToolsForPreset(preset);
     if (_shouldUseCompactToolSurface(enabledTools)) {
       final secondary = enabledTools
-          .where((t) => t.isBuiltin && !defaultPrimaryToolNames.contains(t.name))
+          .where(
+            (t) =>
+                t.usesCompactSurface &&
+                !defaultPrimaryToolNames.contains(t.name),
+          )
           .toList();
       if (secondary.isNotEmpty) {
         buffer.writeln('\n<secondary_tools>');
         buffer.writeln(
-          '以下二级工具已启用但未展开完整 Schema。请优先用 `run_pipeline` 直接编排执行（支持 @step.tags、vars.join 拼装与 filter 过滤），或先调用 `describe_tools` 查看精确参数：',
+          '以下二级工具（含已接入的 MCP 外部工具）已启用但未展开完整 Schema。请优先用 `run_pipeline` 直接编排执行（支持 @step.tags、vars.join 拼装与 filter 过滤），或先调用 `describe_tools` 查看精确参数：',
         );
         for (final tool in secondary) {
           buffer.writeln('- ${_formatCompactToolSignature(tool)}');
@@ -239,11 +246,11 @@ class AgentHarness {
       '按编号读取或释放旧回复；清理请用 ids 数组一次批量处理，不要逐条多次调用。'
       '释放不删除用户原文；请先记录必要结论。',
     );
-    if (enabledTools.any((t) => t.name == 'search_prompt_library')) {
+    if (enabledTools.any((t) => t.name == 'prompt_library')) {
       buffer.writeln(
         '若用户消息末尾附带 <library_characters>，表示系统已自动关联本地词库角色，'
         '请直接采用其提示词设定，无需让用户提醒去查词库；若提及未自动关联的自定义角色名，'
-        '可主动调用 search_prompt_library(category: "角色") 查询。',
+        '可主动调用 prompt_library(action: "search", category: "角色") 查询。',
       );
     }
     return buffer.toString();

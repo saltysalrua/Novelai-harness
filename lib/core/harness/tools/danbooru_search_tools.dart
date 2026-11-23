@@ -356,3 +356,70 @@ class DanbooruRecommendArtistsTool extends AgentTool {
     }
   }
 }
+
+/// 统一 Danbooru 与 NovelAI 标签检索工具（合并 search / related / artists / suggest）
+class DanbooruTagsTool extends AgentTool {
+  final DanbooruSearchTagsTool _searchTool;
+  final DanbooruRelatedTagsTool _relatedTool;
+  final DanbooruRecommendArtistsTool _artistsTool;
+  final AgentTool? suggestTool;
+
+  DanbooruTagsTool({
+    DanbooruSearchService? service,
+    this.suggestTool,
+  }) : _searchTool = DanbooruSearchTagsTool(service: service),
+       _relatedTool = DanbooruRelatedTagsTool(service: service),
+       _artistsTool = DanbooruRecommendArtistsTool(service: service),
+       super(
+         name: 'danbooru_tags',
+         label: 'Danbooru 搜词与画师推荐',
+         description:
+             '统一执行 Danbooru 语义搜词、共现关联推荐、画师推荐与 NovelAI 官方标签联想。通过 action 选择：\n'
+             '- search: 中英文语义检索标准 Danbooru 标签（query）；\n'
+             '- related: 基于已有标签推荐高频共现标签（tags）；\n'
+             '- artists: 基于题材/画风标签推荐擅长画师（tags）；\n'
+             '- suggest: NovelAI 官方前缀标签联想（query）。',
+         parameters: const {
+           'type': 'object',
+           'properties': {
+             'action': {
+               'type': 'string',
+               'enum': ['search', 'related', 'artists', 'suggest'],
+               'description': '操作类型：search / related / artists / suggest',
+             },
+             'query': {'type': 'string', 'description': '检索关键词或前缀 (search / suggest)'},
+             'tags': {
+               'description': '参考标签列表或逗号分隔字符串 (related / artists)',
+             },
+             'category': {'type': 'string', 'description': '可选标签分类过滤 (search / related)'},
+             'limit': {'type': 'integer', 'description': '返回数量上限'},
+           },
+           'required': ['action'],
+         },
+       );
+
+  @override
+  Future<ToolResult> execute(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final action = (args['action'] as String?)?.trim().toLowerCase() ?? '';
+    return switch (action) {
+      'search' => _searchTool.execute(toolCallId, args),
+      'related' => _relatedTool.execute(toolCallId, args),
+      'artists' => _artistsTool.execute(toolCallId, args),
+      'suggest' => suggestTool != null
+          ? suggestTool!.execute(toolCallId, args)
+          : ToolResult(
+              toolCallId: toolCallId,
+              content: '当前运行时未启用 NovelAI 官方标签联想，请改用 action: "search"。',
+              isError: true,
+            ),
+      _ => ToolResult(
+        toolCallId: toolCallId,
+        content: '错误：danbooru_tags 的 action 必须是 search / related / artists / suggest。',
+        isError: true,
+      ),
+    };
+  }
+}

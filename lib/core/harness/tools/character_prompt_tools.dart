@@ -551,3 +551,110 @@ class NovelAiRemoveCharacterPromptTool extends AgentTool {
     return ToolResult(toolCallId: toolCallId, content: buffer.toString());
   }
 }
+
+/// 统一多角色提示词管理工具（合并 list / add / update / remove 为单工具 action 调度）
+class CharacterPromptsTool extends AgentTool {
+  final NovelAiListCharacterPromptsTool _listTool;
+  final NovelAiAddCharacterPromptTool _addTool;
+  final NovelAiUpdateCharacterPromptTool _updateTool;
+  final NovelAiRemoveCharacterPromptTool _removeTool;
+
+  CharacterPromptsTool({
+    required List<NaiCharacterPrompt> Function() getCharacterPrompts,
+    required void Function(List<NaiCharacterPrompt> next) updateCharacterPrompts,
+    required bool Function() getAiPosition,
+    required int Function() getCharacterLimit,
+    void Function()? onCustomPositionUsed,
+    String Function(String text)? sanitizeText,
+  }) : _listTool = NovelAiListCharacterPromptsTool(
+         getCharacterPrompts: getCharacterPrompts,
+         getAiPosition: getAiPosition,
+         sanitizeText: sanitizeText,
+       ),
+       _addTool = NovelAiAddCharacterPromptTool(
+         getCharacterPrompts: getCharacterPrompts,
+         updateCharacterPrompts: updateCharacterPrompts,
+         getCharacterLimit: getCharacterLimit,
+         onCustomPositionUsed: onCustomPositionUsed,
+       ),
+       _updateTool = NovelAiUpdateCharacterPromptTool(
+         getCharacterPrompts: getCharacterPrompts,
+         updateCharacterPrompts: updateCharacterPrompts,
+         onCustomPositionUsed: onCustomPositionUsed,
+       ),
+       _removeTool = NovelAiRemoveCharacterPromptTool(
+         getCharacterPrompts: getCharacterPrompts,
+         updateCharacterPrompts: updateCharacterPrompts,
+       ),
+       super(
+         name: 'character_prompts',
+         label: '角色提示词管理',
+         description:
+             '统一管理多主体/角色提示词槽位。通过 action 选择操作：\n'
+             '- list: 查看当前全部角色槽位与定位模式；\n'
+             '- add: 新增单个或批量角色槽位（支持 name/prompt/negative_prompt/position_x/y 或 characters 数组）；\n'
+             '- update: 按 id 或 updates 数组批量修改角色槽位；\n'
+             '- remove: 按 id 或 ids 数组批量删除角色槽位。',
+         parameters: const {
+           'type': 'object',
+           'properties': {
+             'action': {
+               'type': 'string',
+               'enum': ['list', 'add', 'update', 'remove'],
+               'description': '操作类型：list / add / update / remove',
+             },
+             'id': {'type': 'string', 'description': '目标角色 ID (update / remove)'},
+             'ids': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '批量删除的角色 ID 列表 (remove)',
+             },
+             'name': {'type': 'string', 'description': '角色名称/类型 (add / update)'},
+             'prompt': {'type': 'string', 'description': '角色正向提示词 (add / update)'},
+             'negative_prompt': {
+               'type': 'string',
+               'description': '角色负向提示词 (add / update)',
+             },
+             'enabled': {'type': 'boolean', 'description': '是否启用该槽位'},
+             'position_x': {
+               'type': 'number',
+               'description': '水平锚点 0.0~1.0 (0=左, 0.5=中, 1=右)',
+             },
+             'position_y': {
+               'type': 'number',
+               'description': '垂直锚点 0.0~1.0 (0=上, 0.5=中, 1=下)',
+             },
+             'characters': {
+               'type': 'array',
+               'items': {'type': 'object'},
+               'description': '批量新增的角色数组 (add)',
+             },
+             'updates': {
+               'type': 'array',
+               'items': {'type': 'object'},
+               'description': '批量修改的角色数组，每项需含 id (update)',
+             },
+           },
+           'required': ['action'],
+         },
+       );
+
+  @override
+  Future<ToolResult> execute(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final action = (args['action'] as String?)?.trim().toLowerCase() ?? '';
+    return switch (action) {
+      'list' => _listTool.execute(toolCallId, args),
+      'add' => _addTool.execute(toolCallId, args),
+      'update' => _updateTool.execute(toolCallId, args),
+      'remove' || 'delete' => _removeTool.execute(toolCallId, args),
+      _ => ToolResult(
+        toolCallId: toolCallId,
+        content: '错误：character_prompts 的 action 必须是 list / add / update / remove。',
+        isError: true,
+      ),
+    };
+  }
+}

@@ -66,11 +66,13 @@ void main() {
           restored.systemPrompt,
           equals(BuiltinPresets.v5Architect.systemPrompt),
         );
-        expect(restored.isToolEnabled('add_character_prompt'), isTrue);
-        expect(restored.isToolEnabled('update_character_prompt'), isTrue);
-        expect(restored.isToolEnabled('remove_character_prompt'), isTrue);
-        expect(restored.isToolEnabled('list_character_prompts'), isTrue);
-        // 三个内置预设全部存在
+        expect(restored.isToolEnabled(PresetToolKeys.characterPrompts), isTrue);
+        expect(restored.isToolEnabled(PresetToolKeys.imageAnnotations), isTrue);
+        expect(restored.isToolEnabled(PresetToolKeys.promptLibrary), isTrue);
+        expect(restored.isToolEnabled(PresetToolKeys.danbooruTags), isTrue);
+        expect(restored.isToolEnabled(PresetToolKeys.webResearch), isTrue);
+        expect(restored.isToolEnabled('get_inpaint_geometry'), isFalse);
+        // 内置预设全部存在
         for (final builtin in BuiltinPresets.all) {
           expect(
             config.presets.any((p) => p.id == builtin.id),
@@ -83,7 +85,40 @@ void main() {
           (p) => p.id == 'my-custom-preset',
         );
         expect(keptCustom.systemPrompt, equals('自定义提示词'));
-        expect(keptCustom.isToolEnabled('add_character_prompt'), isFalse);
+        expect(
+          keptCustom.isToolEnabled(PresetToolKeys.characterPrompts),
+          isFalse,
+        );
+
+        // 旧预设中的拆分工具名自动迁移为合并后的统一工具名
+        final migrated = AgentPreset.fromJson({
+          'id': 'legacy-preset',
+          'name': 'Legacy',
+          'description': '',
+          'systemPrompt': '',
+          'enabledToolNames': [
+            'list_character_prompts',
+            'add_character_prompt',
+            'view_image_annotations',
+            'clear_image_annotations',
+            'search_prompt_library',
+            'danbooru_search_tags',
+            'novelai_suggest_tags',
+            'web_search',
+            'get_search_domains',
+            'get_inpaint_geometry',
+          ],
+        });
+        expect(
+          migrated.enabledToolNames,
+          equals([
+            PresetToolKeys.characterPrompts,
+            PresetToolKeys.imageAnnotations,
+            PresetToolKeys.promptLibrary,
+            PresetToolKeys.danbooruTags,
+            PresetToolKeys.webResearch,
+          ]),
+        );
       },
     );
 

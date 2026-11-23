@@ -463,3 +463,79 @@ String _errorText(AnySearchException e, String prefix) {
   }
   return '$base。若提示配额或限流问题，可让用户在 设置 → 常规 → 网络搜索 中配置 AnySearch API Key。';
 }
+
+/// 统一网络搜索与网页正文提取工具（合并 search / extract / domains 为单工具）
+class WebResearchTool extends AgentTool {
+  final WebSearchTool _searchTool;
+  final WebExtractTool _extractTool;
+  final WebGetDomainsTool _domainsTool;
+
+  WebResearchTool({
+    AnySearchService? service,
+    AnySearchApiKeyGetter? apiKeyGetter,
+  }) : _searchTool = WebSearchTool(
+         service: service,
+         apiKeyGetter: apiKeyGetter,
+       ),
+       _extractTool = WebExtractTool(
+         service: service,
+         apiKeyGetter: apiKeyGetter,
+       ),
+       _domainsTool = WebGetDomainsTool(
+         service: service,
+         apiKeyGetter: apiKeyGetter,
+       ),
+       super(
+         name: 'web_research',
+         label: '网络搜索与网页提取',
+         description:
+             '统一执行联网搜索、网页正文提取与垂直搜索域目录查询。通过 action 选择操作：\n'
+             '- search: 全网或指定垂直域搜索（query，可选 limit / sub_domain / params）；\n'
+             '- extract: 提取单个或多个网页 URL 的正文（url 或 urls）；\n'
+             '- domains: 查询垂直搜索域路由键与参数规格（domains 数组）。',
+         parameters: const {
+           'type': 'object',
+           'properties': {
+             'action': {
+               'type': 'string',
+               'enum': ['search', 'extract', 'domains'],
+               'description': '操作类型：search / extract / domains',
+             },
+             'query': {'type': 'string', 'description': '搜索关键词 (search)'},
+             'limit': {'type': 'integer', 'description': '返回结果数上限 (search)'},
+             'sub_domain': {'type': 'string', 'description': '可选垂直领域路由键 (search)'},
+             'params': {'type': 'object', 'description': '垂直域附加参数 (search)'},
+             'url': {'type': 'string', 'description': '单个目标网页 URL (extract)'},
+             'urls': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '批量提取的网页 URL 列表 (extract)',
+             },
+             'domains': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '要查询子域目录的领域列表 (domains)',
+             },
+           },
+           'required': ['action'],
+         },
+       );
+
+  @override
+  Future<ToolResult> execute(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final action = (args['action'] as String?)?.trim().toLowerCase() ?? '';
+    return switch (action) {
+      'search' => _searchTool.execute(toolCallId, args),
+      'extract' => _extractTool.execute(toolCallId, args),
+      'domains' => _domainsTool.execute(toolCallId, args),
+      _ => ToolResult(
+        toolCallId: toolCallId,
+        content: '错误：web_research 的 action 必须是 search / extract / domains。',
+        isError: true,
+      ),
+    };
+  }
+}

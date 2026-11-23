@@ -71,6 +71,17 @@ class LoadSkillTool extends AgentTool {
          },
        );
 
+  static String _normalizeResourcePath(String raw) {
+    var normalized = raw.trim().replaceAll('\\', '/');
+    while (normalized.startsWith('./')) {
+      normalized = normalized.substring(2);
+    }
+    if (normalized.toLowerCase() == 'skill.md') {
+      return 'SKILL.md';
+    }
+    return normalized;
+  }
+
   String _manifest(Skill skill, int offset, int limit) {
     final paths = skill.resourcePaths;
     final end = (offset + limit).clamp(0, paths.length);
@@ -99,7 +110,8 @@ class LoadSkillTool extends AgentTool {
     final blocks = <String>[];
     var succeeded = 0;
     var budget = 16000;
-    for (final path in paths) {
+    for (final rawPath in paths) {
+      final path = _normalizeResourcePath(rawPath);
       try {
         // 先做清单授权，避免资源回调被用作通用文件系统读取器。
         if (path != 'SKILL.md' && !skill.resourcePaths.contains(path)) {

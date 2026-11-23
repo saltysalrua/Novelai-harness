@@ -15,6 +15,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import '../widgets/bill_settings_tab.dart';
 import '../widgets/defaults_settings_tab.dart';
+import '../widgets/extensions_settings_tab.dart';
 import '../widgets/general_settings_tab.dart';
 import '../widgets/image_save_template_settings.dart';
 import '../widgets/models_settings_tab.dart';
@@ -67,6 +68,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     Icons.tune_outlined,
     Icons.smart_toy_outlined,
     Icons.psychology_outlined,
+    Icons.extension_outlined,
     Icons.layers_outlined,
     Icons.receipt_long_outlined,
   ];
@@ -77,8 +79,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
         0 => l10n.settingsTabGeneral,
         1 => l10n.settingsTabModels,
         2 => l10n.settingsTabPresets,
-        3 => l10n.settingsTabDefaults,
-        4 => l10n.settingsTabBill,
+        3 => l10n.settingsTabExtensions,
+        4 => l10n.settingsTabDefaults,
+        5 => l10n.settingsTabBill,
         _ => l10n.settings,
       };
 
@@ -105,8 +108,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _tabBuilders = [
       () => GeneralSettingsTab(draft: _generalDraft),
       () => ModelsSettingsTab(viewModel: widget.viewModel, draft: _modelsDraft),
-      () =>
-          PresetsSettingsTab(viewModel: widget.viewModel, draft: _presetsDraft),
+      () => PresetsSettingsTab(
+        viewModel: widget.viewModel,
+        draft: _presetsDraft,
+        onOpenExtensionsTab: () => setState(() => _activeTabIndex = 3),
+      ),
+      () => ExtensionsSettingsTab(
+        viewModel: widget.viewModel,
+        presetsDraft: _presetsDraft,
+      ),
       () => DefaultsSettingsTab(
         draft: _defaultsDraft,
         getProviders: () => _modelsDraft.providers,
@@ -403,8 +413,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
       0 => l10n.settingsSubtitleGeneral,
       1 => l10n.settingsSubtitleModels,
       2 => l10n.settingsSubtitlePresets,
-      3 => l10n.settingsSubtitleDefaults,
-      4 => l10n.settingsSubtitleBill,
+      3 => l10n.settingsSubtitleExtensions,
+      4 => l10n.settingsSubtitleDefaults,
+      5 => l10n.settingsSubtitleBill,
       _ => null,
     };
 

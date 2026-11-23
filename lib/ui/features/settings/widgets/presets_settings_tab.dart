@@ -28,6 +28,7 @@ import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_search_field.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
 import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
@@ -239,6 +240,14 @@ class PresetsSettingsDraft {
     );
   }
 
+  /// 开关预设是否允许通过 CodeMode 调用已连接的 MCP 工具
+  void setAllowMcpTools(bool allow, [String? fallbackName]) {
+    syncFromForm(fallbackName);
+    final idx = presets.indexWhere((p) => p.id == selectedPresetId);
+    if (idx < 0 || presets[idx].isBuiltin) return;
+    presets[idx] = presets[idx].copyWith(allowMcpTools: allow);
+  }
+
   void _replaceListField({
     required AgentPreset Function(AgentPreset, List<String>) write,
     required List<String> values,
@@ -289,11 +298,13 @@ class PresetsSettingsDraft {
 class PresetsSettingsTab extends StatefulWidget {
   final StudioViewModel viewModel;
   final PresetsSettingsDraft draft;
+  final VoidCallback? onOpenExtensionsTab;
 
   const PresetsSettingsTab({
     super.key,
     required this.viewModel,
     required this.draft,
+    this.onOpenExtensionsTab,
   });
 
   @override
@@ -603,6 +614,8 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
         builder: (ctx) => SkillEditorDialog(
           skill: imported?.skill,
           isImportMode: true,
+          initialRawMode: imported == null,
+          previewFiles: imported?.files,
           onSave: (skill) async {
             if (imported == null) {
               await widget.viewModel.saveCustomSkill(skill, requireNew: true);
@@ -619,16 +632,49 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
   }
 
   Future<void> _openEditSkillDialog(Skill skill) async {
+    final overridden = widget.viewModel.isBuiltinSkillOverridden(skill.id);
     final result = await AppDialogScaffold.show<Skill>(
       context: context,
       builder: (ctx) => SkillEditorDialog(
         skill: skill,
+        isOverridden: overridden,
+        onReadResource: skill.resourcePaths.isNotEmpty
+            ? (path) => widget.viewModel.readSkillResource(skill, path)
+            : null,
+        onResetDefault: overridden
+            ? () async {
+                await widget.viewModel.resetBuiltinSkill(skill.id);
+                if (mounted) {
+                  setState(() {});
+                  showAppToast(
+                    context,
+                    message: context.l10n.skillResetDefaultSuccess(skill.name),
+                    tone: AppToastTone.success,
+                  );
+                }
+              }
+            : null,
         onSave: (edited) =>
             widget.viewModel.saveCustomSkill(edited, originalId: skill.id),
       ),
     );
     if (result != null && mounted) {
       setState(() => _draft.replaceSkillReferences(skill.id, result.id));
+    }
+  }
+
+  Future<void> _resetBuiltinSkill(Skill skill) async {
+    try {
+      await widget.viewModel.resetBuiltinSkill(skill.id);
+      if (!mounted) return;
+      setState(() {});
+      showAppToast(
+        context,
+        message: context.l10n.skillResetDefaultSuccess(skill.name),
+        tone: AppToastTone.success,
+      );
+    } catch (error) {
+      _showSkillError(error);
     }
   }
 
@@ -728,7 +774,10 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     final isSelectedActive = currentPreset.id == _draft.activePresetId;
 
     final availableSkills = widget.viewModel.availableSkills;
-    final availableTools = widget.viewModel.availableTools;
+    // MCP 工具归入「技能与 MCP」独立管理并通过 CodeMode 按需索引，不挤占预设静态工具网格
+    final availableTools = widget.viewModel.availableTools
+        .where((t) => !t.name.startsWith('mcp_'))
+        .toList();
 
     final skillQuery = _skillSearchController.text.trim().toLowerCase();
     final filteredSkills = skillQuery.isEmpty
@@ -1040,6 +1089,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                 trailing: AppControlFlow(
                   spacing: 6,
                   children: [
+                    if (widget.onOpenExtensionsTab != null)
+                      AppActionButton(
+                        icon: Icons.extension_outlined,
+                        label: l10n.skillManageLibraryButton,
+                        iconSize: 14,
+                        onPressed: widget.onOpenExtensionsTab,
+                      ),
                     AppActionButton(
                       icon: Icons.file_upload_outlined,
                       label: l10n.presetImportSkill,
@@ -1089,10 +1145,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     final isEnabled = currentPreset.enabledSkillIds.contains(
                       skill.id,
                     );
+                    final isOverridden = widget.viewModel
+                        .isBuiltinSkillOverridden(skill.id);
                     return SkillCard(
                       width: cardWidth,
                       skill: skill,
                       isEnabled: isEnabled,
+                      isOverridden: isOverridden,
                       onToggle: currentPreset.isBuiltin
                           ? null
                           : (val) => setState(
@@ -1104,6 +1163,9 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                             ),
                       onEdit: _openEditSkillDialog,
                       onExport: _exportSkillPackage,
+                      onResetDefault: isOverridden
+                          ? () => _resetBuiltinSkill(skill)
+                          : null,
                       onDelete: !skill.isBuiltin
                           ? () => _deleteSkill(skill)
                           : null,
@@ -1123,6 +1185,63 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                   onPressed: _openNewToolDialog,
                 ),
               ),
+              SettingsSoftContainer(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.hub_outlined,
+                      size: 16,
+                      color: currentPreset.allowMcpTools
+                          ? colors.primary
+                          : colors.textMuted,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.presetAllowMcpTools,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            l10n.presetAllowMcpToolsHint,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.textSecondary,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    AppSwitch(
+                      value: currentPreset.allowMcpTools,
+                      width: 36,
+                      height: 20,
+                      onChanged: currentPreset.isBuiltin
+                          ? null
+                          : (val) => setState(
+                              () => _draft.setAllowMcpTools(
+                                val,
+                                l10n.presetDefaultCustomName,
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
               _buildFilterStrip(
                 controller: _toolSearchController,
                 searchHint: l10n.toolSearchHint,

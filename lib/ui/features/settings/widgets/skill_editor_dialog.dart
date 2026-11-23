@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/harness/skills/skills.dart';
@@ -19,18 +20,39 @@ import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
 import 'settings_shared.dart';
 
-/// Skill 查看 / 编辑 / 导入对话框 (支持 Pi 标准 SKILL.md 导入导出)
+/// Skill 查看 / 编辑 / 导入对话框 (支持 Pi 标准 SKILL.md 导入导出与包内资源预览)
 ///
 /// 采用 Notion 极简一体无分割线布局，柔底输入框与平滑滚轮。
 class SkillEditorDialog extends StatefulWidget {
   final Skill? skill;
   final bool isImportMode;
+
+  /// 指定初始视图是否为原始 SKILL.md；为空时沿用 [isImportMode]（兼容旧调用与测试）。
+  final bool? initialRawMode;
+
+  /// 导入预览阶段的内存资源映射（未落盘前即可直接点击预览）
+  final Map<String, Uint8List>? previewFiles;
+
+  /// 已安装技能包的资源读取回调（点击资源文件时按需读取）
+  final Future<Uint8List> Function(String path)? onReadResource;
+
+  /// 内置技能是否已被本地修改覆盖
+  final bool isOverridden;
+
+  /// 恢复内置技能默认版本回调
+  final Future<void> Function()? onResetDefault;
+
   final Future<void> Function(Skill skill)? onSave;
 
   const SkillEditorDialog({
     super.key,
     this.skill,
     this.isImportMode = false,
+    this.initialRawMode,
+    this.previewFiles,
+    this.onReadResource,
+    this.isOverridden = false,
+    this.onResetDefault,
     this.onSave,
   });
 
@@ -56,6 +78,13 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
   Map<String, Object?> _extraFrontmatter = const {};
   _SkillEditorViewMode _viewMode = _SkillEditorViewMode.structured;
 
+  // 包内资源预览状态
+  String? _selectedResourcePath;
+  bool _loadingResource = false;
+  String? _previewResourceText;
+  Uint8List? _previewResourceImage;
+  String? _previewResourceNotice;
+
   @override
   void initState() {
     super.initState();
@@ -71,7 +100,8 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     _rawMdController = TextEditingController(
       text: s != null ? s.toSkillMd() : '',
     );
-    _viewMode = widget.isImportMode
+    final openRaw = widget.initialRawMode ?? widget.isImportMode;
+    _viewMode = openRaw
         ? _SkillEditorViewMode.raw
         : _SkillEditorViewMode.structured;
   }
@@ -149,6 +179,91 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
     _rawMdController.text = skill.toSkillMd();
   }
 
+  Future<void> _selectResourcePath(String path) async {
+    if (_selectedResourcePath == path) {
+      setState(() {
+        _selectedResourcePath = null;
+        _previewResourceText = null;
+        _previewResourceImage = null;
+        _previewResourceNotice = null;
+      });
+      return;
+    }
+    setState(() {
+      _selectedResourcePath = path;
+      _loadingResource = true;
+      _previewResourceText = null;
+      _previewResourceImage = null;
+      _previewResourceNotice = null;
+    });
+    try {
+      Uint8List? bytes = widget.previewFiles?[path];
+      bytes ??= await widget.onReadResource?.call(path);
+      if (!mounted || _selectedResourcePath != path) return;
+      if (bytes == null) {
+        setState(() {
+          _loadingResource = false;
+          _previewResourceNotice = context.l10n.skillErrorMissingResource;
+        });
+        return;
+      }
+      final lower = path.toLowerCase();
+      final isImage = [
+        '.png',
+        '.jpg',
+        '.jpeg',
+        '.webp',
+        '.gif',
+      ].any(lower.endsWith);
+      if (isImage) {
+        setState(() {
+          _loadingResource = false;
+          _previewResourceImage = bytes;
+        });
+        return;
+      }
+      try {
+        final decoded = utf8.decode(bytes);
+        if (decoded.contains('\u0000')) {
+          throw const FormatException('binary');
+        }
+        final trimmed = decoded.length > 6000
+            ? '${decoded.substring(0, 6000)}\n…'
+            : decoded;
+        setState(() {
+          _loadingResource = false;
+          _previewResourceText = trimmed;
+        });
+      } catch (_) {
+        setState(() {
+          _loadingResource = false;
+          _previewResourceNotice = context.l10n.skillResourceBinaryHint(
+            bytes!.length,
+          );
+        });
+      }
+    } catch (error) {
+      if (!mounted || _selectedResourcePath != path) return;
+      setState(() {
+        _loadingResource = false;
+        _previewResourceNotice = skillErrorText(context.l10n, error);
+      });
+    }
+  }
+
+  Future<void> _handleResetDefault() async {
+    if (_saving || widget.onResetDefault == null) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onResetDefault!.call();
+      if (mounted) Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -210,6 +325,34 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
               ],
             ),
             const SizedBox(height: 14),
+            if (isBuiltin) ...[
+              SettingsSoftContainer(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 15,
+                      color: colors.textMuted,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        l10n.skillBuiltinOverrideHint,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             if (widget.skill?.resourcePaths.isNotEmpty == true) ...[
               Container(
                 decoration: BoxDecoration(
@@ -225,26 +368,130 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
                     widget.skill!.resourcePaths.length,
                   ),
                   subtitle: l10n.skillPackageResourceHelp,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 96),
-                    child: ListView(
-                      shrinkWrap: true,
-                      children: widget.skill!.resourcePaths
-                          .map(
-                            (path) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 1),
-                              child: Text(
-                                path,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontFamily: 'monospace',
-                                  color: colors.textSecondary,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 104),
+                        child: ListView(
+                          shrinkWrap: true,
+                          children: widget.skill!.resourcePaths.map((path) {
+                            final canPreview =
+                                widget.previewFiles != null ||
+                                widget.onReadResource != null;
+                            final isSelected = _selectedResourcePath == path;
+                            return InkWell(
+                              onTap: canPreview
+                                  ? () => _selectResourcePath(path)
+                                  : null,
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? colors.primaryTint
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.sm,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      isSelected
+                                          ? Icons.description_rounded
+                                          : Icons.insert_drive_file_outlined,
+                                      size: 12,
+                                      color: isSelected
+                                          ? colors.primary
+                                          : colors.textMuted,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        path,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontFamily: 'monospace',
+                                          color: isSelected
+                                              ? colors.primary
+                                              : colors.textSecondary,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                          )
-                          .toList(),
-                    ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      if (_selectedResourcePath != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 140),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: colors.cardBackground,
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                            border: Border.all(color: colors.borderSubtle),
+                          ),
+                          child: _loadingResource
+                              ? const Center(
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : _previewResourceImage != null
+                              ? Center(
+                                  child: Image.memory(
+                                    _previewResourceImage!,
+                                    fit: BoxFit.contain,
+                                    height: 116,
+                                  ),
+                                )
+                              : SingleChildScrollView(
+                                  child: SelectableText(
+                                    _previewResourceText ??
+                                        _previewResourceNotice ??
+                                        '',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: _previewResourceText != null
+                                          ? 'monospace'
+                                          : null,
+                                      color: _previewResourceText != null
+                                          ? colors.textPrimary
+                                          : colors.textSecondary,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ] else if (widget.previewFiles != null ||
+                          widget.onReadResource != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.skillResourcePreviewEmpty,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: colors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
@@ -281,10 +528,26 @@ class _SkillEditorDialogState extends State<SkillEditorDialog> {
           ],
         ),
       ),
-      footerLeading: AppActionButton(
-        label: l10n.skillCopySkillMd,
-        icon: _copiedSkillMd ? Icons.check_rounded : Icons.copy_rounded,
-        onPressed: () => _copySkillMd(l10n),
+      footerLeading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppActionButton(
+            label: l10n.skillCopySkillMd,
+            icon: _copiedSkillMd ? Icons.check_rounded : Icons.copy_rounded,
+            onPressed: () => _copySkillMd(l10n),
+          ),
+          if (isBuiltin &&
+              widget.isOverridden &&
+              widget.onResetDefault != null) ...[
+            const SizedBox(width: 8),
+            AppActionButton(
+              label: l10n.skillResetDefault,
+              icon: Icons.restart_alt_rounded,
+              variant: AppActionButtonVariant.ghost,
+              onPressed: _saving ? null : _handleResetDefault,
+            ),
+          ],
+        ],
       ),
       actions: [
         AppActionButton(
