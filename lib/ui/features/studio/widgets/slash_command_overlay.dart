@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_autocomplete_panel.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
@@ -244,40 +245,24 @@ class SlashSuggestionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final rowDuration = AppMotion.resolveDuration(
-      context,
-      AppMotionDurations.micro,
-    );
 
     return AppAutocompletePanel<SlashSuggestion>(
       items: suggestions,
       selectedIndex: selectedIndex,
       maxHeight: rowHeight * maxVisibleRows,
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(4),
       onSelect: (item) => onSelected(suggestions.indexOf(item)),
       onHover: onHovered,
       itemBuilder: (context, suggestion, index, isSelected) {
-        return AnimatedContainer(
-          duration: rowDuration,
-          curve: AppMotionCurves.smoothOut,
+        return Container(
           height: rowHeight,
           padding: const EdgeInsets.symmetric(horizontal: 10),
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.08)
-              : colors.primary.withValues(alpha: 0.0),
+          decoration: BoxDecoration(
+            color: isSelected ? colors.primaryTint : null,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
           child: Row(
             children: [
-              AnimatedContainer(
-                duration: rowDuration,
-                curve: AppMotionCurves.smoothOut,
-                width: 3,
-                height: 18,
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? colors.primary : null,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
               Expanded(
                 flex: 3,
                 child: Text(
@@ -288,7 +273,7 @@ class SlashSuggestionPanel extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     fontFamily: 'monospace',
-                    color: colors.textPrimary,
+                    color: isSelected ? colors.primary : colors.textPrimary,
                   ),
                 ),
               ),

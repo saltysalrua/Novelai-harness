@@ -6,6 +6,7 @@ import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/prompt_library_mention.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
+import 'package:novelai_harness/ui/features/studio/widgets/chat_mention_text_controller.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -612,6 +613,55 @@ void main() {
         entries,
       );
       expect(ctxNoShort, isNull);
+    });
+
+    test('ChatMentionTextController encodes/decodes inline atomic tokens without drift', () {
+      var loaded = <PromptComboEntry>[];
+      final controller = ChatMentionTextController(
+        entriesProvider: () => loaded,
+      );
+      addTearDown(controller.dispose);
+
+      // 词库未加载前保留纯文本，加载后 upgradeRawMentions 原地升级并保持光标正确
+      controller.setSerializedText('画 @[镜音铃] 在海边');
+      expect(controller.text, '画 @[镜音铃] 在海边');
+
+      loaded = entries;
+      controller.upgradeRawMentions();
+      expect(controller.text.length, 7); // '画 ' + 1 占位符 + ' 在海边'
+      expect(controller.toSerializedText(), '画 @[镜音铃] 在海边');
+      expect(controller.selection.baseOffset, 7);
+
+      // 插入第二个角色并校验范围序列化与原子移除
+      controller.insertMention(
+        '初音未来 (Hatsune Miku)',
+        replaceStart: 7,
+        replaceEnd: 7,
+      );
+      expect(
+        controller.toSerializedText(),
+        '画 @[镜音铃] 在海边@[初音未来 (Hatsune Miku)] ',
+      );
+      expect(controller.containsMentionInRange(0, controller.text.length), isTrue);
+      expect(controller.serializeRange(2, 3), '@[镜音铃]');
+
+      // 在占位符后直接输入 @ 不会把占位符误并入查询，也不会阻断新提及
+      final withAt = '${controller.text}@初';
+      final active = extractActiveCharacterMention(withAt, withAt.length);
+      expect(active, isNotNull);
+      expect(active!.query, '初');
+
+      // 点击卡片删除后，顺带清理多余空格且保留后续文本
+      controller.removeTokenAt(2);
+      expect(
+        controller.toSerializedText(),
+        '画 在海边@[初音未来 (Hatsune Miku)] ',
+      );
+
+      // clearAll 后状态重置
+      controller.clearAll();
+      expect(controller.text, isEmpty);
+      expect(controller.toSerializedText(), isEmpty);
     });
   });
 }

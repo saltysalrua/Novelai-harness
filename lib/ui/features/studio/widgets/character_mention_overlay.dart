@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../../data/services/prompt_image_probe.dart';
-import '../../../core/context_l10n.dart';
-import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_autocomplete_panel.dart';
@@ -30,17 +28,12 @@ class CharacterMentionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final l10n = context.l10n;
-    final rowDuration = AppMotion.resolveDuration(
-      context,
-      AppMotionDurations.micro,
-    );
 
     return AppAutocompletePanel<PromptComboEntry>(
       items: entries,
       selectedIndex: selectedIndex,
-      maxHeight: rowHeight * maxVisibleRows + 28,
-      padding: const EdgeInsets.only(bottom: 4),
+      maxHeight: rowHeight * maxVisibleRows + 8,
+      padding: const EdgeInsets.all(4),
       onSelect: (item) => onSelected(entries.indexOf(item)),
       onHover: onHovered,
       itemBuilder: (context, entry, index, isSelected) {
@@ -53,27 +46,15 @@ class CharacterMentionPanel extends StatelessWidget {
             ? entry.tags.join(', ')
             : entry.prompt;
 
-        final row = AnimatedContainer(
-          duration: rowDuration,
-          curve: AppMotionCurves.smoothOut,
+        return Container(
           height: rowHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.08)
-              : colors.primary.withValues(alpha: 0.0),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? colors.primaryTint : null,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
           child: Row(
             children: [
-              AnimatedContainer(
-                duration: rowDuration,
-                curve: AppMotionCurves.smoothOut,
-                width: 3,
-                height: 20,
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? colors.primary : null,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
               _MentionAvatar(
                 previewPath: hasValidPreview ? previewPath : null,
               ),
@@ -87,7 +68,7 @@ class CharacterMentionPanel extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
+                    color: isSelected ? colors.primary : colors.textPrimary,
                   ),
                 ),
               ),
@@ -104,28 +85,6 @@ class CharacterMentionPanel extends StatelessWidget {
             ],
           ),
         );
-
-        if (index == 0) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
-                child: Text(
-                  l10n.chatCharacterMentionHeader,
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ),
-              row,
-            ],
-          );
-        }
-        return row;
       },
     );
   }
@@ -141,7 +100,7 @@ class _MentionAvatar extends StatelessWidget {
     final path = previewPath;
     if (path != null) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        borderRadius: BorderRadius.circular(AppRadius.sm + 2),
         child: SizedBox(
           width: 24,
           height: 24,
@@ -153,6 +112,7 @@ class _MentionAvatar extends StatelessWidget {
               policy: ResizeImagePolicy.fit,
             ),
             fit: BoxFit.cover,
+            gaplessPlayback: true,
             errorBuilder: (_, _, _) => _fallbackIcon(context),
           ),
         ),
@@ -167,10 +127,10 @@ class _MentionAvatar extends StatelessWidget {
       width: 24,
       height: 24,
       decoration: BoxDecoration(
-        color: colors.errorSurface,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        color: colors.primaryTint,
+        borderRadius: BorderRadius.circular(AppRadius.sm + 2),
       ),
-      child: Icon(Icons.person_outline_rounded, size: 14, color: colors.error),
+      child: Icon(Icons.person_outline_rounded, size: 14, color: colors.primary),
     );
   }
 }

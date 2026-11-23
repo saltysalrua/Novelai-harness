@@ -41,7 +41,8 @@ ActiveCharacterMention? extractActiveCharacterMention(
         ch == '\t' ||
         ch == '\r' ||
         ch == '[' ||
-        ch == ']') {
+        ch == ']' ||
+        (ch.codeUnitAt(0) >= 0xE000 && ch.codeUnitAt(0) <= 0xF8FF)) {
       return null;
     }
   }
@@ -143,10 +144,21 @@ PromptComboEntry? _findCharacterByMentionToken(
   return null;
 }
 
-final RegExp _bracketMentionRegex = RegExp(r'@\[([^\[\]\r\n]+)\]');
+/// 匹配显式 `@[标题]` 角色提及的正则表达式
+final RegExp bracketMentionRegex = RegExp(r'@\[([^\[\]\r\n]+)\]');
 final RegExp _bareMentionRegex = RegExp(
   r'(?<![A-Za-z0-9_.])@([^\s@,\[\]，。！？；：]+)',
 );
+
+/// 根据提及标题在词库条目中查找对应角色（精确 -> 忽略大小写 -> 归一化匹配）
+PromptComboEntry? findCharacterByMentionToken(
+  String token,
+  List<PromptComboEntry> entries,
+) {
+  final characters = entries.where((e) => e.isCharacter).toList(growable: false);
+  if (characters.isEmpty) return null;
+  return _findCharacterByMentionToken(token, characters);
+}
 
 /// 提取消息中已显式 `@[标题]` 引用的词库角色列表（按出现顺序去重）
 List<PromptComboEntry> extractLinkedCharacters(
@@ -159,7 +171,7 @@ List<PromptComboEntry> extractLinkedCharacters(
 
   final result = <PromptComboEntry>[];
   final seenIds = <String>{};
-  for (final match in _bracketMentionRegex.allMatches(text)) {
+  for (final match in bracketMentionRegex.allMatches(text)) {
     final token = match.group(1);
     if (token == null) continue;
     final matched = _findCharacterByMentionToken(token, characters);
@@ -173,7 +185,7 @@ List<PromptComboEntry> extractLinkedCharacters(
 /// 从输入文本中移除指定角色的 `@[标题]` 引用并清理多余空白
 String removeCharacterMention(String text, PromptComboEntry entry) {
   final targetKey = _normalizedMentionKey(entry.title);
-  var updated = text.replaceAllMapped(_bracketMentionRegex, (match) {
+  var updated = text.replaceAllMapped(bracketMentionRegex, (match) {
     final token = match.group(1) ?? '';
     return _normalizedMentionKey(token) == targetKey ? '' : match.group(0)!;
   });
@@ -244,7 +256,7 @@ String? resolveLibraryCharactersForMessage(
   final seenIds = <String>{};
 
   // 1. 显式 @[标题] 引用
-  for (final match in _bracketMentionRegex.allMatches(trimmedText)) {
+  for (final match in bracketMentionRegex.allMatches(trimmedText)) {
     final token = match.group(1);
     if (token == null) continue;
     final found = _findCharacterByMentionToken(token, characters);

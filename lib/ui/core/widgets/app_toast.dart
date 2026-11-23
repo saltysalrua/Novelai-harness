@@ -91,16 +91,22 @@ class AppToastCard extends StatelessWidget {
                 ? CrossAxisAlignment.start
                 : CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 3,
-                height: title != null ? 32 : 18,
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
+              Padding(
+                padding: EdgeInsets.only(top: title != null ? 1 : 0),
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppRadius.sm + 2),
+                  ),
+                  child: Icon(
+                    icon ?? defaultIcon,
+                    size: 15,
+                    color: accentColor,
+                  ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Icon(icon ?? defaultIcon, size: 17, color: accentColor),
               const SizedBox(width: AppSpacing.sm),
               Flexible(
                 child: Column(

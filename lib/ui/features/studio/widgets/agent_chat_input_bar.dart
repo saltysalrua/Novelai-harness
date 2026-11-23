@@ -24,6 +24,7 @@ import '../../../core/widgets/stable_edge_selection.dart';
 import 'character_mention_overlay.dart';
 import 'chat_context_status.dart';
 import 'chat_image_attachment.dart';
+import 'chat_mention_text_controller.dart';
 import 'slash_command_overlay.dart';
 import '../view_models/studio_view_model.dart';
 
@@ -66,7 +67,7 @@ class _PendingAttachment {
 }
 
 class _AgentChatInputBarState extends State<AgentChatInputBar> {
-  final TextEditingController _inputController = TextEditingController();
+  late final ChatMentionTextController _inputController;
   final ScrollController _inputScrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
   final GlobalKey _inputFieldKey = GlobalKey();
@@ -110,22 +111,22 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   @override
   void initState() {
     super.initState();
+    _inputController = ChatMentionTextController(
+      entriesProvider: () => widget.viewModel.promptLibraryEntries,
+      onChipRemoved: () {
+        if (mounted) _inputFocusNode.requestFocus();
+      },
+    );
     final restore = widget.viewModel.composerRestore;
     if (restore != null) {
       _appliedRestoreEpoch = restore.epoch;
-      _inputController.value = TextEditingValue(
-        text: restore.text,
-        selection: TextSelection.collapsed(offset: restore.text.length),
-      );
+      _inputController.setSerializedText(restore.text);
       _pendingAttachments.addAll(_attachmentsFrom(restore.images));
       widget.viewModel.acknowledgeComposerRestore(restore.epoch);
       _scheduleComposerFocus();
     } else {
       final draft = widget.viewModel.chatDraft;
-      _inputController.value = TextEditingValue(
-        text: draft,
-        selection: TextSelection.collapsed(offset: draft.length),
-      );
+      _inputController.setSerializedText(draft);
       final insertion = widget.viewModel.composerInsertion;
       if (insertion != null) {
         _appliedInsertionEpoch = insertion.epoch;
@@ -140,8 +141,8 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     _inputController.addListener(_updateComposerSuggestions);
     _inputFocusNode.addListener(_handleInputFocusChanged);
     widget.viewModel.promptLibraryNotifier.addListener(_onPromptLibraryChanged);
-    // 焦点节点自身拦截 Ctrl+V：剪贴板无文本时尝试读取图片附件。
-    // 挂在焦点节点 (冒泡链最内层) 保证先于 TextField 默认粘贴快捷键生效。
+    // 焦点节点自身拦截 Ctrl+V / Ctrl+C / Ctrl+X：
+    // 粘贴支持文本角色解码与图片附件，复制/剪切将行内卡片占位符还原为 @[标题]。
     _inputFocusNode.onKeyEvent = _handleInputNodeKeyEvent;
   }
 
@@ -185,23 +186,20 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     }
 
     if (widget.viewModel.chatDraft != oldWidget.viewModel.chatDraft &&
-        widget.viewModel.chatDraft != _inputController.text) {
-      _inputController.text = widget.viewModel.chatDraft;
+        widget.viewModel.chatDraft != _inputController.toSerializedText()) {
+      _inputController.setSerializedText(widget.viewModel.chatDraft);
     }
   }
 
   void _applyComposerInsertion(ComposerInsertion insertion) {
-    final currentText = _inputController.text;
+    final currentText = _inputController.toSerializedText();
     final draft = widget.viewModel.chatDraft;
     final nextText = currentText == draft
         ? currentText
         : (draft.endsWith(insertion.text)
               ? draft
               : '$currentText${insertion.text}');
-    _inputController.value = TextEditingValue(
-      text: nextText,
-      selection: TextSelection.collapsed(offset: nextText.length),
-    );
+    _inputController.setSerializedText(nextText);
     widget.viewModel.acknowledgeComposerInsertion(insertion.epoch);
     if (insertion.focus) {
       _scheduleComposerFocus();
@@ -211,14 +209,12 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
 
   void _onPromptLibraryChanged() {
     if (!mounted) return;
+    _inputController.upgradeRawMentions();
     _updateComposerSuggestions();
   }
 
   void _applyComposerRestore(ComposerRestore restore) {
-    _inputController.value = TextEditingValue(
-      text: restore.text,
-      selection: TextSelection.collapsed(offset: restore.text.length),
-    );
+    _inputController.setSerializedText(restore.text);
     setState(() {
       _pendingAttachments
         ..clear()
@@ -260,7 +256,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
   }
 
   void _handleDraftChanged() {
-    widget.viewModel.updateChatDraft(_inputController.text);
+    widget.viewModel.updateChatDraft(_inputController.toSerializedText());
   }
 
   /// 失焦时收起补全面板，重新聚焦时按当前文本重算
@@ -306,7 +302,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     if (_isComposing) return;
     // 流式生成中不重复发送，避免双监听把同一缓冲写出重复文本
     if (widget.viewModel.isChatStreaming) return;
-    final text = _inputController.text.trim();
+    final text = _inputController.toSerializedText().trim();
     final attachments = List<_PendingAttachment>.of(_pendingAttachments);
     if (text.isEmpty && attachments.isEmpty) return;
 
@@ -316,7 +312,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       return;
     }
 
-    _inputController.clear();
+    _inputController.clearAll();
     widget.viewModel.updateChatDraft('');
     setState(() => _pendingAttachments.clear());
     widget.viewModel.sendChatMessage(
@@ -344,15 +340,31 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
 
   // ------------------ 图片附件 (粘贴 / 选择文件) ------------------
 
-  /// 焦点节点按键拦截：仅拦截 Ctrl+V，其余交给默认链路
+  /// 焦点节点按键拦截：处理 Ctrl+V（含图片/角色解码）以及含角色卡片选区的 Ctrl+C / Ctrl+X
   KeyEventResult _handleInputNodeKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is KeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.keyV &&
-        (Theme.of(context).platform == TargetPlatform.macOS
-            ? HardwareKeyboard.instance.isMetaPressed
-            : HardwareKeyboard.instance.isControlPressed)) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final isPrimary = Theme.of(context).platform == TargetPlatform.macOS
+        ? HardwareKeyboard.instance.isMetaPressed
+        : HardwareKeyboard.instance.isControlPressed;
+    if (!isPrimary) return KeyEventResult.ignored;
+
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.keyV) {
       _handlePaste();
       return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyC || key == LogicalKeyboardKey.keyX) {
+      final sel = _inputController.selection;
+      if (sel.isValid &&
+          !sel.isCollapsed &&
+          _inputController.containsMentionInRange(sel.start, sel.end)) {
+        final serialized = _inputController.serializeRange(sel.start, sel.end);
+        Clipboard.setData(ClipboardData(text: serialized));
+        if (key == LogicalKeyboardKey.keyX) {
+          _insertTextAtSelection('');
+        }
+        return KeyEventResult.handled;
+      }
     }
     return KeyEventResult.ignored;
   }
@@ -412,7 +424,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     if (!mounted) return;
     final text = textData?.text;
     if (text != null && text.isNotEmpty) {
-      _insertTextAtSelection(text);
+      _insertTextAtSelection(_inputController.encodeSerializedText(text));
       return;
     }
 
@@ -697,7 +709,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
     _scheduleRevealCaret();
   }
 
-  /// 应用 `@` 词库角色补全: 将 `@查询` 替换为 `@[标题] `
+  /// 应用 `@` 词库角色补全: 将 `@查询` 替换为行内角色卡片并附带空格
   void _applyCharacterMention(PromptComboEntry entry) {
     final text = _inputController.text;
     final cursor = _inputController.selection.isValid
@@ -707,16 +719,10 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         _activeMention ?? extractActiveCharacterMention(text, cursor);
     if (mention == null) return;
 
-    final inserted = '${formatCharacterMention(entry.title)} ';
-    final newText = text.replaceRange(
-      mention.atIndex,
-      mention.cursorOffset,
-      inserted,
-    );
-    final newOffset = mention.atIndex + inserted.length;
-    _inputController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newOffset),
+    _inputController.insertMention(
+      entry.title,
+      replaceStart: mention.atIndex,
+      replaceEnd: mention.cursorOffset,
     );
     _dismissedToken = '';
     _hideSuggestions();
@@ -871,7 +877,6 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildAttachmentPreview(),
-          _buildLinkedCharactersBar(),
           field,
           Padding(
             padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
@@ -897,100 +902,6 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
           ),
         ],
       ),
-    );
-  }
-
-  /// 已显式关联的词库角色芯片栏（输入栏顶部，有 `@[角色]` 引用时平滑展开）
-  Widget _buildLinkedCharactersBar() {
-    return ListenableBuilder(
-      listenable: Listenable.merge([
-        _inputController,
-        widget.viewModel.promptLibraryNotifier,
-      ]),
-      builder: (context, _) {
-        final linked = extractLinkedCharacters(
-          _inputController.text,
-          widget.viewModel.promptLibraryEntries,
-        );
-        final colors = context.colors;
-        final l10n = context.l10n;
-        return AppPanelReveal(
-          visible: linked.isNotEmpty,
-          openDuration: AppMotionDurations.fast,
-          closeDuration: AppMotionDurations.quick,
-          slideOffset: AppMotionDistances.base,
-          enableBlur: false,
-          animateSize: true,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                for (final entry in linked)
-                  Tooltip(
-                    message: entry.prompt,
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(7, 3, 4, 3),
-                      decoration: BoxDecoration(
-                        color: colors.errorSurface,
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.person_outline_rounded,
-                            size: 12,
-                            color: colors.error,
-                          ),
-                          const SizedBox(width: 4),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 160),
-                            child: Text(
-                              entry.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: colors.error,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          Tooltip(
-                            message: l10n.chatLinkedCharacterRemoveTooltip,
-                            child: GestureDetector(
-                              onTap: () {
-                                final updated = removeCharacterMention(
-                                  _inputController.text,
-                                  entry,
-                                );
-                                _inputController.value = TextEditingValue(
-                                  text: updated,
-                                  selection: TextSelection.collapsed(
-                                    offset: updated.length,
-                                  ),
-                                );
-                              },
-                              behavior: HitTestBehavior.opaque,
-                              child: Icon(
-                                Icons.close_rounded,
-                                size: 13,
-                                color: colors.error.withValues(alpha: 0.8),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 

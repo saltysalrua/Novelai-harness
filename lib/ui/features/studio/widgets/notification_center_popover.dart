@@ -169,9 +169,8 @@ class _NotificationCenterPopoverState extends State<NotificationCenterPopover> {
             children: [
               // 顶部标题栏 + 数量徽标 + 批量复制/清空
               Container(
-                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
                 decoration: BoxDecoration(
-                  color: colors.elevatedBackground,
                   border: Border(
                     bottom: BorderSide(color: colors.borderSubtle),
                   ),
@@ -296,12 +295,11 @@ class _NotificationRecordCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
-    final (Color accentColor, AppBadgeVariant badgeVariant) =
-        switch (record.level) {
-          AppNoticeLevel.error => (colors.error, AppBadgeVariant.error),
-          AppNoticeLevel.warning => (colors.warning, AppBadgeVariant.warning),
-          AppNoticeLevel.info => (colors.info, AppBadgeVariant.primary),
-        };
+    final (Color accentColor, IconData levelIcon) = switch (record.level) {
+      AppNoticeLevel.error => (colors.error, Icons.error_outline_rounded),
+      AppNoticeLevel.warning => (colors.warning, Icons.warning_amber_rounded),
+      AppNoticeLevel.info => (colors.info, Icons.info_outline_rounded),
+    };
 
     return Container(
       decoration: BoxDecoration(
@@ -309,80 +307,70 @@ class _NotificationRecordCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: colors.borderSubtle),
       ),
-      padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 3,
-              decoration: BoxDecoration(
-                color: accentColor,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
+      padding: const EdgeInsets.fromLTRB(10, 8, 8, 9),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(levelIcon, size: 14, color: accentColor),
+              const SizedBox(width: 6),
+              Text(
+                sourceLabel,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textSecondary,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      AppBadge(
-                        label: sourceLabel,
-                        variant: badgeVariant,
-                        fontSize: 10,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 1.5,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        timestampLabel,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          color: colors.textMuted,
-                        ),
-                      ),
-                      const Spacer(),
-                      AppIconButton(
-                        icon: Icons.copy_rounded,
-                        size: 22,
-                        iconSize: 13,
-                        radius: 5,
-                        variant: AppIconButtonVariant.ghost,
-                        tooltip: l10n.copy,
-                        onPressed: onCopy,
-                      ),
-                      const SizedBox(width: 2),
-                      AppIconButton(
-                        icon: Icons.close_rounded,
-                        size: 22,
-                        iconSize: 13,
-                        radius: 5,
-                        variant: AppIconButtonVariant.ghost,
-                        tooltip: l10n.delete,
-                        onPressed: onDelete,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  SelectableText(
-                    record.message,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: Text(
+                  '·',
+                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                ),
               ),
+              Text(
+                timestampLabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: colors.textMuted,
+                ),
+              ),
+              const Spacer(),
+              AppIconButton(
+                icon: Icons.copy_rounded,
+                size: 22,
+                iconSize: 13,
+                radius: 5,
+                variant: AppIconButtonVariant.ghost,
+                tooltip: l10n.copy,
+                onPressed: onCopy,
+              ),
+              const SizedBox(width: 2),
+              AppIconButton(
+                icon: Icons.close_rounded,
+                size: 22,
+                iconSize: 13,
+                radius: 5,
+                variant: AppIconButtonVariant.ghost,
+                tooltip: l10n.delete,
+                onPressed: onDelete,
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          SelectableText(
+            record.message,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: colors.textPrimary,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

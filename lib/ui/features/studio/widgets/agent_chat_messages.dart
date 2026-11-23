@@ -13,6 +13,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../../../../core/harness/reply_marker.dart';
 import '../../../../core/harness/types.dart';
+import '../../../../data/services/prompt_library_mention.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -22,6 +23,7 @@ import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/stable_edge_selection.dart';
 import 'agent_chat_blocks.dart';
 import 'chat_image_attachment.dart';
+import 'chat_mention_text_controller.dart';
 import 'image_lightbox.dart';
 
 /// 单条对话消息的现代 AI Chat 渲染入口
@@ -576,9 +578,9 @@ class UserMessageRow extends StatelessWidget {
                   if (images.isNotEmpty && message.content.isNotEmpty)
                     const SizedBox(height: 6),
                   if (message.content.isNotEmpty)
-                    SelectableText(
+                    _buildUserContent(
                       message.content,
-                      style: TextStyle(
+                      TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
                         color: colors.textPrimary,
@@ -607,6 +609,36 @@ class UserMessageRow extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildUserContent(String content, TextStyle baseStyle) {
+    final matches = bracketMentionRegex.allMatches(content).toList();
+    if (matches.isEmpty) {
+      return SelectableText(content, style: baseStyle);
+    }
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final match in matches) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: content.substring(cursor, match.start)));
+      }
+      final title = match.group(1)?.trim() ?? '';
+      if (title.isNotEmpty) {
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: CharacterMentionChip(title: title),
+          ),
+        );
+      } else {
+        spans.add(TextSpan(text: match.group(0)));
+      }
+      cursor = match.end;
+    }
+    if (cursor < content.length) {
+      spans.add(TextSpan(text: content.substring(cursor)));
+    }
+    return SelectableText.rich(TextSpan(style: baseStyle, children: spans));
   }
 }
 
