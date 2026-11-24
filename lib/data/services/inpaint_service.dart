@@ -217,7 +217,9 @@ abstract final class InpaintService {
   );
 
   /// 将画笔描边按提交顺序栅格化进蒙版：正向描边盖章白色 (待重绘)，
-  /// 反向橡皮描边盖章黑色 (抵消先前笔迹，后画优先)
+  /// 反向橡皮描边盖章黑色 (抵消先前笔迹，后画优先)。
+  /// 相邻轨迹点之间按步长连续插值盖章，与前端画布折线渲染保持 1:1 连续，
+  /// 避免快速拖拽或小笔刷在真实蒙版中出现断层圆点。
   static void _paintStrokes(
     Uint8List buf,
     int width,
@@ -229,16 +231,40 @@ abstract final class InpaintService {
       if (stroke.points.isEmpty) continue;
       final white = !stroke.isEraser;
       final r = (stroke.radius * shortSide).round().clamp(1, 512);
-      for (final p in stroke.points) {
-        _stampCircle(
-          buf,
-          width,
-          height,
-          cx: (p.dx * width).round(),
-          cy: (p.dy * height).round(),
-          radius: r,
-          white: white,
-        );
+      final first = stroke.points.first;
+      var prevX = first.dx * width;
+      var prevY = first.dy * height;
+      _stampCircle(
+        buf,
+        width,
+        height,
+        cx: prevX.round(),
+        cy: prevY.round(),
+        radius: r,
+        white: white,
+      );
+      final stepSpacing = math.max(1.0, r * 0.35);
+      for (final p in stroke.points.skip(1)) {
+        final nextX = p.dx * width;
+        final nextY = p.dy * height;
+        final dx = nextX - prevX;
+        final dy = nextY - prevY;
+        final dist = math.sqrt(dx * dx + dy * dy);
+        final steps = math.max(1, (dist / stepSpacing).ceil());
+        for (var s = 1; s <= steps; s++) {
+          final t = s / steps;
+          _stampCircle(
+            buf,
+            width,
+            height,
+            cx: (prevX + dx * t).round(),
+            cy: (prevY + dy * t).round(),
+            radius: r,
+            white: white,
+          );
+        }
+        prevX = nextX;
+        prevY = nextY;
       }
     }
   }

@@ -1,11 +1,60 @@
 part of 'studio_view_model.dart';
 
+/// 局部修复蒙版快照 (用于撤销/重做画笔、橡皮、框选与清除操作)
+class _InpaintMaskSnapshot {
+  final Rect? selectionRect;
+  final List<InpaintBrushStroke> brushStrokes;
+  final Rect? maskBounds;
+
+  const _InpaintMaskSnapshot({
+    required this.selectionRect,
+    required this.brushStrokes,
+    required this.maskBounds,
+  });
+}
+
 /// 局部修复 / 焦点特写状态管理 Mixin
 mixin _StudioInpaintMixin on _StudioCore {
+  static const int _maxMaskHistory = 50;
+
   InpaintParams get inpaintParams => _inpaintParams;
   bool get isExecutingInpaint => _isExecutingInpaint;
   bool get isExecutingAiEdit => _isExecutingAiEdit;
   InpaintTool get inpaintTool => _inpaintTool;
+  bool get canUndoInpaintMask => _inpaintMaskUndoStack.isNotEmpty;
+  bool get canRedoInpaintMask => _inpaintMaskRedoStack.isNotEmpty;
+
+  _InpaintMaskSnapshot _captureMaskSnapshot() => _InpaintMaskSnapshot(
+    selectionRect: _inpaintParams.selectionRect,
+    brushStrokes: List<InpaintBrushStroke>.unmodifiable(
+      _inpaintParams.brushStrokes,
+    ),
+    maskBounds: _inpaintParams.maskBounds,
+  );
+
+  void _pushMaskUndoSnapshot() {
+    _inpaintMaskUndoStack.add(_captureMaskSnapshot());
+    if (_inpaintMaskUndoStack.length > _maxMaskHistory) {
+      _inpaintMaskUndoStack.removeAt(0);
+    }
+    _inpaintMaskRedoStack.clear();
+  }
+
+  void _applyMaskSnapshot(_InpaintMaskSnapshot snap) {
+    _inpaintParams = _inpaintParams.copyWith(
+      selectionRect: snap.selectionRect,
+      clearSelectionRect: snap.selectionRect == null,
+      brushStrokes: snap.brushStrokes,
+      clearBrushStrokes: snap.brushStrokes.isEmpty,
+      maskBounds: snap.maskBounds,
+      clearMaskBounds: snap.maskBounds == null,
+    );
+  }
+
+  void _clearMaskHistory() {
+    _inpaintMaskUndoStack.clear();
+    _inpaintMaskRedoStack.clear();
+  }
 
   /// AI 整图编辑的绘图模型信息 (未配置时返回 null，修复页信息卡展示用)
   ({String providerName, String modelName, String modelId})?
@@ -89,9 +138,19 @@ mixin _StudioInpaintMixin on _StudioCore {
   }
 
   void setInpaintSelectionRect(Rect? rect) {
+    if (_inpaintParams.selectionRect == rect &&
+        (rect == null || _inpaintParams.brushStrokes.isEmpty)) {
+      return;
+    }
+    _pushMaskUndoSnapshot();
+    final clearStaleStrokes =
+        rect != null && _inpaintParams.brushStrokes.isNotEmpty;
     _inpaintParams = _inpaintParams.copyWith(
       selectionRect: rect,
       clearSelectionRect: rect == null,
+      brushStrokes: clearStaleStrokes ? const [] : null,
+      clearBrushStrokes: clearStaleStrokes,
+      clearMaskBounds: clearStaleStrokes,
     );
     notifyListeners();
   }
@@ -112,7 +171,7 @@ mixin _StudioInpaintMixin on _StudioCore {
   }
 
   void setInpaintBrushRadius(double radius) {
-    final clamped = radius.clamp(0.005, 0.25);
+    final clamped = radius.clamp(0.003, 0.25);
     if ((_inpaintParams.brushRadius - clamped).abs() < 0.0001) return;
     updateInpaintParams(_inpaintParams.copyWith(brushRadius: clamped));
   }
@@ -124,6 +183,7 @@ mixin _StudioInpaintMixin on _StudioCore {
   /// 生效选区/外延裁剪框随之收缩；拖拽中沿用旧包围盒不跳动。
   void commitInpaintStroke(List<Offset> points, {bool erase = false}) {
     if (points.isEmpty) return;
+    _pushMaskUndoSnapshot();
     final strokes = List<InpaintBrushStroke>.from(_inpaintParams.brushStrokes)
       ..add(
         InpaintBrushStroke(
@@ -141,12 +201,31 @@ mixin _StudioInpaintMixin on _StudioCore {
     notifyListeners();
   }
 
-  /// 清空修复蒙版 (画笔描边与矩形选区一并清除)
+  /// 撤销上一步蒙版编辑 (画笔 / 橡皮 / 框选 / 清除蒙版)
+  void undoInpaintMask() {
+    if (_inpaintMaskUndoStack.isEmpty) return;
+    _inpaintMaskRedoStack.add(_captureMaskSnapshot());
+    final previous = _inpaintMaskUndoStack.removeLast();
+    _applyMaskSnapshot(previous);
+    notifyListeners();
+  }
+
+  /// 重做已撤销的蒙版编辑
+  void redoInpaintMask() {
+    if (_inpaintMaskRedoStack.isEmpty) return;
+    _inpaintMaskUndoStack.add(_captureMaskSnapshot());
+    final next = _inpaintMaskRedoStack.removeLast();
+    _applyMaskSnapshot(next);
+    notifyListeners();
+  }
+
+  /// 清空修复蒙版 (画笔描边与矩形选区一并清除；支持 Ctrl+Z 撤销恢复)
   void clearInpaintMask() {
     if (_inpaintParams.brushStrokes.isEmpty &&
         _inpaintParams.selectionRect == null) {
       return;
     }
+    _pushMaskUndoSnapshot();
     _inpaintParams = _inpaintParams.copyWith(
       brushStrokes: const [],
       clearBrushStrokes: true,
@@ -230,6 +309,7 @@ mixin _StudioInpaintMixin on _StudioCore {
     ImageAnnotation annotation,
   ) {
     _inpaintSourceImage = sourceImage;
+    _clearMaskHistory();
     _inpaintParams = _inpaintParams.copyWith(
       brushStrokes: const [],
       clearBrushStrokes: true,
@@ -261,7 +341,7 @@ mixin _StudioInpaintMixin on _StudioCore {
     // 焦点模式必须先在画板框选或绘制修复区域 (常规模式无选区 = 整图重绘)
     if (_inpaintParams.mode == InpaintMode.focus &&
         _inpaintParams.selectionRect == null &&
-        !_inpaintParams.hasBrushMask) {
+        !_inpaintParams.hasEffectiveBrushMask) {
       reportError(vmL10n.vmInpaintNoMask, source: AppNoticeSource.inpaint);
       return;
     }
@@ -399,11 +479,22 @@ mixin _StudioInpaintMixin on _StudioCore {
     notifyListeners();
 
     try {
+      final sourceBytes = await ensureImageLoaded(target);
+      if (sourceBytes == null || sourceBytes.isEmpty) {
+        reportError(
+          vmL10n.vmAiEditNoImage,
+          source: AppNoticeSource.inpaint,
+          notify: false,
+        );
+        _statusMessage = null;
+        return;
+      }
+
       final result = await _repository.editImageAi(
         provider: provider,
         modelId: config.imageEditModelId,
         prompt: prompt,
-        sourceImageBytes: target.bytes,
+        sourceImageBytes: sourceBytes,
         generationParams: _params,
         aspectRatio: _inpaintParams.aiEditAspectRatio,
         imageResolution: _inpaintParams.aiEditResolution,

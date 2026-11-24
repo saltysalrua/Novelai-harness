@@ -1973,5 +1973,13 @@
       "name": {"type": "String"}
     }
   },
-  "mcpValidationError": "请填写完整的服务名称与端点地址（或命令）。"
+  "mcpValidationError": "请填写完整的服务名称与端点地址（或命令）。",
+  "inpaintToolPan": "抓手漫游 (H / 按住空格 / 中键或右键拖拽)",
+  "inpaintUndoMask": "撤销蒙版 (Ctrl+Z)",
+  "inpaintRedoMask": "重做蒙版 (Ctrl+Shift+Z)",
+  "inpaintToggleMaskVisibility": "隐藏蒙版对比原图 (V)",
+  "inpaintShowMask": "显示蒙版 (V)",
+  "inpaintZoomOut": "缩小视图",
+  "inpaintZoomIn": "放大视图",
+  "inpaintZoomReset": "适应画布 (0)"
 }

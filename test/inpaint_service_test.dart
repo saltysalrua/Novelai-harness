@@ -422,6 +422,30 @@ void main() {
       expect(mask.rgba[mask.offsetOf(100, 100)], 0);
     });
 
+    test('buildSourceMask 稀疏快刷轨迹插值连续不出现断层圆点', () {
+      // 两点相距 160px，笔刷半径仅 4px：必须连续连通而非只在两端盖章
+      final mask = InpaintService.buildSourceMask(
+        sourceWidth: 200,
+        sourceHeight: 200,
+        brushStrokes: const [
+          InpaintBrushStroke(
+            points: [Offset(0.1, 0.5), Offset(0.9, 0.5)],
+            radius: 0.02,
+          ),
+        ],
+      );
+      for (var x = 20; x <= 180; x += 4) {
+        expect(
+          mask.rgba[mask.offsetOf(x, 100)],
+          255,
+          reason: '连线中段 ($x, 100) 不应断开',
+        );
+      }
+      // 上下远离笔迹处保持黑
+      expect(mask.rgba[mask.offsetOf(100, 80)], 0);
+      expect(mask.rgba[mask.offsetOf(100, 120)], 0);
+    });
+
     test('quantizeMaskToLatentGrid 按格中心采样量化到 8px 整格', () {
       final buf = Uint8List(64 * 64 * 4);
       for (var i = 0; i < buf.length; i += 4) {

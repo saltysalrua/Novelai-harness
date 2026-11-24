@@ -4784,4 +4784,29 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mcpValidationError =>
       'Please enter a valid server name and endpoint URL (or command).';
+
+  @override
+  String get inpaintToolPan =>
+      'Pan view (H / Hold Space / Middle or Right drag)';
+
+  @override
+  String get inpaintUndoMask => 'Undo mask (Ctrl+Z)';
+
+  @override
+  String get inpaintRedoMask => 'Redo mask (Ctrl+Shift+Z)';
+
+  @override
+  String get inpaintToggleMaskVisibility => 'Hide mask to compare (V)';
+
+  @override
+  String get inpaintShowMask => 'Show mask (V)';
+
+  @override
+  String get inpaintZoomOut => 'Zoom out';
+
+  @override
+  String get inpaintZoomIn => 'Zoom in';
+
+  @override
+  String get inpaintZoomReset => 'Fit to canvas (0)';
 }

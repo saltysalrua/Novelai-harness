@@ -182,6 +182,8 @@ mixin _StudioCore on ChangeNotifier {
 
   // --- 局部修复状态 ---
   InpaintParams _inpaintParams = const InpaintParams();
+  final List<_InpaintMaskSnapshot> _inpaintMaskUndoStack = [];
+  final List<_InpaintMaskSnapshot> _inpaintMaskRedoStack = [];
   bool _isExecutingInpaint = false;
   bool _isExecutingAiEdit = false;
   NaiGeneratedImage? _inpaintSourceImage;

@@ -4465,4 +4465,28 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mcpValidationError => '请填写完整的服务名称与端点地址（或命令）。';
+
+  @override
+  String get inpaintToolPan => '抓手漫游 (H / 按住空格 / 中键或右键拖拽)';
+
+  @override
+  String get inpaintUndoMask => '撤销蒙版 (Ctrl+Z)';
+
+  @override
+  String get inpaintRedoMask => '重做蒙版 (Ctrl+Shift+Z)';
+
+  @override
+  String get inpaintToggleMaskVisibility => '隐藏蒙版对比原图 (V)';
+
+  @override
+  String get inpaintShowMask => '显示蒙版 (V)';
+
+  @override
+  String get inpaintZoomOut => '缩小视图';
+
+  @override
+  String get inpaintZoomIn => '放大视图';
+
+  @override
+  String get inpaintZoomReset => '适应画布 (0)';
 }

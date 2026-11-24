@@ -278,6 +278,14 @@ class InpaintParams {
   bool get hasBrushMask =>
       brushStrokes.any((s) => !s.isEraser && s.points.isNotEmpty);
 
+  /// 是否存在实际剩余的非空画笔蒙版 (排除有正向描边但已全部被橡皮擦空的情况)
+  bool get hasEffectiveBrushMask {
+    if (!hasBrushMask) return false;
+    final mb = maskBounds;
+    if (mb == null) return true;
+    return mb.width > 0 && mb.height > 0;
+  }
+
   /// 生效选区：栅格化蒙版包围盒优先，其次正向描边几何并集，
   /// 再次矩形选区，最后默认居中半幅
   ///

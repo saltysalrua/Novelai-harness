@@ -158,13 +158,16 @@ class _AppIconButtonState extends State<AppIconButton> {
       ),
     };
 
+    final isGhost = widget.variant == AppIconButtonVariant.ghost;
     final Color? effectiveBg = isInteractive
         ? (bg.a == 0 ? null : bg)
-        : colors.mutedBackground.withValues(alpha: 0.5);
+        : (isGhost ? null : colors.mutedBackground.withValues(alpha: 0.5));
     final effectiveFg = isInteractive
         ? fg
-        : colors.textMuted.withValues(alpha: 0.5);
-    final effectiveBorder = isInteractive ? border : colors.borderSubtle;
+        : colors.textMuted.withValues(alpha: 0.45);
+    final effectiveBorder = isInteractive
+        ? border
+        : (isGhost ? Colors.transparent : colors.borderSubtle);
 
     Widget button = InkWell(
       onTap: isInteractive ? widget.onPressed : null,

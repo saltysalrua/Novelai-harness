@@ -8204,6 +8204,54 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'请填写完整的服务名称与端点地址（或命令）。'**
   String get mcpValidationError;
+
+  /// No description provided for @inpaintToolPan.
+  ///
+  /// In zh, this message translates to:
+  /// **'抓手漫游 (H / 按住空格 / 中键或右键拖拽)'**
+  String get inpaintToolPan;
+
+  /// No description provided for @inpaintUndoMask.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤销蒙版 (Ctrl+Z)'**
+  String get inpaintUndoMask;
+
+  /// No description provided for @inpaintRedoMask.
+  ///
+  /// In zh, this message translates to:
+  /// **'重做蒙版 (Ctrl+Shift+Z)'**
+  String get inpaintRedoMask;
+
+  /// No description provided for @inpaintToggleMaskVisibility.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐藏蒙版对比原图 (V)'**
+  String get inpaintToggleMaskVisibility;
+
+  /// No description provided for @inpaintShowMask.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示蒙版 (V)'**
+  String get inpaintShowMask;
+
+  /// No description provided for @inpaintZoomOut.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩小视图'**
+  String get inpaintZoomOut;
+
+  /// No description provided for @inpaintZoomIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'放大视图'**
+  String get inpaintZoomIn;
+
+  /// No description provided for @inpaintZoomReset.
+  ///
+  /// In zh, this message translates to:
+  /// **'适应画布 (0)'**
+  String get inpaintZoomReset;
 }
 
 class _AppLocalizationsDelegate

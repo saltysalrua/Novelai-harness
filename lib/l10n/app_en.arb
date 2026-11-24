@@ -1973,5 +1973,13 @@
       "name": {"type": "String"}
     }
   },
-  "mcpValidationError": "Please enter a valid server name and endpoint URL (or command)."
+  "mcpValidationError": "Please enter a valid server name and endpoint URL (or command).",
+  "inpaintToolPan": "Pan view (H / Hold Space / Middle or Right drag)",
+  "inpaintUndoMask": "Undo mask (Ctrl+Z)",
+  "inpaintRedoMask": "Redo mask (Ctrl+Shift+Z)",
+  "inpaintToggleMaskVisibility": "Hide mask to compare (V)",
+  "inpaintShowMask": "Show mask (V)",
+  "inpaintZoomOut": "Zoom out",
+  "inpaintZoomIn": "Zoom in",
+  "inpaintZoomReset": "Fit to canvas (0)"
 }
