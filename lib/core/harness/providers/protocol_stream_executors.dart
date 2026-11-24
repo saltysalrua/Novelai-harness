@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../../../data/models/llm_cache_config.dart';
 import '../tools/agent_tool.dart';
@@ -20,6 +21,8 @@ class AnthropicMessagesExecutor {
   final bool promptToolUse;
   final bool streaming;
   final http.Client client;
+  final Duration requestStartupTimeout;
+  final Duration streamIdleTimeout;
 
   const AnthropicMessagesExecutor({
     required this.apiKey,
@@ -30,6 +33,8 @@ class AnthropicMessagesExecutor {
     required this.promptToolUse,
     required this.streaming,
     required this.client,
+    this.requestStartupTimeout = ProviderHttpTransport.requestStartupTimeout,
+    this.streamIdleTimeout = ProviderHttpTransport.streamIdleTimeout,
   });
 
   Stream<HarnessEvent> execute({
@@ -62,6 +67,7 @@ class AnthropicMessagesExecutor {
       cachePolicy.apply(requestBody, promptCacheKey);
     }
 
+    final abortTrigger = Completer<void>();
     final http.StreamedResponse streamedResponse;
     try {
       streamedResponse = await ProviderHttpTransport.sendJsonPost(
@@ -70,6 +76,8 @@ class AnthropicMessagesExecutor {
         apiKey: apiKey,
         requestBody: requestBody,
         cacheHeaders: cacheHeaders,
+        timeout: requestStartupTimeout,
+        abortTrigger: abortTrigger,
       );
     } catch (e) {
       yield ErrorEvent('网络请求异常: $e', transient: true);
@@ -77,7 +85,11 @@ class AnthropicMessagesExecutor {
     }
 
     if (streamedResponse.statusCode != 200) {
-      yield await ProviderHttpTransport.readHttpErrorEvent(streamedResponse);
+      yield await ProviderHttpTransport.readHttpErrorEvent(
+        streamedResponse,
+        timeout: requestStartupTimeout,
+        abortTrigger: abortTrigger,
+      );
       return;
     }
 
@@ -88,6 +100,8 @@ class AnthropicMessagesExecutor {
       promptParser: promptParser,
       completionMarker: 'message_stop',
       prematureEndMessage: 'Anthropic 响应流提前结束，未执行工具调用。',
+      streamIdleTimeout: streamIdleTimeout,
+      abortTrigger: abortTrigger,
       onSseJson: (json, eventType) => parser.add(json, eventType: eventType),
       onSseFinish: parser.finish,
       parseNonSseJson: (json) {
@@ -126,6 +140,8 @@ class OpenAiResponsesExecutor {
   final bool isGoogleOrGemini;
   final bool Function(String endpoint, String? effort) shouldOmitTemperature;
   final String Function(String effort) clampGeminiReasoningEffort;
+  final Duration requestStartupTimeout;
+  final Duration streamIdleTimeout;
 
   const OpenAiResponsesExecutor({
     required this.apiKey,
@@ -141,6 +157,8 @@ class OpenAiResponsesExecutor {
     required this.isGoogleOrGemini,
     required this.shouldOmitTemperature,
     required this.clampGeminiReasoningEffort,
+    this.requestStartupTimeout = ProviderHttpTransport.requestStartupTimeout,
+    this.streamIdleTimeout = ProviderHttpTransport.streamIdleTimeout,
   });
 
   String? _responsesReasoningEffort() {
@@ -203,6 +221,7 @@ class OpenAiResponsesExecutor {
       }
     }
 
+    final abortTrigger = Completer<void>();
     final http.StreamedResponse streamedResponse;
     final String? badRequestBody;
     try {
@@ -212,6 +231,8 @@ class OpenAiResponsesExecutor {
         apiKey: apiKey,
         requestBody: requestBody,
         cacheHeaders: cacheHeaders,
+        timeout: requestStartupTimeout,
+        abortTrigger: abortTrigger,
       );
       final (response, errBody) =
           await ProviderHttpTransport.drainRejectedCacheFields(
@@ -223,6 +244,8 @@ class OpenAiResponsesExecutor {
             requestBody: requestBody,
             cacheHeaders: cacheHeaders,
             capabilityCache: capabilityCache,
+            timeout: requestStartupTimeout,
+            abortTrigger: abortTrigger,
           );
       streamedResponse = response;
       badRequestBody = errBody;
@@ -236,7 +259,11 @@ class OpenAiResponsesExecutor {
     }
 
     if (streamedResponse.statusCode != 200) {
-      yield await ProviderHttpTransport.readHttpErrorEvent(streamedResponse);
+      yield await ProviderHttpTransport.readHttpErrorEvent(
+        streamedResponse,
+        timeout: requestStartupTimeout,
+        abortTrigger: abortTrigger,
+      );
       return;
     }
 
@@ -247,6 +274,8 @@ class OpenAiResponsesExecutor {
       promptParser: promptParser,
       completionMarker: 'response.completed',
       prematureEndMessage: 'Responses 响应流提前结束，未执行工具调用。',
+      streamIdleTimeout: streamIdleTimeout,
+      abortTrigger: abortTrigger,
       onSseJson: (json, eventType) => parser.add(json, eventType: eventType),
       onSseFinish: parser.finish,
       parseNonSseJson: (json) {

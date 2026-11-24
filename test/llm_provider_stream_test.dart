@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -5,7 +6,9 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:novelai_harness/core/harness/agent_harness.dart';
 import 'package:novelai_harness/core/harness/presets/agent_preset.dart';
+import 'package:novelai_harness/core/harness/providers/google_interactions_provider.dart';
 import 'package:novelai_harness/core/harness/providers/openai_provider.dart';
+import 'package:novelai_harness/core/harness/providers/provider_http_transport.dart';
 import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
@@ -1094,6 +1097,166 @@ void main() {
       expect(usage.input, 100);
       expect(usage.cacheRead, 20);
       expect(usage.output, 45);
+    });
+  });
+
+  group('假流式/慢首包超时与断连中止', () {
+    test('默认首包与流空闲超时覆盖 60s 以上假流式生成窗口', () {
+      expect(
+        ProviderHttpTransport.requestStartupTimeout,
+        greaterThanOrEqualTo(const Duration(minutes: 3)),
+      );
+      expect(
+        ProviderHttpTransport.streamIdleTimeout,
+        greaterThanOrEqualTo(const Duration(minutes: 3)),
+      );
+      final interactions = GoogleInteractionsProvider(apiKey: 'test-key');
+      expect(
+        interactions.requestStartupTimeout,
+        equals(ProviderHttpTransport.requestStartupTimeout),
+      );
+      expect(
+        interactions.streamIdleTimeout,
+        equals(ProviderHttpTransport.streamIdleTimeout),
+      );
+    });
+
+    test('sendJsonPost 发出可中止请求，避免超时后上游继续空跑扣费', () async {
+      http.BaseRequest? capturedRequest;
+      final client = MockClient.streaming((req, body) async {
+        capturedRequest = req;
+        return _sse([
+          _delta({'content': 'ok'}),
+        ]);
+      });
+
+      final response = await ProviderHttpTransport.sendJsonPost(
+        client: client,
+        endpoint: 'https://api.test/v1/chat/completions',
+        apiKey: 'test-key',
+        requestBody: const {'model': 'test-model', 'stream': true},
+        cacheHeaders: const {},
+      );
+      await response.stream.drain<void>();
+
+      expect(capturedRequest, isA<http.Abortable>());
+      expect((capturedRequest! as http.Abortable).abortTrigger, isNotNull);
+    });
+
+    test('假流式首包超限时立刻触发 abortTrigger 断开底层连接', () async {
+      final aborted = Completer<void>();
+      final neverResponds = Completer<http.StreamedResponse>();
+      final client = MockClient.streaming((req, body) {
+        final trigger = (req as http.Abortable).abortTrigger;
+        trigger?.then((_) {
+          if (!aborted.isCompleted) aborted.complete();
+        });
+        return neverResponds.future;
+      });
+
+      final provider = OpenAiCompatibleProvider(
+        baseUrl: 'https://api.test/v1',
+        apiKey: 'test-key',
+        model: 'test-model',
+        requestStartupTimeout: const Duration(milliseconds: 40),
+        client: client,
+      );
+
+      final events = await provider
+          .streamChat(messages: const [], tools: const [])
+          .toList();
+
+      await aborted.future.timeout(const Duration(seconds: 1));
+      final error = events.whereType<ErrorEvent>().single;
+      expect(error.transient, isTrue);
+      expect(error.error, contains('等待模型响应头超时'));
+    });
+
+    test('非流式整包读取超时时同样触发 abortTrigger 断开底层连接', () async {
+      final aborted = Completer<void>();
+      final bodyController = StreamController<List<int>>();
+      addTearDown(bodyController.close);
+
+      final client = MockClient.streaming((req, body) async {
+        final trigger = (req as http.Abortable).abortTrigger;
+        if (trigger != null) {
+          unawaited(
+            trigger.then((_) {
+              if (!aborted.isCompleted) aborted.complete();
+            }),
+          );
+        }
+        return http.StreamedResponse(bodyController.stream, 200);
+      });
+
+      final provider = OpenAiCompatibleProvider(
+        baseUrl: 'https://api.test/v1',
+        apiKey: 'test-key',
+        model: 'test-model',
+        streaming: false,
+        requestStartupTimeout: const Duration(milliseconds: 40),
+        client: client,
+      );
+
+      final events = await provider
+          .streamChat(messages: const [], tools: const [])
+          .toList();
+
+      await aborted.future.timeout(const Duration(seconds: 1));
+      final error = events.whereType<ErrorEvent>().single;
+      expect(error.transient, isTrue);
+      expect(error.error, contains('读取模型完整响应超时'));
+    });
+
+    test('Google Interactions 首包超限时也会触发 abortTrigger', () async {
+      final aborted = Completer<void>();
+      final neverResponds = Completer<http.StreamedResponse>();
+      final client = MockClient.streaming((req, body) {
+        final trigger = (req as http.Abortable).abortTrigger;
+        trigger?.then((_) {
+          if (!aborted.isCompleted) aborted.complete();
+        });
+        return neverResponds.future;
+      });
+
+      final provider = GoogleInteractionsProvider(
+        apiKey: 'test-key',
+        requestStartupTimeout: const Duration(milliseconds: 40),
+        client: client,
+      );
+
+      final events = await provider
+          .streamChat(messages: const [], tools: const [])
+          .toList();
+
+      await aborted.future.timeout(const Duration(seconds: 1));
+      final error = events.whereType<ErrorEvent>().single;
+      expect(error.transient, isTrue);
+      expect(error.error, contains('等待模型响应头超时'));
+    });
+
+    test('慢首包假流式在超时上限前返回 200 SSE 时正常完成', () async {
+      final client = MockClient.streaming((req, body) async {
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        return _sse([
+          _delta({'content': '假流式完整回复'}),
+        ]);
+      });
+
+      final provider = OpenAiCompatibleProvider(
+        baseUrl: 'https://api.test/v1',
+        apiKey: 'test-key',
+        model: 'test-model',
+        requestStartupTimeout: const Duration(milliseconds: 250),
+        client: client,
+      );
+
+      final events = await provider
+          .streamChat(messages: const [], tools: const [])
+          .toList();
+
+      expect(events.whereType<ErrorEvent>(), isEmpty);
+      expect(_contents(events).join(), '假流式完整回复');
     });
   });
 }

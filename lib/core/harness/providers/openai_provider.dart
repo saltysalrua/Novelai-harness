@@ -16,11 +16,6 @@ import '../../../data/models/llm_cache_config.dart';
 
 /// OpenAI 兼容格式提供商 (兼容 DeepSeek, Qwen, Moonshot, OpenAI, Ollama, LocalAI 等)
 class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
-  static const Duration _requestStartupTimeout =
-      ProviderHttpTransport.requestStartupTimeout;
-  static const Duration _streamIdleTimeout =
-      ProviderHttpTransport.streamIdleTimeout;
-
   static String? clampPromptCacheKey(String? key) =>
       PromptCachePolicy.clampKey(key);
 
@@ -44,6 +39,12 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
   /// 关闭后发送非流式请求，并一次性解析完整响应。
   final bool streaming;
 
+  /// 首包响应头 / 非流式完整响应超时上限。
+  final Duration requestStartupTimeout;
+
+  /// SSE 流式空闲超时上限。
+  final Duration streamIdleTimeout;
+
   OpenAiCompatibleProvider({
     required this.baseUrl,
     required this.apiKey,
@@ -54,6 +55,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     this.cacheConfig = const LlmCacheConfig(),
     this.promptToolUse = false,
     this.streaming = true,
+    this.requestStartupTimeout = ProviderHttpTransport.requestStartupTimeout,
+    this.streamIdleTimeout = ProviderHttpTransport.streamIdleTimeout,
     http.Client? client,
     EndpointCapabilityCache? capabilityCache,
   }) : _client = client ?? http.Client(),
@@ -395,6 +398,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         promptToolUse: promptToolUse,
         cacheConfig: cacheConfig,
         streaming: streaming,
+        requestStartupTimeout: requestStartupTimeout,
+        streamIdleTimeout: streamIdleTimeout,
         client: _client,
       );
       yield* interactionsProvider.streamChat(
@@ -441,6 +446,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         isGoogleOrGemini: _isGoogleOrGemini,
         shouldOmitTemperature: _shouldOmitResponsesTemperature,
         clampGeminiReasoningEffort: _clampGeminiReasoningEffort,
+        requestStartupTimeout: requestStartupTimeout,
+        streamIdleTimeout: streamIdleTimeout,
       ).execute(
         endpoint: endpoint,
         messages: normalizedMessages,
@@ -461,6 +468,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         promptToolUse: promptToolUse,
         streaming: streaming,
         client: _client,
+        requestStartupTimeout: requestStartupTimeout,
+        streamIdleTimeout: streamIdleTimeout,
       ).execute(
         endpoint: endpoint,
         messages: normalizedMessages,
@@ -523,6 +532,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
       }
     }
 
+    final abortTrigger = Completer<void>();
     http.StreamedResponse streamedResponse;
     String? badRequestBody;
     try {
@@ -532,6 +542,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
         apiKey: apiKey,
         requestBody: requestBody,
         cacheHeaders: cacheHeaders,
+        timeout: requestStartupTimeout,
+        abortTrigger: abortTrigger,
       );
       final (response, errBody) =
           await ProviderHttpTransport.drainRejectedCacheFields(
@@ -543,6 +555,8 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
             requestBody: requestBody,
             cacheHeaders: cacheHeaders,
             capabilityCache: _capabilityCache,
+            timeout: requestStartupTimeout,
+            abortTrigger: abortTrigger,
           );
       streamedResponse = response;
       badRequestBody = errBody;
@@ -557,15 +571,21 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     }
 
     if (streamedResponse.statusCode != 200) {
-      yield await ProviderHttpTransport.readHttpErrorEvent(streamedResponse);
+      yield await ProviderHttpTransport.readHttpErrorEvent(
+        streamedResponse,
+        timeout: requestStartupTimeout,
+        abortTrigger: abortTrigger,
+      );
       return;
     }
 
     if (!streaming) {
       final String raw;
       try {
-        raw = await streamedResponse.stream.bytesToString().timeout(
-          _requestStartupTimeout,
+        raw = await ProviderHttpTransport.readResponseText(
+          streamedResponse,
+          timeout: requestStartupTimeout,
+          abortTrigger: abortTrigger,
         );
       } catch (e) {
         yield ErrorEvent('网络请求异常: $e', transient: true);
@@ -611,7 +631,7 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
 
     try {
       final lineStream = streamedResponse.stream
-          .timeout(_streamIdleTimeout)
+          .timeout(streamIdleTimeout)
           .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter());
 
@@ -868,6 +888,9 @@ class OpenAiCompatibleProvider implements LlmProvider, LlmRequestOverhead {
     } on FormatException catch (e) {
       yield ErrorEvent('工具调用格式错误: ${e.message}');
     } catch (e) {
+      if (e is TimeoutException && !abortTrigger.isCompleted) {
+        abortTrigger.complete();
+      }
       // 流中断 / 解码失败多为服务端提前断连，按瞬态处理交给上层退避重试
       yield ErrorEvent('解析流式数据异常: $e', transient: true);
     }

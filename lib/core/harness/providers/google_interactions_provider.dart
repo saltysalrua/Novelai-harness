@@ -9,6 +9,7 @@ import '../types.dart';
 import 'llm_provider.dart';
 import 'prompt_cache_policy.dart';
 import 'prompt_tool_codec.dart';
+import 'provider_http_transport.dart';
 import 'tool_call_ids.dart';
 
 /// Google Gemini Interactions API 提供商 (`/v1beta/interactions` / `/v1/interactions`)。
@@ -46,9 +47,8 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
   final LlmCacheConfig cacheConfig;
   final http.Client _client;
   final bool _ownsClient;
-
-  static const Duration _requestStartupTimeout = Duration(seconds: 45);
-  static const Duration _streamIdleTimeout = Duration(seconds: 90);
+  final Duration requestStartupTimeout;
+  final Duration streamIdleTimeout;
 
   GoogleInteractionsProvider({
     required this.apiKey,
@@ -60,6 +60,8 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     this.promptToolUse = false,
     this.streaming = true,
     this.cacheConfig = const LlmCacheConfig(),
+    this.requestStartupTimeout = ProviderHttpTransport.requestStartupTimeout,
+    this.streamIdleTimeout = ProviderHttpTransport.streamIdleTimeout,
     http.Client? client,
   }) : _client = client ?? http.Client(),
        _ownsClient = client == null;
@@ -165,7 +167,12 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
       model: modelId,
     );
 
-    final request = http.Request('POST', uri);
+    final abortTrigger = Completer<void>();
+    final request = http.AbortableRequest(
+      'POST',
+      uri,
+      abortTrigger: abortTrigger.future,
+    );
     request.headers['Content-Type'] = 'application/json';
     request.headers['Accept'] = streaming
         ? 'text/event-stream'
@@ -179,13 +186,19 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     request.body = jsonEncode(requestBody);
 
     try {
-      final response = await _client
-          .send(request)
-          .timeout(_requestStartupTimeout);
+      final response = await ProviderHttpTransport.sendAbortable(
+        client: _client,
+        request: request,
+        abortTrigger: abortTrigger,
+        timeout: requestStartupTimeout,
+      );
 
       if (response.statusCode != 200) {
-        final errorBody = await response.stream.bytesToString().timeout(
-          _requestStartupTimeout,
+        final errorBody = await ProviderHttpTransport.readResponseText(
+          response,
+          timeout: requestStartupTimeout,
+          abortTrigger: abortTrigger,
+          timeoutMessage: '读取错误响应超时',
         );
         final status = response.statusCode;
         final isTransient =
@@ -201,9 +214,10 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
         response,
         normalizedMessages: normalizedMessages,
         tools: tools,
+        abortTrigger: abortTrigger,
       );
-    } on TimeoutException {
-      yield const ErrorEvent('LLM 流式响应超时，网络可能已断开', transient: true);
+    } on TimeoutException catch (e) {
+      yield ErrorEvent('网络请求异常: $e', transient: true);
     } catch (e) {
       yield ErrorEvent('网络请求异常: $e', transient: true);
     }
@@ -428,6 +442,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     http.StreamedResponse response, {
     required List<AgentMessage> normalizedMessages,
     required List<AgentTool> tools,
+    required Completer<void> abortTrigger,
   }) async* {
     final stepStates = <int, _InteractionStepState>{};
     final stepIndexById = <String, int>{};
@@ -477,7 +492,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
 
     try {
       final lines = response.stream
-          .timeout(_streamIdleTimeout)
+          .timeout(streamIdleTimeout)
           .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter());
 
@@ -844,6 +859,9 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     } on FormatException catch (e) {
       yield ErrorEvent('工具调用格式错误: ${e.message}');
     } catch (e) {
+      if (e is TimeoutException && !abortTrigger.isCompleted) {
+        abortTrigger.complete();
+      }
       yield ErrorEvent('解析流式数据异常: $e', transient: true);
     }
 
