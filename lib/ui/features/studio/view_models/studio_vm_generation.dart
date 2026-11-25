@@ -184,6 +184,11 @@ mixin _StudioGenerationMixin on _StudioCore {
       _applySeedMutationBefore();
     }
 
+    // 生图前预先编码尚未缓存的 V4/V4.5 Vibe，并写回内存缓存以供后续复用
+    if (!await ensurePendingVibesEncoded()) {
+      return;
+    }
+
     _isGenerating = true;
     _liveProgressController.begin(_params.effectiveSteps, DateTime.now());
     _errorMessage = null;

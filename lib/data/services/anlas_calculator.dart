@@ -46,6 +46,18 @@ class AnlasCalculator {
   static const double _areaCoefficient = 2.951823174884865e-6;
   static const double _stepAreaCoefficient = 5.753298233447344e-7;
 
+  /// 每张精准参考图每张生成图片的附加费用 (V5 与 V4.5 均为 5 Anlas)
+  static const int preciseReferenceCostPerImage = 5;
+
+  /// Vibe Transfer 免费槽位上限 (前 4 张免生成附加费，第 5 张起每张每图 +2 Anlas)
+  static const int vibeFreeSlotLimit = 4;
+
+  /// 超出免费槽位后的 Vibe Transfer 每张每图附加费
+  static const int vibeExtraSlotCostPerImage = 2;
+
+  /// V4 / V4.5 原始图首次编码为 Vibe 的单次费用 (2 Anlas / 张)
+  static const int vibeEncodeCostPerImage = 2;
+
   /// 预估一次生图请求的 Anlas 消耗
   ///
   /// [isOpus] 账号是否拥有有效的 Opus 订阅权益；
@@ -56,15 +68,23 @@ class AnlasCalculator {
     required bool isOpus,
     bool opusQuotaExhausted = false,
   }) {
+    final activePreciseCount = params.effectivePreciseReferences().length;
+    final activeVibes = params.effectiveVibeReferences();
+    final pendingVibeEncodeCount = activeVibes
+        .where((v) => v.needsServerEncodingFor(params.model))
+        .length;
     return calculateFromValues(
       width: params.width,
       height: params.height,
-      // 节约档实际只跑锁定的 14 步，仍走同一公式，不另设倍率。
+      // 节约档实际只跑锁定的 14 步 (但启用精准参考时 V5 Full 自动强制高档)。
       steps: params.effectiveSteps,
       nSamples: params.nSamples,
       model: params.model,
       isOpus: isOpus,
       opusQuotaExhausted: opusQuotaExhausted,
+      preciseReferenceCount: activePreciseCount,
+      vibeReferenceCount: activeVibes.length,
+      vibeEncodeCount: pendingVibeEncodeCount,
     );
   }
 
@@ -77,6 +97,9 @@ class AnlasCalculator {
     required NaiModel model,
     bool isOpus = false,
     bool opusQuotaExhausted = false,
+    int preciseReferenceCount = 0,
+    int vibeReferenceCount = 0,
+    int vibeEncodeCount = 0,
   }) {
     if (nSamples <= 0 || width <= 0 || height <= 0 || steps <= 0) return 0;
 
@@ -98,8 +121,35 @@ class AnlasCalculator {
         ? 1
         : 0;
 
-    // 单次请求多张时只有第一张享受折扣
-    return perSample * math.max(nSamples - opusDiscount, 0);
+    // 单次请求多张时只有第一张基础图享受 Opus 折扣；
+    // 精准参考附加费按 5 * 参考图数 * 生成张数 叠加 (Opus 免费不免除参考费，与官网 2026-11 计费一致)。
+    final int baseTotal = perSample * math.max<int>(nSamples - opusDiscount, 0);
+    final bool hasActivePrecise =
+        preciseReferenceCount > 0 && model.supportsPreciseReference;
+    final int refAdditional = hasActivePrecise
+        ? preciseReferenceCostPerImage * preciseReferenceCount * nSamples
+        : 0;
+
+    // Vibe Transfer：与精准参考互斥；1~4 张免附加费，超过 4 张每张每图 +2 Anlas；
+    // V4/V4.5 未缓存编码的原始图另加一次性编码费 2 Anlas / 张。
+    final bool hasActiveVibes =
+        !hasActivePrecise &&
+        vibeReferenceCount > 0 &&
+        model.supportsVibeTransfer;
+    final int vibeSlotAdditional = hasActiveVibes
+        ? math.max<int>(vibeReferenceCount - vibeFreeSlotLimit, 0) *
+              vibeExtraSlotCostPerImage *
+              nSamples
+        : 0;
+    final int vibeEncodeAdditional =
+        (hasActiveVibes && model.usesEncodedVibeTransfer && vibeEncodeCount > 0)
+        ? vibeEncodeCount * vibeEncodeCostPerImage
+        : 0;
+
+    return baseTotal +
+        refAdditional +
+        vibeSlotAdditional +
+        vibeEncodeAdditional;
   }
 
   /// 计算官方云端超分的 Anlas 消耗

@@ -14,10 +14,11 @@ import 'generate_dock.dart';
 import 'inpaint_canvas_overlay.dart';
 import 'inpaint_page.dart';
 import 'parameters_page.dart';
+import 'precise_reference_page.dart';
 import 'prompts_page.dart';
 import 'studio_shared.dart';
 
-/// 左侧工作台面板：三页面 (参数设置 / 提示词管理 / 修复设置) + 底部生成操作坞。
+/// 左侧工作台面板：四页面 (参数设置 / 提示词管理 / 精准参考 / 修复设置) + 底部生成操作坞。
 /// 各页首次访问时挂载，隐藏页不随工作台通知重建；切页保留输入与滚动位置。
 /// 窄屏 (`compact == true`) 下在局部修复页签同屏整合修复画板与可折叠参数抽屉。
 class ParameterCard extends StatelessWidget {
@@ -42,7 +43,8 @@ class ParameterCard extends StatelessWidget {
     final pageIndex = switch (activeTab) {
       StudioSidebarTab.parameters => 0,
       StudioSidebarTab.prompts => 1,
-      StudioSidebarTab.inpaint => 2,
+      StudioSidebarTab.reference => 2,
+      StudioSidebarTab.inpaint => 3,
       StudioSidebarTab.library => 0,
     };
 
@@ -68,10 +70,11 @@ class ParameterCard extends StatelessWidget {
             Expanded(
               child: AppPageStack(
                 index: pageIndex,
-                itemCount: 3,
+                itemCount: 4,
                 itemBuilder: (context, index) => switch (index) {
                   0 => ParametersPage(viewModel: viewModel),
                   1 => PromptsPage(viewModel: viewModel),
+                  2 => PreciseReferencePage(viewModel: viewModel),
                   _ => compact
                       ? _MobileUnifiedInpaintWorkspace(
                           viewModel: viewModel,

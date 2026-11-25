@@ -96,6 +96,8 @@ class _StudioViewState extends State<StudioView> {
       _viewModel.isEditingWatermarkPosition,
       _viewModel.isGenerating,
       _viewModel.isChatStreaming,
+      !_viewModel.isComfyUiMode &&
+          _viewModel.hasActiveReferenceGuide,
       selected?.id,
     );
   }
@@ -596,6 +598,9 @@ class _StudioViewState extends State<StudioView> {
             isEditingWatermarkPosition: _viewModel.isEditingWatermarkPosition,
             isAnnotating: _viewModel.board.isAnnotatingImage,
             hasSelectedImage: selectedImage != null,
+            hasActiveReference:
+                !_viewModel.isComfyUiMode &&
+                _viewModel.hasActiveReferenceGuide,
             unreadNotificationCount: _viewModel.unreadNotificationCount,
             onStudioTabSelected: (tab) {
               _viewModel.setActiveSidebarTab(tab, expandSidebar: false);
@@ -1132,6 +1137,7 @@ class _MobileTopBar extends StatefulWidget {
   final bool isEditingWatermarkPosition;
   final bool isAnnotating;
   final bool hasSelectedImage;
+  final bool hasActiveReference;
   final int unreadNotificationCount;
   final ValueChanged<StudioSidebarTab> onStudioTabSelected;
   final ValueChanged<BuildContext> onOpenNotifications;
@@ -1147,6 +1153,7 @@ class _MobileTopBar extends StatefulWidget {
     required this.isEditingWatermarkPosition,
     required this.isAnnotating,
     required this.hasSelectedImage,
+    this.hasActiveReference = false,
     required this.unreadNotificationCount,
     required this.onStudioTabSelected,
     required this.onOpenNotifications,
@@ -1303,45 +1310,72 @@ class _MobileTopBarState extends WindowControlsState<_MobileTopBar> {
     final colors = context.colors;
 
     if (!widget.isLibraryTab && widget.activeIndex == 0) {
-      return Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: isDesktopWindow ? 3 : 5,
-        ),
-        child: AppSegmentedCardBar<StudioSidebarTab>(
-          items: [
-            AppSegmentedItem(
-              key: const Key('mobile_nav_parameters'),
-              value: StudioSidebarTab.parameters,
-              icon: Icons.tune_outlined,
-              label: l10n.sidebarTabParameters,
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final available = (constraints.maxWidth - 16).clamp(
+            0.0,
+            double.infinity,
+          );
+          // 四项并排时按可用宽自适应：
+          // - >= 320px：图标 + 完整文字；
+          // - 190~319px：隐藏图标让位文字，避免窄屏把中文/英文标签挤没；
+          // - < 190px：自动退化为横向轻滑，杜绝零宽裁剪。
+          final showIcons = available >= 320;
+          final useScrollable = available < 190;
+
+          return Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: isDesktopWindow ? 3 : 5,
             ),
-            AppSegmentedItem(
-              key: const Key('mobile_nav_prompts'),
-              value: StudioSidebarTab.prompts,
-              icon: Icons.edit_note_outlined,
-              label: l10n.tabPrompts,
+            child: AppSegmentedCardBar<StudioSidebarTab>(
+              items: [
+                AppSegmentedItem(
+                  key: const Key('mobile_nav_parameters'),
+                  value: StudioSidebarTab.parameters,
+                  icon: showIcons ? Icons.tune_outlined : null,
+                  label: l10n.sidebarTabParameters,
+                  tooltip: l10n.tabParameters,
+                ),
+                AppSegmentedItem(
+                  key: const Key('mobile_nav_prompts'),
+                  value: StudioSidebarTab.prompts,
+                  icon: showIcons ? Icons.edit_note_outlined : null,
+                  label: l10n.tabPrompts,
+                  tooltip: l10n.tabPrompts,
+                ),
+                AppSegmentedItem(
+                  key: const Key('mobile_nav_reference'),
+                  value: StudioSidebarTab.reference,
+                  icon: showIcons ? Icons.style_outlined : null,
+                  label: l10n.sidebarTabReference,
+                  tooltip: l10n.tabReference,
+                  badge: widget.hasActiveReference,
+                ),
+                AppSegmentedItem(
+                  key: const Key('mobile_nav_inpaint'),
+                  value: StudioSidebarTab.inpaint,
+                  icon: showIcons ? Icons.auto_fix_high_outlined : null,
+                  label: l10n.sidebarTabInpaint,
+                  tooltip: l10n.tabInpaint,
+                ),
+              ],
+              selectedValue: widget.activeSidebarTab,
+              expand: !useScrollable,
+              scrollable: useScrollable,
+              spacing: 2,
+              trackPadding: const EdgeInsets.all(2),
+              itemPadding: EdgeInsets.symmetric(
+                horizontal: showIcons ? 6 : 4,
+                vertical: isDesktopWindow ? 1 : 3,
+              ),
+              fontSize: isDesktopWindow ? 11.5 : 12.0,
+              iconSize: isDesktopWindow ? 13 : 14,
+              highlightSelectedIcon: true,
+              onValueChanged: widget.onStudioTabSelected,
             ),
-            AppSegmentedItem(
-              key: const Key('mobile_nav_inpaint'),
-              value: StudioSidebarTab.inpaint,
-              icon: Icons.auto_fix_high_outlined,
-              label: l10n.sidebarTabInpaint,
-            ),
-          ],
-          selectedValue: widget.activeSidebarTab,
-          expand: true,
-          spacing: 2,
-          trackPadding: const EdgeInsets.all(2),
-          itemPadding: EdgeInsets.symmetric(
-            horizontal: 6,
-            vertical: isDesktopWindow ? 1 : 3,
-          ),
-          fontSize: isDesktopWindow ? 11.5 : 12.5,
-          iconSize: isDesktopWindow ? 13 : 14,
-          highlightSelectedIcon: true,
-          onValueChanged: widget.onStudioTabSelected,
-        ),
+          );
+        },
       );
     }
 

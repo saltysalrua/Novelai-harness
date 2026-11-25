@@ -175,10 +175,12 @@ mixin _StudioLayoutMixin on _StudioCore {
     if (tabChanged) {
       if (tab == StudioSidebarTab.inpaint &&
           (_activeSidebarTab == StudioSidebarTab.parameters ||
-              _activeSidebarTab == StudioSidebarTab.prompts)) {
+              _activeSidebarTab == StudioSidebarTab.prompts ||
+              _activeSidebarTab == StudioSidebarTab.reference)) {
         _tabBeforeInpaint = _activeSidebarTab;
       } else if (tab == StudioSidebarTab.parameters ||
-          tab == StudioSidebarTab.prompts) {
+          tab == StudioSidebarTab.prompts ||
+          tab == StudioSidebarTab.reference) {
         _tabBeforeInpaint = tab;
       }
       _activeSidebarTab = tab;
@@ -196,7 +198,8 @@ mixin _StudioLayoutMixin on _StudioCore {
     if (_activeSidebarTab != StudioSidebarTab.inpaint) return;
     final target =
         (_tabBeforeInpaint == StudioSidebarTab.parameters ||
-            _tabBeforeInpaint == StudioSidebarTab.prompts)
+            _tabBeforeInpaint == StudioSidebarTab.prompts ||
+            _tabBeforeInpaint == StudioSidebarTab.reference)
         ? _tabBeforeInpaint
         : StudioSidebarTab.parameters;
     setActiveSidebarTab(target, expandSidebar: expandSidebar);

@@ -4809,4 +4809,181 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get inpaintZoomReset => 'Fit to canvas (0)';
+
+  @override
+  String get sidebarTabReference => 'Ref';
+
+  @override
+  String get tabReference => 'Precise Reference';
+
+  @override
+  String get referencePageSubtitle =>
+      'Guide character appearance, art style, and outfit (+5 Anlas per ref)';
+
+  @override
+  String get referencePickImage => 'Pick Image';
+
+  @override
+  String get referencePasteImage => 'Paste';
+
+  @override
+  String get referenceUseCanvasImage => 'Canvas Image';
+
+  @override
+  String get referenceDropTitle => 'Drop images to add Precise Reference';
+
+  @override
+  String get referenceDropSubtitle =>
+      'Supports PNG / JPG / WebP, multiple files allowed';
+
+  @override
+  String get referenceEmptyTitle => 'No Precise Reference images';
+
+  @override
+  String get referenceEmptyDescription =>
+      'Drop, pick, or paste images to guide generations. V5 supports Character, Style, and Outfit references with Strength up to 5.0.';
+
+  @override
+  String get referenceTypeLabel => 'Reference Type';
+
+  @override
+  String get referenceTypeCharacter => 'Character';
+
+  @override
+  String get referenceTypeCharacterAndStyle => 'Character & Style';
+
+  @override
+  String get referenceTypeStyle => 'Style';
+
+  @override
+  String get referenceTypeOutfit => 'Outfit';
+
+  @override
+  String get referencePreferSameOutfit => 'Prefer same outfit';
+
+  @override
+  String get referenceStrength => 'Strength';
+
+  @override
+  String get referenceFidelity => 'Fidelity';
+
+  @override
+  String referenceCostPerGen(int cost) {
+    return '+$cost Anlas / gen';
+  }
+
+  @override
+  String get referenceUnsupportedModelHint =>
+      'The current model does not support Precise Reference. Switch to V5 or V4.5.';
+
+  @override
+  String get referenceComfyModeHint =>
+      'ComfyUI mode is active. Precise Reference only applies in NovelAI mode.';
+
+  @override
+  String get referenceV5InpaintHint =>
+      'Inpainting with Precise Reference is not yet supported on V5.';
+
+  @override
+  String get referenceOutfitUnsupportedBadge =>
+      'Outfit Reference is not supported by this model and will be ignored';
+
+  @override
+  String get referenceClipboardEmpty => 'No image found in clipboard';
+
+  @override
+  String referenceImageItemTitle(int index) {
+    return 'Reference #$index';
+  }
+
+  @override
+  String get paramsEffortForcedByReferenceHint =>
+      'Precise Reference requires High effort. Remove or disable all references to use Medium effort.';
+
+  @override
+  String get canvasActionSendToReference => 'Add to Precise Reference';
+
+  @override
+  String get canvasAddedToReference => 'Added to Precise Reference';
+
+  @override
+  String get vibeTabTitle => 'Vibe Transfer';
+
+  @override
+  String get vibePageSubtitle =>
+      'Transfer visual vibe and aesthetics (first 4 slots free; V4/V4.5 encode +2 Anlas)';
+
+  @override
+  String get vibePickFile => 'Pick Image / Vibe';
+
+  @override
+  String get vibeDropTitle => 'Drop files to import Vibe Transfer';
+
+  @override
+  String get vibeDropSubtitle =>
+      'Supports PNG / JPG / WebP / .naiv4vibe / .naiv4vibebundle';
+
+  @override
+  String get vibeEmptyTitle => 'No Vibe Transfer references';
+
+  @override
+  String get vibeEmptyDescription =>
+      'Drop images or official .naiv4vibe / .naiv4vibebundle files. Pre-encoded files reuse cached vectors with 0 encode cost.';
+
+  @override
+  String get vibeNormalizeStrengths => 'Normalize Reference Strengths';
+
+  @override
+  String get vibeInfoExtracted => 'Information Extracted';
+
+  @override
+  String get vibeUnsupportedModelHint =>
+      'Vibe Transfer is not available on V5. Use Precise Reference or switch to V4.5 / V4 / V3.';
+
+  @override
+  String get vibeBlockedByPreciseHint =>
+      'Precise Reference is active; Vibe Transfer is bypassed while Precise Reference images are enabled.';
+
+  @override
+  String vibeOverFourCostHint(int cost) {
+    return 'Using more than 4 vibes adds +2 Anlas per extra vibe per image (+$cost Anlas).';
+  }
+
+  @override
+  String get vibeStatusUnsupported => 'Unsupported';
+
+  @override
+  String get vibeStatusRawV3 => 'V3 Raw Image';
+
+  @override
+  String get vibeStatusMissingSource => 'Missing Image';
+
+  @override
+  String get vibeStatusEncoded => 'Encoded (0 Anlas)';
+
+  @override
+  String get vibeStatusNeedsEncode => 'Needs Encode (+2 Anlas)';
+
+  @override
+  String get vibeStatusMissingModelEncoding => 'No Model Encoding';
+
+  @override
+  String get vibeEncodeNow => 'Encode Now (2 Anlas)';
+
+  @override
+  String get vibeEncodingNow => 'Encoding...';
+
+  @override
+  String get vibeMissingEncodingHint =>
+      'This pre-encoded file has no encoding for the selected model and no raw image to re-encode.';
+
+  @override
+  String get vibeV3MissingImageHint =>
+      'V3 Vibe Transfer requires raw image bytes; encoding-only files cannot be used on V3.';
+
+  @override
+  String get canvasActionSendToVibe => 'Add to Vibe Transfer';
+
+  @override
+  String get canvasAddedToVibe => 'Added to Vibe Transfer';
 }

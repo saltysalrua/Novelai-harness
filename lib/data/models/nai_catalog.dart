@@ -130,6 +130,55 @@ enum NaiModel {
   /// Opus 免费生成是否受 V5 体力配额池限制 (透支后不再抵扣，按正常价扣点)
   bool get hasOpusUsageLimit => isV5;
 
+  /// 是否支持精准参考 (Precise Reference: V5 Full/Curated 与 V4.5 Full/Curated)
+  bool get supportsPreciseReference =>
+      isV5 || this == NaiModel.v45Full || this == NaiModel.v45Curated;
+
+  /// 局部重绘 (Inpainting) 是否支持精准参考 (V4.5 支持，V5 官网暂未支持)
+  bool get supportsPreciseReferenceInpainting =>
+      this == NaiModel.v45Full || this == NaiModel.v45Curated;
+
+  /// 是否支持服装参考 (Outfit / `costume`) 与「倾向相同服装」开关 (仅 V5)
+  bool get supportsOutfitReferences => isV5;
+
+  /// 是否保留 Fidelity (保真度) 滑块 (仅 V4.5；V5 已移除，固定按 1.0 处理)
+  bool get supportsPreciseReferenceFidelity =>
+      this == NaiModel.v45Full || this == NaiModel.v45Curated;
+
+  /// 精准参考 Strength 滑块推荐上限 (V5 为 5.0，V4.5 为 1.0)
+  double get preciseReferenceStrengthMax => isV5 ? 5.0 : 1.0;
+
+  /// 精准参考图片预处理是否采用 V5 97 档 1MP 桶裁切 (V4.5 采用三档黑底居中填充)
+  bool get usesBucketPreciseReferenceResize => isV5;
+
+  /// 是否支持 Vibe Transfer (V4.5 / V4 / V3 支持；V5 官网目前未开放)
+  bool get supportsVibeTransfer => !isV5;
+
+  /// 是否使用编码式 Vibe Transfer (`/ai/encode-vibe`，V4 与 V4.5；V3 直接发原图)
+  bool get usesEncodedVibeTransfer =>
+      this == NaiModel.v45Full ||
+      this == NaiModel.v45Curated ||
+      this == NaiModel.v4Full ||
+      this == NaiModel.v4Curated;
+
+  /// 官方 `.naiv4vibe` 文件 `encodings` 字典中的模型键名
+  String? get vibeEncodingKey => switch (this) {
+    NaiModel.v45Full => 'v4-5full',
+    NaiModel.v45Curated => 'v4-5curated',
+    NaiModel.v4Full => 'v4full',
+    NaiModel.v4Curated => 'v4curated',
+    _ => null,
+  };
+
+  /// 从 `.naiv4vibe` 的模型键或模型 ID 解析对应的 [NaiModel]
+  static NaiModel? fromVibeEncodingKey(String key) => switch (key.trim()) {
+    'v4-5full' || 'nai-diffusion-4-5-full' => NaiModel.v45Full,
+    'v4-5curated' || 'nai-diffusion-4-5-curated' => NaiModel.v45Curated,
+    'v4full' || 'nai-diffusion-4-full' => NaiModel.v4Full,
+    'v4curated' || 'nai-diffusion-4-curated-preview' => NaiModel.v4Curated,
+    _ => null,
+  };
+
   /// 对应的 NovelAI 官方 Inpainting 重绘模型 ID
   String get inpaintModelId => switch (this) {
     NaiModel.v5Full => 'nai-diffusion-5-full-inpainting',

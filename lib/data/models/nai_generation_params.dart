@@ -6,7 +6,9 @@ import 'dart:typed_data';
 import 'banned_word_sanitizer.dart';
 import 'nai_catalog.dart';
 import 'nai_character_prompt.dart';
+import 'nai_precise_reference.dart';
 import 'nai_prompt_presets.dart';
+import 'nai_vibe_reference.dart';
 
 /// 图像生成请求参数
 class NaiGenerationParams {
@@ -50,6 +52,17 @@ class NaiGenerationParams {
   /// false = 自定义定位 (发送 use_coords=true 与各角色 center)
   final bool characterAiPosition;
 
+  /// 精准参考图列表 (Precise Reference / Director Reference；仅 V5 / V4.5 生效，
+  /// 仅驻留内存工作台状态，不写入 SharedPreferences 配置 JSON)
+  final List<NaiPreciseReference> preciseReferences;
+
+  /// Vibe Transfer 参考列表 (V4.5 / V4 / V3 生效；V5 不支持；与精准参考互斥；
+  /// 仅驻留内存工作台状态，不写入 SharedPreferences 配置 JSON)
+  final List<NaiVibeReference> vibeReferences;
+
+  /// 多张编码式 Vibe (V4/V4.5) 是否开启强度归一化 (官网默认 true)
+  final bool normalizeVibeStrength;
+
   const NaiGenerationParams({
     required this.prompt,
     this.negativePrompt = '',
@@ -77,6 +90,9 @@ class NaiGenerationParams {
     this.bannedWords = '',
     this.characterPrompts = const [],
     this.characterAiPosition = true,
+    this.preciseReferences = const [],
+    this.vibeReferences = const [],
+    this.normalizeVibeStrength = true,
   });
 
   /// 返回给 Agent 前按违禁词开关处理一段文本。
@@ -182,10 +198,48 @@ class NaiGenerationParams {
     return effective;
   }
 
+  /// 当前模型下实际生效的精准参考图列表。
+  /// [forInpaint] 为 true 时按模型是否支持局部重绘参考过滤 (V5 暂不支持，返回空)。
+  List<NaiPreciseReference> effectivePreciseReferences({
+    bool forInpaint = false,
+  }) {
+    if (preciseReferences.isEmpty || !model.supportsPreciseReference) {
+      return const [];
+    }
+    return preciseReferences
+        .where((r) => r.isEffectiveFor(model, forInpaint: forInpaint))
+        .toList();
+  }
+
+  /// 是否存在激活的精准参考图 (普通文生图)
+  bool get hasEffectivePreciseReferences =>
+      effectivePreciseReferences().isNotEmpty;
+
+  /// 当前模型下实际生效的 Vibe Transfer 列表。
+  /// 对齐官网互斥规则：V5 不支持 Vibe Transfer；V4.5 下若已激活精准参考则屏蔽 Vibe。
+  List<NaiVibeReference> effectiveVibeReferences() {
+    if (vibeReferences.isEmpty ||
+        !model.supportsVibeTransfer ||
+        hasEffectivePreciseReferences) {
+      return const [];
+    }
+    return vibeReferences.where((v) => v.isEffectiveFor(model)).toList();
+  }
+
+  /// 是否存在激活的 Vibe Transfer 参考
+  bool get hasEffectiveVibeReferences => effectiveVibeReferences().isNotEmpty;
+
   /// 算力开关只在 V5 Full 上生效。
   bool get supportsEffort => model == NaiModel.v5Full;
 
-  NaiEffort get effectiveEffort => supportsEffort ? effort : NaiEffort.high;
+  /// V5 Full 启用精准参考时强制走 High effort (官网规则：节约档不支持精准参考)
+  bool get isEffortForcedByPreciseReference =>
+      supportsEffort && hasEffectivePreciseReferences;
+
+  NaiEffort get effectiveEffort =>
+      supportsEffort && !isEffortForcedByPreciseReference
+      ? effort
+      : NaiEffort.high;
 
   bool get isMediumEffort => effectiveEffort == NaiEffort.medium;
 
@@ -248,14 +302,123 @@ class NaiGenerationParams {
     _ => 0,
   };
 
-  /// 判定是否符合 Opus 免点数条件 (像素数 <= 1048576 且 步数 <= 28 且 样本数 = 1)
-  /// 节约档按锁定的 14 步判断。
-  bool get isOpusFree =>
-      width * height <= 1048576 && effectiveSteps <= 28 && nSamples == 1;
+  /// 判定是否符合 Opus 免点数条件 (像素数 <= 1048576 且 步数 <= 28 且 样本数 = 1，
+  /// 且无精准参考、且 Vibe 未超 4 张免费槽位也无待服务端编码的原图)。
+  bool get isOpusFree {
+    if (hasEffectivePreciseReferences) return false;
+    final activeVibes = effectiveVibeReferences();
+    if (activeVibes.length > 4) return false;
+    if (activeVibes.any((v) => v.needsServerEncodingFor(model))) return false;
+    return width * height <= 1048576 && effectiveSteps <= 28 && nSamples == 1;
+  }
+
+  /// 构建 Vibe Transfer 协议字段块 (仅普通生图支持，Inpainting 不下发)。
+  Map<String, dynamic> _buildVibeTransferPayload({
+    List<String>? preparedVibeImages,
+  }) {
+    final activeVibes = effectiveVibeReferences();
+    if (activeVibes.isEmpty) return const {};
+
+    if (model.usesEncodedVibeTransfer) {
+      final encodings = <String>[];
+      final rawStrengths = <double>[];
+      if (preparedVibeImages != null &&
+          preparedVibeImages.length == activeVibes.length) {
+        for (var i = 0; i < activeVibes.length; i++) {
+          final enc = preparedVibeImages[i];
+          if (enc.isEmpty) continue;
+          encodings.add(enc);
+          rawStrengths.add(activeVibes[i].strength);
+        }
+      } else {
+        for (final vibe in activeVibes) {
+          final enc = vibe.resolveEncodingFor(model);
+          if (enc == null || enc.isEmpty) continue;
+          encodings.add(enc);
+          rawStrengths.add(vibe.strength);
+        }
+      }
+      if (encodings.isEmpty) return const {};
+      final normalizedStrengths = NaiVibeReference.normalizeStrengths(
+        rawStrengths,
+        normalize: normalizeVibeStrength,
+      );
+      return {
+        'reference_image_multiple': encodings,
+        'reference_strength_multiple': normalizedStrengths,
+        'normalize_reference_strength_multiple': normalizeVibeStrength,
+      };
+    }
+
+    // V3 / Furry V3 原图式 Vibe Transfer
+    final encodedImages =
+        (preparedVibeImages != null &&
+            preparedVibeImages.length == activeVibes.length)
+        ? preparedVibeImages
+        : activeVibes
+              .where((v) => v.hasRawImage)
+              .map((v) => base64Encode(v.rawImageBytes!))
+              .toList();
+    if (encodedImages.length != activeVibes.length) return const {};
+    return {
+      'reference_image_multiple': encodedImages,
+      'reference_information_extracted_multiple': activeVibes
+          .map((v) => v.informationExtracted)
+          .toList(),
+      'reference_strength_multiple': activeVibes
+          .map((v) => v.strength)
+          .toList(),
+    };
+  }
+
+  /// 构建精准参考 (Director Reference) 协议字段块；无生效参考时返回空 Map。
+  Map<String, dynamic> _buildPreciseReferencePayload({
+    required bool forInpaint,
+    List<String>? preparedReferenceImages,
+  }) {
+    final activeRefs = effectivePreciseReferences(forInpaint: forInpaint);
+    if (activeRefs.isEmpty) return const {};
+
+    final encodedImages =
+        (preparedReferenceImages != null &&
+            preparedReferenceImages.length == activeRefs.length)
+        ? preparedReferenceImages
+        : activeRefs.map((r) => base64Encode(r.imageBytes)).toList();
+
+    return {
+      'director_reference_images': encodedImages,
+      'director_reference_descriptions': activeRefs
+          .map(
+            (r) => {
+              'caption': {
+                'base_caption': r.resolveApiDescription(model),
+                'char_captions': <dynamic>[],
+              },
+              'legacy_uc': false,
+            },
+          )
+          .toList(),
+      'director_reference_information_extracted': activeRefs
+          .map((r) => r.informationExtracted)
+          .toList(),
+      'director_reference_strength_values': activeRefs
+          .map((r) => r.strength)
+          .toList(),
+      'director_reference_secondary_strength_values': activeRefs
+          .map((r) => r.resolveApiSecondaryStrength(model))
+          .toList(),
+    };
+  }
 
   /// 构建发送给 NovelAI 官方的 JSON 请求体
   /// [streaming] 为 true 时附带 stream=msgpack 参数，请求流式中间帧 (仅 V4+ 模型支持)
-  Map<String, dynamic> toApiPayload({bool streaming = false}) {
+  /// [preparedReferenceImages] 为经后台 Isolate 按官网桶尺寸/黑底预处理后的纯 Base64 PNG 列表
+  /// [preparedVibeImages] 为 V4/V4.5 编码向量或 V3 448×448 PNG 的 Base64 列表
+  Map<String, dynamic> toApiPayload({
+    bool streaming = false,
+    List<String>? preparedReferenceImages,
+    List<String>? preparedVibeImages,
+  }) {
     final apiPrompt = effectivePrompt;
     final apiNegative = requestNegativePrompt;
     final isV4OrAbove = model.isV4OrAbove;
@@ -302,6 +465,13 @@ class NaiGenerationParams {
       // 坐标量化到 1/4 步长，V5 为自由连续小数坐标。
       final parts = _buildCharacterPayloadParts();
       final useCoords = this.useCoords;
+      final referenceFields = _buildPreciseReferencePayload(
+        forInpaint: false,
+        preparedReferenceImages: preparedReferenceImages,
+      );
+      final vibeFields = _buildVibeTransferPayload(
+        preparedVibeImages: preparedVibeImages,
+      );
 
       return {
         'input': apiPrompt,
@@ -309,6 +479,8 @@ class NaiGenerationParams {
         'action': 'generate',
         'parameters': {
           ...baseParameters,
+          ...referenceFields,
+          ...vibeFields,
           'params_version': 4,
           'use_coords': useCoords,
           'legacy_v3_extend': false,
@@ -333,12 +505,20 @@ class NaiGenerationParams {
       };
     }
 
-    // v3 时代模型才下发 SMEA 开关
+    // v3 时代模型才下发 SMEA 开关 (同时支持 V3 原图式 Vibe Transfer)
+    final v3VibeFields = _buildVibeTransferPayload(
+      preparedVibeImages: preparedVibeImages,
+    );
     return {
       'input': apiPrompt,
       'model': apiModelId,
       'action': 'generate',
-      'parameters': {...baseParameters, 'sm': false, 'sm_dyn': false},
+      'parameters': {
+        ...baseParameters,
+        ...v3VibeFields,
+        'sm': false,
+        'sm_dyn': false,
+      },
     };
   }
 
@@ -351,6 +531,7 @@ class NaiGenerationParams {
     double strength = 0.70,
     double noise = 0.00,
     bool streaming = false,
+    List<String>? preparedReferenceImages,
   }) {
     final apiPrompt = effectivePrompt;
     final apiNegative = requestNegativePrompt;
@@ -397,6 +578,10 @@ class NaiGenerationParams {
     if (isV4OrAbove) {
       final parts = _buildCharacterPayloadParts();
       final useCoords = this.useCoords;
+      final referenceFields = _buildPreciseReferencePayload(
+        forInpaint: true,
+        preparedReferenceImages: preparedReferenceImages,
+      );
 
       return {
         'input': apiPrompt,
@@ -404,6 +589,7 @@ class NaiGenerationParams {
         'action': 'infill',
         'parameters': {
           ...baseParameters,
+          ...referenceFields,
           'params_version': 4,
           'use_coords': useCoords,
           'legacy_v3_extend': false,
@@ -463,6 +649,9 @@ class NaiGenerationParams {
     String? bannedWords,
     List<NaiCharacterPrompt>? characterPrompts,
     bool? characterAiPosition,
+    List<NaiPreciseReference>? preciseReferences,
+    List<NaiVibeReference>? vibeReferences,
+    bool? normalizeVibeStrength,
   }) {
     return NaiGenerationParams(
       prompt: prompt ?? this.prompt,
@@ -491,6 +680,10 @@ class NaiGenerationParams {
       bannedWords: bannedWords ?? this.bannedWords,
       characterPrompts: characterPrompts ?? this.characterPrompts,
       characterAiPosition: characterAiPosition ?? this.characterAiPosition,
+      preciseReferences: preciseReferences ?? this.preciseReferences,
+      vibeReferences: vibeReferences ?? this.vibeReferences,
+      normalizeVibeStrength:
+          normalizeVibeStrength ?? this.normalizeVibeStrength,
     );
   }
 
@@ -521,6 +714,7 @@ class NaiGenerationParams {
     'bannedWords': bannedWords,
     'characterPrompts': characterPrompts.map((c) => c.toJson()).toList(),
     'characterAiPosition': characterAiPosition,
+    'normalizeVibeStrength': normalizeVibeStrength,
   };
 
   factory NaiGenerationParams.fromJson(Map<String, dynamic> json) {
@@ -575,6 +769,7 @@ class NaiGenerationParams {
       bannedWords: json['bannedWords'] as String? ?? '',
       characterPrompts: characters,
       characterAiPosition: json['characterAiPosition'] as bool? ?? true,
+      normalizeVibeStrength: json['normalizeVibeStrength'] as bool? ?? true,
     );
   }
 

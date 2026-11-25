@@ -53,6 +53,7 @@ import '../../../../data/services/palette_service.dart';
 import '../../../../data/services/rtx_upscale_service.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../data/services/inpaint_service.dart';
+import '../../../../data/services/vibe_transfer_service.dart';
 import '../../../../data/services/watermark_service.dart';
 import '../../../../data/services/prompt_library_mention.dart';
 import '../../../../data/services/prompt_library_service.dart';
@@ -78,10 +79,11 @@ part 'studio_vm_harness.dart';
 part 'studio_vm_inpaint.dart';
 part 'studio_vm_layout.dart';
 part 'studio_vm_library.dart';
+part 'studio_vm_references.dart';
 part 'studio_vm_sessions.dart';
 part 'studio_vm_slash.dart';
 
-enum StudioSidebarTab { parameters, prompts, inpaint, library }
+enum StudioSidebarTab { parameters, prompts, reference, inpaint, library }
 
 /// 核心状态 Mixin：集中声明全部状态字段、Getters 与跨分部共享的读写入口。
 ///
@@ -659,6 +661,9 @@ mixin _StudioCore on ChangeNotifier {
   /// 退出修复模式并切回进入修复前的主工作台页签
   void exitInpaintMode({bool expandSidebar = false});
 
+  /// 在生图前为当前模型下尚未缓存编码的 V4/V4.5 Vibe 预先编码并写回缓存
+  Future<bool> ensurePendingVibesEncoded();
+
   /// 历史大图完整字节缓存通知器：避免大图加载逐帧触发 notifyListeners() 全局重建
   ValueNotifier<Map<String, Uint8List>> get imageBytesNotifier =>
       _repository.imageBytesNotifier;
@@ -777,7 +782,8 @@ class StudioViewModel extends ChangeNotifier
         _StudioCharactersMixin,
         _StudioSlashMixin,
         _StudioLibraryMixin,
-        _StudioInpaintMixin {
+        _StudioInpaintMixin,
+        _StudioReferencesMixin {
   /// 公开入口在主类实现；本地 GPU 生命周期由生图分部管理。
   @override
   Future<void> upscaleRtx(NaiGeneratedImage image) {
@@ -912,12 +918,14 @@ class StudioViewModel extends ChangeNotifier
     final savedTabName = await _configService.loadSidebarActiveTab();
     _activeSidebarTab = switch (savedTabName) {
       'prompts' => StudioSidebarTab.prompts,
+      'reference' => StudioSidebarTab.reference,
       'inpaint' => StudioSidebarTab.inpaint,
       'library' => StudioSidebarTab.library,
       _ => StudioSidebarTab.parameters,
     };
     if (_activeSidebarTab == StudioSidebarTab.parameters ||
-        _activeSidebarTab == StudioSidebarTab.prompts) {
+        _activeSidebarTab == StudioSidebarTab.prompts ||
+        _activeSidebarTab == StudioSidebarTab.reference) {
       _tabBeforeInpaint = _activeSidebarTab;
     }
 

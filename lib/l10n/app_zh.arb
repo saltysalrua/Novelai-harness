@@ -1981,5 +1981,72 @@
   "inpaintShowMask": "显示蒙版 (V)",
   "inpaintZoomOut": "缩小视图",
   "inpaintZoomIn": "放大视图",
-  "inpaintZoomReset": "适应画布 (0)"
+  "inpaintZoomReset": "适应画布 (0)",
+  "sidebarTabReference": "参考",
+  "tabReference": "精准参考",
+  "referencePageSubtitle": "通过参考图控制角色外观、画风与服装 (每张 +5 Anlas)",
+  "referencePickImage": "选择图片",
+  "referencePasteImage": "粘贴图片",
+  "referenceUseCanvasImage": "当前画板图",
+  "referenceDropTitle": "松开鼠标添加精准参考图",
+  "referenceDropSubtitle": "支持 PNG / JPG / WebP，可一次拖入多张",
+  "referenceEmptyTitle": "暂无精准参考图",
+  "referenceEmptyDescription": "拖入、选择或粘贴图片以引导生成。V5 支持角色、风格与服装参考，强度可调至 5.0。",
+  "referenceTypeLabel": "参考类型",
+  "referenceTypeCharacter": "角色",
+  "referenceTypeCharacterAndStyle": "角色与风格",
+  "referenceTypeStyle": "风格",
+  "referenceTypeOutfit": "服装",
+  "referencePreferSameOutfit": "倾向相同服装",
+  "referenceStrength": "参考强度",
+  "referenceFidelity": "保真度",
+  "referenceCostPerGen": "+{cost} Anlas / 次",
+  "@referenceCostPerGen": {
+    "placeholders": {
+      "cost": {"type": "int"}
+    }
+  },
+  "referenceUnsupportedModelHint": "当前模型不支持精准参考，请切换至 V5 或 V4.5 模型。",
+  "referenceComfyModeHint": "当前处于 ComfyUI 模式，精准参考仅在 NovelAI 模式下生效。",
+  "referenceV5InpaintHint": "V5 局部修复暂不支持精准参考，普通生图正常生效。",
+  "referenceOutfitUnsupportedBadge": "当前模型不支持服装参考，发送时将忽略",
+  "referenceClipboardEmpty": "剪贴板中没有可用图片",
+  "referenceImageItemTitle": "参考图 #{index}",
+  "@referenceImageItemTitle": {
+    "placeholders": {
+      "index": {"type": "int"}
+    }
+  },
+  "paramsEffortForcedByReferenceHint": "精准参考需要通常档，移除或停用全部精准参考图后可切回节约档。",
+  "canvasActionSendToReference": "设为精准参考",
+  "canvasAddedToReference": "已添加到精准参考",
+  "vibeTabTitle": "Vibe Transfer",
+  "vibePageSubtitle": "迁移参考图氛围与风格 (前 4 张免槽位费，V4/V4.5 新图编码 2 Anlas)",
+  "vibePickFile": "选择图片 / Vibe",
+  "vibeDropTitle": "松开鼠标导入 Vibe Transfer",
+  "vibeDropSubtitle": "支持 PNG / JPG / WebP / .naiv4vibe / .naiv4vibebundle",
+  "vibeEmptyTitle": "暂无 Vibe Transfer 参考",
+  "vibeEmptyDescription": "支持拖入图片或官方 .naiv4vibe / .naiv4vibebundle 预编码文件；预编码文件可零编码费直接复用。",
+  "vibeNormalizeStrengths": "归一化多图强度 (Normalize Strengths)",
+  "vibeInfoExtracted": "信息提取度",
+  "vibeUnsupportedModelHint": "V5 模型暂未开放 Vibe Transfer，请使用「精准参考」或切换至 V4.5 / V4 / V3 模型。",
+  "vibeBlockedByPreciseHint": "已启用精准参考图，当前生成将优先使用精准参考并忽略 Vibe Transfer。",
+  "vibeOverFourCostHint": "启用超过 4 张 Vibe 时，超出的槽位按每张每图 +2 Anlas 计费 (当前 +{cost} Anlas)。",
+  "@vibeOverFourCostHint": {
+    "placeholders": {
+      "cost": {"type": "int"}
+    }
+  },
+  "vibeStatusUnsupported": "当前模型不支持",
+  "vibeStatusRawV3": "V3 原图直传",
+  "vibeStatusMissingSource": "缺少原图",
+  "vibeStatusEncoded": "已编码 (0 Anlas)",
+  "vibeStatusNeedsEncode": "待编码 (+2 Anlas)",
+  "vibeStatusMissingModelEncoding": "缺少当前模型编码",
+  "vibeEncodeNow": "立即编码 (2 Anlas)",
+  "vibeEncodingNow": "编码中...",
+  "vibeMissingEncodingHint": "该预编码文件不包含当前模型的编码且无原始图，无法在当前模型下使用。",
+  "vibeV3MissingImageHint": "V3 Vibe Transfer 需要原始图片字节，纯编码文件无法用于 V3。",
+  "canvasActionSendToVibe": "设为 Vibe Transfer",
+  "canvasAddedToVibe": "已添加到 Vibe Transfer"
 }

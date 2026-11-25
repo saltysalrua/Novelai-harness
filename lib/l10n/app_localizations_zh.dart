@@ -4489,4 +4489,173 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get inpaintZoomReset => '适应画布 (0)';
+
+  @override
+  String get sidebarTabReference => '参考';
+
+  @override
+  String get tabReference => '精准参考';
+
+  @override
+  String get referencePageSubtitle => '通过参考图控制角色外观、画风与服装 (每张 +5 Anlas)';
+
+  @override
+  String get referencePickImage => '选择图片';
+
+  @override
+  String get referencePasteImage => '粘贴图片';
+
+  @override
+  String get referenceUseCanvasImage => '当前画板图';
+
+  @override
+  String get referenceDropTitle => '松开鼠标添加精准参考图';
+
+  @override
+  String get referenceDropSubtitle => '支持 PNG / JPG / WebP，可一次拖入多张';
+
+  @override
+  String get referenceEmptyTitle => '暂无精准参考图';
+
+  @override
+  String get referenceEmptyDescription =>
+      '拖入、选择或粘贴图片以引导生成。V5 支持角色、风格与服装参考，强度可调至 5.0。';
+
+  @override
+  String get referenceTypeLabel => '参考类型';
+
+  @override
+  String get referenceTypeCharacter => '角色';
+
+  @override
+  String get referenceTypeCharacterAndStyle => '角色与风格';
+
+  @override
+  String get referenceTypeStyle => '风格';
+
+  @override
+  String get referenceTypeOutfit => '服装';
+
+  @override
+  String get referencePreferSameOutfit => '倾向相同服装';
+
+  @override
+  String get referenceStrength => '参考强度';
+
+  @override
+  String get referenceFidelity => '保真度';
+
+  @override
+  String referenceCostPerGen(int cost) {
+    return '+$cost Anlas / 次';
+  }
+
+  @override
+  String get referenceUnsupportedModelHint => '当前模型不支持精准参考，请切换至 V5 或 V4.5 模型。';
+
+  @override
+  String get referenceComfyModeHint => '当前处于 ComfyUI 模式，精准参考仅在 NovelAI 模式下生效。';
+
+  @override
+  String get referenceV5InpaintHint => 'V5 局部修复暂不支持精准参考，普通生图正常生效。';
+
+  @override
+  String get referenceOutfitUnsupportedBadge => '当前模型不支持服装参考，发送时将忽略';
+
+  @override
+  String get referenceClipboardEmpty => '剪贴板中没有可用图片';
+
+  @override
+  String referenceImageItemTitle(int index) {
+    return '参考图 #$index';
+  }
+
+  @override
+  String get paramsEffortForcedByReferenceHint =>
+      '精准参考需要通常档，移除或停用全部精准参考图后可切回节约档。';
+
+  @override
+  String get canvasActionSendToReference => '设为精准参考';
+
+  @override
+  String get canvasAddedToReference => '已添加到精准参考';
+
+  @override
+  String get vibeTabTitle => 'Vibe Transfer';
+
+  @override
+  String get vibePageSubtitle => '迁移参考图氛围与风格 (前 4 张免槽位费，V4/V4.5 新图编码 2 Anlas)';
+
+  @override
+  String get vibePickFile => '选择图片 / Vibe';
+
+  @override
+  String get vibeDropTitle => '松开鼠标导入 Vibe Transfer';
+
+  @override
+  String get vibeDropSubtitle =>
+      '支持 PNG / JPG / WebP / .naiv4vibe / .naiv4vibebundle';
+
+  @override
+  String get vibeEmptyTitle => '暂无 Vibe Transfer 参考';
+
+  @override
+  String get vibeEmptyDescription =>
+      '支持拖入图片或官方 .naiv4vibe / .naiv4vibebundle 预编码文件；预编码文件可零编码费直接复用。';
+
+  @override
+  String get vibeNormalizeStrengths => '归一化多图强度 (Normalize Strengths)';
+
+  @override
+  String get vibeInfoExtracted => '信息提取度';
+
+  @override
+  String get vibeUnsupportedModelHint =>
+      'V5 模型暂未开放 Vibe Transfer，请使用「精准参考」或切换至 V4.5 / V4 / V3 模型。';
+
+  @override
+  String get vibeBlockedByPreciseHint =>
+      '已启用精准参考图，当前生成将优先使用精准参考并忽略 Vibe Transfer。';
+
+  @override
+  String vibeOverFourCostHint(int cost) {
+    return '启用超过 4 张 Vibe 时，超出的槽位按每张每图 +2 Anlas 计费 (当前 +$cost Anlas)。';
+  }
+
+  @override
+  String get vibeStatusUnsupported => '当前模型不支持';
+
+  @override
+  String get vibeStatusRawV3 => 'V3 原图直传';
+
+  @override
+  String get vibeStatusMissingSource => '缺少原图';
+
+  @override
+  String get vibeStatusEncoded => '已编码 (0 Anlas)';
+
+  @override
+  String get vibeStatusNeedsEncode => '待编码 (+2 Anlas)';
+
+  @override
+  String get vibeStatusMissingModelEncoding => '缺少当前模型编码';
+
+  @override
+  String get vibeEncodeNow => '立即编码 (2 Anlas)';
+
+  @override
+  String get vibeEncodingNow => '编码中...';
+
+  @override
+  String get vibeMissingEncodingHint => '该预编码文件不包含当前模型的编码且无原始图，无法在当前模型下使用。';
+
+  @override
+  String get vibeV3MissingImageHint =>
+      'V3 Vibe Transfer 需要原始图片字节，纯编码文件无法用于 V3。';
+
+  @override
+  String get canvasActionSendToVibe => '设为 Vibe Transfer';
+
+  @override
+  String get canvasAddedToVibe => '已添加到 Vibe Transfer';
 }

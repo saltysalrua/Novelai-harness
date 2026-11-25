@@ -15,6 +15,8 @@ library;
 export 'banned_word_sanitizer.dart';
 export 'nai_catalog.dart';
 export 'nai_character_prompt.dart';
+export 'nai_precise_reference.dart';
+export 'nai_vibe_reference.dart';
 export 'nai_generation_params.dart';
 export 'nai_image_result.dart';
 export 'nai_account_info.dart';

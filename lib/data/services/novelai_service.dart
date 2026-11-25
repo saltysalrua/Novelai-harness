@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:msgpack_dart/msgpack_dart.dart' as msgpack;
 import '../models/novelai_models.dart';
 import 'isolated_compute.dart';
+import 'precise_reference_image_service.dart';
+import 'vibe_transfer_service.dart';
 
 /// 异步并发互斥锁 (保证严格单并发，防止触发官方 429)
 class AsyncLock {
@@ -41,6 +43,7 @@ class NovelAiService {
   static const String _generateEndpoint = '$_host/ai/generate-image';
   static const String _generateStreamEndpoint =
       '$_host/ai/generate-image-stream';
+  static const String _encodeVibeEndpoint = '$_host/ai/encode-vibe';
   static const String _upscaleEndpoint = '$_host/ai/upscale';
 
   /// V5 换代后 /ai/upscale 使用的固定模型与去模糊参数 (服务端不再接受 scale)
@@ -93,7 +96,10 @@ class NovelAiService {
     // 官方流式端点仅支持 V4+ 模型，旧模型静默降级为标准 ZIP 归档模式
     // (必须在拿锁前判断：generateImage 内部会自行加锁，不可重入)
     if (!params.model.isV4OrAbove) {
-      final images = await generateImage(apiKey: apiKey, params: params);
+      final images = await generateImage(
+        apiKey: apiKey,
+        params: params,
+      );
       if (images.isEmpty) {
         yield NaiStreamProgress.error('生图响应中未包含任何图片。');
       } else {
@@ -107,7 +113,19 @@ class NovelAiService {
 
     await _lock.acquire();
     try {
-      final payload = params.toApiPayload(streaming: true);
+      final preparedRefs = await _preparePreciseReferences(
+        params,
+        forInpaint: false,
+      );
+      final preparedVibes = await _prepareVibeImagesLocked(
+        apiKey: apiKey,
+        params: params,
+      );
+      final payload = params.toApiPayload(
+        streaming: true,
+        preparedReferenceImages: preparedRefs,
+        preparedVibeImages: preparedVibes,
+      );
       yield* _executeMsgpackStream(
         apiKey: apiKey,
         body: jsonEncode(payload),
@@ -130,10 +148,21 @@ class NovelAiService {
       throw Exception('未配置 NovelAI API Key，请在设置中输入有效的 Token。');
     }
 
-    final payload = params.toApiPayload();
-    final body = jsonEncode(payload);
-
     return await _lock.runExclusive(() async {
+      final preparedRefs = await _preparePreciseReferences(
+        params,
+        forInpaint: false,
+      );
+      final preparedVibes = await _prepareVibeImagesLocked(
+        apiKey: apiKey,
+        params: params,
+      );
+      final payload = params.toApiPayload(
+        preparedReferenceImages: preparedRefs,
+        preparedVibeImages: preparedVibes,
+      );
+      final body = jsonEncode(payload);
+
       http.Response response = await _postWithAuth(
         _generateEndpoint,
         apiKey,
@@ -153,6 +182,99 @@ class NovelAiService {
       final zipBytes = response.bodyBytes;
       return _extractImagesFromZip(zipBytes);
     });
+  }
+
+  /// 调用 NovelAI 官方 `/ai/encode-vibe` 对参考图进行编码 (仅 V4 / V4.5，每次消耗 2 Anlas)。
+  /// 返回 Base64 编码字符串，可缓存复用避免重复扣费。
+  Future<String> encodeVibe({
+    required String apiKey,
+    required Uint8List imageBytes,
+    required NaiModel model,
+    double informationExtracted = 1.0,
+  }) async {
+    if (apiKey.trim().isEmpty) {
+      throw Exception('未配置 NovelAI API Key，请在设置中输入有效的 Token。');
+    }
+    if (!model.usesEncodedVibeTransfer) {
+      throw StateError('当前模型 (${model.label}) 不使用服务端 Vibe 编码。');
+    }
+    return _lock.runExclusive(
+      () => _encodeVibeLocked(
+        apiKey: apiKey,
+        imageBytes: imageBytes,
+        model: model,
+        informationExtracted: informationExtracted,
+      ),
+    );
+  }
+
+  Future<String> _encodeVibeLocked({
+    required String apiKey,
+    required Uint8List imageBytes,
+    required NaiModel model,
+    required double informationExtracted,
+  }) async {
+    final body = jsonEncode({
+      'image': base64Encode(imageBytes),
+      'model': model.id,
+      'information_extracted': informationExtracted.clamp(0.01, 1.0),
+    });
+
+    http.Response response = await _postWithAuth(
+      _encodeVibeEndpoint,
+      apiKey,
+      body,
+    );
+
+    if (response.statusCode == 429) {
+      await Future.delayed(retryDelay);
+      response = await _postWithAuth(_encodeVibeEndpoint, apiKey, body);
+    }
+
+    if (response.statusCode != 200) {
+      throw _parseHttpError(response, 'Vibe 编码请求失败');
+    }
+
+    if (response.bodyBytes.isEmpty) {
+      throw Exception('Vibe 编码响应为空。');
+    }
+    return base64Encode(response.bodyBytes);
+  }
+
+  /// 在并发互斥锁保护下为本次生成准备 Vibe Transfer 数据：
+  /// - V4 / V4.5：优先复用已缓存编码；缺失或信息提取度变化时自动调 `/ai/encode-vibe`；
+  /// - V3 / Furry V3：后台 Isolate 缩放为 448×448 黑底居中 PNG Base64。
+  Future<List<String>?> _prepareVibeImagesLocked({
+    required String apiKey,
+    required NaiGenerationParams params,
+  }) async {
+    final activeVibes = params.effectiveVibeReferences();
+    if (activeVibes.isEmpty) return null;
+
+    if (!params.model.usesEncodedVibeTransfer) {
+      return VibeTransferService.prepareV3Images(activeVibes);
+    }
+
+    final results = <String>[];
+    for (final vibe in activeVibes) {
+      final cached = vibe.resolveEncodingFor(params.model);
+      if (cached != null && cached.isNotEmpty) {
+        results.add(cached);
+        continue;
+      }
+      final raw = vibe.rawImageBytes;
+      if (raw == null || raw.isEmpty) {
+        throw StateError('Vibe「${vibe.displayName}」缺少当前模型编码且无原始图片。');
+      }
+      final encoding = await _encodeVibeLocked(
+        apiKey: apiKey,
+        imageBytes: raw,
+        model: params.model,
+        informationExtracted: vibe.informationExtracted,
+      );
+      results.add(encoding);
+    }
+    return results;
   }
 
   /// 实时流式局部重绘 (Infill)
@@ -194,6 +316,10 @@ class NovelAiService {
 
     await _lock.acquire();
     try {
+      final preparedRefs = await _preparePreciseReferences(
+        params,
+        forInpaint: true,
+      );
       final payload = params.toInfillApiPayload(
         sourceBytes: sourceBytes,
         maskBytes: maskBytes,
@@ -202,6 +328,7 @@ class NovelAiService {
         strength: strength,
         noise: noise,
         streaming: true,
+        preparedReferenceImages: preparedRefs,
       );
       yield* _executeMsgpackStream(
         apiKey: apiKey,
@@ -364,6 +491,20 @@ class NovelAiService {
     }
   }
 
+  Future<List<String>?> _preparePreciseReferences(
+    NaiGenerationParams params, {
+    required bool forInpaint,
+  }) async {
+    final activeRefs = params.effectivePreciseReferences(
+      forInpaint: forInpaint,
+    );
+    if (activeRefs.isEmpty) return null;
+    return PreciseReferenceImageService.prepareImagesForModel(
+      references: activeRefs,
+      model: params.model,
+    );
+  }
+
   Future<void> _discardResponseStream(http.StreamedResponse response) async {
     final sub = response.stream.listen((_) {}, onError: (_) {});
     try {
@@ -389,6 +530,10 @@ class NovelAiService {
       throw Exception('未配置 NovelAI API Key，请在设置中输入有效的 Token。');
     }
 
+    final preparedRefs = await _preparePreciseReferences(
+      params,
+      forInpaint: true,
+    );
     final payload = params.toInfillApiPayload(
       sourceBytes: sourceBytes,
       maskBytes: maskBytes,
@@ -397,6 +542,7 @@ class NovelAiService {
       strength: strength,
       noise: noise,
       streaming: false,
+      preparedReferenceImages: preparedRefs,
     );
     final body = jsonEncode(payload);
 

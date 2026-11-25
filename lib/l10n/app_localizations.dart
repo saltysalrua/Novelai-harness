@@ -8252,6 +8252,318 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'适应画布 (0)'**
   String get inpaintZoomReset;
+
+  /// No description provided for @sidebarTabReference.
+  ///
+  /// In zh, this message translates to:
+  /// **'参考'**
+  String get sidebarTabReference;
+
+  /// No description provided for @tabReference.
+  ///
+  /// In zh, this message translates to:
+  /// **'精准参考'**
+  String get tabReference;
+
+  /// No description provided for @referencePageSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'通过参考图控制角色外观、画风与服装 (每张 +5 Anlas)'**
+  String get referencePageSubtitle;
+
+  /// No description provided for @referencePickImage.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择图片'**
+  String get referencePickImage;
+
+  /// No description provided for @referencePasteImage.
+  ///
+  /// In zh, this message translates to:
+  /// **'粘贴图片'**
+  String get referencePasteImage;
+
+  /// No description provided for @referenceUseCanvasImage.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前画板图'**
+  String get referenceUseCanvasImage;
+
+  /// No description provided for @referenceDropTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'松开鼠标添加精准参考图'**
+  String get referenceDropTitle;
+
+  /// No description provided for @referenceDropSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持 PNG / JPG / WebP，可一次拖入多张'**
+  String get referenceDropSubtitle;
+
+  /// No description provided for @referenceEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无精准参考图'**
+  String get referenceEmptyTitle;
+
+  /// No description provided for @referenceEmptyDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'拖入、选择或粘贴图片以引导生成。V5 支持角色、风格与服装参考，强度可调至 5.0。'**
+  String get referenceEmptyDescription;
+
+  /// No description provided for @referenceTypeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'参考类型'**
+  String get referenceTypeLabel;
+
+  /// No description provided for @referenceTypeCharacter.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色'**
+  String get referenceTypeCharacter;
+
+  /// No description provided for @referenceTypeCharacterAndStyle.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色与风格'**
+  String get referenceTypeCharacterAndStyle;
+
+  /// No description provided for @referenceTypeStyle.
+  ///
+  /// In zh, this message translates to:
+  /// **'风格'**
+  String get referenceTypeStyle;
+
+  /// No description provided for @referenceTypeOutfit.
+  ///
+  /// In zh, this message translates to:
+  /// **'服装'**
+  String get referenceTypeOutfit;
+
+  /// No description provided for @referencePreferSameOutfit.
+  ///
+  /// In zh, this message translates to:
+  /// **'倾向相同服装'**
+  String get referencePreferSameOutfit;
+
+  /// No description provided for @referenceStrength.
+  ///
+  /// In zh, this message translates to:
+  /// **'参考强度'**
+  String get referenceStrength;
+
+  /// No description provided for @referenceFidelity.
+  ///
+  /// In zh, this message translates to:
+  /// **'保真度'**
+  String get referenceFidelity;
+
+  /// No description provided for @referenceCostPerGen.
+  ///
+  /// In zh, this message translates to:
+  /// **'+{cost} Anlas / 次'**
+  String referenceCostPerGen(int cost);
+
+  /// No description provided for @referenceUnsupportedModelHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前模型不支持精准参考，请切换至 V5 或 V4.5 模型。'**
+  String get referenceUnsupportedModelHint;
+
+  /// No description provided for @referenceComfyModeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前处于 ComfyUI 模式，精准参考仅在 NovelAI 模式下生效。'**
+  String get referenceComfyModeHint;
+
+  /// No description provided for @referenceV5InpaintHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'V5 局部修复暂不支持精准参考，普通生图正常生效。'**
+  String get referenceV5InpaintHint;
+
+  /// No description provided for @referenceOutfitUnsupportedBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前模型不支持服装参考，发送时将忽略'**
+  String get referenceOutfitUnsupportedBadge;
+
+  /// No description provided for @referenceClipboardEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'剪贴板中没有可用图片'**
+  String get referenceClipboardEmpty;
+
+  /// No description provided for @referenceImageItemTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'参考图 #{index}'**
+  String referenceImageItemTitle(int index);
+
+  /// No description provided for @paramsEffortForcedByReferenceHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'精准参考需要通常档，移除或停用全部精准参考图后可切回节约档。'**
+  String get paramsEffortForcedByReferenceHint;
+
+  /// No description provided for @canvasActionSendToReference.
+  ///
+  /// In zh, this message translates to:
+  /// **'设为精准参考'**
+  String get canvasActionSendToReference;
+
+  /// No description provided for @canvasAddedToReference.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加到精准参考'**
+  String get canvasAddedToReference;
+
+  /// No description provided for @vibeTabTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'Vibe Transfer'**
+  String get vibeTabTitle;
+
+  /// No description provided for @vibePageSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'迁移参考图氛围与风格 (前 4 张免槽位费，V4/V4.5 新图编码 2 Anlas)'**
+  String get vibePageSubtitle;
+
+  /// No description provided for @vibePickFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择图片 / Vibe'**
+  String get vibePickFile;
+
+  /// No description provided for @vibeDropTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'松开鼠标导入 Vibe Transfer'**
+  String get vibeDropTitle;
+
+  /// No description provided for @vibeDropSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持 PNG / JPG / WebP / .naiv4vibe / .naiv4vibebundle'**
+  String get vibeDropSubtitle;
+
+  /// No description provided for @vibeEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无 Vibe Transfer 参考'**
+  String get vibeEmptyTitle;
+
+  /// No description provided for @vibeEmptyDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持拖入图片或官方 .naiv4vibe / .naiv4vibebundle 预编码文件；预编码文件可零编码费直接复用。'**
+  String get vibeEmptyDescription;
+
+  /// No description provided for @vibeNormalizeStrengths.
+  ///
+  /// In zh, this message translates to:
+  /// **'归一化多图强度 (Normalize Strengths)'**
+  String get vibeNormalizeStrengths;
+
+  /// No description provided for @vibeInfoExtracted.
+  ///
+  /// In zh, this message translates to:
+  /// **'信息提取度'**
+  String get vibeInfoExtracted;
+
+  /// No description provided for @vibeUnsupportedModelHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'V5 模型暂未开放 Vibe Transfer，请使用「精准参考」或切换至 V4.5 / V4 / V3 模型。'**
+  String get vibeUnsupportedModelHint;
+
+  /// No description provided for @vibeBlockedByPreciseHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已启用精准参考图，当前生成将优先使用精准参考并忽略 Vibe Transfer。'**
+  String get vibeBlockedByPreciseHint;
+
+  /// No description provided for @vibeOverFourCostHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'启用超过 4 张 Vibe 时，超出的槽位按每张每图 +2 Anlas 计费 (当前 +{cost} Anlas)。'**
+  String vibeOverFourCostHint(int cost);
+
+  /// No description provided for @vibeStatusUnsupported.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前模型不支持'**
+  String get vibeStatusUnsupported;
+
+  /// No description provided for @vibeStatusRawV3.
+  ///
+  /// In zh, this message translates to:
+  /// **'V3 原图直传'**
+  String get vibeStatusRawV3;
+
+  /// No description provided for @vibeStatusMissingSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'缺少原图'**
+  String get vibeStatusMissingSource;
+
+  /// No description provided for @vibeStatusEncoded.
+  ///
+  /// In zh, this message translates to:
+  /// **'已编码 (0 Anlas)'**
+  String get vibeStatusEncoded;
+
+  /// No description provided for @vibeStatusNeedsEncode.
+  ///
+  /// In zh, this message translates to:
+  /// **'待编码 (+2 Anlas)'**
+  String get vibeStatusNeedsEncode;
+
+  /// No description provided for @vibeStatusMissingModelEncoding.
+  ///
+  /// In zh, this message translates to:
+  /// **'缺少当前模型编码'**
+  String get vibeStatusMissingModelEncoding;
+
+  /// No description provided for @vibeEncodeNow.
+  ///
+  /// In zh, this message translates to:
+  /// **'立即编码 (2 Anlas)'**
+  String get vibeEncodeNow;
+
+  /// No description provided for @vibeEncodingNow.
+  ///
+  /// In zh, this message translates to:
+  /// **'编码中...'**
+  String get vibeEncodingNow;
+
+  /// No description provided for @vibeMissingEncodingHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'该预编码文件不包含当前模型的编码且无原始图，无法在当前模型下使用。'**
+  String get vibeMissingEncodingHint;
+
+  /// No description provided for @vibeV3MissingImageHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'V3 Vibe Transfer 需要原始图片字节，纯编码文件无法用于 V3。'**
+  String get vibeV3MissingImageHint;
+
+  /// No description provided for @canvasActionSendToVibe.
+  ///
+  /// In zh, this message translates to:
+  /// **'设为 Vibe Transfer'**
+  String get canvasActionSendToVibe;
+
+  /// No description provided for @canvasAddedToVibe.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加到 Vibe Transfer'**
+  String get canvasAddedToVibe;
 }
 
 class _AppLocalizationsDelegate

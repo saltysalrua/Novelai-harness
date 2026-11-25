@@ -26,6 +26,12 @@ class AppNumberSlider extends StatefulWidget {
   /// 为 false 时锁定输入和滑块，用于算力档位强制参数。
   final bool enabled;
 
+  /// 是否允许在输入框中键入负数 (滑块仍限制在 [min, max] 视觉范围内)
+  final bool allowNegativeInput;
+
+  /// 是否允许在输入框中键入超出 [max] 的数值 (对齐官网 uncap 特性)
+  final bool uncapInput;
+
   const AppNumberSlider({
     super.key,
     this.title,
@@ -36,6 +42,8 @@ class AppNumberSlider extends StatefulWidget {
     this.step,
     this.unit,
     this.enabled = true,
+    this.allowNegativeInput = false,
+    this.uncapInput = false,
     required this.onChanged,
   });
 
@@ -128,13 +136,18 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
       _controller.text = _format(widget.value);
       return;
     }
-    final parsed = double.tryParse(val);
-    if (parsed != null) {
-      final snapped = _snapToStep(parsed);
+    final parsed = double.tryParse(val.trim());
+    if (parsed != null && parsed.isFinite) {
+      double resolved;
+      if (widget.allowNegativeInput || widget.uncapInput) {
+        final lower = widget.allowNegativeInput ? -99.0 : widget.min;
+        final upper = widget.uncapInput ? 99.0 : widget.max;
+        resolved = parsed.clamp(lower, upper).toDouble();
+      } else {
+        resolved = _snapToStep(parsed).clamp(widget.min, widget.max).toDouble();
+      }
       final clamped = double.parse(
-        snapped
-            .clamp(widget.min, widget.max)
-            .toStringAsFixed(widget.fractionDigits),
+        resolved.toStringAsFixed(widget.fractionDigits),
       );
       _controller.text = _format(clamped);
       if (clamped != widget.value) widget.onChanged(clamped);
@@ -209,7 +222,7 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
                 enabled: widget.enabled,
                 keyboardType: TextInputType.numberWithOptions(
                   decimal: widget.fractionDigits > 0,
-                  signed: widget.min < 0,
+                  signed: widget.min < 0 || widget.allowNegativeInput,
                 ),
                 textAlign: TextAlign.center,
                 style: TextStyle(

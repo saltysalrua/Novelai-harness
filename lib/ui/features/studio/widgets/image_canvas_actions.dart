@@ -337,6 +337,34 @@ List<ContextMenuAction> buildImageContextMenuActions(
       label: l10n.canvasActionSendToInpaint,
       onTap: () => viewModel.sendImageToInpaint(image),
     ),
+    ContextMenuItem(
+      icon: Icons.style_outlined,
+      label: l10n.canvasActionSendToReference,
+      onTap: () async {
+        final ok = await viewModel.sendImageToPreciseReference(image);
+        if (context.mounted && ok) {
+          showCanvasSnackBar(
+            context,
+            l10n.canvasAddedToReference,
+            tone: AppToastTone.success,
+          );
+        }
+      },
+    ),
+    ContextMenuItem(
+      icon: Icons.auto_awesome_motion_outlined,
+      label: l10n.canvasActionSendToVibe,
+      onTap: () async {
+        final ok = await viewModel.sendImageToVibeTransfer(image);
+        if (context.mounted && ok) {
+          showCanvasSnackBar(
+            context,
+            l10n.canvasAddedToVibe,
+            tone: AppToastTone.success,
+          );
+        }
+      },
+    ),
     const ContextMenuDivider(),
     ContextMenuItem(
       icon: Icons.zoom_in_rounded,
@@ -381,7 +409,13 @@ List<ContextMenuAction> buildImageContextMenuActions(
       icon: Icons.sync_rounded,
       label: l10n.canvasActionReuseParams,
       onTap: () {
-        viewModel.updateParams(image.params);
+        viewModel.updateParams(
+          image.params.copyWith(
+            preciseReferences: viewModel.preciseReferences,
+            vibeReferences: viewModel.vibeReferences,
+            normalizeVibeStrength: viewModel.normalizeVibeStrength,
+          ),
+        );
         showCanvasSnackBar(context, l10n.canvasAppliedParams);
       },
     ),

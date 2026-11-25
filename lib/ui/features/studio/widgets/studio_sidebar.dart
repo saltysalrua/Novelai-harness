@@ -88,6 +88,21 @@ class StudioSidebar extends StatelessWidget {
             ),
             const SizedBox(height: 4),
 
+            // 导航分类项：精准参考
+            _buildNavItem(
+              key: const Key('sidebar_tab_reference'),
+              icon: Icons.style_outlined,
+              label: l10n.sidebarTabReference,
+              tooltip: l10n.tabReference,
+              isSelected: activeTab == StudioSidebarTab.reference,
+              isTab: true,
+              showBadgeDot:
+                  !viewModel.isComfyUiMode &&
+                  viewModel.hasActiveReferenceGuide,
+              onTap: () => onTabChanged(StudioSidebarTab.reference),
+            ),
+            const SizedBox(height: 4),
+
             // 导航分类项：修复
             _buildNavItem(
               icon: Icons.auto_fix_high_outlined,

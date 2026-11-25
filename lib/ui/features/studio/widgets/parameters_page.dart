@@ -149,9 +149,29 @@ class _ParametersPageState extends State<ParametersPage> {
                       label: l10n.paramsEffortMedium,
                     ),
                   ],
-                  selectedValue: params.effort,
+                  selectedValue: params.effectiveEffort,
                   expand: true,
-                  onValueChanged: viewModel.setEffort,
+                  onValueChanged: params.isEffortForcedByPreciseReference
+                      ? (_) {}
+                      : viewModel.setEffort,
+                ),
+                AppPanelReveal(
+                  visible: params.isEffortForcedByPreciseReference,
+                  openDuration: AppMotionDurations.fast,
+                  closeDuration: AppMotionDurations.quick,
+                  slideOffset: AppMotionDistances.base,
+                  enableBlur: false,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      l10n.paramsEffortForcedByReferenceHint,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: context.colors.warning,
+                      ),
+                    ),
+                  ),
                 ),
                 AppPanelReveal(
                   visible: params.isMediumEffort,

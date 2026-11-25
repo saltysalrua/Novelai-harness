@@ -568,6 +568,21 @@ class NovelAiRepository {
     return image;
   }
 
+  /// 调用官方 `/ai/encode-vibe` 为单张原始图生成 Vibe 编码 (仅 V4/V4.5，单次 2 Anlas)
+  Future<String> encodeVibe({
+    required String apiKey,
+    required Uint8List imageBytes,
+    required NaiModel model,
+    double informationExtracted = 1.0,
+  }) {
+    return _service.encodeVibe(
+      apiKey: apiKey,
+      imageBytes: imageBytes,
+      model: model,
+      informationExtracted: informationExtracted,
+    );
+  }
+
   /// 执行流式生图 (实时输出中间去噪步数帧并在最终完成时落盘存入历史)
   Stream<NaiStreamProgress> generateStream({
     required String apiKey,

@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/services/llm_model_fetcher.dart';
+import 'package:novelai_harness/data/services/precise_reference_image_service.dart';
+import 'package:novelai_harness/data/services/vibe_transfer_service.dart';
 
 void main() {
   group('NovelAI Models & Payload Tests', () {
@@ -867,6 +871,363 @@ void main() {
       expect(comment['sampler'], equals('k_euler_ancestral'));
       expect(comment['cfg_rescale'], equals(0));
       expect(comment['uc'], isNot(contains('extra fingers')));
+    });
+  });
+
+  group('Precise Reference (V5 & V4.5) Protocol & Preprocessing', () {
+    final dummyPng = Uint8List.fromList(
+      img.encodePng(img.Image(width: 64, height: 96)),
+    );
+
+    test('V5 payload maps all reference types, preferSameOutfit, high strength, and forces secondary=0', () {
+      final params = NaiGenerationParams(
+        prompt: '1girl, solo',
+        model: NaiModel.v5Full,
+        effort: NaiEffort.medium,
+        steps: 23,
+        preciseReferences: [
+          NaiPreciseReference(
+            id: 'r1',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.character,
+            preferSameOutfit: false,
+            strength: 1.0,
+            fidelity: 0.4, // V5 应强制按 fidelity=1 -> secondary=0
+          ),
+          NaiPreciseReference(
+            id: 'r2',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.character,
+            preferSameOutfit: true,
+            strength: 2.5,
+          ),
+          NaiPreciseReference(
+            id: 'r3',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.characterAndStyle,
+            preferSameOutfit: true,
+            strength: 3.0,
+          ),
+          NaiPreciseReference(
+            id: 'r4',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.characterAndStyle,
+            preferSameOutfit: false,
+            strength: -0.5,
+          ),
+          NaiPreciseReference(
+            id: 'r5',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.style,
+            strength: 4.5,
+          ),
+          NaiPreciseReference(
+            id: 'r6',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.outfit,
+            strength: 1.2,
+          ),
+          NaiPreciseReference(
+            id: 'r_disabled',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.outfit,
+            enabled: false,
+          ),
+        ],
+      );
+
+      // V5 Full 挂载精准参考时必须强制切回 High effort，且不再 Opus 免费
+      expect(params.isEffortForcedByPreciseReference, isTrue);
+      expect(params.effectiveEffort, equals(NaiEffort.high));
+      expect(params.apiModelId, equals('nai-diffusion-5-full'));
+      expect(params.effectiveSteps, equals(23));
+      expect(params.isOpusFree, isFalse);
+
+      final payload = params.toApiPayload(
+        preparedReferenceImages: ['b1', 'b2', 'b3', 'b4', 'b5', 'b6'],
+      );
+      expect(payload['model'], equals('nai-diffusion-5-full'));
+      final p = payload['parameters'] as Map<String, dynamic>;
+      expect(
+        p['director_reference_images'],
+        equals(['b1', 'b2', 'b3', 'b4', 'b5', 'b6']),
+      );
+      final descs = (p['director_reference_descriptions'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(
+        descs
+            .map((d) => (d['caption'] as Map<String, dynamic>)['base_caption'])
+            .toList(),
+        equals([
+          'character',
+          'character_mainoutfit',
+          'character&style',
+          'character&style_anyoutfit',
+          'style',
+          'costume',
+        ]),
+      );
+      expect(descs.every((d) => d['legacy_uc'] == false), isTrue);
+      expect(
+        p['director_reference_strength_values'],
+        equals([1.0, 2.5, 3.0, -0.5, 4.5, 1.2]),
+      );
+      expect(
+        p['director_reference_secondary_strength_values'],
+        equals([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+      );
+      expect(
+        p['director_reference_information_extracted'],
+        equals([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
+      );
+
+      // V5 Inpainting 暂不支持精准参考，infill 请求不得下发 director_reference_*
+      final infill = params.toInfillApiPayload(
+        sourceBytes: dummyPng,
+        maskBytes: dummyPng,
+        requestWidth: 832,
+        requestHeight: 1216,
+      );
+      final ip = infill['parameters'] as Map<String, dynamic>;
+      expect(ip.containsKey('director_reference_images'), isFalse);
+      expect(ip.containsKey('director_reference_descriptions'), isFalse);
+    });
+
+    test('V4.5 filters outfit, normalizes captions, preserves fidelity, and supports infill', () {
+      final params = NaiGenerationParams(
+        prompt: '1girl',
+        model: NaiModel.v45Full,
+        preciseReferences: [
+          NaiPreciseReference(
+            id: 'r1',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.character,
+            preferSameOutfit: true,
+            strength: 0.8,
+            fidelity: 0.7,
+          ),
+          NaiPreciseReference(
+            id: 'r2',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.characterAndStyle,
+            preferSameOutfit: false,
+            strength: 0.9,
+            fidelity: 0.25,
+          ),
+          NaiPreciseReference(
+            id: 'r3',
+            imageBytes: dummyPng,
+            type: NaiPreciseRefType.outfit,
+          ),
+        ],
+      );
+
+      final payload = params.toApiPayload(preparedReferenceImages: ['x1', 'x2']);
+      final p = payload['parameters'] as Map<String, dynamic>;
+      final descs = (p['director_reference_descriptions'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(
+        descs
+            .map((d) => (d['caption'] as Map<String, dynamic>)['base_caption'])
+            .toList(),
+        equals(['character', 'character&style']),
+      );
+      expect(
+        p['director_reference_secondary_strength_values'],
+        equals([0.3, 0.75]),
+      );
+
+      final infill = params.toInfillApiPayload(
+        sourceBytes: dummyPng,
+        maskBytes: dummyPng,
+        requestWidth: 832,
+        requestHeight: 1216,
+        preparedReferenceImages: ['x1', 'x2'],
+      );
+      final ip = infill['parameters'] as Map<String, dynamic>;
+      expect(ip['director_reference_images'], equals(['x1', 'x2']));
+    });
+
+    test('PreciseReferenceImageService V5 97-bucket crop & V4.5 letterbox match official geometry', () {
+      expect(PreciseReferenceImageService.v5Buckets.length, equals(97));
+
+      // 精确命中 832x1216 桶时 unchanged=true
+      final exact = PreciseReferenceImageService.computeV5BucketCrop(832, 1216);
+      expect(exact.unchanged, isTrue);
+      expect((exact.width, exact.height), equals((832, 1216)));
+
+      // 600x900 (2:3) -> 匹配 832x1216 桶并产出精确 832x1216 PNG
+      final srcPortrait = Uint8List.fromList(
+        img.encodePng(img.Image(width: 600, height: 900)),
+      );
+      final v5Out = PreciseReferenceImageService.processSingleImageBytes(
+        srcPortrait,
+        useV5Bucket: true,
+      );
+      final v5Decoded = img.decodePng(v5Out)!;
+      expect((v5Decoded.width, v5Decoded.height), equals((832, 1216)));
+
+      // V4.5 竖/横/方图分别命中三档标准大尺寸
+      final v45Portrait = PreciseReferenceImageService.computeV45Letterbox(
+        600,
+        900,
+      );
+      expect(
+        (v45Portrait.canvasWidth, v45Portrait.canvasHeight),
+        equals((1024, 1536)),
+      );
+      final v45Landscape = PreciseReferenceImageService.computeV45Letterbox(
+        1600,
+        900,
+      );
+      expect(
+        (v45Landscape.canvasWidth, v45Landscape.canvasHeight),
+        equals((1536, 1024)),
+      );
+      final v45Square = PreciseReferenceImageService.computeV45Letterbox(
+        500,
+        500,
+      );
+      expect(
+        (v45Square.canvasWidth, v45Square.canvasHeight),
+        equals((1472, 1472)),
+      );
+    });
+  });
+
+  group('Vibe Transfer Protocol, Codec & V3 Preprocessing', () {
+    final dummyPng = Uint8List.fromList(
+      img.encodePng(img.Image(width: 120, height: 60)),
+    );
+
+    test('V4.5 encoded Vibe Transfer normalizes strengths and respects Precise Reference exclusivity', () {
+      final v1 = NaiVibeReference(
+        id: 'v1',
+        displayName: 'style_a.naiv4vibe',
+        sourceType: NaiVibeSourceType.naiv4vibe,
+        encodingsByModel: const {'nai-diffusion-4-5-full': 'ENC_A'},
+        encodedInfoExtractedByModel: const {'nai-diffusion-4-5-full': 1.0},
+        strength: 0.8,
+        informationExtracted: 1.0,
+      );
+      final v2 = NaiVibeReference(
+        id: 'v2',
+        displayName: 'style_b.naiv4vibe',
+        sourceType: NaiVibeSourceType.naiv4vibe,
+        encodingsByModel: const {'nai-diffusion-4-5-full': 'ENC_B'},
+        encodedInfoExtractedByModel: const {'nai-diffusion-4-5-full': 1.0},
+        strength: 1.2,
+        informationExtracted: 1.0,
+      );
+
+      final params = NaiGenerationParams(
+        prompt: '1girl',
+        model: NaiModel.v45Full,
+        vibeReferences: [v1, v2],
+        normalizeVibeStrength: true,
+      );
+      expect(params.isOpusFree, isTrue);
+
+      final payload = params.toApiPayload();
+      final p = payload['parameters'] as Map<String, dynamic>;
+      expect(p['reference_image_multiple'], equals(['ENC_A', 'ENC_B']));
+      // 0.8 + 1.2 = 2.0 > 1.0 -> 归一化为 [0.4, 0.6]
+      expect(p['reference_strength_multiple'], equals([0.4, 0.6]));
+      expect(p['normalize_reference_strength_multiple'], isTrue);
+      // 编码式 Vibe 不发送 reference_information_extracted_multiple
+      expect(p.containsKey('reference_information_extracted_multiple'), isFalse);
+
+      // 与精准参考同时激活时，精准参考优先、Vibe 被屏蔽
+      final withPrecise = params.copyWith(
+        preciseReferences: [
+          NaiPreciseReference(id: 'pr1', imageBytes: dummyPng),
+        ],
+      );
+      final p2 =
+          withPrecise.toApiPayload(preparedReferenceImages: ['REF_1'])['parameters']
+              as Map<String, dynamic>;
+      expect(p2.containsKey('director_reference_images'), isTrue);
+      expect(p2.containsKey('reference_image_multiple'), isFalse);
+
+      // V5 不支持 Vibe Transfer
+      final v5Params = params.copyWith(model: NaiModel.v5Full);
+      final pV5 = v5Params.toApiPayload()['parameters'] as Map<String, dynamic>;
+      expect(pV5.containsKey('reference_image_multiple'), isFalse);
+    });
+
+    test('V3 Vibe Transfer sends raw image arrays with info_extracted and 448x448 preprocessing', () {
+      final v3Vibe = NaiVibeReference(
+        id: 'v3_1',
+        displayName: 'ref.png',
+        rawImageBytes: dummyPng,
+        strength: 0.7,
+        informationExtracted: 0.85,
+      );
+      final params = NaiGenerationParams(
+        prompt: '1girl',
+        model: NaiModel.v3,
+        vibeReferences: [v3Vibe],
+      );
+      final payload = params.toApiPayload(preparedVibeImages: ['V3_448_B64']);
+      final p = payload['parameters'] as Map<String, dynamic>;
+      expect(p['reference_image_multiple'], equals(['V3_448_B64']));
+      expect(p['reference_strength_multiple'], equals([0.7]));
+      expect(p['reference_information_extracted_multiple'], equals([0.85]));
+
+      final processed = VibeTransferService.processV3ImageBytes(dummyPng);
+      final decoded = img.decodePng(processed)!;
+      expect((decoded.width, decoded.height), equals((448, 448)));
+    });
+
+    test('VibeTransferService parses .naiv4vibe and .naiv4vibebundle with multi-model encodings', () {
+      final singleJson = jsonEncode({
+        'identifier': 'novelai-vibe-transfer',
+        'version': 1,
+        'type': 'encoding',
+        'name': 'WaterColor',
+        'importInfo': {
+          'model': 'nai-diffusion-4-5-full',
+          'information_extracted': 0.7,
+          'strength': 0.55,
+        },
+        'encodings': {
+          'v4-5full': {
+            'k1': {
+              'encoding': 'ENCODED_V45',
+              'params': {'information_extracted': 0.7},
+            },
+          },
+          'v4full': {
+            'k2': {
+              'encoding': 'ENCODED_V4',
+              'params': {'information_extracted': 0.7},
+            },
+          },
+        },
+      });
+
+      final parsedSingle = VibeTransferService.parseFileBytesSync(
+        fileName: 'watercolor.naiv4vibe',
+        bytes: Uint8List.fromList(utf8.encode(singleJson)),
+      );
+      expect(parsedSingle.length, equals(1));
+      final ref = parsedSingle.first.toReference('id1');
+      expect(ref.displayName, equals('WaterColor'));
+      expect(ref.strength, equals(0.55));
+      expect(ref.resolveEncodingFor(NaiModel.v45Full), equals('ENCODED_V45'));
+      expect(ref.resolveEncodingFor(NaiModel.v4Full), equals('ENCODED_V4'));
+      expect(ref.needsServerEncodingFor(NaiModel.v45Full), isFalse);
+
+      final bundleJson = jsonEncode({
+        'identifier': 'novelai-vibe-transfer-bundle',
+        'version': 1,
+        'vibes': [jsonDecode(singleJson), jsonDecode(singleJson)],
+      });
+      final parsedBundle = VibeTransferService.parseFileBytesSync(
+        fileName: 'pack.naiv4vibebundle',
+        bytes: Uint8List.fromList(utf8.encode(bundleJson)),
+      );
+      expect(parsedBundle.length, equals(2));
     });
   });
 }

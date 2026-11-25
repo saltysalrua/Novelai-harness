@@ -120,9 +120,11 @@ Novelai-harness/
 │   │   │   ├── image_palette.dart              # 图片主色盘模型 (ImagePalette/PaletteColor) 与种子色文本互转
 │   │   │   ├── inpaint_models.dart             # 局部修复与焦点特写模型 (InpaintMode/Geometry/BrushStroke/Params)
 │   │   │   ├── llm_cache_config.dart           # LLM 缓存策略配置模型
-│   │   │   ├── nai_catalog.dart                # NaiModel/采样器/噪声调度/分辨率预设枚举 (含 inpaintModelId)
+│   │   │   ├── nai_catalog.dart                # NaiModel/采样器/噪声调度/分辨率预设枚举 (含 inpaintModelId 与精准参考能力位)
 │   │   │   ├── nai_character_prompt.dart       # 多角色提示词模型、位置布局与坐标量化
-│   │   │   ├── nai_generation_params.dart      # 生图参数实体与官方 Payload 构建 (含 toInfillApiPayload)
+│   │   │   ├── nai_precise_reference.dart      # 精准参考模型 (V5 角色/风格/服装与倾向相同服装 + V4.5 保真度映射)
+│   │   │   ├── nai_vibe_reference.dart         # Vibe Transfer 参考模型 (多模型编码缓存 / 信息提取度 / 强度归一化)
+│   │   │   ├── nai_generation_params.dart      # 生图参数实体与官方 Payload 构建 (含 toInfillApiPayload、精准参考与 Vibe Transfer)
 │   │   │   ├── nai_image_result.dart           # 图片生成结果、流式进度帧与导出标记 (含角标文案)
 │   │   │   ├── nai_account_info.dart           # 账号等级、V5 体力池余量与官方 Tag 联想模型
 │   │   │   ├── nai_prompt_presets.dart         # 质量词/UC 预设与提示词文本后处理
@@ -139,7 +141,9 @@ Novelai-harness/
 │   │   ├── services/
 │   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与纯内存 ZIP 解包
 │   │   │   ├── anysearch_service.dart          # AnySearch 官方 REST 客户端 (搜索/子域目录/正文提取，信封解析与 Bearer/匿名双模式)
-│   │   │   ├── anlas_calculator.dart           # 现代 Anlas 消耗计算单一事实源 (Opus 免费档/分档超分计费)
+│   │   │   ├── anlas_calculator.dart           # 现代 Anlas 消耗计算单一事实源 (Opus 免费档/精准参考叠加/分档超分计费)
+│   │   │   ├── precise_reference_image_service.dart # 精准参考图后台 Isolate 预处理 (V5 97 档 1MP 桶裁切 / V4.5 三档黑底居中)
+│   │   │   ├── vibe_transfer_service.dart      # Vibe Transfer 文件解析 (.naiv4vibe/.naiv4vibebundle/PNG iTXt) 与 V3 448x448 预处理
 │   │   │   ├── inpaint_service.dart            # 焦点特写几何计算 (1MP 潜空间超采样/64 步长)、量化蒙版与无损回贴
 │   │   │   ├── watermark_service.dart          # 图像导出管道单一事实源 (可见水印/自动对比度/智能选位/Koch-Zhao DCT 盲水印)
 │   │   │   ├── image_save_path_service.dart    # 图片命名宏、生成快照、相对目录模板校验与安全净化
@@ -220,6 +224,7 @@ Novelai-harness/
 │               │   ├── studio_vm_slash.dart     # 斜杠分部：实现 _StudioSlashHost 最小适配并委托分发器
 │               │   ├── slash_command_dispatcher.dart # 无状态斜杠指令分发器 + SlashCommandHost 最小接口 (解耦环依赖)
 │               │   ├── studio_vm_library.dart  # 词库分部：词组合预设库检索/增删改/云同步与一键应用
+│               │   ├── studio_vm_references.dart # 参考分部：精准参考图增删改、画板导入与生效计数
 │               │   ├── studio_vm_comfyui.dart  # ComfyUI 分部：Bridge 连接探测/选项清单拉取/参数推送/排队轮询与统一落图
 │               │   ├── streaming_controllers.dart # 高频瞬态控制器 (StreamingTextController / LiveProgressController)
 │               │   ├── chat_checkpoints.dart   # 消息树分支检查点 (回溯视图数据模型)
@@ -228,11 +233,12 @@ Novelai-harness/
 │               ├── views/
 │               │   └── studio_view.dart        # 工作台主界面：三卡片自适应组装与快捷键监听
 │               └── widgets/
-│                   ├── studio_sidebar.dart      # 最左侧图标导航栏 (参数/提示词/修复/词库四页切换)
-│                   ├── parameter_card.dart      # 左侧面板薄壳容器：四页 IndexedStack + 底部生成坞
+│                   ├── studio_sidebar.dart      # 最左侧图标导航栏 (参数/提示词/参考/修复/词库五页切换)
+│                   ├── parameter_card.dart      # 左侧面板薄壳容器：四页 AppPageStack + 底部生成坞
 │                   ├── parameters_page.dart     # 页面一：模型选择/分辨率/采样算法/CFG/高级选项/水印面板
 │                   ├── prompts_page.dart        # 页面二：正负提示词双模式与提示词扩展甲板
-│                   ├── inpaint_page.dart        # 页面三：Notion 极简修复卡片 (模式切换/几何信息/外延与噪声滑块)
+│                   ├── precise_reference_page.dart # 页面三：精准参考图管理 (角色/风格/服装、倾向相同服装、强度 0~5.0)
+│                   ├── inpaint_page.dart        # 页面四：Notion 极简修复卡片 (模式切换/几何信息/外延与噪声滑块)
 │                   ├── prompt_library_view.dart # 页面四：全屏词组合预设库画廊 (分类导航/卡片网格/导入导出)
 │                   ├── inpaint_canvas_overlay.dart # 独立单图修复画板 (contain 居中对齐/框选/画笔/橡皮/上下文虚线框)
 │                   ├── prompt_extension_deck.dart # 提示词扩展甲板 (多角色 ↔ 固定词缀左右滑动切换)
