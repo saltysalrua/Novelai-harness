@@ -4986,4 +4986,53 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get canvasAddedToVibe => 'Added to Vibe Transfer';
+
+  @override
+  String get pasteDialogTitle => 'Paste Image';
+
+  @override
+  String get pasteDialogSubtitle =>
+      'Choose what to do with the clipboard image (press 1-4 for quick select)';
+
+  @override
+  String get pasteMetadataDetected => 'Generation metadata found';
+
+  @override
+  String get pasteMetadataNone => 'Plain image';
+
+  @override
+  String get pasteActionReadMetadata => 'Inspect Image Metadata';
+
+  @override
+  String get pasteActionReadMetadataSubtitle =>
+      'View prompts, seed, and sampling settings with one-click apply';
+
+  @override
+  String get pasteActionPrecise => 'Add to Precise Reference';
+
+  @override
+  String get pasteActionPreciseSubtitle =>
+      'Add to Precise Reference for character, style, or outfit guidance';
+
+  @override
+  String get pasteActionPreciseUnsupportedSubtitle =>
+      'Add to Precise Reference (switch to V5 or V4.5 to apply)';
+
+  @override
+  String get pasteActionVibe => 'Add to Vibe Transfer';
+
+  @override
+  String get pasteActionVibeSubtitle =>
+      'Add to Vibe Transfer to transfer visual vibe and aesthetics';
+
+  @override
+  String get pasteActionVibeUnsupportedSubtitle =>
+      'Add to Vibe Transfer (not available on V5; switch to V4.5 / V4 / V3)';
+
+  @override
+  String get pasteActionBoard => 'Import to Canvas Board';
+
+  @override
+  String get pasteActionBoardSubtitle =>
+      'Place on the freeform annotation board for reference or review';
 }

@@ -263,6 +263,7 @@ Novelai-harness/
 │                   ├── watermark_position_overlay.dart # 水印 2D 交互画板 (拖拽选位/缩放手柄/滚轮微调)
 │                   ├── canvas_position_floating_controls.dart # 角色与水印悬浮控制栏 + 滚轮循环切换
 │                   ├── metadata_reader_dialog.dart # Notion 极简元数据解析弹窗 (参数网格/角色卡/Raw/一键回填)
+│                   ├── clipboard_image_action_dialog.dart # 全局 Ctrl+V 粘贴图片动作选择弹窗 (读元数据/精准参考/Vibe/大画布)
 │                   ├── palette_inspector_dialog.dart # 图片调色盘弹窗 (主色网格/MD3 方案亮暗预览/一键设主题强调色)
 │                   ├── image_canvas_card.dart  # 中间面板：大图交互画板主壳 (支持拖入带元数据图片自动识别)
 │                   ├── image_stream_view.dart  # 流式生图渲染视图与当前展示大图

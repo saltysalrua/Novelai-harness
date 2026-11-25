@@ -2048,5 +2048,19 @@
   "vibeMissingEncodingHint": "This pre-encoded file has no encoding for the selected model and no raw image to re-encode.",
   "vibeV3MissingImageHint": "V3 Vibe Transfer requires raw image bytes; encoding-only files cannot be used on V3.",
   "canvasActionSendToVibe": "Add to Vibe Transfer",
-  "canvasAddedToVibe": "Added to Vibe Transfer"
+  "canvasAddedToVibe": "Added to Vibe Transfer",
+  "pasteDialogTitle": "Paste Image",
+  "pasteDialogSubtitle": "Choose what to do with the clipboard image (press 1-4 for quick select)",
+  "pasteMetadataDetected": "Generation metadata found",
+  "pasteMetadataNone": "Plain image",
+  "pasteActionReadMetadata": "Inspect Image Metadata",
+  "pasteActionReadMetadataSubtitle": "View prompts, seed, and sampling settings with one-click apply",
+  "pasteActionPrecise": "Add to Precise Reference",
+  "pasteActionPreciseSubtitle": "Add to Precise Reference for character, style, or outfit guidance",
+  "pasteActionPreciseUnsupportedSubtitle": "Add to Precise Reference (switch to V5 or V4.5 to apply)",
+  "pasteActionVibe": "Add to Vibe Transfer",
+  "pasteActionVibeSubtitle": "Add to Vibe Transfer to transfer visual vibe and aesthetics",
+  "pasteActionVibeUnsupportedSubtitle": "Add to Vibe Transfer (not available on V5; switch to V4.5 / V4 / V3)",
+  "pasteActionBoard": "Import to Canvas Board",
+  "pasteActionBoardSubtitle": "Place on the freeform annotation board for reference or review"
 }

@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pasteboard/pasteboard.dart';
 import '../../../../data/services/image_metadata_service.dart';
 import '../../../../data/services/window_state_service.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -25,6 +27,7 @@ import '../../settings/views/settings_dialog.dart';
 import '../view_models/studio_view_model.dart';
 import '../widgets/agent_chat_card.dart';
 import '../widgets/annotation_history_strip.dart';
+import '../widgets/clipboard_image_action_dialog.dart';
 import '../widgets/image_canvas_actions.dart';
 import '../widgets/image_canvas_card.dart';
 import '../widgets/metadata_reader_dialog.dart';
@@ -63,6 +66,9 @@ class _StudioViewState extends State<StudioView> {
 
   /// 根级 ESC 首按时刻 (双击窗口判定)
   DateTime? _lastRootEscTime;
+
+  /// 全局 Ctrl+V 粘贴动作弹窗防重入锁
+  bool _isHandlingGlobalPaste = false;
 
   /// 手机/窄屏模式三卡片水平滑动控制器
   late final PageController _mobilePageController;
@@ -281,34 +287,112 @@ class _StudioViewState extends State<StudioView> {
     return false;
   }
 
-  /// 全局 Ctrl+V 粘贴图片处理：优先解析并弹窗检查元数据，无元数据则导入为画板参考图
+  /// 全局 Ctrl+V 粘贴处理：
+  /// - 剪贴板为 `.naiv4vibe` / `.naiv4vibebundle` 文件时直接导入 Vibe Transfer；
+  /// - 剪贴板为图片时弹出选择弹窗，由用户决定读取元数据、设为精准参考、
+  ///   设为 Vibe Transfer 或导入大画布参考图。
   Future<void> _handleGlobalPaste() async {
+    if (_isHandlingGlobalPaste) return;
+    _isHandlingGlobalPaste = true;
     try {
+      // 1. 优先识别复制的官方 Vibe 文件 (.naiv4vibe / .naiv4vibebundle)
+      if (!kIsWeb) {
+        final files = await Pasteboard.files();
+        if (files.isNotEmpty) {
+          final firstPath = files.first;
+          final lower = firstPath.toLowerCase();
+          if (lower.endsWith('.naiv4vibe') ||
+              lower.endsWith('.naiv4vibebundle')) {
+            final file = File(firstPath);
+            if (await file.exists()) {
+              final bytes = await file.readAsBytes();
+              if (bytes.isNotEmpty && mounted) {
+                final fileName = firstPath.split(Platform.pathSeparator).last;
+                final added = await _viewModel.importVibeReferencesFromFile(
+                  fileName: fileName,
+                  bytes: bytes,
+                  switchToTab: true,
+                );
+                if (added > 0 && mounted) {
+                  if (_isNarrowViewport && _mobilePageIndex != 0) {
+                    _setMobilePage(0);
+                  }
+                  showCanvasSnackBar(context, context.l10n.canvasAddedToVibe);
+                }
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      // 2. 读取剪贴板图片 (优先原始文件路径以保留完整 PNG 元数据)
       final (imageBytes, fileName) =
           await ImageMetadataService.readClipboardImageAsync();
-      if (imageBytes != null && imageBytes.isNotEmpty && mounted) {
-        final metadata = await ImageMetadataService.parseMetadataAsync(
-          imageBytes,
-        );
-        if (metadata != null && metadata.hasData && mounted) {
-          await MetadataReaderDialog.show(
-            context,
-            metadata: metadata,
-            imageBytes: imageBytes,
-            fileName: fileName ?? context.l10n.studioClipboardImageDefaultName,
-            viewModel: _viewModel,
+      if (imageBytes == null || imageBytes.isEmpty || !mounted) return;
+
+      final resolvedName =
+          fileName ?? context.l10n.studioClipboardImageDefaultName;
+      final metadata = await ImageMetadataService.parseMetadataAsync(
+        imageBytes,
+      );
+      if (!mounted) return;
+
+      final action = await ClipboardImageActionDialog.show(
+        context,
+        imageBytes: imageBytes,
+        fileName: resolvedName,
+        metadata: metadata,
+        currentModel: _viewModel.params.model,
+      );
+      if (action == null || !mounted) return;
+
+      switch (action) {
+        case ClipboardImageAction.readMetadata:
+          if (metadata != null && metadata.hasData) {
+            await MetadataReaderDialog.show(
+              context,
+              metadata: metadata,
+              imageBytes: imageBytes,
+              fileName: resolvedName,
+              viewModel: _viewModel,
+            );
+          }
+        case ClipboardImageAction.addPreciseReference:
+          _viewModel.addPreciseReferenceFromBytes(
+            imageBytes,
+            fileName: resolvedName,
+            switchToTab: true,
           );
-        } else if (mounted) {
+          if (_isNarrowViewport && _mobilePageIndex != 0) {
+            _setMobilePage(0);
+          }
+          showCanvasSnackBar(context, context.l10n.canvasAddedToReference);
+        case ClipboardImageAction.addVibeTransfer:
+          final added = await _viewModel.importVibeReferencesFromFile(
+            fileName: resolvedName,
+            bytes: imageBytes,
+            switchToTab: true,
+          );
+          if (added > 0 && mounted) {
+            if (_isNarrowViewport && _mobilePageIndex != 0) {
+              _setMobilePage(0);
+            }
+            showCanvasSnackBar(context, context.l10n.canvasAddedToVibe);
+          }
+        case ClipboardImageAction.importToBoard:
           await _viewModel.board.importReferenceImageFromBytes(
             imageBytes,
-            fileName: fileName,
+            fileName: resolvedName,
           );
           if (mounted) {
             showCanvasSnackBar(context, context.l10n.studioImportedReference);
           }
-        }
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _isHandlingGlobalPaste = false;
+    }
   }
 
   /// 根级 ESC：双击 400ms 内进入回溯视图；单击中断生成/流式

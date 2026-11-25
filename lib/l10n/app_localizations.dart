@@ -8564,6 +8564,90 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已添加到 Vibe Transfer'**
   String get canvasAddedToVibe;
+
+  /// No description provided for @pasteDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'粘贴图片'**
+  String get pasteDialogTitle;
+
+  /// No description provided for @pasteDialogSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择如何处理剪贴板中的图片 (支持数字键 1-4 快速选择)'**
+  String get pasteDialogSubtitle;
+
+  /// No description provided for @pasteMetadataDetected.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测到生成元数据'**
+  String get pasteMetadataDetected;
+
+  /// No description provided for @pasteMetadataNone.
+  ///
+  /// In zh, this message translates to:
+  /// **'普通图片'**
+  String get pasteMetadataNone;
+
+  /// No description provided for @pasteActionReadMetadata.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取图片元数据'**
+  String get pasteActionReadMetadata;
+
+  /// No description provided for @pasteActionReadMetadataSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看提示词、种子与采样参数，支持一键回填到工作台'**
+  String get pasteActionReadMetadataSubtitle;
+
+  /// No description provided for @pasteActionPrecise.
+  ///
+  /// In zh, this message translates to:
+  /// **'设为精准参考'**
+  String get pasteActionPrecise;
+
+  /// No description provided for @pasteActionPreciseSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加到侧边栏精准参考，用于角色、风格或服装引导'**
+  String get pasteActionPreciseSubtitle;
+
+  /// No description provided for @pasteActionPreciseUnsupportedSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加到精准参考 (当前模型不支持，切换至 V5 / V4.5 后生效)'**
+  String get pasteActionPreciseUnsupportedSubtitle;
+
+  /// No description provided for @pasteActionVibe.
+  ///
+  /// In zh, this message translates to:
+  /// **'设为 Vibe Transfer'**
+  String get pasteActionVibe;
+
+  /// No description provided for @pasteActionVibeSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加到侧边栏 Vibe Transfer，迁移画面氛围与风格'**
+  String get pasteActionVibeSubtitle;
+
+  /// No description provided for @pasteActionVibeUnsupportedSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加到 Vibe Transfer (V5 暂不支持，切换至 V4.5 / V4 / V3 后生效)'**
+  String get pasteActionVibeUnsupportedSubtitle;
+
+  /// No description provided for @pasteActionBoard.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入大画布参考图'**
+  String get pasteActionBoard;
+
+  /// No description provided for @pasteActionBoardSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'放入自由画布 / 批注板用于对比或给 AI 审查'**
+  String get pasteActionBoardSubtitle;
 }
 
 class _AppLocalizationsDelegate

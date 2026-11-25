@@ -4658,4 +4658,48 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get canvasAddedToVibe => '已添加到 Vibe Transfer';
+
+  @override
+  String get pasteDialogTitle => '粘贴图片';
+
+  @override
+  String get pasteDialogSubtitle => '选择如何处理剪贴板中的图片 (支持数字键 1-4 快速选择)';
+
+  @override
+  String get pasteMetadataDetected => '检测到生成元数据';
+
+  @override
+  String get pasteMetadataNone => '普通图片';
+
+  @override
+  String get pasteActionReadMetadata => '读取图片元数据';
+
+  @override
+  String get pasteActionReadMetadataSubtitle => '查看提示词、种子与采样参数，支持一键回填到工作台';
+
+  @override
+  String get pasteActionPrecise => '设为精准参考';
+
+  @override
+  String get pasteActionPreciseSubtitle => '添加到侧边栏精准参考，用于角色、风格或服装引导';
+
+  @override
+  String get pasteActionPreciseUnsupportedSubtitle =>
+      '添加到精准参考 (当前模型不支持，切换至 V5 / V4.5 后生效)';
+
+  @override
+  String get pasteActionVibe => '设为 Vibe Transfer';
+
+  @override
+  String get pasteActionVibeSubtitle => '添加到侧边栏 Vibe Transfer，迁移画面氛围与风格';
+
+  @override
+  String get pasteActionVibeUnsupportedSubtitle =>
+      '添加到 Vibe Transfer (V5 暂不支持，切换至 V4.5 / V4 / V3 后生效)';
+
+  @override
+  String get pasteActionBoard => '导入大画布参考图';
+
+  @override
+  String get pasteActionBoardSubtitle => '放入自由画布 / 批注板用于对比或给 AI 审查';
 }
