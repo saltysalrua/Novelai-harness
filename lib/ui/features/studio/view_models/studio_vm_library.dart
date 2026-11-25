@@ -62,15 +62,17 @@ mixin _StudioLibraryMixin on _StudioCore {
     await _reloadPromptLibrary();
   }
 
-  /// 保存本地预览图片并返回路径
+  /// 保存本地预览/参考图片并返回路径
   @override
   Future<String?> savePromptPreviewFromBytes(
     Uint8List bytes, {
     String extension = 'png',
+    String prefix = 'preview',
   }) async {
     return await _promptLibraryService.savePreviewImageBytes(
       bytes,
       extension: extension,
+      prefix: prefix,
     );
   }
 
@@ -201,6 +203,251 @@ mixin _StudioLibraryMixin on _StudioCore {
 
     updateParams(
       _params.copyWith(prompt: nextPrompt, negativePrompt: nextNegativePrompt),
+    );
+  }
+
+  /// 将当前工作台挂载的精准参考图落盘为词库托管条目列表
+  @override
+  Future<List<PromptLibraryPreciseRef>> snapshotWorkspacePreciseReferences() async {
+    final result = <PromptLibraryPreciseRef>[];
+    var seq = 0;
+    for (final ref in _params.preciseReferences) {
+      if (ref.imageBytes.isEmpty) continue;
+      final savedPath = await _promptLibraryService.savePreviewImageBytes(
+        ref.imageBytes,
+        extension: _detectRefImageExt(ref.imageBytes, ref.fileName),
+        prefix: 'ref',
+      );
+      if (savedPath == null || savedPath.isEmpty) continue;
+      result.add(
+        PromptLibraryPreciseRef(
+          id: 'lib_pref_${DateTime.now().microsecondsSinceEpoch}_${++seq}',
+          imagePath: savedPath,
+          fileName: ref.fileName,
+          type: ref.type,
+          preferSameOutfit: ref.preferSameOutfit,
+          strength: ref.strength,
+          fidelity: ref.fidelity,
+          informationExtracted: ref.informationExtracted,
+          enabled: ref.enabled,
+        ),
+      );
+    }
+    return result;
+  }
+
+  /// 将当前工作台挂载的 Vibe Transfer 落盘为词库托管条目列表（完整保留编码缓存）
+  @override
+  Future<List<PromptLibraryVibeRef>> snapshotWorkspaceVibeReferences() async {
+    final result = <PromptLibraryVibeRef>[];
+    var seq = 0;
+    for (final vibe in _params.vibeReferences) {
+      String? rawPath;
+      if (vibe.rawImageBytes != null && vibe.rawImageBytes!.isNotEmpty) {
+        rawPath = await _promptLibraryService.savePreviewImageBytes(
+          vibe.rawImageBytes!,
+          extension: _detectRefImageExt(vibe.rawImageBytes!, vibe.displayName),
+          prefix: 'vibe',
+        );
+      }
+      String? thumbPath;
+      if (vibe.thumbnailBytes != null &&
+          vibe.thumbnailBytes!.isNotEmpty &&
+          !identical(vibe.thumbnailBytes, vibe.rawImageBytes)) {
+        thumbPath = await _promptLibraryService.savePreviewImageBytes(
+          vibe.thumbnailBytes!,
+          extension: _detectRefImageExt(vibe.thumbnailBytes!, null),
+          prefix: 'vthumb',
+        );
+      }
+      if ((rawPath == null || rawPath.isEmpty) && vibe.encodingsByModel.isEmpty) {
+        continue;
+      }
+      result.add(
+        PromptLibraryVibeRef(
+          id: 'lib_vibe_${DateTime.now().microsecondsSinceEpoch}_${++seq}',
+          displayName: vibe.displayName,
+          sourceType: vibe.sourceType,
+          rawImagePath: rawPath,
+          thumbnailPath: thumbPath,
+          encodingsByModel: Map<String, String>.from(vibe.encodingsByModel),
+          encodedInfoExtractedByModel: Map<String, double>.from(
+            vibe.encodedInfoExtractedByModel,
+          ),
+          strength: vibe.strength,
+          informationExtracted: vibe.informationExtracted,
+          enabled: vibe.enabled,
+        ),
+      );
+    }
+    return result;
+  }
+
+  String _detectRefImageExt(Uint8List bytes, String? fileName) {
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return 'png';
+    }
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF) {
+      return 'jpg';
+    }
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'webp';
+    }
+    if (fileName != null) {
+      final ext = p.extension(fileName).replaceAll('.', '').toLowerCase();
+      if (ext == 'jpeg') return 'jpg';
+      if (ext == 'png' || ext == 'jpg' || ext == 'webp') return ext;
+    }
+    return 'png';
+  }
+
+  /// 选择性将词库条目的提示词、精准参考图与 Vibe Transfer 应用到工作台
+  @override
+  Future<({bool appliedPrompt, int appliedPreciseCount, int appliedVibeCount})>
+  applyPromptComboSelective(
+    PromptComboEntry combo, {
+    bool applyPrompt = true,
+    bool replacePrompt = false,
+    bool asCharacter = false,
+    bool asStyle = false,
+    bool applyPreciseReferences = false,
+    bool applyVibeReferences = false,
+    bool replaceReferences = false,
+    Set<String>? selectedPreciseRefIds,
+    Set<String>? selectedVibeRefIds,
+    bool switchToReferenceTab = false,
+  }) async {
+    var didApplyPrompt = false;
+    if (applyPrompt && combo.hasPromptText) {
+      applyPromptCombo(
+        combo,
+        replace: replacePrompt,
+        asCharacter: asCharacter,
+        asStyle: asStyle,
+      );
+      didApplyPrompt = true;
+    }
+
+    var appliedPreciseCount = 0;
+    if (applyPreciseReferences && combo.preciseReferences.isNotEmpty) {
+      final mounted = <NaiPreciseReference>[];
+      for (final ref in combo.preciseReferences) {
+        if (selectedPreciseRefIds != null &&
+            !selectedPreciseRefIds.contains(ref.id)) {
+          continue;
+        }
+        final path = ref.imagePath.trim();
+        if (path.isEmpty) continue;
+        final file = File(path);
+        if (!file.existsSync()) continue;
+        try {
+          final bytes = await file.readAsBytes();
+          if (bytes.isEmpty) continue;
+          mounted.add(
+            NaiPreciseReference(
+              id: ref.id,
+              imageBytes: bytes,
+              fileName: ref.fileName ?? p.basename(path),
+              type: ref.type,
+              preferSameOutfit: ref.preferSameOutfit,
+              strength: ref.strength,
+              fidelity: ref.fidelity,
+              informationExtracted: ref.informationExtracted,
+              enabled: ref.enabled,
+            ),
+          );
+        } catch (_) {}
+      }
+      if (mounted.isNotEmpty) {
+        mountPreciseReferences(
+          mounted,
+          replace: replaceReferences,
+          switchToTab: switchToReferenceTab && !applyVibeReferences,
+        );
+        appliedPreciseCount = mounted.length;
+      }
+    }
+
+    var appliedVibeCount = 0;
+    if (applyVibeReferences && combo.vibeReferences.isNotEmpty) {
+      final mounted = <NaiVibeReference>[];
+      for (final vibe in combo.vibeReferences) {
+        if (selectedVibeRefIds != null &&
+            !selectedVibeRefIds.contains(vibe.id)) {
+          continue;
+        }
+        Uint8List? rawBytes;
+        final rawPath = vibe.rawImagePath?.trim();
+        if (rawPath != null && rawPath.isNotEmpty) {
+          final file = File(rawPath);
+          if (file.existsSync()) {
+            try {
+              final data = await file.readAsBytes();
+              if (data.isNotEmpty) rawBytes = data;
+            } catch (_) {}
+          }
+        }
+        Uint8List? thumbBytes;
+        final thumbPath = vibe.thumbnailPath?.trim();
+        if (thumbPath != null && thumbPath.isNotEmpty) {
+          final file = File(thumbPath);
+          if (file.existsSync()) {
+            try {
+              final data = await file.readAsBytes();
+              if (data.isNotEmpty) thumbBytes = data;
+            } catch (_) {}
+          }
+        }
+        if ((rawBytes == null || rawBytes.isEmpty) &&
+            vibe.encodingsByModel.isEmpty) {
+          continue;
+        }
+        mounted.add(
+          NaiVibeReference(
+            id: vibe.id,
+            displayName: vibe.displayName,
+            sourceType: vibe.sourceType,
+            rawImageBytes: rawBytes,
+            thumbnailBytes: thumbBytes,
+            encodingsByModel: Map<String, String>.from(vibe.encodingsByModel),
+            encodedInfoExtractedByModel: Map<String, double>.from(
+              vibe.encodedInfoExtractedByModel,
+            ),
+            strength: vibe.strength,
+            informationExtracted: vibe.informationExtracted,
+            enabled: vibe.enabled,
+          ),
+        );
+      }
+      if (mounted.isNotEmpty) {
+        mountVibeReferences(
+          mounted,
+          replace: replaceReferences,
+          switchToTab: switchToReferenceTab && appliedPreciseCount == 0,
+        );
+        appliedVibeCount = mounted.length;
+      }
+    }
+
+    return (
+      appliedPrompt: didApplyPrompt,
+      appliedPreciseCount: appliedPreciseCount,
+      appliedVibeCount: appliedVibeCount,
     );
   }
 

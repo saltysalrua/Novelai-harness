@@ -3,14 +3,19 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../../data/models/novelai_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../../data/services/prompt_image_probe.dart';
+import '../../../../data/services/vibe_transfer_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
@@ -23,12 +28,18 @@ class PromptComboEditDialog extends StatefulWidget {
   final StudioViewModel viewModel;
   final PromptComboEntry? initialEntry;
   final String? initialCategory;
+  final List<PromptLibraryPreciseRef>? initialPreciseReferences;
+  final List<PromptLibraryVibeRef>? initialVibeReferences;
+  final Uint8List? initialPreviewBytes;
 
   const PromptComboEditDialog({
     super.key,
     required this.viewModel,
     this.initialEntry,
     this.initialCategory,
+    this.initialPreciseReferences,
+    this.initialVibeReferences,
+    this.initialPreviewBytes,
   });
 
   static Future<void> show(
@@ -36,6 +47,9 @@ class PromptComboEditDialog extends StatefulWidget {
     required StudioViewModel viewModel,
     PromptComboEntry? initialEntry,
     String? initialCategory,
+    List<PromptLibraryPreciseRef>? initialPreciseReferences,
+    List<PromptLibraryVibeRef>? initialVibeReferences,
+    Uint8List? initialPreviewBytes,
   }) {
     return showAppModalDialog<void>(
       context: context,
@@ -45,12 +59,154 @@ class PromptComboEditDialog extends StatefulWidget {
         viewModel: viewModel,
         initialEntry: initialEntry,
         initialCategory: initialCategory,
+        initialPreciseReferences: initialPreciseReferences,
+        initialVibeReferences: initialVibeReferences,
+        initialPreviewBytes: initialPreviewBytes,
       ),
     );
   }
 
   @override
   State<PromptComboEditDialog> createState() => _PromptComboEditDialogState();
+}
+
+class _DraftPreciseRef {
+  final String id;
+  final String? savedPath;
+  final Uint8List? pendingBytes;
+  final String? fileName;
+  final NaiPreciseRefType type;
+  final bool preferSameOutfit;
+  final double strength;
+  final double fidelity;
+  final double informationExtracted;
+  final bool enabled;
+
+  const _DraftPreciseRef({
+    required this.id,
+    this.savedPath,
+    this.pendingBytes,
+    this.fileName,
+    this.type = NaiPreciseRefType.characterAndStyle,
+    this.preferSameOutfit = true,
+    this.strength = 1.0,
+    this.fidelity = 1.0,
+    this.informationExtracted = 1.0,
+    this.enabled = true,
+  });
+
+  factory _DraftPreciseRef.fromSaved(PromptLibraryPreciseRef ref) =>
+      _DraftPreciseRef(
+        id: ref.id,
+        savedPath: ref.imagePath,
+        fileName: ref.fileName,
+        type: ref.type,
+        preferSameOutfit: ref.preferSameOutfit,
+        strength: ref.strength,
+        fidelity: ref.fidelity,
+        informationExtracted: ref.informationExtracted,
+        enabled: ref.enabled,
+      );
+
+  _DraftPreciseRef copyWith({
+    NaiPreciseRefType? type,
+    bool? preferSameOutfit,
+    double? strength,
+  }) {
+    final nextType = type ?? this.type;
+    final nextPreferSameOutfit =
+        preferSameOutfit ??
+        (type != null && type != this.type
+            ? type == NaiPreciseRefType.characterAndStyle
+            : this.preferSameOutfit);
+    return _DraftPreciseRef(
+      id: id,
+      savedPath: savedPath,
+      pendingBytes: pendingBytes,
+      fileName: fileName,
+      type: nextType,
+      preferSameOutfit: nextPreferSameOutfit,
+      strength: strength ?? this.strength,
+      fidelity: fidelity,
+      informationExtracted: informationExtracted,
+      enabled: enabled,
+    );
+  }
+}
+
+class _DraftVibeRef {
+  final String id;
+  final String displayName;
+  final NaiVibeSourceType sourceType;
+  final String? savedRawPath;
+  final Uint8List? pendingRawBytes;
+  final String? savedThumbPath;
+  final Uint8List? pendingThumbBytes;
+  final Map<String, String> encodingsByModel;
+  final Map<String, double> encodedInfoExtractedByModel;
+  final double strength;
+  final double informationExtracted;
+  final bool enabled;
+
+  const _DraftVibeRef({
+    required this.id,
+    required this.displayName,
+    this.sourceType = NaiVibeSourceType.rawImage,
+    this.savedRawPath,
+    this.pendingRawBytes,
+    this.savedThumbPath,
+    this.pendingThumbBytes,
+    this.encodingsByModel = const {},
+    this.encodedInfoExtractedByModel = const {},
+    this.strength = NaiVibeReference.defaultStrength,
+    this.informationExtracted = NaiVibeReference.defaultInfoExtracted,
+    this.enabled = true,
+  });
+
+  factory _DraftVibeRef.fromSaved(PromptLibraryVibeRef vibe) => _DraftVibeRef(
+    id: vibe.id,
+    displayName: vibe.displayName,
+    sourceType: vibe.sourceType,
+    savedRawPath: vibe.rawImagePath,
+    savedThumbPath: vibe.thumbnailPath,
+    encodingsByModel: Map<String, String>.from(vibe.encodingsByModel),
+    encodedInfoExtractedByModel: Map<String, double>.from(
+      vibe.encodedInfoExtractedByModel,
+    ),
+    strength: vibe.strength,
+    informationExtracted: vibe.informationExtracted,
+    enabled: vibe.enabled,
+  );
+
+  Uint8List? get displayBytes =>
+      (pendingThumbBytes != null && pendingThumbBytes!.isNotEmpty)
+      ? pendingThumbBytes
+      : ((pendingRawBytes != null && pendingRawBytes!.isNotEmpty)
+            ? pendingRawBytes
+            : null);
+
+  String? get displayPath =>
+      (savedThumbPath != null && savedThumbPath!.trim().isNotEmpty)
+      ? savedThumbPath
+      : ((savedRawPath != null && savedRawPath!.trim().isNotEmpty)
+            ? savedRawPath
+            : null);
+
+  _DraftVibeRef copyWith({double? strength, double? informationExtracted}) =>
+      _DraftVibeRef(
+        id: id,
+        displayName: displayName,
+        sourceType: sourceType,
+        savedRawPath: savedRawPath,
+        pendingRawBytes: pendingRawBytes,
+        savedThumbPath: savedThumbPath,
+        pendingThumbBytes: pendingThumbBytes,
+        encodingsByModel: encodingsByModel,
+        encodedInfoExtractedByModel: encodedInfoExtractedByModel,
+        strength: strength ?? this.strength,
+        informationExtracted: informationExtracted ?? this.informationExtracted,
+        enabled: enabled,
+      );
 }
 
 class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
@@ -75,6 +231,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   int _titleShakeTrigger = 0;
   int _promptShakeTrigger = 0;
   int _styleShakeTrigger = 0;
+  int _draftRefSeq = 0;
+  final List<_DraftPreciseRef> _preciseRefs = [];
+  final List<_DraftVibeRef> _vibeRefs = [];
 
   bool get _isEdit =>
       widget.initialEntry != null && widget.initialEntry!.id.trim().isNotEmpty;
@@ -123,6 +282,23 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     }
 
     _previewImagePath = entry?.previewImagePath;
+    if (widget.initialPreviewBytes != null &&
+        widget.initialPreviewBytes!.isNotEmpty) {
+      _previewBytes = widget.initialPreviewBytes;
+      _previewAspectRatio = PromptImageProbe.probeBytes(
+        widget.initialPreviewBytes!,
+      );
+    }
+    final seedPrecise =
+        widget.initialPreciseReferences ?? entry?.preciseReferences ?? const [];
+    for (final ref in seedPrecise) {
+      _preciseRefs.add(_DraftPreciseRef.fromSaved(ref));
+    }
+    final seedVibes =
+        widget.initialVibeReferences ?? entry?.vibeReferences ?? const [];
+    for (final vibe in seedVibes) {
+      _vibeRefs.add(_DraftVibeRef.fromSaved(vibe));
+    }
     _resolveInitialAspectRatio();
     _customCategoryController.addListener(() {
       if (mounted) setState(() {});
@@ -315,10 +491,12 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       return;
     }
 
+    final hasAttachedRefs = _preciseRefs.isNotEmpty || _vibeRefs.isNotEmpty;
     if (isStyle) {
       if (prefixPrompt.isEmpty &&
           suffixPrompt.isEmpty &&
-          negativeRaw.isEmpty) {
+          negativeRaw.isEmpty &&
+          !hasAttachedRefs) {
         setState(() => _styleShakeTrigger++);
         showAppToast(
           context,
@@ -328,7 +506,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         );
         return;
       }
-    } else if (prompt.isEmpty) {
+    } else if (prompt.isEmpty && !hasAttachedRefs) {
       setState(() => _promptShakeTrigger++);
       showAppToast(
         context,
@@ -369,6 +547,82 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         );
       }
 
+      // 落盘所有关联精准参考图与 Vibe 原图/缩略图到托管目录
+      final persistedPreciseRefs = <PromptLibraryPreciseRef>[];
+      for (final draft in _preciseRefs) {
+        var imgPath = draft.savedPath;
+        if (draft.pendingBytes != null && draft.pendingBytes!.isNotEmpty) {
+          imgPath = await widget.viewModel.savePromptPreviewFromBytes(
+            draft.pendingBytes!,
+            prefix: 'ref',
+          );
+        } else if (imgPath != null && !imgPath.contains('prompt_previews')) {
+          imgPath = await widget.viewModel.savePromptPreviewFromPath(imgPath);
+        }
+        if (imgPath == null || imgPath.trim().isEmpty) continue;
+        persistedPreciseRefs.add(
+          PromptLibraryPreciseRef(
+            id: draft.id,
+            imagePath: imgPath,
+            fileName: draft.fileName,
+            type: draft.type,
+            preferSameOutfit: draft.preferSameOutfit,
+            strength: draft.strength,
+            fidelity: draft.fidelity,
+            informationExtracted: draft.informationExtracted,
+            enabled: draft.enabled,
+          ),
+        );
+      }
+
+      final persistedVibeRefs = <PromptLibraryVibeRef>[];
+      for (final draft in _vibeRefs) {
+        var rawPath = draft.savedRawPath;
+        if (draft.pendingRawBytes != null &&
+            draft.pendingRawBytes!.isNotEmpty) {
+          rawPath = await widget.viewModel.savePromptPreviewFromBytes(
+            draft.pendingRawBytes!,
+            prefix: 'vibe',
+          );
+        } else if (rawPath != null && !rawPath.contains('prompt_previews')) {
+          rawPath = await widget.viewModel.savePromptPreviewFromPath(rawPath);
+        }
+
+        var thumbPath = draft.savedThumbPath;
+        if (draft.pendingThumbBytes != null &&
+            draft.pendingThumbBytes!.isNotEmpty &&
+            !identical(draft.pendingThumbBytes, draft.pendingRawBytes)) {
+          thumbPath = await widget.viewModel.savePromptPreviewFromBytes(
+            draft.pendingThumbBytes!,
+            prefix: 'vthumb',
+          );
+        } else if (thumbPath != null &&
+            !thumbPath.contains('prompt_previews')) {
+          thumbPath = await widget.viewModel.savePromptPreviewFromPath(
+            thumbPath,
+          );
+        }
+
+        if ((rawPath == null || rawPath.trim().isEmpty) &&
+            draft.encodingsByModel.isEmpty) {
+          continue;
+        }
+        persistedVibeRefs.add(
+          PromptLibraryVibeRef(
+            id: draft.id,
+            displayName: draft.displayName,
+            sourceType: draft.sourceType,
+            rawImagePath: rawPath,
+            thumbnailPath: thumbPath,
+            encodingsByModel: draft.encodingsByModel,
+            encodedInfoExtractedByModel: draft.encodedInfoExtractedByModel,
+            strength: draft.strength,
+            informationExtracted: draft.informationExtracted,
+            enabled: draft.enabled,
+          ),
+        );
+      }
+
       final now = DateTime.now();
       if (_isEdit) {
         final updated = widget.initialEntry!.copyWith(
@@ -380,6 +634,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           suffixPrompt: suffixPrompt,
           previewImagePath: savedImagePath,
           clearPreviewImage: savedImagePath == null,
+          preciseReferences: persistedPreciseRefs,
+          vibeReferences: persistedVibeRefs,
           updatedAt: now,
           tags: rawTags,
         );
@@ -394,6 +650,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           prefixPrompt: prefixPrompt,
           suffixPrompt: suffixPrompt,
           previewImagePath: savedImagePath,
+          preciseReferences: persistedPreciseRefs,
+          vibeReferences: persistedVibeRefs,
           createdAt: now,
           updatedAt: now,
           tags: rawTags,
@@ -1014,7 +1272,534 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           hintText: l10n.libraryEditFieldTagsHint,
         ),
       ),
+      const SizedBox(height: 16),
+
+      // 6. 关联精准参考图与 Vibe Transfer
+      _buildReferenceGuidesSection(context),
     ];
+  }
+
+  void _importRefsFromCurrentWorkspace() {
+    final vm = widget.viewModel;
+    final wsPrecise = vm.preciseReferences;
+    final wsVibes = vm.vibeReferences;
+    if (wsPrecise.isEmpty && wsVibes.isEmpty) {
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditWorkspaceRefsEmpty,
+        tone: AppToastTone.info,
+        duration: const Duration(milliseconds: 1400),
+      );
+      return;
+    }
+    setState(() {
+      for (final ref in wsPrecise) {
+        if (ref.imageBytes.isEmpty) continue;
+        _preciseRefs.add(
+          _DraftPreciseRef(
+            id: 'lib_pref_${DateTime.now().microsecondsSinceEpoch}_${++_draftRefSeq}',
+            pendingBytes: ref.imageBytes,
+            fileName: ref.fileName,
+            type: ref.type,
+            preferSameOutfit: ref.preferSameOutfit,
+            strength: ref.strength,
+            fidelity: ref.fidelity,
+            informationExtracted: ref.informationExtracted,
+            enabled: ref.enabled,
+          ),
+        );
+      }
+      for (final vibe in wsVibes) {
+        if (!vibe.hasRawImage && vibe.encodingsByModel.isEmpty) continue;
+        _vibeRefs.add(
+          _DraftVibeRef(
+            id: 'lib_vibe_${DateTime.now().microsecondsSinceEpoch}_${++_draftRefSeq}',
+            displayName: vibe.displayName,
+            sourceType: vibe.sourceType,
+            pendingRawBytes: vibe.rawImageBytes,
+            pendingThumbBytes: vibe.thumbnailBytes,
+            encodingsByModel: Map<String, String>.from(vibe.encodingsByModel),
+            encodedInfoExtractedByModel: Map<String, double>.from(
+              vibe.encodedInfoExtractedByModel,
+            ),
+            strength: vibe.strength,
+            informationExtracted: vibe.informationExtracted,
+            enabled: vibe.enabled,
+          ),
+        );
+      }
+    });
+    showAppToast(
+      context,
+      message: context.l10n.libraryEditImportedWorkspaceRefs(
+        wsPrecise.length,
+        wsVibes.length,
+      ),
+      tone: AppToastTone.success,
+      duration: const Duration(milliseconds: 1400),
+    );
+  }
+
+  Future<void> _pickPreciseRefFiles() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        allowMultiple: true,
+        withData: true,
+      );
+      if (!mounted || result == null || result.files.isEmpty) return;
+      final added = <_DraftPreciseRef>[];
+      for (final file in result.files) {
+        Uint8List? bytes = file.bytes;
+        if ((bytes == null || bytes.isEmpty) &&
+            file.path != null &&
+            file.path!.isNotEmpty) {
+          final f = File(file.path!);
+          if (await f.exists()) bytes = await f.readAsBytes();
+        }
+        if (bytes == null || bytes.isEmpty) continue;
+        added.add(
+          _DraftPreciseRef(
+            id: 'lib_pref_${DateTime.now().microsecondsSinceEpoch}_${++_draftRefSeq}',
+            pendingBytes: bytes,
+            fileName: file.name,
+            type: _isStyleCategory
+                ? NaiPreciseRefType.style
+                : NaiPreciseRefType.characterAndStyle,
+            preferSameOutfit: !_isStyleCategory,
+          ),
+        );
+      }
+      if (!mounted || added.isEmpty) return;
+      setState(() => _preciseRefs.addAll(added));
+    } catch (e) {
+      if (!mounted) return;
+      showAppToast(context, message: '$e', tone: AppToastTone.error);
+    }
+  }
+
+  Future<void> _pickVibeRefFiles() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: [
+          'png',
+          'jpg',
+          'jpeg',
+          'webp',
+          'naiv4vibe',
+          'naiv4vibebundle',
+        ],
+        allowMultiple: true,
+        withData: true,
+      );
+      if (!mounted || result == null || result.files.isEmpty) return;
+      final added = <_DraftVibeRef>[];
+      for (final file in result.files) {
+        Uint8List? bytes = file.bytes;
+        if ((bytes == null || bytes.isEmpty) &&
+            file.path != null &&
+            file.path!.isNotEmpty) {
+          final f = File(file.path!);
+          if (await f.exists()) bytes = await f.readAsBytes();
+        }
+        if (bytes == null || bytes.isEmpty) continue;
+        final parsed = await VibeTransferService.parseImportedFile(
+          fileName: file.name,
+          bytes: bytes,
+          activeModel: widget.viewModel.params.model,
+        );
+        for (final item in parsed) {
+          final ref = item.toReference(
+            'lib_vibe_${DateTime.now().microsecondsSinceEpoch}_${++_draftRefSeq}',
+          );
+          added.add(
+            _DraftVibeRef(
+              id: ref.id,
+              displayName: ref.displayName,
+              sourceType: ref.sourceType,
+              pendingRawBytes: ref.rawImageBytes,
+              pendingThumbBytes: ref.thumbnailBytes,
+              encodingsByModel: Map<String, String>.from(ref.encodingsByModel),
+              encodedInfoExtractedByModel: Map<String, double>.from(
+                ref.encodedInfoExtractedByModel,
+              ),
+              strength: ref.strength,
+              informationExtracted: ref.informationExtracted,
+              enabled: ref.enabled,
+            ),
+          );
+        }
+      }
+      if (!mounted || added.isEmpty) return;
+      setState(() => _vibeRefs.addAll(added));
+    } catch (e) {
+      if (!mounted) return;
+      showAppToast(context, message: '$e', tone: AppToastTone.error);
+    }
+  }
+
+  String _refTypeLabel(BuildContext context, NaiPreciseRefType type) {
+    final l10n = context.l10n;
+    return switch (type) {
+      NaiPreciseRefType.character => l10n.referenceTypeCharacter,
+      NaiPreciseRefType.characterAndStyle =>
+          l10n.referenceTypeCharacterAndStyle,
+      NaiPreciseRefType.style => l10n.referenceTypeStyle,
+      NaiPreciseRefType.outfit => l10n.referenceTypeOutfit,
+    };
+  }
+
+  Widget _buildReferenceGuidesSection(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            _FieldLabel(text: l10n.libraryEditFieldReferenceGuides),
+            if (_preciseRefs.isNotEmpty || _vibeRefs.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              AppBadge.pill(
+                label: '${_preciseRefs.length + _vibeRefs.length}',
+                variant: AppBadgeVariant.neutral,
+                fontSize: 10,
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            AppToolChip(
+              icon: Icons.input_rounded,
+              label: l10n.libraryEditImportWorkspaceRefs,
+              variant: AppToolChipVariant.tinted,
+              fontSize: 11.5,
+              iconSize: 13,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              onTap: _importRefsFromCurrentWorkspace,
+            ),
+            AppToolChip(
+              icon: Icons.style_outlined,
+              label: l10n.libraryEditAddPreciseRef,
+              variant: AppToolChipVariant.tinted,
+              unselectedBackgroundColor: colors.elevatedBackground,
+              fontSize: 11.5,
+              iconSize: 13,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              onTap: _pickPreciseRefFiles,
+            ),
+            AppToolChip(
+              icon: Icons.auto_awesome_motion_outlined,
+              label: l10n.libraryEditAddVibeRef,
+              variant: AppToolChipVariant.tinted,
+              unselectedBackgroundColor: colors.elevatedBackground,
+              fontSize: 11.5,
+              iconSize: 13,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              onTap: _pickVibeRefFiles,
+            ),
+          ],
+        ),
+        if (_preciseRefs.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          for (var i = 0; i < _preciseRefs.length; i++) ...[
+            _buildPreciseDraftRow(context, i, _preciseRefs[i]),
+            const SizedBox(height: 6),
+          ],
+        ],
+        if (_vibeRefs.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          for (var i = 0; i < _vibeRefs.length; i++) ...[
+            _buildVibeDraftRow(context, i, _vibeRefs[i]),
+            const SizedBox(height: 6),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPreciseDraftRow(
+    BuildContext context,
+    int index,
+    _DraftPreciseRef draft,
+  ) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final ImageProvider? thumb = draft.pendingBytes != null
+        ? MemoryImage(draft.pendingBytes!)
+        : (draft.savedPath != null && File(draft.savedPath!).existsSync()
+              ? FileImage(File(draft.savedPath!))
+              : null);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.elevatedBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: Container(
+              width: 38,
+              height: 38,
+              color: colors.mutedBackground,
+              child: thumb != null
+                  ? Image(
+                      image: ResizeImage(
+                        thumb,
+                        width: 96,
+                        height: 96,
+                        policy: ResizeImagePolicy.fit,
+                      ),
+                      fit: BoxFit.cover,
+                    )
+                  : Icon(
+                      Icons.style_outlined,
+                      size: 16,
+                      color: colors.textMuted,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    AppBadge.pill(
+                      label: l10n.tabReference,
+                      variant: AppBadgeVariant.primary,
+                      fontSize: 9.5,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: AppDropdown<NaiPreciseRefType>(
+                        value: draft.type,
+                        items: [
+                          for (final t in NaiPreciseRefType.values)
+                            AppDropdownItem(
+                              value: t,
+                              label: _refTypeLabel(context, t),
+                            ),
+                        ],
+                        onChanged: (next) {
+                          setState(() {
+                            _preciseRefs[index] = draft.copyWith(type: next);
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      '${l10n.referenceStrength} ${draft.strength.toStringAsFixed(2)}',
+                      style: TextStyle(fontSize: 10.5, color: colors.textMuted),
+                    ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          trackHeight: 2,
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 5,
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 10,
+                          ),
+                        ),
+                        child: Slider(
+                          value: draft.strength.clamp(0.0, 5.0),
+                          min: 0.0,
+                          max: 5.0,
+                          divisions: 100,
+                          onChanged: (v) {
+                            setState(() {
+                              _preciseRefs[index] = draft.copyWith(strength: v);
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    if (draft.type.supportsPreferSameOutfit)
+                      Tooltip(
+                        message: l10n.referencePreferSameOutfit,
+                        child: AppToolChip(
+                          icon: Icons.checkroom_outlined,
+                          label: l10n.referencePreferSameOutfitShort,
+                          isSelected: draft.preferSameOutfit,
+                          variant: AppToolChipVariant.tinted,
+                          fontSize: 10,
+                          iconSize: 11,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          onTap: () {
+                            setState(() {
+                              _preciseRefs[index] = draft.copyWith(
+                                preferSameOutfit: !draft.preferSameOutfit,
+                              );
+                            });
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          AppIconButton(
+            icon: Icons.close_rounded,
+            size: 24,
+            iconSize: 14,
+            variant: AppIconButtonVariant.ghost,
+            tooltip: l10n.delete,
+            onPressed: () => setState(() => _preciseRefs.removeAt(index)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVibeDraftRow(
+    BuildContext context,
+    int index,
+    _DraftVibeRef draft,
+  ) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final ImageProvider? thumb = draft.displayBytes != null
+        ? MemoryImage(draft.displayBytes!)
+        : (draft.displayPath != null && File(draft.displayPath!).existsSync()
+              ? FileImage(File(draft.displayPath!))
+              : null);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.elevatedBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: Container(
+              width: 38,
+              height: 38,
+              color: colors.mutedBackground,
+              child: thumb != null
+                  ? Image(
+                      image: ResizeImage(
+                        thumb,
+                        width: 96,
+                        height: 96,
+                        policy: ResizeImagePolicy.fit,
+                      ),
+                      fit: BoxFit.cover,
+                    )
+                  : Icon(
+                      Icons.auto_awesome_motion_outlined,
+                      size: 16,
+                      color: colors.textMuted,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    AppBadge.pill(
+                      label: l10n.vibeTabTitle,
+                      variant: AppBadgeVariant.neutral,
+                      fontSize: 9.5,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        draft.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (draft.encodingsByModel.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      AppBadge.pill(
+                        label: l10n.vibeStatusEncoded,
+                        variant: AppBadgeVariant.success,
+                        fontSize: 9.5,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      '${l10n.referenceStrength} ${draft.strength.toStringAsFixed(2)}',
+                      style: TextStyle(fontSize: 10.5, color: colors.textMuted),
+                    ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          trackHeight: 2,
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 5,
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 10,
+                          ),
+                        ),
+                        child: Slider(
+                          value: draft.strength.clamp(0.0, 1.0),
+                          min: 0.0,
+                          max: 1.0,
+                          divisions: 100,
+                          onChanged: (v) {
+                            setState(() {
+                              _vibeRefs[index] = draft.copyWith(strength: v);
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          AppIconButton(
+            icon: Icons.close_rounded,
+            size: 24,
+            iconSize: 14,
+            variant: AppIconButtonVariant.ghost,
+            tooltip: l10n.delete,
+            onPressed: () => setState(() => _vibeRefs.removeAt(index)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildFooterButtons(BuildContext context) {

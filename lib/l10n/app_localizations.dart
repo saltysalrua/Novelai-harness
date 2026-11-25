@@ -8648,6 +8648,162 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'放入自由画布 / 批注板用于对比或给 AI 审查'**
   String get pasteActionBoardSubtitle;
+
+  /// No description provided for @referenceSaveToLibrary.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存到词库'**
+  String get referenceSaveToLibrary;
+
+  /// No description provided for @referencePreferSameOutfitShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'同服装'**
+  String get referencePreferSameOutfitShort;
+
+  /// No description provided for @libraryCardPreciseRefBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'精准参考 ×{count}'**
+  String libraryCardPreciseRefBadge(int count);
+
+  /// No description provided for @libraryCardVibeBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'Vibe ×{count}'**
+  String libraryCardVibeBadge(int count);
+
+  /// No description provided for @libraryCardApplyReference.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用参考'**
+  String get libraryCardApplyReference;
+
+  /// No description provided for @libraryMenuSelectiveApply.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择性应用...'**
+  String get libraryMenuSelectiveApply;
+
+  /// No description provided for @libraryMenuApplyPreciseRefsOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅应用精准参考'**
+  String get libraryMenuApplyPreciseRefsOnly;
+
+  /// No description provided for @libraryMenuApplyVibesOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅应用 Vibe Transfer'**
+  String get libraryMenuApplyVibesOnly;
+
+  /// No description provided for @librarySelectiveApplyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择性应用 · {title}'**
+  String librarySelectiveApplyTitle(String title);
+
+  /// No description provided for @librarySelectiveApplyPromptSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'提示词'**
+  String get librarySelectiveApplyPromptSection;
+
+  /// No description provided for @librarySelectiveApplyPreciseSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'精准参考 ({count})'**
+  String librarySelectiveApplyPreciseSection(int count);
+
+  /// No description provided for @librarySelectiveApplyVibeSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'Vibe Transfer ({count})'**
+  String librarySelectiveApplyVibeSection(int count);
+
+  /// No description provided for @librarySelectiveApplySelectAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全选'**
+  String get librarySelectiveApplySelectAll;
+
+  /// No description provided for @librarySelectiveApplyUnselectAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消全选'**
+  String get librarySelectiveApplyUnselectAll;
+
+  /// No description provided for @librarySelectiveApplyRefModeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'参考图写入方式'**
+  String get librarySelectiveApplyRefModeLabel;
+
+  /// No description provided for @librarySelectiveApplyModeAppend.
+  ///
+  /// In zh, this message translates to:
+  /// **'追加'**
+  String get librarySelectiveApplyModeAppend;
+
+  /// No description provided for @librarySelectiveApplyModeReplace.
+  ///
+  /// In zh, this message translates to:
+  /// **'替换'**
+  String get librarySelectiveApplyModeReplace;
+
+  /// No description provided for @librarySelectiveApplyConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用选中项'**
+  String get librarySelectiveApplyConfirm;
+
+  /// No description provided for @librarySelectiveApplySuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已应用「{title}」({parts})'**
+  String librarySelectiveApplySuccess(String title, String parts);
+
+  /// No description provided for @libraryApplyRefMissingFiles.
+  ///
+  /// In zh, this message translates to:
+  /// **'未能加载参考图（本地图片文件缺失）'**
+  String get libraryApplyRefMissingFiles;
+
+  /// No description provided for @libraryEditFieldReferenceGuides.
+  ///
+  /// In zh, this message translates to:
+  /// **'关联精准参考与 Vibe (可选)'**
+  String get libraryEditFieldReferenceGuides;
+
+  /// No description provided for @libraryEditImportWorkspaceRefs.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入当前工作台'**
+  String get libraryEditImportWorkspaceRefs;
+
+  /// No description provided for @libraryEditAddPreciseRef.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加精准参考'**
+  String get libraryEditAddPreciseRef;
+
+  /// No description provided for @libraryEditAddVibeRef.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加 Vibe'**
+  String get libraryEditAddVibeRef;
+
+  /// No description provided for @libraryEditWorkspaceRefsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前工作台没有可导入的精准参考或 Vibe'**
+  String get libraryEditWorkspaceRefsEmpty;
+
+  /// No description provided for @libraryEditImportedWorkspaceRefs.
+  ///
+  /// In zh, this message translates to:
+  /// **'已导入 {precise} 张精准参考、{vibe} 条 Vibe'**
+  String libraryEditImportedWorkspaceRefs(int precise, int vibe);
 }
 
 class _AppLocalizationsDelegate

@@ -66,6 +66,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         },
         onConfirmPaidGeneration: _confirmPaidGeneration,
         getAccountInfo: () => _accountInfo,
+        ensureVibesEncoded: ensurePendingVibesEncoded,
       ),
     );
     _toolRegistry.register(
@@ -214,6 +215,48 @@ mixin _StudioHarnessMixin on _StudioCore {
         loadImageBytes: ensureImageLoaded,
         savePreviewBytes: savePromptPreviewFromBytes,
         copyPreviewFromPath: savePromptPreviewFromPath,
+        snapshotWorkspacePrecise: snapshotWorkspacePreciseReferences,
+        snapshotWorkspaceVibe: snapshotWorkspaceVibeReferences,
+        applyEntry: applyPromptComboSelective,
+      ),
+    );
+    _toolRegistry.register(
+      ReferenceGuidesTool(
+        getCurrentParams: () => _params,
+        addPreciseReference: addPreciseReferenceFromBytes,
+        updatePreciseReference: updatePreciseReference,
+        removePreciseReference: removePreciseReference,
+        clearPreciseReferences: clearPreciseReferences,
+        importVibeFromBytes: importVibeReferencesFromFile,
+        updateVibeReference: updateVibeReference,
+        removeVibeReference: removeVibeReference,
+        clearVibeReferences: clearVibeReferences,
+        setNormalizeVibeStrength: setNormalizeVibeStrength,
+        getHistory: () => _repository.history,
+        loadImageBytes: ensureImageLoaded,
+        getLibraryEntries: () => promptLibraryEntries,
+        applyLibraryReferences: (
+          entry, {
+          bool includePrecise = true,
+          bool includeVibe = true,
+          bool replace = false,
+          Set<String>? preciseRefIds,
+          Set<String>? vibeRefIds,
+        }) async {
+          final outcome = await applyPromptComboSelective(
+            entry,
+            applyPrompt: false,
+            applyPreciseReferences: includePrecise,
+            applyVibeReferences: includeVibe,
+            replaceReferences: replace,
+            selectedPreciseRefIds: preciseRefIds,
+            selectedVibeRefIds: vibeRefIds,
+          );
+          return (
+            appliedPreciseCount: outcome.appliedPreciseCount,
+            appliedVibeCount: outcome.appliedVibeCount,
+          );
+        },
       ),
     );
     _toolRegistry.register(

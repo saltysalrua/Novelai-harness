@@ -25,6 +25,9 @@ class PromptComboCard extends StatelessWidget {
   final PromptComboEntry combo;
   final void Function(bool replace, bool asCharacter) onApply;
   final void Function(bool replace)? onApplyStyle;
+  final VoidCallback? onSelectiveApply;
+  final VoidCallback? onApplyPreciseRefsOnly;
+  final VoidCallback? onApplyVibesOnly;
   final VoidCallback? onSendToAgent;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -40,6 +43,9 @@ class PromptComboCard extends StatelessWidget {
     required this.combo,
     required this.onApply,
     this.onApplyStyle,
+    this.onSelectiveApply,
+    this.onApplyPreciseRefsOnly,
+    this.onApplyVibesOnly,
     this.onSendToAgent,
     required this.onEdit,
     required this.onDelete,
@@ -80,7 +86,27 @@ class PromptComboCard extends StatelessWidget {
       context,
       position: position,
       actions: [
-        if (combo.isStyle) ...[
+        if (combo.hasReferenceGuides && onSelectiveApply != null) ...[
+          ContextMenuItem(
+            icon: Icons.checklist_rounded,
+            label: l10n.libraryMenuSelectiveApply,
+            onTap: onSelectiveApply!,
+          ),
+          if (combo.hasPreciseReferences && onApplyPreciseRefsOnly != null)
+            ContextMenuItem(
+              icon: Icons.style_outlined,
+              label: l10n.libraryMenuApplyPreciseRefsOnly,
+              onTap: onApplyPreciseRefsOnly!,
+            ),
+          if (combo.hasVibeReferences && onApplyVibesOnly != null)
+            ContextMenuItem(
+              icon: Icons.auto_awesome_motion_outlined,
+              label: l10n.libraryMenuApplyVibesOnly,
+              onTap: onApplyVibesOnly!,
+            ),
+          const ContextMenuDivider(),
+        ],
+        if (combo.isStyle && combo.hasPromptText) ...[
           ContextMenuItem(
             icon: Icons.palette_outlined,
             label: l10n.libraryMenuApplyStyleReplace,
@@ -100,7 +126,7 @@ class PromptComboCard extends StatelessWidget {
             label: l10n.libraryMenuAppendToPrompt,
             onTap: () => onApply(false, false),
           ),
-        ] else ...[
+        ] else if (combo.hasPromptText) ...[
           ContextMenuItem(
             icon: Icons.add_outlined,
             label: l10n.libraryMenuAppendToPrompt,
@@ -185,19 +211,44 @@ class PromptComboCard extends StatelessWidget {
   Widget _buildApplyPills(BuildContext context, {required bool isChar}) {
     final colors = context.colors;
     final l10n = context.l10n;
+    final hasRefs = combo.hasReferenceGuides;
+
+    if (!combo.hasPromptText && hasRefs) {
+      return Row(
+        children: [
+          Flexible(
+            child: _SoftActionPill(
+              icon: Icons.style_outlined,
+              label: l10n.libraryCardApplyReference,
+              backgroundColor: colors.primaryTint,
+              foregroundColor: colors.primary,
+              compact: compact,
+              onTap: () => onSelectiveApply?.call(),
+            ),
+          ),
+        ],
+      );
+    }
+
     if (combo.isStyle) {
       return Row(
         children: [
           Flexible(
             child: _SoftActionPill(
-              icon: Icons.palette_outlined,
+              icon: hasRefs ? Icons.checklist_rounded : Icons.palette_outlined,
               label: l10n.libraryCardApplyStyle,
               backgroundColor: colors.primaryTint,
               foregroundColor: colors.primary,
               compact: compact,
-              onTap: () => onApplyStyle != null
-                  ? onApplyStyle!(true)
-                  : onApply(false, false),
+              onTap: () {
+                if (hasRefs && onSelectiveApply != null) {
+                  onSelectiveApply!();
+                } else if (onApplyStyle != null) {
+                  onApplyStyle!(true);
+                } else {
+                  onApply(false, false);
+                }
+              },
             ),
           ),
         ],
@@ -209,12 +260,18 @@ class PromptComboCard extends StatelessWidget {
         Flexible(
           flex: 3,
           child: _SoftActionPill(
-            icon: Icons.bolt_outlined,
+            icon: hasRefs ? Icons.checklist_rounded : Icons.bolt_outlined,
             label: l10n.libraryCardApply,
             backgroundColor: colors.primaryTint,
             foregroundColor: colors.primary,
             compact: compact,
-            onTap: () => onApply(false, false),
+            onTap: () {
+              if (hasRefs && onSelectiveApply != null) {
+                onSelectiveApply!();
+              } else {
+                onApply(false, false);
+              }
+            },
           ),
         ),
         if (isChar) ...[
@@ -242,6 +299,35 @@ class PromptComboCard extends StatelessWidget {
             ),
           ],
         ],
+      ],
+    );
+  }
+
+  Widget _buildReferenceBadges(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        if (combo.hasPreciseReferences)
+          _QuietRefBadge(
+            icon: Icons.style_outlined,
+            label: l10n.libraryCardPreciseRefBadge(
+              combo.preciseReferences.length,
+            ),
+            backgroundColor: colors.primaryTint.withValues(alpha: 0.7),
+            foregroundColor: colors.primary,
+            compact: compact,
+          ),
+        if (combo.hasVibeReferences)
+          _QuietRefBadge(
+            icon: Icons.auto_awesome_motion_outlined,
+            label: l10n.libraryCardVibeBadge(combo.vibeReferences.length),
+            backgroundColor: colors.mutedBackground,
+            foregroundColor: colors.textSecondary,
+            compact: compact,
+          ),
       ],
     );
   }
@@ -336,6 +422,10 @@ class PromptComboCard extends StatelessWidget {
 
                 // 提示词摘要 (两行更清晰，悬停看完整)
                 _buildPromptSnippet(context, hasNegative: hasNegative),
+                if (combo.hasReferenceGuides) ...[
+                  SizedBox(height: compact ? 4 : 6),
+                  _buildReferenceBadges(context),
+                ],
                 SizedBox(height: compact ? 6 : 8),
 
                 // 底部无边框操作区：紧凑两列模式下拆分为「应用」与「分类+工具」两行，避免挤压截断
@@ -644,6 +734,51 @@ class _SoftIconPillState extends State<_SoftIconPill> {
             child: Icon(widget.icon, size: 13, color: widget.foregroundColor),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _QuietRefBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final bool compact;
+
+  const _QuietRefBadge({
+    required this.icon,
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 5 : 6,
+        vertical: compact ? 1.5 : 2,
+      ),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: compact ? 10 : 11, color: foregroundColor),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: compact ? 9.5 : 10,
+              fontWeight: FontWeight.w600,
+              color: foregroundColor,
+            ),
+          ),
+        ],
       ),
     );
   }

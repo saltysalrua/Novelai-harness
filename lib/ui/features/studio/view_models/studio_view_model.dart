@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' show Color, Locale, Offset, Rect;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -32,6 +33,7 @@ import '../../../../core/harness/tools/novelai_inpaint_tool.dart';
 import '../../../../core/harness/tools/novelai_tools.dart';
 import '../../../../core/harness/tools/pipeline_tool.dart';
 import '../../../../core/harness/tools/prompt_library_tools.dart';
+import '../../../../core/harness/tools/reference_guide_tools.dart';
 import '../../../../core/harness/tools/studio_params_tool.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
@@ -643,14 +645,96 @@ mixin _StudioCore on ChangeNotifier {
   /// 删除词库条目 (词库 Agent 工具写入)
   Future<void> deletePromptCombo(String id);
 
-  /// 保存预览图字节到托管目录并返回路径 (词库预览图工具)
+  /// 保存预览图/参考图字节到托管目录并返回路径 (词库预览图与参考图共用)
   Future<String?> savePromptPreviewFromBytes(
     Uint8List bytes, {
     String extension = 'png',
+    String prefix = 'preview',
   });
 
   /// 从本地路径复制预览图并返回持久化路径 (词库预览图工具)
   Future<String?> savePromptPreviewFromPath(String path);
+
+  /// 将当前工作台精准参考图落盘为词库托管条目列表
+  Future<List<PromptLibraryPreciseRef>> snapshotWorkspacePreciseReferences();
+
+  /// 将当前工作台 Vibe Transfer 落盘为词库托管条目列表
+  Future<List<PromptLibraryVibeRef>> snapshotWorkspaceVibeReferences();
+
+  /// 选择性将词库条目的提示词/精准参考/Vibe 应用到工作台
+  Future<({bool appliedPrompt, int appliedPreciseCount, int appliedVibeCount})>
+  applyPromptComboSelective(
+    PromptComboEntry combo, {
+    bool applyPrompt = true,
+    bool replacePrompt = false,
+    bool asCharacter = false,
+    bool asStyle = false,
+    bool applyPreciseReferences = false,
+    bool applyVibeReferences = false,
+    bool replaceReferences = false,
+    Set<String>? selectedPreciseRefIds,
+    Set<String>? selectedVibeRefIds,
+    bool switchToReferenceTab = false,
+  });
+
+  /// 参考引导跨分部写入口 (精准参考 & Vibe Transfer)
+  void addPreciseReferenceFromBytes(
+    Uint8List bytes, {
+    String? fileName,
+    NaiPreciseRefType? type,
+    bool? preferSameOutfit,
+    double? strength,
+    double? fidelity,
+    bool replace = false,
+    bool switchToTab = false,
+  });
+
+  void mountPreciseReferences(
+    List<NaiPreciseReference> refs, {
+    bool replace = false,
+    bool switchToTab = false,
+  });
+
+  void updatePreciseReference(
+    String id, {
+    NaiPreciseRefType? type,
+    bool? preferSameOutfit,
+    double? strength,
+    double? fidelity,
+    bool? enabled,
+  });
+
+  void removePreciseReference(String id);
+
+  void clearPreciseReferences();
+
+  Future<int> importVibeReferencesFromFile({
+    required String fileName,
+    required Uint8List bytes,
+    double? strength,
+    double? informationExtracted,
+    bool replace = false,
+    bool switchToTab = false,
+  });
+
+  void mountVibeReferences(
+    List<NaiVibeReference> vibes, {
+    bool replace = false,
+    bool switchToTab = false,
+  });
+
+  void updateVibeReference(
+    String id, {
+    double? strength,
+    double? informationExtracted,
+    bool? enabled,
+  });
+
+  void removeVibeReference(String id);
+
+  void clearVibeReferences();
+
+  void setNormalizeVibeStrength(bool value);
 
   /// 发送对话消息 (支持 Slash 命令行；[images] 为用户图片附件)
   Future<void> sendChatMessage(String text, {List<AgentMessageImage>? images});

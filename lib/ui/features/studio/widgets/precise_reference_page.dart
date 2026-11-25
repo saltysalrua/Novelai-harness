@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pasteboard/pasteboard.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/models/prompt_library_models.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -22,6 +23,7 @@ import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_toggle_controls.dart';
 import '../view_models/studio_view_model.dart';
+import 'prompt_combo_edit_dialog.dart';
 import 'studio_shared.dart';
 
 /// 侧边栏「参考」统一工作区：精准参考 (Precise Reference) ↔ Vibe Transfer
@@ -308,6 +310,43 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
     );
   }
 
+  Future<void> _saveCurrentRefsToLibrary(
+    BuildContext context,
+    StudioViewModel vm, {
+    required bool isVibe,
+  }) async {
+    final preciseSnap = isVibe
+        ? const <PromptLibraryPreciseRef>[]
+        : await vm.snapshotWorkspacePreciseReferences();
+    final vibeSnap = isVibe
+        ? await vm.snapshotWorkspaceVibeReferences()
+        : const <PromptLibraryVibeRef>[];
+    if (!context.mounted) return;
+    final Uint8List? previewBytes = !isVibe && vm.preciseReferences.isNotEmpty
+        ? vm.preciseReferences.first.imageBytes
+        : (isVibe && vm.vibeReferences.isNotEmpty
+              ? vm.vibeReferences.first.previewBytes
+              : null);
+    final suggestedCategory = isVibe
+        ? PromptComboCategories.style
+        : (vm.preciseReferences.isNotEmpty &&
+                  vm.preciseReferences.first.type == NaiPreciseRefType.style
+              ? PromptComboCategories.style
+              : (vm.preciseReferences.isNotEmpty &&
+                        vm.preciseReferences.first.type ==
+                            NaiPreciseRefType.outfit
+                    ? PromptComboCategories.attire
+                    : PromptComboCategories.character));
+    await PromptComboEditDialog.show(
+      context,
+      viewModel: vm,
+      initialCategory: suggestedCategory,
+      initialPreciseReferences: preciseSnap,
+      initialVibeReferences: vibeSnap,
+      initialPreviewBytes: previewBytes,
+    );
+  }
+
   Widget _buildPreciseBody(BuildContext context, StudioViewModel vm) {
     final colors = context.colors;
     final l10n = context.l10n;
@@ -342,7 +381,17 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
               ),
             ],
             if (refs.isNotEmpty) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
+              AppIconButton(
+                icon: Icons.bookmark_add_outlined,
+                size: 24,
+                iconSize: 15,
+                variant: AppIconButtonVariant.ghost,
+                tooltip: l10n.referenceSaveToLibrary,
+                onPressed: () =>
+                    _saveCurrentRefsToLibrary(context, vm, isVibe: false),
+              ),
+              const SizedBox(width: 4),
               ClearTextLink(onTap: vm.clearPreciseReferences),
             ],
           ],
@@ -485,7 +534,17 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
               ),
             ],
             if (vibes.isNotEmpty) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
+              AppIconButton(
+                icon: Icons.bookmark_add_outlined,
+                size: 24,
+                iconSize: 15,
+                variant: AppIconButtonVariant.ghost,
+                tooltip: l10n.referenceSaveToLibrary,
+                onPressed: () =>
+                    _saveCurrentRefsToLibrary(context, vm, isVibe: true),
+              ),
+              const SizedBox(width: 4),
               ClearTextLink(onTap: vm.clearVibeReferences),
             ],
           ],

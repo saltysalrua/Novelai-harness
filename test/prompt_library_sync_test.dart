@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/models/prompt_library_models.dart';
 import 'package:novelai_harness/data/models/prompt_library_sync_models.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
@@ -818,6 +819,116 @@ void main() {
         await tester.tap(find.text('关闭'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
+      },
+    );
+  });
+
+  group('PromptLibrarySyncService Precise Reference & Vibe Sync', () {
+    test(
+      'syncs preciseReferences and vibeReferences with SHA-256 deduplicated images and cached encodings across devices',
+      () async {
+        final server = _FakeCloudflareSyncServer(expectedToken: 'ref-sync-key');
+        const cfg = PromptLibrarySyncConfig(
+          endpoint: 'https://sync.example.com',
+          token: 'ref-sync-key',
+          namespace: 'default',
+        );
+
+        final dirA = await Directory.systemTemp.createTemp('pl_ref_sync_a_');
+        final dirB = await Directory.systemTemp.createTemp('pl_ref_sync_b_');
+        addTearDown(() async {
+          PromptLibraryService.instance.setCustomStorageDirectory(null);
+          try {
+            await dirA.delete(recursive: true);
+            await dirB.delete(recursive: true);
+          } catch (_) {}
+        });
+
+        // Device A creates an entry with preview + preciseRef + vibeRef (with raw image & cached encoding)
+        PromptLibraryService.instance.setCustomStorageDirectory(dirA.path);
+        final refBytes = _samplePngBytes(0x31);
+        final vibeBytes = _samplePngBytes(0x32);
+        final refPath = await PromptLibraryService.instance
+            .savePreviewImageBytes(refBytes, prefix: 'ref');
+        final vibePath = await PromptLibraryService.instance
+            .savePreviewImageBytes(vibeBytes, prefix: 'vibe');
+        expect(refPath, isNotNull);
+        expect(vibePath, isNotNull);
+
+        final t1 = DateTime.utc(2026, 11, 25, 10, 0);
+        await PromptLibraryService.instance.addEntry(
+          PromptComboEntry(
+            id: 'char_with_refs',
+            title: '带参考图的祈酱',
+            category: PromptComboCategories.character,
+            prompt: '',
+            preciseReferences: [
+              PromptLibraryPreciseRef(
+                id: 'pref_1',
+                imagePath: refPath!,
+                fileName: 'inori.png',
+                type: NaiPreciseRefType.outfit,
+                preferSameOutfit: false,
+                strength: 1.75,
+              ),
+            ],
+            vibeReferences: [
+              PromptLibraryVibeRef(
+                id: 'vibe_1',
+                displayName: 'Soft Glow',
+                sourceType: NaiVibeSourceType.naiv4vibe,
+                rawImagePath: vibePath,
+                encodingsByModel: const {
+                  'nai-diffusion-4-5-full': 'ENCODED_VIBE_DATA',
+                },
+                encodedInfoExtractedByModel: const {
+                  'nai-diffusion-4-5-full': 0.9,
+                },
+                strength: 0.65,
+                informationExtracted: 0.9,
+              ),
+            ],
+            createdAt: t1,
+            updatedAt: t1,
+          ),
+        );
+
+        final syncSvc = PromptLibrarySyncService(httpClient: server.client);
+        final pushResult = await syncSvc.sync(cfg);
+        expect(pushResult.pushedEntries, 1);
+        expect(pushResult.uploadedImages, 2);
+
+        // Device B pulls from scratch
+        PromptLibraryService.instance.setCustomStorageDirectory(dirB.path);
+        final pullResult = await syncSvc.sync(cfg);
+        expect(pullResult.pulledEntries, 1);
+        expect(pullResult.downloadedImages, 2);
+
+        final pulledEntries = await PromptLibraryService.instance.loadEntries();
+        expect(pulledEntries.length, 1);
+        final entryB = pulledEntries.first;
+        expect(entryB.id, 'char_with_refs');
+        expect(entryB.preciseReferences.length, 1);
+        expect(entryB.preciseReferences.first.type, NaiPreciseRefType.outfit);
+        expect(entryB.preciseReferences.first.strength, 1.75);
+        expect(File(entryB.preciseReferences.first.imagePath).existsSync(), isTrue);
+        expect(
+          await File(entryB.preciseReferences.first.imagePath).readAsBytes(),
+          equals(refBytes),
+        );
+
+        expect(entryB.vibeReferences.length, 1);
+        expect(entryB.vibeReferences.first.displayName, 'Soft Glow');
+        expect(
+          entryB.vibeReferences.first.encodingsByModel['nai-diffusion-4-5-full'],
+          'ENCODED_VIBE_DATA',
+        );
+        expect(entryB.vibeReferences.first.rawImagePath, isNotNull);
+        expect(File(entryB.vibeReferences.first.rawImagePath!).existsSync(), isTrue);
+        expect(
+          await File(entryB.vibeReferences.first.rawImagePath!).readAsBytes(),
+          equals(vibeBytes),
+        );
       },
     );
   });

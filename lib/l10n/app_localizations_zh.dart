@@ -4702,4 +4702,96 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pasteActionBoardSubtitle => '放入自由画布 / 批注板用于对比或给 AI 审查';
+
+  @override
+  String get referenceSaveToLibrary => '保存到词库';
+
+  @override
+  String get referencePreferSameOutfitShort => '同服装';
+
+  @override
+  String libraryCardPreciseRefBadge(int count) {
+    return '精准参考 ×$count';
+  }
+
+  @override
+  String libraryCardVibeBadge(int count) {
+    return 'Vibe ×$count';
+  }
+
+  @override
+  String get libraryCardApplyReference => '应用参考';
+
+  @override
+  String get libraryMenuSelectiveApply => '选择性应用...';
+
+  @override
+  String get libraryMenuApplyPreciseRefsOnly => '仅应用精准参考';
+
+  @override
+  String get libraryMenuApplyVibesOnly => '仅应用 Vibe Transfer';
+
+  @override
+  String librarySelectiveApplyTitle(String title) {
+    return '选择性应用 · $title';
+  }
+
+  @override
+  String get librarySelectiveApplyPromptSection => '提示词';
+
+  @override
+  String librarySelectiveApplyPreciseSection(int count) {
+    return '精准参考 ($count)';
+  }
+
+  @override
+  String librarySelectiveApplyVibeSection(int count) {
+    return 'Vibe Transfer ($count)';
+  }
+
+  @override
+  String get librarySelectiveApplySelectAll => '全选';
+
+  @override
+  String get librarySelectiveApplyUnselectAll => '取消全选';
+
+  @override
+  String get librarySelectiveApplyRefModeLabel => '参考图写入方式';
+
+  @override
+  String get librarySelectiveApplyModeAppend => '追加';
+
+  @override
+  String get librarySelectiveApplyModeReplace => '替换';
+
+  @override
+  String get librarySelectiveApplyConfirm => '应用选中项';
+
+  @override
+  String librarySelectiveApplySuccess(String title, String parts) {
+    return '已应用「$title」($parts)';
+  }
+
+  @override
+  String get libraryApplyRefMissingFiles => '未能加载参考图（本地图片文件缺失）';
+
+  @override
+  String get libraryEditFieldReferenceGuides => '关联精准参考与 Vibe (可选)';
+
+  @override
+  String get libraryEditImportWorkspaceRefs => '导入当前工作台';
+
+  @override
+  String get libraryEditAddPreciseRef => '添加精准参考';
+
+  @override
+  String get libraryEditAddVibeRef => '添加 Vibe';
+
+  @override
+  String get libraryEditWorkspaceRefsEmpty => '当前工作台没有可导入的精准参考或 Vibe';
+
+  @override
+  String libraryEditImportedWorkspaceRefs(int precise, int vibe) {
+    return '已导入 $precise 张精准参考、$vibe 条 Vibe';
+  }
 }

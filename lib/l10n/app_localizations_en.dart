@@ -5035,4 +5035,99 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get pasteActionBoardSubtitle =>
       'Place on the freeform annotation board for reference or review';
+
+  @override
+  String get referenceSaveToLibrary => 'Save to Library';
+
+  @override
+  String get referencePreferSameOutfitShort => 'Same outfit';
+
+  @override
+  String libraryCardPreciseRefBadge(int count) {
+    return 'Ref ×$count';
+  }
+
+  @override
+  String libraryCardVibeBadge(int count) {
+    return 'Vibe ×$count';
+  }
+
+  @override
+  String get libraryCardApplyReference => 'Apply Ref';
+
+  @override
+  String get libraryMenuSelectiveApply => 'Selective Apply...';
+
+  @override
+  String get libraryMenuApplyPreciseRefsOnly => 'Apply Precise Ref Only';
+
+  @override
+  String get libraryMenuApplyVibesOnly => 'Apply Vibe Transfer Only';
+
+  @override
+  String librarySelectiveApplyTitle(String title) {
+    return 'Selective Apply · $title';
+  }
+
+  @override
+  String get librarySelectiveApplyPromptSection => 'Prompts';
+
+  @override
+  String librarySelectiveApplyPreciseSection(int count) {
+    return 'Precise Reference ($count)';
+  }
+
+  @override
+  String librarySelectiveApplyVibeSection(int count) {
+    return 'Vibe Transfer ($count)';
+  }
+
+  @override
+  String get librarySelectiveApplySelectAll => 'Select all';
+
+  @override
+  String get librarySelectiveApplyUnselectAll => 'Clear';
+
+  @override
+  String get librarySelectiveApplyRefModeLabel => 'Reference apply mode';
+
+  @override
+  String get librarySelectiveApplyModeAppend => 'Append';
+
+  @override
+  String get librarySelectiveApplyModeReplace => 'Replace';
+
+  @override
+  String get librarySelectiveApplyConfirm => 'Apply Selected';
+
+  @override
+  String librarySelectiveApplySuccess(String title, String parts) {
+    return 'Applied \"$title\" ($parts)';
+  }
+
+  @override
+  String get libraryApplyRefMissingFiles =>
+      'Could not load reference images (local files missing)';
+
+  @override
+  String get libraryEditFieldReferenceGuides =>
+      'Linked Precise Ref & Vibe (Optional)';
+
+  @override
+  String get libraryEditImportWorkspaceRefs => 'Import from Workbench';
+
+  @override
+  String get libraryEditAddPreciseRef => 'Add Precise Ref';
+
+  @override
+  String get libraryEditAddVibeRef => 'Add Vibe';
+
+  @override
+  String get libraryEditWorkspaceRefsEmpty =>
+      'No Precise Reference or Vibe mounted in workbench';
+
+  @override
+  String libraryEditImportedWorkspaceRefs(int precise, int vibe) {
+    return 'Imported $precise Precise Ref(s) and $vibe Vibe(s)';
+  }
 }

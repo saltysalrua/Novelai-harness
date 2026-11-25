@@ -2062,5 +2062,68 @@
   "pasteActionVibeSubtitle": "Add to Vibe Transfer to transfer visual vibe and aesthetics",
   "pasteActionVibeUnsupportedSubtitle": "Add to Vibe Transfer (not available on V5; switch to V4.5 / V4 / V3)",
   "pasteActionBoard": "Import to Canvas Board",
-  "pasteActionBoardSubtitle": "Place on the freeform annotation board for reference or review"
+  "pasteActionBoardSubtitle": "Place on the freeform annotation board for reference or review",
+  "referenceSaveToLibrary": "Save to Library",
+  "referencePreferSameOutfitShort": "Same outfit",
+  "libraryCardPreciseRefBadge": "Ref ×{count}",
+  "@libraryCardPreciseRefBadge": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "libraryCardVibeBadge": "Vibe ×{count}",
+  "@libraryCardVibeBadge": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "libraryCardApplyReference": "Apply Ref",
+  "libraryMenuSelectiveApply": "Selective Apply...",
+  "libraryMenuApplyPreciseRefsOnly": "Apply Precise Ref Only",
+  "libraryMenuApplyVibesOnly": "Apply Vibe Transfer Only",
+  "librarySelectiveApplyTitle": "Selective Apply · {title}",
+  "@librarySelectiveApplyTitle": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "librarySelectiveApplyPromptSection": "Prompts",
+  "librarySelectiveApplyPreciseSection": "Precise Reference ({count})",
+  "@librarySelectiveApplyPreciseSection": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "librarySelectiveApplyVibeSection": "Vibe Transfer ({count})",
+  "@librarySelectiveApplyVibeSection": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "librarySelectiveApplySelectAll": "Select all",
+  "librarySelectiveApplyUnselectAll": "Clear",
+  "librarySelectiveApplyRefModeLabel": "Reference apply mode",
+  "librarySelectiveApplyModeAppend": "Append",
+  "librarySelectiveApplyModeReplace": "Replace",
+  "librarySelectiveApplyConfirm": "Apply Selected",
+  "librarySelectiveApplySuccess": "Applied \"{title}\" ({parts})",
+  "@librarySelectiveApplySuccess": {
+    "placeholders": {
+      "title": {"type": "String"},
+      "parts": {"type": "String"}
+    }
+  },
+  "libraryApplyRefMissingFiles": "Could not load reference images (local files missing)",
+  "libraryEditFieldReferenceGuides": "Linked Precise Ref & Vibe (Optional)",
+  "libraryEditImportWorkspaceRefs": "Import from Workbench",
+  "libraryEditAddPreciseRef": "Add Precise Ref",
+  "libraryEditAddVibeRef": "Add Vibe",
+  "libraryEditWorkspaceRefsEmpty": "No Precise Reference or Vibe mounted in workbench",
+  "libraryEditImportedWorkspaceRefs": "Imported {precise} Precise Ref(s) and {vibe} Vibe(s)",
+  "@libraryEditImportedWorkspaceRefs": {
+    "placeholders": {
+      "precise": {"type": "int"},
+      "vibe": {"type": "int"}
+    }
+  }
 }

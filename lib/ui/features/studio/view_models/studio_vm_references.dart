@@ -34,11 +34,16 @@ mixin _StudioReferencesMixin on _StudioCore {
   bool get isEffortForcedByPreciseReference =>
       _params.isEffortForcedByPreciseReference;
 
-  /// 从原始图片字节添加一张精准参考图 (文件选择 / 拖拽 / 剪贴板粘贴共用)
+  /// 从原始图片字节添加一张精准参考图 (文件选择 / 拖拽 / 剪贴板粘贴 / Agent 工具共用)
+  @override
   void addPreciseReferenceFromBytes(
     Uint8List bytes, {
     String? fileName,
     NaiPreciseRefType? type,
+    bool? preferSameOutfit,
+    double? strength,
+    double? fidelity,
+    bool replace = false,
     bool switchToTab = false,
   }) {
     if (bytes.isEmpty) return;
@@ -48,16 +53,47 @@ mixin _StudioReferencesMixin on _StudioCore {
       imageBytes: bytes,
       fileName: fileName,
       type: resolvedType,
-      preferSameOutfit: resolvedType == NaiPreciseRefType.characterAndStyle,
-      strength: 1.0,
-      fidelity: 1.0,
+      preferSameOutfit:
+          preferSameOutfit ??
+          (resolvedType == NaiPreciseRefType.characterAndStyle),
+      strength: strength ?? 1.0,
+      fidelity: fidelity ?? 1.0,
       informationExtracted: 1.0,
       enabled: true,
     );
     _params = _params.copyWith(
-      preciseReferences: [..._params.preciseReferences, ref],
+      preciseReferences: replace
+          ? [ref]
+          : [..._params.preciseReferences, ref],
     );
     if (switchToTab) {
+      _referenceSubTab = 0;
+      setActiveSidebarTab(StudioSidebarTab.reference);
+    }
+    notifyListeners();
+  }
+
+  /// 批量挂载精准参考图列表（词库选择性应用共用）
+  @override
+  void mountPreciseReferences(
+    List<NaiPreciseReference> refs, {
+    bool replace = false,
+    bool switchToTab = false,
+  }) {
+    if (refs.isEmpty && !replace) return;
+    final stamped = refs
+        .map(
+          (r) => r.copyWith(
+            id: 'pref_${DateTime.now().microsecondsSinceEpoch}_${++_preciseRefSeq}',
+          ),
+        )
+        .toList();
+    _params = _params.copyWith(
+      preciseReferences: replace
+          ? stamped
+          : [..._params.preciseReferences, ...stamped],
+    );
+    if (switchToTab && stamped.isNotEmpty) {
       _referenceSubTab = 0;
       setActiveSidebarTab(StudioSidebarTab.reference);
     }
@@ -84,6 +120,7 @@ mixin _StudioReferencesMixin on _StudioCore {
   }
 
   /// 更新单张精准参考图的配置 (类型 / 倾向相同服装 / 强度 / 保真度 / 启停)
+  @override
   void updatePreciseReference(
     String id, {
     NaiPreciseRefType? type,
@@ -118,6 +155,7 @@ mixin _StudioReferencesMixin on _StudioCore {
   }
 
   /// 移除单张精准参考图
+  @override
   void removePreciseReference(String id) {
     final next = _params.preciseReferences.where((r) => r.id != id).toList();
     if (next.length == _params.preciseReferences.length) return;
@@ -126,6 +164,7 @@ mixin _StudioReferencesMixin on _StudioCore {
   }
 
   /// 清空全部精准参考图
+  @override
   void clearPreciseReferences() {
     if (_params.preciseReferences.isEmpty) return;
     _params = _params.copyWith(preciseReferences: const []);
@@ -155,6 +194,7 @@ mixin _StudioReferencesMixin on _StudioCore {
   bool isEncodingVibe(String id) => _encodingVibeIds.contains(id);
 
   /// 切换 Vibe 强度归一化开关
+  @override
   void setNormalizeVibeStrength(bool value) {
     if (_params.normalizeVibeStrength == value) return;
     _params = _params.copyWith(normalizeVibeStrength: value);
@@ -163,9 +203,13 @@ mixin _StudioReferencesMixin on _StudioCore {
   }
 
   /// 从任意文件字节导入 Vibe Transfer (支持 `.naiv4vibe` / `.naiv4vibebundle` / 嵌入 PNG / 普通图片)
+  @override
   Future<int> importVibeReferencesFromFile({
     required String fileName,
     required Uint8List bytes,
+    double? strength,
+    double? informationExtracted,
+    bool replace = false,
     bool switchToTab = false,
   }) async {
     if (bytes.isEmpty) return 0;
@@ -176,16 +220,25 @@ mixin _StudioReferencesMixin on _StudioCore {
     );
     if (parsed.isEmpty) return 0;
 
-    final created = parsed
-        .map(
-          (item) => item.toReference(
-            'vibe_${DateTime.now().microsecondsSinceEpoch}_${++_vibeRefSeq}',
-          ),
-        )
-        .toList();
+    final created = parsed.map((item) {
+      final base = item.toReference(
+        'vibe_${DateTime.now().microsecondsSinceEpoch}_${++_vibeRefSeq}',
+      );
+      return base.copyWith(
+        strength: strength ?? base.strength,
+        informationExtracted: informationExtracted != null
+            ? informationExtracted.clamp(0.01, 1.0).toDouble()
+            : base.informationExtracted,
+      );
+    }).toList();
 
+    if (replace) {
+      _encodingVibeIds.clear();
+    }
     _params = _params.copyWith(
-      vibeReferences: [..._params.vibeReferences, ...created],
+      vibeReferences: replace
+          ? created
+          : [..._params.vibeReferences, ...created],
     );
     if (switchToTab) {
       _referenceSubTab = 1;
@@ -193,6 +246,34 @@ mixin _StudioReferencesMixin on _StudioCore {
     }
     notifyListeners();
     return created.length;
+  }
+
+  /// 批量挂载 Vibe Transfer 列表（词库选择性应用共用，保留已编码向量）
+  @override
+  void mountVibeReferences(
+    List<NaiVibeReference> vibes, {
+    bool replace = false,
+    bool switchToTab = false,
+  }) {
+    if (vibes.isEmpty && !replace) return;
+    if (replace) {
+      _encodingVibeIds.clear();
+    }
+    final stamped = vibes
+        .map(
+          (v) => v.copyWith(
+            id: 'vibe_${DateTime.now().microsecondsSinceEpoch}_${++_vibeRefSeq}',
+          ),
+        )
+        .toList();
+    _params = _params.copyWith(
+      vibeReferences: replace ? stamped : [..._params.vibeReferences, ...stamped],
+    );
+    if (switchToTab && stamped.isNotEmpty) {
+      _referenceSubTab = 1;
+      setActiveSidebarTab(StudioSidebarTab.reference);
+    }
+    notifyListeners();
   }
 
   /// 将画板/历史中的生成图添加到 Vibe Transfer 并切到对应子页
@@ -212,6 +293,7 @@ mixin _StudioReferencesMixin on _StudioCore {
   }
 
   /// 更新单条 Vibe 配置
+  @override
   void updateVibeReference(
     String id, {
     double? strength,
@@ -324,6 +406,7 @@ mixin _StudioReferencesMixin on _StudioCore {
   }
 
   /// 移除单条 Vibe
+  @override
   void removeVibeReference(String id) {
     final next = _params.vibeReferences.where((v) => v.id != id).toList();
     if (next.length == _params.vibeReferences.length) return;
@@ -333,6 +416,7 @@ mixin _StudioReferencesMixin on _StudioCore {
   }
 
   /// 清空全部 Vibe
+  @override
   void clearVibeReferences() {
     if (_params.vibeReferences.isEmpty) return;
     _encodingVibeIds.clear();

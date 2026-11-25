@@ -3,8 +3,10 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/tools/prompt_library_tools.dart';
+import 'package:novelai_harness/core/harness/tools/reference_guide_tools.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/models/prompt_library_models.dart';
+import 'package:novelai_harness/data/services/prompt_library_mention.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
 
 /// 1x1 纯净 PNG 字节 (供预览图工具解码)
@@ -585,6 +587,240 @@ void main() {
       final noop = await tool.execute('t3', {'id': 'e2', 'clear': true});
       expect(noop.isError, isFalse);
       expect(noop.content, contains('本就没有预览图'));
+    });
+  });
+
+  group('ReferenceGuidesTool & Library-Reference Linkage', () {
+    test('ReferenceGuidesTool supports add_from_canvas, list, update, remove, clear and add_from_library', () async {
+      var params = const NaiGenerationParams(
+        prompt: '1girl',
+        model: NaiModel.v5Full,
+      );
+      var refSeq = 0;
+
+      final refImgPath = await PromptLibraryService.instance
+          .savePreviewImageBytes(Uint8List.fromList(kTestPngBytes), prefix: 'ref');
+      expect(refImgPath, isNotNull);
+
+      final charWithRef = PromptComboEntry(
+        id: 'char_ref_1',
+        title: '白丝祈酱',
+        category: PromptComboCategories.character,
+        prompt: '1girl, black hair, white thighhighs',
+        preciseReferences: [
+          PromptLibraryPreciseRef(
+            id: 'lib_p1',
+            imagePath: refImgPath!,
+            fileName: 'inori.png',
+            type: NaiPreciseRefType.character,
+            preferSameOutfit: true,
+            strength: 1.2,
+          ),
+        ],
+        createdAt: DateTime(2026, 11, 25),
+        updatedAt: DateTime(2026, 11, 25),
+      );
+      await addEntry(charWithRef);
+
+      final history = [
+        NaiGeneratedImage(
+          id: 'canvas_0',
+          bytes: Uint8List.fromList(kTestPngBytes),
+          params: params,
+          seed: 42,
+          isOpusFree: true,
+          createdAt: DateTime(2026, 11, 25),
+        ),
+      ];
+
+      final tool = ReferenceGuidesTool(
+        getCurrentParams: () => params,
+        addPreciseReference: (
+          bytes, {
+          fileName,
+          type,
+          preferSameOutfit,
+          strength,
+          fidelity,
+          replace = false,
+        }) {
+          final resolvedType = type ?? NaiPreciseRefType.characterAndStyle;
+          final ref = NaiPreciseReference(
+            id: 'pref_${++refSeq}',
+            imageBytes: bytes,
+            fileName: fileName,
+            type: resolvedType,
+            preferSameOutfit:
+                preferSameOutfit ??
+                (resolvedType == NaiPreciseRefType.characterAndStyle),
+            strength: strength ?? 1.0,
+            fidelity: fidelity ?? 1.0,
+          );
+          params = params.copyWith(
+            preciseReferences: replace ? [ref] : [...params.preciseReferences, ref],
+          );
+        },
+        updatePreciseReference: (
+          id, {
+          type,
+          preferSameOutfit,
+          strength,
+          fidelity,
+          enabled,
+        }) {
+          params = params.copyWith(
+            preciseReferences: params.preciseReferences
+                .map(
+                  (r) => r.id == id
+                      ? r.copyWith(
+                          type: type,
+                          preferSameOutfit: preferSameOutfit,
+                          strength: strength,
+                          fidelity: fidelity,
+                          enabled: enabled,
+                        )
+                      : r,
+                )
+                .toList(),
+          );
+        },
+        removePreciseReference: (id) {
+          params = params.copyWith(
+            preciseReferences:
+                params.preciseReferences.where((r) => r.id != id).toList(),
+          );
+        },
+        clearPreciseReferences: () {
+          params = params.copyWith(preciseReferences: const []);
+        },
+        importVibeFromBytes: ({
+          required fileName,
+          required bytes,
+          strength,
+          informationExtracted,
+          replace = false,
+        }) async {
+          final v = NaiVibeReference(
+            id: 'vibe_${++refSeq}',
+            displayName: fileName,
+            rawImageBytes: bytes,
+            strength: strength ?? 0.6,
+            informationExtracted: informationExtracted ?? 1.0,
+          );
+          params = params.copyWith(
+            vibeReferences: replace ? [v] : [...params.vibeReferences, v],
+          );
+          return 1;
+        },
+        updateVibeReference: (id, {strength, informationExtracted, enabled}) {},
+        removeVibeReference: (id) {
+          params = params.copyWith(
+            vibeReferences:
+                params.vibeReferences.where((v) => v.id != id).toList(),
+          );
+        },
+        clearVibeReferences: () {
+          params = params.copyWith(vibeReferences: const []);
+        },
+        setNormalizeVibeStrength: (v) {
+          params = params.copyWith(normalizeVibeStrength: v);
+        },
+        getHistory: () => history,
+        loadImageBytes: (img) async => img.bytes,
+        getLibraryEntries: () => entries,
+        applyLibraryReferences: (
+          entry, {
+          bool includePrecise = true,
+          bool includeVibe = true,
+          bool replace = false,
+          Set<String>? preciseRefIds,
+          Set<String>? vibeRefIds,
+        }) async {
+          var count = 0;
+          if (includePrecise) {
+            final added = <NaiPreciseReference>[];
+            for (final r in entry.preciseReferences) {
+              if (preciseRefIds != null && !preciseRefIds.contains(r.id)) {
+                continue;
+              }
+              added.add(
+                NaiPreciseReference(
+                  id: 'pref_${++refSeq}',
+                  imageBytes: await File(r.imagePath).readAsBytes(),
+                  fileName: r.fileName,
+                  type: r.type,
+                  preferSameOutfit: r.preferSameOutfit,
+                  strength: r.strength,
+                ),
+              );
+            }
+            params = params.copyWith(
+              preciseReferences: replace
+                  ? added
+                  : [...params.preciseReferences, ...added],
+            );
+            count = added.length;
+          }
+          return (appliedPreciseCount: count, appliedVibeCount: 0);
+        },
+      );
+
+      // 1. Mount canvas image as Outfit Reference
+      final addRes = await tool.execute('rg1', {
+        'action': 'add_from_canvas',
+        'image_index': 0,
+        'ref_type': 'outfit',
+        'strength': 1.8,
+      });
+      expect(addRes.isError, isFalse);
+      expect(params.preciseReferences.length, 1);
+      expect(params.preciseReferences.first.type, NaiPreciseRefType.outfit);
+      expect(params.preciseReferences.first.strength, 1.8);
+
+      // 2. Mount from library entry
+      final libRes = await tool.execute('rg2', {
+        'action': 'add_from_library',
+        'entry_id': 'char_ref_1',
+      });
+      expect(libRes.isError, isFalse);
+      expect(params.preciseReferences.length, 2);
+
+      // 3. Update strength & disable
+      final targetId = params.preciseReferences.last.id;
+      final updRes = await tool.execute('rg3', {
+        'action': 'update',
+        'id': targetId,
+        'prefer_same_outfit': false,
+        'strength': 2.5,
+      });
+      expect(updRes.isError, isFalse);
+      expect(params.preciseReferences.last.preferSameOutfit, isFalse);
+      expect(params.preciseReferences.last.strength, 2.5);
+
+      // 4. Remove & clear
+      final remRes = await tool.execute('rg4', {
+        'action': 'remove',
+        'id': targetId,
+      });
+      expect(remRes.isError, isFalse);
+      expect(params.preciseReferences.length, 1);
+
+      final clrRes = await tool.execute('rg5', {
+        'action': 'clear',
+        'scope': 'precise',
+      });
+      expect(clrRes.isError, isFalse);
+      expect(params.preciseReferences, isEmpty);
+
+      // 5. Mention resolution informs Agent of attached visual reference
+      final mentionCtx = resolveLibraryCharactersForMessage(
+        '画一张 @[白丝祈酱] 穿泳装',
+        entries,
+      );
+      expect(mentionCtx, isNotNull);
+      expect(mentionCtx!, contains('已关联参考图'));
+      expect(mentionCtx, contains('reference_guides'));
+      expect(mentionCtx, contains('char_ref_1'));
     });
   });
 }

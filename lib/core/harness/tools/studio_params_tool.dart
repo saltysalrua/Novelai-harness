@@ -4,6 +4,7 @@ import '../presets/agent_preset.dart';
 import '../types.dart';
 import 'agent_tool.dart';
 import 'character_prompt_tools.dart' show buildCharacterPromptsReport;
+import 'reference_guide_tools.dart' show buildReferenceGuidesReport;
 
 /// 回调类型：更新生图参数
 typedef OnStudioParamsUpdate = void Function(NaiGenerationParams newParams);
@@ -119,6 +120,9 @@ String buildStudioParamsReport(
   );
   var report = '$title\n${lines.join('\n')}';
   report += '\n\n角色提示词详情：\n$characterReport';
+  if (params.preciseReferences.isNotEmpty || params.vibeReferences.isNotEmpty) {
+    report += '\n\n参考引导状态：\n${buildReferenceGuidesReport(params)}';
+  }
   return report;
 }
 
@@ -163,6 +167,7 @@ class NovelAiGetStudioParamsTool extends AgentTool {
                    'character_ai_position',
                    'seed',
                    'opus_free_status',
+                   'references',
                    'all',
                  ],
                },
@@ -287,6 +292,9 @@ class NovelAiGetStudioParamsTool extends AgentTool {
     }
     if (requestedKeys.contains('opus_free_status')) {
       lines.add('• 点数预估: ${buildCostEstimateStatus(params)}');
+    }
+    if (requestedKeys.contains('references')) {
+      lines.add('• 参考引导:\n${buildReferenceGuidesReport(params)}');
     }
 
     if (lines.isEmpty) {

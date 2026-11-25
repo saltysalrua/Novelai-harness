@@ -19,6 +19,7 @@ import '../../../core/widgets/context_menu.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../../settings/widgets/settings_shared.dart';
 import '../view_models/studio_view_model.dart';
+import 'prompt_combo_apply_dialog.dart';
 import 'prompt_combo_card.dart';
 import 'prompt_combo_edit_dialog.dart';
 import 'prompt_library_sync_dialog.dart';
@@ -311,6 +312,100 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       message: l10n.libraryApplyStyleSuccess(combo.title),
       tone: AppToastTone.success,
       duration: const Duration(milliseconds: 1400),
+      actionLabel: widget.onClose != null
+          ? l10n.libraryReturnToWorkbench
+          : null,
+      onAction: widget.onClose,
+    );
+  }
+
+  Future<void> _handleSelectiveApply(PromptComboEntry combo) async {
+    final l10n = context.l10n;
+    // 若仅含单类单张参考且无提示词，无需多弹一步，直接一键载入
+    final totalParts =
+        (combo.hasPromptText ? 1 : 0) +
+        combo.preciseReferences.length +
+        combo.vibeReferences.length;
+    if (!combo.hasPromptText && totalParts == 1) {
+      await _applyReferencesOnly(
+        combo,
+        precise: combo.hasPreciseReferences,
+        vibe: combo.hasVibeReferences,
+      );
+      return;
+    }
+
+    final selection = await PromptComboApplyDialog.show(context, combo: combo);
+    if (selection == null || !selection.hasAnySelection || !mounted) return;
+
+    final outcome = await widget.viewModel.applyPromptComboSelective(
+      combo,
+      applyPrompt: selection.applyPrompt,
+      replacePrompt: selection.replacePrompt,
+      asCharacter: selection.asCharacter,
+      asStyle: selection.asStyle,
+      applyPreciseReferences: selection.selectedPreciseRefIds.isNotEmpty,
+      applyVibeReferences: selection.selectedVibeRefIds.isNotEmpty,
+      replaceReferences: selection.replaceReferences,
+      selectedPreciseRefIds: selection.selectedPreciseRefIds,
+      selectedVibeRefIds: selection.selectedVibeRefIds,
+    );
+    if (!mounted) return;
+
+    final parts = <String>[
+      if (outcome.appliedPrompt) l10n.librarySelectiveApplyPromptSection,
+      if (outcome.appliedPreciseCount > 0)
+        l10n.libraryCardPreciseRefBadge(outcome.appliedPreciseCount),
+      if (outcome.appliedVibeCount > 0)
+        l10n.libraryCardVibeBadge(outcome.appliedVibeCount),
+    ];
+    if (parts.isEmpty) return;
+
+    showAppToast(
+      context,
+      message: l10n.librarySelectiveApplySuccess(combo.title, parts.join(' + ')),
+      tone: AppToastTone.success,
+      duration: const Duration(milliseconds: 1600),
+      actionLabel: widget.onClose != null
+          ? l10n.libraryReturnToWorkbench
+          : null,
+      onAction: widget.onClose,
+    );
+  }
+
+  Future<void> _applyReferencesOnly(
+    PromptComboEntry combo, {
+    required bool precise,
+    required bool vibe,
+  }) async {
+    final l10n = context.l10n;
+    final outcome = await widget.viewModel.applyPromptComboSelective(
+      combo,
+      applyPrompt: false,
+      applyPreciseReferences: precise,
+      applyVibeReferences: vibe,
+    );
+    if (!mounted) return;
+    final parts = <String>[
+      if (outcome.appliedPreciseCount > 0)
+        l10n.libraryCardPreciseRefBadge(outcome.appliedPreciseCount),
+      if (outcome.appliedVibeCount > 0)
+        l10n.libraryCardVibeBadge(outcome.appliedVibeCount),
+    ];
+    if (parts.isEmpty) {
+      showAppToast(
+        context,
+        message: l10n.libraryApplyRefMissingFiles,
+        tone: AppToastTone.warning,
+        duration: const Duration(milliseconds: 1600),
+      );
+      return;
+    }
+    showAppToast(
+      context,
+      message: l10n.librarySelectiveApplySuccess(combo.title, parts.join(' + ')),
+      tone: AppToastTone.success,
+      duration: const Duration(milliseconds: 1600),
       actionLabel: widget.onClose != null
           ? l10n.libraryReturnToWorkbench
           : null,
@@ -923,6 +1018,28 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                                         replace: replace,
                                       )
                                     : null,
+                                onSelectiveApply:
+                                    columns[c][i].entry.hasReferenceGuides
+                                    ? () => _handleSelectiveApply(
+                                        columns[c][i].entry,
+                                      )
+                                    : null,
+                                onApplyPreciseRefsOnly:
+                                    columns[c][i].entry.hasPreciseReferences
+                                    ? () => _applyReferencesOnly(
+                                        columns[c][i].entry,
+                                        precise: true,
+                                        vibe: false,
+                                      )
+                                    : null,
+                                onApplyVibesOnly:
+                                    columns[c][i].entry.hasVibeReferences
+                                    ? () => _applyReferencesOnly(
+                                        columns[c][i].entry,
+                                        precise: false,
+                                        vibe: true,
+                                      )
+                                    : null,
                                 onSendToAgent: columns[c][i].entry.isCharacter
                                     ? () => _sendCharacterToAgent(
                                         columns[c][i].entry,
@@ -959,7 +1076,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     required bool compact,
   }) {
     final path = entry.previewImagePath?.trim();
-    final textSectionHeight = compact ? 108.0 : 96.0;
+    final refBonus = entry.hasReferenceGuides ? 22.0 : 0.0;
+    final textSectionHeight = (compact ? 108.0 : 96.0) + refBonus;
     if (path == null || path.isEmpty || PromptImageProbe.isKnownMissing(path)) {
       return textSectionHeight;
     }

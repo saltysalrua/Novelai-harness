@@ -2062,5 +2062,68 @@
   "pasteActionVibeSubtitle": "添加到侧边栏 Vibe Transfer，迁移画面氛围与风格",
   "pasteActionVibeUnsupportedSubtitle": "添加到 Vibe Transfer (V5 暂不支持，切换至 V4.5 / V4 / V3 后生效)",
   "pasteActionBoard": "导入大画布参考图",
-  "pasteActionBoardSubtitle": "放入自由画布 / 批注板用于对比或给 AI 审查"
+  "pasteActionBoardSubtitle": "放入自由画布 / 批注板用于对比或给 AI 审查",
+  "referenceSaveToLibrary": "保存到词库",
+  "referencePreferSameOutfitShort": "同服装",
+  "libraryCardPreciseRefBadge": "精准参考 ×{count}",
+  "@libraryCardPreciseRefBadge": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "libraryCardVibeBadge": "Vibe ×{count}",
+  "@libraryCardVibeBadge": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "libraryCardApplyReference": "应用参考",
+  "libraryMenuSelectiveApply": "选择性应用...",
+  "libraryMenuApplyPreciseRefsOnly": "仅应用精准参考",
+  "libraryMenuApplyVibesOnly": "仅应用 Vibe Transfer",
+  "librarySelectiveApplyTitle": "选择性应用 · {title}",
+  "@librarySelectiveApplyTitle": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "librarySelectiveApplyPromptSection": "提示词",
+  "librarySelectiveApplyPreciseSection": "精准参考 ({count})",
+  "@librarySelectiveApplyPreciseSection": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "librarySelectiveApplyVibeSection": "Vibe Transfer ({count})",
+  "@librarySelectiveApplyVibeSection": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "librarySelectiveApplySelectAll": "全选",
+  "librarySelectiveApplyUnselectAll": "取消全选",
+  "librarySelectiveApplyRefModeLabel": "参考图写入方式",
+  "librarySelectiveApplyModeAppend": "追加",
+  "librarySelectiveApplyModeReplace": "替换",
+  "librarySelectiveApplyConfirm": "应用选中项",
+  "librarySelectiveApplySuccess": "已应用「{title}」({parts})",
+  "@librarySelectiveApplySuccess": {
+    "placeholders": {
+      "title": {"type": "String"},
+      "parts": {"type": "String"}
+    }
+  },
+  "libraryApplyRefMissingFiles": "未能加载参考图（本地图片文件缺失）",
+  "libraryEditFieldReferenceGuides": "关联精准参考与 Vibe (可选)",
+  "libraryEditImportWorkspaceRefs": "导入当前工作台",
+  "libraryEditAddPreciseRef": "添加精准参考",
+  "libraryEditAddVibeRef": "添加 Vibe",
+  "libraryEditWorkspaceRefsEmpty": "当前工作台没有可导入的精准参考或 Vibe",
+  "libraryEditImportedWorkspaceRefs": "已导入 {precise} 张精准参考、{vibe} 条 Vibe",
+  "@libraryEditImportedWorkspaceRefs": {
+    "placeholders": {
+      "precise": {"type": "int"},
+      "vibe": {"type": "int"}
+    }
+  }
 }

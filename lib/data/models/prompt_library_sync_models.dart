@@ -1,3 +1,5 @@
+import 'nai_precise_reference.dart';
+import 'nai_vibe_reference.dart';
 import 'prompt_library_models.dart';
 
 /// 词库云同步模式
@@ -186,6 +188,225 @@ class PromptLibrarySyncState {
   }
 }
 
+/// 远端同步精准参考条目（图片内容以 SHA-256 存入 sync_images 去重）
+class RemotePreciseRefRecord {
+  final String id;
+  final String imageHash;
+  final String imageExt;
+  final String? fileName;
+  final NaiPreciseRefType type;
+  final bool preferSameOutfit;
+  final double strength;
+  final double fidelity;
+  final double informationExtracted;
+  final bool enabled;
+
+  const RemotePreciseRefRecord({
+    required this.id,
+    required this.imageHash,
+    this.imageExt = 'png',
+    this.fileName,
+    this.type = NaiPreciseRefType.characterAndStyle,
+    this.preferSameOutfit = true,
+    this.strength = 1.0,
+    this.fidelity = 1.0,
+    this.informationExtracted = 1.0,
+    this.enabled = true,
+  });
+
+  PromptLibraryPreciseRef? toLocal(String? Function(String hash) resolvePath) {
+    final path = resolvePath(imageHash);
+    if (path == null || path.trim().isEmpty) return null;
+    return PromptLibraryPreciseRef(
+      id: id,
+      imagePath: path,
+      fileName: fileName,
+      type: type,
+      preferSameOutfit: preferSameOutfit,
+      strength: strength,
+      fidelity: fidelity,
+      informationExtracted: informationExtracted,
+      enabled: enabled,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'imageHash': imageHash,
+    'imageExt': imageExt,
+    if (fileName != null && fileName!.trim().isNotEmpty) 'fileName': fileName,
+    'type': type.id,
+    'preferSameOutfit': preferSameOutfit,
+    'strength': strength,
+    'fidelity': fidelity,
+    'informationExtracted': informationExtracted,
+    'enabled': enabled,
+  };
+
+  static RemotePreciseRefRecord? fromJson(Map<String, dynamic> json) {
+    final rawHash = (json['imageHash'] as String?)?.trim().toLowerCase() ?? '';
+    if (rawHash.length != 64) return null;
+    final rawExt = (json['imageExt'] as String?)?.trim().toLowerCase() ?? 'png';
+    final type = NaiPreciseRefType.fromId(json['type'] as String?);
+    return RemotePreciseRefRecord(
+      id: (json['id'] as String?)?.trim().isNotEmpty == true
+          ? (json['id'] as String).trim()
+          : 'ref_${rawHash.substring(0, 8)}',
+      imageHash: rawHash,
+      imageExt: rawExt.isNotEmpty ? rawExt : 'png',
+      fileName: (json['fileName'] as String?)?.trim(),
+      type: type,
+      preferSameOutfit: json['preferSameOutfit'] is bool
+          ? json['preferSameOutfit'] as bool
+          : type == NaiPreciseRefType.characterAndStyle,
+      strength: (json['strength'] as num?)?.toDouble() ?? 1.0,
+      fidelity: (json['fidelity'] as num?)?.toDouble() ?? 1.0,
+      informationExtracted:
+          (json['informationExtracted'] as num?)?.toDouble() ?? 1.0,
+      enabled: json['enabled'] is bool ? json['enabled'] as bool : true,
+    );
+  }
+}
+
+/// 远端同步 Vibe Transfer 条目（原图/缩略图按 SHA-256 存 sync_images，编码向量直存）
+class RemoteVibeRefRecord {
+  final String id;
+  final String displayName;
+  final NaiVibeSourceType sourceType;
+  final String? rawImageHash;
+  final String? rawImageExt;
+  final String? thumbnailHash;
+  final String? thumbnailExt;
+  final Map<String, String> encodingsByModel;
+  final Map<String, double> encodedInfoExtractedByModel;
+  final double strength;
+  final double informationExtracted;
+  final bool enabled;
+
+  const RemoteVibeRefRecord({
+    required this.id,
+    required this.displayName,
+    this.sourceType = NaiVibeSourceType.rawImage,
+    this.rawImageHash,
+    this.rawImageExt,
+    this.thumbnailHash,
+    this.thumbnailExt,
+    this.encodingsByModel = const {},
+    this.encodedInfoExtractedByModel = const {},
+    this.strength = NaiVibeReference.defaultStrength,
+    this.informationExtracted = NaiVibeReference.defaultInfoExtracted,
+    this.enabled = true,
+  });
+
+  PromptLibraryVibeRef? toLocal(String? Function(String hash) resolvePath) {
+    final rawPath = rawImageHash != null ? resolvePath(rawImageHash!) : null;
+    final thumbPath =
+        thumbnailHash != null ? resolvePath(thumbnailHash!) : null;
+    if ((rawPath == null || rawPath.isEmpty) && encodingsByModel.isEmpty) {
+      return null;
+    }
+    return PromptLibraryVibeRef(
+      id: id,
+      displayName: displayName,
+      sourceType: sourceType,
+      rawImagePath: rawPath,
+      thumbnailPath: thumbPath,
+      encodingsByModel: encodingsByModel,
+      encodedInfoExtractedByModel: encodedInfoExtractedByModel,
+      strength: strength,
+      informationExtracted: informationExtracted,
+      enabled: enabled,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'displayName': displayName,
+    'sourceType': sourceType.name,
+    if (rawImageHash != null) 'rawImageHash': rawImageHash,
+    if (rawImageHash != null && rawImageExt != null) 'rawImageExt': rawImageExt,
+    if (thumbnailHash != null) 'thumbnailHash': thumbnailHash,
+    if (thumbnailHash != null && thumbnailExt != null)
+      'thumbnailExt': thumbnailExt,
+    if (encodingsByModel.isNotEmpty) 'encodingsByModel': encodingsByModel,
+    if (encodedInfoExtractedByModel.isNotEmpty)
+      'encodedInfoExtractedByModel': encodedInfoExtractedByModel,
+    'strength': strength,
+    'informationExtracted': informationExtracted,
+    'enabled': enabled,
+  };
+
+  static NaiVibeSourceType _parseSourceType(String? raw) {
+    return switch (raw?.trim()) {
+      'naiv4vibe' => NaiVibeSourceType.naiv4vibe,
+      'naiv4vibebundle' => NaiVibeSourceType.naiv4vibebundle,
+      'pngEmbedded' => NaiVibeSourceType.pngEmbedded,
+      _ => NaiVibeSourceType.rawImage,
+    };
+  }
+
+  static RemoteVibeRefRecord? fromJson(Map<String, dynamic> json) {
+    final rawHashRaw = (json['rawImageHash'] as String?)?.trim().toLowerCase();
+    final rawImageHash =
+        rawHashRaw != null && rawHashRaw.length == 64 ? rawHashRaw : null;
+    final thumbHashRaw =
+        (json['thumbnailHash'] as String?)?.trim().toLowerCase();
+    final thumbnailHash =
+        thumbHashRaw != null && thumbHashRaw.length == 64 ? thumbHashRaw : null;
+
+    final encodings = <String, String>{};
+    final rawEnc = json['encodingsByModel'];
+    if (rawEnc is Map) {
+      for (final e in rawEnc.entries) {
+        final k = e.key.toString().trim();
+        final v = e.value?.toString().trim() ?? '';
+        if (k.isNotEmpty && v.isNotEmpty) encodings[k] = v;
+      }
+    }
+    final infoMap = <String, double>{};
+    final rawInfo = json['encodedInfoExtractedByModel'];
+    if (rawInfo is Map) {
+      for (final e in rawInfo.entries) {
+        final k = e.key.toString().trim();
+        final v = e.value;
+        if (k.isNotEmpty && v is num) infoMap[k] = v.toDouble();
+      }
+    }
+    if (rawImageHash == null && encodings.isEmpty) return null;
+
+    final rawExt = (json['rawImageExt'] as String?)?.trim().toLowerCase();
+    final thumbExt = (json['thumbnailExt'] as String?)?.trim().toLowerCase();
+    return RemoteVibeRefRecord(
+      id: (json['id'] as String?)?.trim().isNotEmpty == true
+          ? (json['id'] as String).trim()
+          : 'vibe_${DateTime.now().microsecondsSinceEpoch}',
+      displayName: (json['displayName'] as String?)?.trim().isNotEmpty == true
+          ? (json['displayName'] as String).trim()
+          : 'Vibe',
+      sourceType: _parseSourceType(json['sourceType'] as String?),
+      rawImageHash: rawImageHash,
+      rawImageExt: rawImageHash != null
+          ? (rawExt != null && rawExt.isNotEmpty ? rawExt : 'png')
+          : null,
+      thumbnailHash: thumbnailHash,
+      thumbnailExt: thumbnailHash != null
+          ? (thumbExt != null && thumbExt.isNotEmpty ? thumbExt : 'png')
+          : null,
+      encodingsByModel: encodings,
+      encodedInfoExtractedByModel: infoMap,
+      strength:
+          (json['strength'] as num?)?.toDouble() ??
+          NaiVibeReference.defaultStrength,
+      informationExtracted:
+          ((json['informationExtracted'] as num?)?.toDouble() ??
+                  NaiVibeReference.defaultInfoExtracted)
+              .clamp(0.01, 1.0)
+              .toDouble(),
+      enabled: json['enabled'] is bool ? json['enabled'] as bool : true,
+    );
+  }
+}
+
 /// 远端词条同步协议实体 (含删除墓碑与内容哈希)
 class RemotePromptEntryRecord {
   final String id;
@@ -200,6 +421,8 @@ class RemotePromptEntryRecord {
   final bool isBuiltin;
   final String? previewHash;
   final String? previewExt;
+  final List<RemotePreciseRefRecord> preciseReferences;
+  final List<RemoteVibeRefRecord> vibeReferences;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -218,6 +441,8 @@ class RemotePromptEntryRecord {
     this.isBuiltin = false,
     this.previewHash,
     this.previewExt,
+    this.preciseReferences = const [],
+    this.vibeReferences = const [],
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -228,11 +453,88 @@ class RemotePromptEntryRecord {
 
   DateTime get effectiveTimestamp => (deletedAt ?? updatedAt).toUtc();
 
+  /// 该远端条目引用的全部图片 SHA-256 哈希（预览图 + 精准参考图 + Vibe 原图/缩略图）
+  Iterable<String> get allReferencedImageHashes sync* {
+    if (previewHash != null && previewHash!.isNotEmpty) yield previewHash!;
+    for (final ref in preciseReferences) {
+      if (ref.imageHash.isNotEmpty) yield ref.imageHash;
+    }
+    for (final vibe in vibeReferences) {
+      if (vibe.rawImageHash != null && vibe.rawImageHash!.isNotEmpty) {
+        yield vibe.rawImageHash!;
+      }
+      if (vibe.thumbnailHash != null && vibe.thumbnailHash!.isNotEmpty) {
+        yield vibe.thumbnailHash!;
+      }
+    }
+  }
+
+  /// 按图片哈希查找扩展名提示
+  String? extHintForHash(String hash) {
+    if (previewHash == hash) return previewExt;
+    for (final ref in preciseReferences) {
+      if (ref.imageHash == hash) return ref.imageExt;
+    }
+    for (final vibe in vibeReferences) {
+      if (vibe.rawImageHash == hash) return vibe.rawImageExt;
+      if (vibe.thumbnailHash == hash) return vibe.thumbnailExt;
+    }
+    return null;
+  }
+
   factory RemotePromptEntryRecord.fromLocalEntry(
     PromptComboEntry entry, {
     String? previewHash,
     String? previewExt,
+    Map<String, ({String hash, String ext})> pathHashes = const {},
   }) {
+    final remoteRefs = <RemotePreciseRefRecord>[];
+    for (final ref in entry.preciseReferences) {
+      final info = pathHashes[ref.imagePath.trim()];
+      if (info == null) continue;
+      remoteRefs.add(
+        RemotePreciseRefRecord(
+          id: ref.id,
+          imageHash: info.hash,
+          imageExt: info.ext,
+          fileName: ref.fileName,
+          type: ref.type,
+          preferSameOutfit: ref.preferSameOutfit,
+          strength: ref.strength,
+          fidelity: ref.fidelity,
+          informationExtracted: ref.informationExtracted,
+          enabled: ref.enabled,
+        ),
+      );
+    }
+
+    final remoteVibes = <RemoteVibeRefRecord>[];
+    for (final vibe in entry.vibeReferences) {
+      final rawInfo = vibe.rawImagePath != null
+          ? pathHashes[vibe.rawImagePath!.trim()]
+          : null;
+      final thumbInfo = vibe.thumbnailPath != null
+          ? pathHashes[vibe.thumbnailPath!.trim()]
+          : null;
+      if (rawInfo == null && vibe.encodingsByModel.isEmpty) continue;
+      remoteVibes.add(
+        RemoteVibeRefRecord(
+          id: vibe.id,
+          displayName: vibe.displayName,
+          sourceType: vibe.sourceType,
+          rawImageHash: rawInfo?.hash,
+          rawImageExt: rawInfo?.ext,
+          thumbnailHash: thumbInfo?.hash,
+          thumbnailExt: thumbInfo?.ext,
+          encodingsByModel: vibe.encodingsByModel,
+          encodedInfoExtractedByModel: vibe.encodedInfoExtractedByModel,
+          strength: vibe.strength,
+          informationExtracted: vibe.informationExtracted,
+          enabled: vibe.enabled,
+        ),
+      );
+    }
+
     return RemotePromptEntryRecord(
       id: entry.id,
       title: entry.title,
@@ -246,6 +548,8 @@ class RemotePromptEntryRecord {
       isBuiltin: entry.isBuiltin,
       previewHash: previewHash,
       previewExt: previewExt,
+      preciseReferences: remoteRefs,
+      vibeReferences: remoteVibes,
       createdAt: entry.createdAt.toUtc(),
       updatedAt: entry.updatedAt.toUtc(),
     );
@@ -267,7 +571,19 @@ class RemotePromptEntryRecord {
     );
   }
 
-  PromptComboEntry toLocalEntry({String? previewImagePath}) {
+  PromptComboEntry toLocalEntry({
+    String? previewImagePath,
+    String? Function(String hash)? resolveImagePath,
+  }) {
+    final resolver = resolveImagePath ?? (_) => null;
+    final localRefs = preciseReferences
+        .map((r) => r.toLocal(resolver))
+        .whereType<PromptLibraryPreciseRef>()
+        .toList(growable: false);
+    final localVibes = vibeReferences
+        .map((v) => v.toLocal(resolver))
+        .whereType<PromptLibraryVibeRef>()
+        .toList(growable: false);
     return PromptComboEntry(
       id: id,
       title: title,
@@ -283,6 +599,8 @@ class RemotePromptEntryRecord {
           ? suffixPrompt
           : '',
       previewImagePath: previewImagePath,
+      preciseReferences: localRefs,
+      vibeReferences: localVibes,
       createdAt: createdAt.toLocal(),
       updatedAt: updatedAt.toLocal(),
       isFavorite: isFavorite,
@@ -308,6 +626,10 @@ class RemotePromptEntryRecord {
     'isBuiltin': isBuiltin,
     'previewHash': previewHash,
     'previewExt': previewExt,
+    if (preciseReferences.isNotEmpty)
+      'preciseReferences': preciseReferences.map((r) => r.toJson()).toList(),
+    if (vibeReferences.isNotEmpty)
+      'vibeReferences': vibeReferences.map((v) => v.toJson()).toList(),
     'createdAt': createdAt.toUtc().toIso8601String(),
     'updatedAt': updatedAt.toUtc().toIso8601String(),
     'deletedAt': deletedAt?.toUtc().toIso8601String(),
@@ -339,6 +661,28 @@ class RemotePromptEntryRecord {
         ? rawExt.trim().toLowerCase()
         : null;
 
+    final preciseRefs = <RemotePreciseRefRecord>[];
+    final rawRefs = json['preciseReferences'];
+    if (rawRefs is List) {
+      for (final item in rawRefs) {
+        if (item is Map<String, dynamic>) {
+          final parsed = RemotePreciseRefRecord.fromJson(item);
+          if (parsed != null) preciseRefs.add(parsed);
+        }
+      }
+    }
+
+    final vibeRefs = <RemoteVibeRefRecord>[];
+    final rawVibes = json['vibeReferences'];
+    if (rawVibes is List) {
+      for (final item in rawVibes) {
+        if (item is Map<String, dynamic>) {
+          final parsed = RemoteVibeRefRecord.fromJson(item);
+          if (parsed != null) vibeRefs.add(parsed);
+        }
+      }
+    }
+
     return RemotePromptEntryRecord(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
@@ -354,6 +698,8 @@ class RemotePromptEntryRecord {
       isBuiltin: json['isBuiltin'] as bool? ?? false,
       previewHash: previewHash,
       previewExt: previewExt,
+      preciseReferences: preciseRefs,
+      vibeReferences: vibeRefs,
       createdAt: createdAt,
       updatedAt: updatedAt,
       deletedAt: deletedAt,

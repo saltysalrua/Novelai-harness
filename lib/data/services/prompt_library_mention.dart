@@ -318,6 +318,16 @@ String? resolveLibraryCharactersForMessage(
     if (e.tags.isNotEmpty) {
       buffer.writeln('  标签: ${e.tags.join(', ')}');
     }
+    if (e.hasReferenceGuides) {
+      final refSummary = <String>[
+        if (e.preciseReferences.isNotEmpty)
+          '精准参考 ${e.preciseReferences.length} 张 (${e.preciseReferences.map((r) => r.type.id).join('/')})',
+        if (e.vibeReferences.isNotEmpty) 'Vibe ${e.vibeReferences.length} 条',
+      ].join(' + ');
+      buffer.writeln(
+        '  已关联参考图: $refSummary（如需挂载到工作台参考栏，可调用 reference_guides(action: "add_from_library", entry_id: "${e.id}")）',
+      );
+    }
   }
 
   buffer.write('</library_characters>');

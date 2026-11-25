@@ -225,7 +225,7 @@ class PromptLibraryService {
     await _atomicWriteString(file, jsonEncode(state.toJson()));
   }
 
-  /// 一次性提交云同步产物并清理孤儿托管预览图
+  /// 一次性提交云同步产物并清理孤儿托管图片（预览图 + 精准参考图 + Vibe 图）
   Future<void> applySyncOutcome({
     required List<PromptComboEntry> entries,
     required PromptLibrarySyncState syncState,
@@ -233,9 +233,7 @@ class PromptLibraryService {
     await saveEntries(entries);
     await saveSyncState(syncState);
     final activePaths = entries
-        .map((e) => e.previewImagePath?.trim())
-        .whereType<String>()
-        .where((path) => path.isNotEmpty)
+        .expand((e) => e.managedImagePaths)
         .toSet();
     await pruneOrphanedManagedPreviews(activePaths);
   }
@@ -305,19 +303,20 @@ class PromptLibraryService {
     } catch (_) {}
   }
 
-  /// 更新词组合条目 (预览图被更换时自动清理旧托管文件，避免孤儿文件堆积)
+  /// 更新词组合条目 (预览图/参考图被更换或移除时自动清理不再被引用的旧托管文件)
   Future<void> updateEntry(PromptComboEntry entry) async {
     final list = await loadEntries();
     final idx = list.indexWhere((e) => e.id == entry.id);
     if (idx != -1) {
-      final oldPath = list[idx].previewImagePath;
+      final oldPaths = list[idx].managedImagePaths.toSet();
       list[idx] = entry;
       await saveEntries(list);
       await _clearTombstonesForIds([entry.id]);
-      if (oldPath != null &&
-          oldPath != entry.previewImagePath &&
-          !list.any((e) => e.previewImagePath == oldPath)) {
-        await _deleteManagedPreviewFile(oldPath);
+      final remainingPaths = list.expand((e) => e.managedImagePaths).toSet();
+      for (final oldPath in oldPaths) {
+        if (!remainingPaths.contains(oldPath)) {
+          await _deleteManagedPreviewFile(oldPath);
+        }
       }
     }
   }
@@ -328,27 +327,32 @@ class PromptLibraryService {
     final idx = list.indexWhere((e) => e.id == id);
     if (idx != -1) {
       final item = list[idx];
+      final oldPaths = item.managedImagePaths.toSet();
       list.removeAt(idx);
       await saveEntries(list);
       await _recordTombstones([id]);
-      final oldPath = item.previewImagePath;
-      if (oldPath != null && !list.any((e) => e.previewImagePath == oldPath)) {
-        await _deleteManagedPreviewFile(oldPath);
+      final remainingPaths = list.expand((e) => e.managedImagePaths).toSet();
+      for (final oldPath in oldPaths) {
+        if (!remainingPaths.contains(oldPath)) {
+          await _deleteManagedPreviewFile(oldPath);
+        }
       }
     }
   }
 
-  /// 保存图片字节到本地预览图目录并返回持久化路径
+  /// 保存图片字节到本地托管目录并返回持久化路径（预览图 / 精准参考图 / Vibe 原图共用）
   Future<String?> savePreviewImageBytes(
     Uint8List bytes, {
     String extension = 'png',
+    String prefix = 'preview',
   }) async {
     if (bytes.isEmpty) return null;
     try {
       final previewDir = await _getPreviewDir();
       final hash = md5.convert(bytes).toString().substring(0, 12);
+      final safePrefix = prefix.trim().isEmpty ? 'preview' : prefix.trim();
       final filename =
-          'preview_${DateTime.now().millisecondsSinceEpoch}_$hash.$extension';
+          '${safePrefix}_${DateTime.now().millisecondsSinceEpoch}_$hash.$extension';
       final file = File(p.join(previewDir.path, filename));
       await file.writeAsBytes(bytes);
       PromptImageProbe.recordBytes(file.path, bytes);

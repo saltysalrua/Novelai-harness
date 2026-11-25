@@ -181,18 +181,154 @@ function detectImageFormat(bytes, extHint, contentTypeHint) {
   return { mimeType: 'image/png', ext: 'png' };
 }
 
+function parseJsonArrayField(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function sanitizeOptionalHash(raw) {
+  if (typeof raw !== 'string') return null;
+  const clean = raw.trim().toLowerCase();
+  return isValidSha256(clean) ? clean : null;
+}
+
+function sanitizeOptionalExt(raw, hasHash) {
+  if (!hasHash || typeof raw !== 'string') return null;
+  const clean = raw.trim().toLowerCase().replace(/^\./, '');
+  return clean ? clean.slice(0, 16) : null;
+}
+
+function sanitizePreciseReferences(rawList) {
+  if (!Array.isArray(rawList)) return [];
+  const allowedTypes = new Set(['character', 'character&style', 'style', 'costume', 'outfit']);
+  const out = [];
+  for (let i = 0; i < rawList.length && out.length < 32; i++) {
+    const item = rawList[i];
+    if (!item || typeof item !== 'object') continue;
+    const imageHash = sanitizeOptionalHash(item.imageHash);
+    if (!imageHash) continue;
+    const imageExt = sanitizeOptionalExt(item.imageExt, true) || 'png';
+    const rawType = typeof item.type === 'string' ? item.type.trim() : 'character&style';
+    const type = rawType === 'outfit' ? 'costume' : allowedTypes.has(rawType) ? rawType : 'character&style';
+    const id =
+      typeof item.id === 'string' && item.id.trim()
+        ? item.id.trim().slice(0, 128)
+        : `ref_${i}`;
+    const fileName =
+      typeof item.fileName === 'string' && item.fileName.trim()
+        ? item.fileName.trim().slice(0, 200)
+        : null;
+    const strength = Number.isFinite(Number(item.strength)) ? Number(item.strength) : 1.0;
+    const fidelity = Number.isFinite(Number(item.fidelity)) ? Number(item.fidelity) : 1.0;
+    const informationExtracted = Number.isFinite(Number(item.informationExtracted))
+      ? Number(item.informationExtracted)
+      : 1.0;
+    out.push({
+      id,
+      imageHash,
+      imageExt,
+      ...(fileName ? { fileName } : {}),
+      type,
+      preferSameOutfit:
+        typeof item.preferSameOutfit === 'boolean'
+          ? item.preferSameOutfit
+          : type === 'character&style',
+      strength,
+      fidelity,
+      informationExtracted,
+      enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
+    });
+  }
+  return out;
+}
+
+function sanitizeVibeReferences(rawList) {
+  if (!Array.isArray(rawList)) return [];
+  const allowedSources = new Set(['rawImage', 'naiv4vibe', 'naiv4vibebundle', 'pngEmbedded']);
+  const out = [];
+  for (let i = 0; i < rawList.length && out.length < 32; i++) {
+    const item = rawList[i];
+    if (!item || typeof item !== 'object') continue;
+    const rawImageHash = sanitizeOptionalHash(item.rawImageHash);
+    const rawImageExt = sanitizeOptionalExt(item.rawImageExt, Boolean(rawImageHash));
+    const thumbnailHash = sanitizeOptionalHash(item.thumbnailHash);
+    const thumbnailExt = sanitizeOptionalExt(item.thumbnailExt, Boolean(thumbnailHash));
+    const encodingsByModel = {};
+    if (item.encodingsByModel && typeof item.encodingsByModel === 'object' && !Array.isArray(item.encodingsByModel)) {
+      for (const [k, v] of Object.entries(item.encodingsByModel)) {
+        const key = String(k).trim();
+        const val = typeof v === 'string' ? v.trim() : '';
+        if (key && val) {
+          encodingsByModel[key] = val;
+        }
+      }
+    }
+    const encodedInfoExtractedByModel = {};
+    if (
+      item.encodedInfoExtractedByModel &&
+      typeof item.encodedInfoExtractedByModel === 'object' &&
+      !Array.isArray(item.encodedInfoExtractedByModel)
+    ) {
+      for (const [k, v] of Object.entries(item.encodedInfoExtractedByModel)) {
+        const key = String(k).trim();
+        const num = Number(v);
+        if (key && Number.isFinite(num)) {
+          encodedInfoExtractedByModel[key] = num;
+        }
+      }
+    }
+    if (!rawImageHash && Object.keys(encodingsByModel).length === 0) continue;
+    const id =
+      typeof item.id === 'string' && item.id.trim()
+        ? item.id.trim().slice(0, 128)
+        : `vibe_${i}`;
+    const displayName =
+      typeof item.displayName === 'string' && item.displayName.trim()
+        ? item.displayName.trim().slice(0, 200)
+        : 'Vibe';
+    const rawSource = typeof item.sourceType === 'string' ? item.sourceType.trim() : 'rawImage';
+    const sourceType = allowedSources.has(rawSource) ? rawSource : 'rawImage';
+    const strength = Number.isFinite(Number(item.strength)) ? Number(item.strength) : 0.6;
+    const rawInfo = Number(item.informationExtracted);
+    const informationExtracted = Number.isFinite(rawInfo)
+      ? Math.min(1.0, Math.max(0.01, rawInfo))
+      : 1.0;
+    out.push({
+      id,
+      displayName,
+      sourceType,
+      ...(rawImageHash ? { rawImageHash, rawImageExt: rawImageExt || 'png' } : {}),
+      ...(thumbnailHash ? { thumbnailHash, thumbnailExt: thumbnailExt || 'png' } : {}),
+      ...(Object.keys(encodingsByModel).length > 0 ? { encodingsByModel } : {}),
+      ...(Object.keys(encodedInfoExtractedByModel).length > 0
+        ? { encodedInfoExtractedByModel }
+        : {}),
+      strength,
+      informationExtracted,
+      enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
+    });
+  }
+  return out;
+}
+
 function mapRowToEntry(row) {
   let tags = [];
-  if (typeof row.tags_json === 'string' && row.tags_json.length > 0) {
+  if (typeof row.tags_json === 'string' && row.tags_json.trim()) {
     try {
       const parsed = JSON.parse(row.tags_json);
       if (Array.isArray(parsed)) {
-        tags = parsed.map((v) => String(v));
+        tags = parsed.map((t) => String(t));
       }
     } catch {
       tags = [];
     }
   }
+
   return {
     id: row.id,
     title: row.title,
@@ -206,6 +342,8 @@ function mapRowToEntry(row) {
     isBuiltin: Boolean(row.is_builtin),
     previewHash: row.preview_hash || null,
     previewExt: row.preview_ext || null,
+    preciseReferences: parseJsonArrayField(row.references_json),
+    vibeReferences: parseJsonArrayField(row.vibes_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at || null,
@@ -213,7 +351,7 @@ function mapRowToEntry(row) {
   };
 }
 
-const migratedStyleColumnDbs = new WeakSet();
+const migratedEntryColumnDbs = new WeakSet();
 
 async function addColumnIfMissing(db, sql) {
   try {
@@ -226,8 +364,8 @@ async function addColumnIfMissing(db, sql) {
   }
 }
 
-async function ensureStyleColumns(db) {
-  if (migratedStyleColumnDbs.has(db)) return;
+async function ensureEntrySchemaColumns(db) {
+  if (migratedEntryColumnDbs.has(db)) return;
   const { results } = await db.prepare('PRAGMA table_info(sync_entries)').all();
   const cols = new Set((results || []).map((r) => r.name));
   if (!cols.has('prefix_prompt')) {
@@ -242,7 +380,19 @@ async function ensureStyleColumns(db) {
       "ALTER TABLE sync_entries ADD COLUMN suffix_prompt TEXT NOT NULL DEFAULT ''",
     );
   }
-  migratedStyleColumnDbs.add(db);
+  if (!cols.has('references_json')) {
+    await addColumnIfMissing(
+      db,
+      "ALTER TABLE sync_entries ADD COLUMN references_json TEXT NOT NULL DEFAULT '[]'",
+    );
+  }
+  if (!cols.has('vibes_json')) {
+    await addColumnIfMissing(
+      db,
+      "ALTER TABLE sync_entries ADD COLUMN vibes_json TEXT NOT NULL DEFAULT '[]'",
+    );
+  }
+  migratedEntryColumnDbs.add(db);
 }
 
 async function executeBatches(db, statements) {
@@ -317,7 +467,7 @@ async function handleGetSync(url, env) {
     return errorResponse('namespace 格式无效', 400, 'INVALID_NAMESPACE');
   }
 
-  await ensureStyleColumns(env.DB);
+  await ensureEntrySchemaColumns(env.DB);
 
   const sinceRaw = url.searchParams.get('since_rev');
   const sinceRev = sinceRaw !== null ? Number.parseInt(sinceRaw, 10) : null;
@@ -370,9 +520,13 @@ function validatePushEntry(raw, fallbackIso) {
   const prefixPrompt = isStyle && typeof raw.prefixPrompt === 'string' ? raw.prefixPrompt : '';
   const suffixPrompt = isStyle && typeof raw.suffixPrompt === 'string' ? raw.suffixPrompt : '';
 
-  const hasContent = isStyle
+  const preciseReferences = deletedAt === null ? sanitizePreciseReferences(raw.preciseReferences) : [];
+  const vibeReferences = deletedAt === null ? sanitizeVibeReferences(raw.vibeReferences) : [];
+
+  const hasPromptContent = isStyle
     ? Boolean(prompt.trim() || prefixPrompt.trim() || suffixPrompt.trim() || negativePrompt.trim())
     : Boolean(prompt.trim());
+  const hasContent = hasPromptContent || preciseReferences.length > 0 || vibeReferences.length > 0;
 
   if (deletedAt === null && (!title.trim() || !hasContent)) {
     return { error: `条目 ${id} 缺少 title 或 prompt` };
@@ -405,6 +559,8 @@ function validatePushEntry(raw, fallbackIso) {
       isBuiltin: raw.isBuiltin ? 1 : 0,
       previewHash,
       previewExt,
+      referencesJson: JSON.stringify(preciseReferences),
+      vibesJson: JSON.stringify(vibeReferences),
       createdAt,
       updatedAt,
       deletedAt,
@@ -417,9 +573,9 @@ function prepareUpsertEntry(db, namespace, e, nextRevision) {
     .prepare(
       `INSERT INTO sync_entries (
          namespace, id, title, category, prompt, negative_prompt, prefix_prompt, suffix_prompt, tags_json,
-         is_favorite, is_builtin, preview_hash, preview_ext,
+         is_favorite, is_builtin, preview_hash, preview_ext, references_json, vibes_json,
          created_at, updated_at, deleted_at, revision
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(namespace, id) DO UPDATE SET
          title = excluded.title,
          category = excluded.category,
@@ -432,6 +588,8 @@ function prepareUpsertEntry(db, namespace, e, nextRevision) {
          is_builtin = excluded.is_builtin,
          preview_hash = excluded.preview_hash,
          preview_ext = excluded.preview_ext,
+         references_json = excluded.references_json,
+         vibes_json = excluded.vibes_json,
          created_at = excluded.created_at,
          updated_at = excluded.updated_at,
          deleted_at = excluded.deleted_at,
@@ -451,6 +609,8 @@ function prepareUpsertEntry(db, namespace, e, nextRevision) {
       e.isBuiltin,
       e.previewHash,
       e.previewExt,
+      e.referencesJson,
+      e.vibesJson,
       e.createdAt,
       e.updatedAt,
       e.deletedAt,
@@ -491,7 +651,7 @@ async function handlePushSync(request, env) {
     return errorResponse('namespace 格式无效', 400, 'INVALID_NAMESPACE');
   }
 
-  await ensureStyleColumns(env.DB);
+  await ensureEntrySchemaColumns(env.DB);
 
   const mode = body?.mode === 'replace' ? 'replace' : 'merge';
   const rawEntries = Array.isArray(body?.entries) ? body.entries : null;
@@ -533,7 +693,8 @@ async function handlePushSync(request, env) {
         statements.push(
           env.DB.prepare(
             `UPDATE sync_entries
-             SET deleted_at = ?, updated_at = ?, preview_hash = NULL, preview_ext = NULL, revision = ?
+             SET deleted_at = ?, updated_at = ?, preview_hash = NULL, preview_ext = NULL,
+                 references_json = '[]', vibes_json = '[]', revision = ?
              WHERE namespace = ? AND id = ?`,
           ).bind(serverNow, serverNow, nextRevision, namespace, row.id),
         );
@@ -746,15 +907,34 @@ async function handleImageGet(hashParam, env) {
 }
 
 async function handleImageGc(env) {
-  const { results } = await env.DB.prepare(
-    `SELECT hash FROM sync_images
-     WHERE hash NOT IN (
-       SELECT DISTINCT preview_hash FROM sync_entries
-       WHERE deleted_at IS NULL AND preview_hash IS NOT NULL
-     )`,
+  await ensureEntrySchemaColumns(env.DB);
+  const { results: activeRows } = await env.DB.prepare(
+    `SELECT preview_hash, references_json, vibes_json FROM sync_entries
+     WHERE deleted_at IS NULL`,
   ).all();
 
-  const orphanHashes = (results || []).map((r) => r.hash);
+  const referencedHashes = new Set();
+  for (const row of activeRows || []) {
+    if (row.preview_hash) referencedHashes.add(String(row.preview_hash).toLowerCase());
+    for (const ref of parseJsonArrayField(row.references_json)) {
+      if (ref && typeof ref.imageHash === 'string' && ref.imageHash) {
+        referencedHashes.add(ref.imageHash.toLowerCase());
+      }
+    }
+    for (const vibe of parseJsonArrayField(row.vibes_json)) {
+      if (vibe && typeof vibe.rawImageHash === 'string' && vibe.rawImageHash) {
+        referencedHashes.add(vibe.rawImageHash.toLowerCase());
+      }
+      if (vibe && typeof vibe.thumbnailHash === 'string' && vibe.thumbnailHash) {
+        referencedHashes.add(vibe.thumbnailHash.toLowerCase());
+      }
+    }
+  }
+
+  const { results: imageRows } = await env.DB.prepare('SELECT hash FROM sync_images').all();
+  const orphanHashes = (imageRows || [])
+    .map((r) => String(r.hash).toLowerCase())
+    .filter((h) => !referencedHashes.has(h));
   if (orphanHashes.length === 0) {
     return jsonResponse({ ok: true, deletedImages: 0 });
   }

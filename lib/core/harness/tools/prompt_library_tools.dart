@@ -36,6 +36,30 @@ typedef PromptLibraryPreviewBytesSaver =
 typedef PromptLibraryPreviewPathCopier =
     Future<String?> Function(String sourcePath);
 
+/// 将当前工作台精准参考落盘为词库托管条目
+typedef PromptLibraryWorkspacePreciseSnapshot =
+    Future<List<PromptLibraryPreciseRef>> Function();
+
+/// 将当前工作台 Vibe Transfer 落盘为词库托管条目
+typedef PromptLibraryWorkspaceVibeSnapshot =
+    Future<List<PromptLibraryVibeRef>> Function();
+
+/// 选择性应用词库条目回调（提示词 + 精准参考 + Vibe）
+typedef PromptLibraryApplyEntryCallback =
+    Future<({bool appliedPrompt, int appliedPreciseCount, int appliedVibeCount})>
+    Function(
+      PromptComboEntry entry, {
+      bool applyPrompt,
+      bool replacePrompt,
+      bool asCharacter,
+      bool asStyle,
+      bool applyPreciseReferences,
+      bool applyVibeReferences,
+      bool replaceReferences,
+      Set<String>? selectedPreciseRefIds,
+      Set<String>? selectedVibeRefIds,
+    });
+
 /// 格式化单条词库条目为可读文本
 String formatPromptComboEntry(PromptComboEntry entry) {
   final lines = <String>[
@@ -45,11 +69,19 @@ String formatPromptComboEntry(PromptComboEntry entry) {
       '  前置词: ${entry.prefixPrompt}',
     if (entry.isStyle && entry.suffixPrompt.trim().isNotEmpty)
       '  后置词: ${entry.suffixPrompt}',
-    if (!entry.isStyle || entry.prompt.trim().isNotEmpty)
+    if (!entry.isStyle && entry.prompt.trim().isNotEmpty)
+      '  提示词: ${entry.prompt}',
+    if (entry.isStyle && entry.prompt.trim().isNotEmpty)
       '  提示词: ${entry.prompt}',
     if (entry.supportsNegative && entry.negativePrompt.isNotEmpty)
       '  负面提示词: ${entry.negativePrompt}',
     if (entry.previewImagePath != null) '  预览图: 已设置',
+    if (entry.preciseReferences.isNotEmpty)
+      '  精准参考 (${entry.preciseReferences.length} 张): '
+          '${entry.preciseReferences.map((r) => '[${r.id}] ${r.type.id}(strength:${r.strength.toStringAsFixed(2)})').join(', ')}',
+    if (entry.vibeReferences.isNotEmpty)
+      '  Vibe Transfer (${entry.vibeReferences.length} 条): '
+          '${entry.vibeReferences.map((v) => '[${v.id}] ${v.displayName}(strength:${v.strength.toStringAsFixed(2)}${v.encodingsByModel.isNotEmpty ? ', 已编码' : ''})').join(', ')}',
     if (entry.tags.isNotEmpty) '  标签: ${entry.tags.join(', ')}',
   ];
   return lines.join('\n');
@@ -161,7 +193,14 @@ class SearchPromptLibraryTool extends AgentTool {
             final title = entry.title.length > 120
                 ? '${entry.title.substring(0, 120)}…'
                 : entry.title;
-            return '• [${entry.id}] $title (${entry.category})';
+            final refTags = <String>[
+              if (entry.preciseReferences.isNotEmpty)
+                '精准参考×${entry.preciseReferences.length}',
+              if (entry.vibeReferences.isNotEmpty)
+                'Vibe×${entry.vibeReferences.length}',
+            ];
+            final refSuffix = refTags.isNotEmpty ? ' [${refTags.join(', ')}]' : '';
+            return '• [${entry.id}] $title (${entry.category})$refSuffix';
           })
           .join('\n'),
     );
@@ -176,9 +215,15 @@ class SearchPromptLibraryTool extends AgentTool {
 class AddPromptLibraryEntryTool extends AgentTool {
   final PromptLibraryEntriesGetter getEntries;
   final PromptLibraryAddEntry addEntry;
+  final PromptLibraryWorkspacePreciseSnapshot? snapshotWorkspacePrecise;
+  final PromptLibraryWorkspaceVibeSnapshot? snapshotWorkspaceVibe;
 
-  AddPromptLibraryEntryTool({required this.getEntries, required this.addEntry})
-    : super(
+  AddPromptLibraryEntryTool({
+    required this.getEntries,
+    required this.addEntry,
+    this.snapshotWorkspacePrecise,
+    this.snapshotWorkspaceVibe,
+  }) : super(
         name: 'add_prompt_library_entry',
         label: '新增词库条目',
         description:
@@ -289,12 +334,16 @@ class AddPromptLibraryEntryTool extends AgentTool {
           prefix.isNotEmpty ||
           suffix.isNotEmpty ||
           negative.isNotEmpty;
-      if (title.isEmpty || (isStyle ? !hasStyleContent : prompt.isEmpty)) {
+      final willAttachRefs =
+          spec['attach_workspace_references'] == true ||
+          spec['attach_workspace_vibes'] == true;
+      if (title.isEmpty ||
+          (!willAttachRefs && (isStyle ? !hasStyleContent : prompt.isEmpty))) {
         return ToolResult(
           toolCallId: toolCallId,
           content: isStyle
-              ? '风格分类下 title 为必填项，且 prompt / prefix_prompt / suffix_prompt / negative_prompt 至少需填一项。'
-              : 'title 与 prompt 为必填项，不能为空。',
+              ? '风格分类下 title 为必填项，且 prompt / prefix_prompt / suffix_prompt / negative_prompt 至少需填一项（或附带工作台参考图）。'
+              : 'title 与 prompt 为必填项，不能为空（若仅保存参考图可传 attach_workspace_references / attach_workspace_vibes）。',
           isError: true,
         );
       }
@@ -317,6 +366,40 @@ class AddPromptLibraryEntryTool extends AgentTool {
           : PromptComboCategories.other;
       final allowNeg = PromptComboEntry.supportsNegativePrompt(category);
       final allowStyle = PromptComboEntry.isStyleCategory(category);
+      final attachedPrecise =
+          spec['attach_workspace_references'] == true &&
+              snapshotWorkspacePrecise != null
+          ? await snapshotWorkspacePrecise!()
+          : const <PromptLibraryPreciseRef>[];
+      final attachedVibes =
+          spec['attach_workspace_vibes'] == true &&
+              snapshotWorkspaceVibe != null
+          ? await snapshotWorkspaceVibe!()
+          : const <PromptLibraryVibeRef>[];
+      final promptText = (spec['prompt'] as String?)?.trim() ?? '';
+      final prefixText = allowStyle
+          ? ((spec['prefix_prompt'] as String?)?.trim() ?? '')
+          : '';
+      final suffixText = allowStyle
+          ? ((spec['suffix_prompt'] as String?)?.trim() ?? '')
+          : '';
+      final negativeText = allowNeg
+          ? ((spec['negative_prompt'] as String?)?.trim() ?? '')
+          : '';
+      final hasAnyContent =
+          promptText.isNotEmpty ||
+          prefixText.isNotEmpty ||
+          suffixText.isNotEmpty ||
+          negativeText.isNotEmpty ||
+          attachedPrecise.isNotEmpty ||
+          attachedVibes.isNotEmpty;
+      if (!hasAnyContent) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: '工作台当前没有可附带的参考图/Vibe，且条目提示词为空，未创建条目。',
+          isError: true,
+        );
+      }
       created.add(
         await addEntry(
           PromptComboEntry(
@@ -326,16 +409,12 @@ class AddPromptLibraryEntryTool extends AgentTool {
                 '${specs.length > 1 ? '_$i' : ''}',
             title: (spec['title'] as String).trim(),
             category: category,
-            prompt: (spec['prompt'] as String?)?.trim() ?? '',
-            negativePrompt: allowNeg
-                ? ((spec['negative_prompt'] as String?)?.trim() ?? '')
-                : '',
-            prefixPrompt: allowStyle
-                ? ((spec['prefix_prompt'] as String?)?.trim() ?? '')
-                : '',
-            suffixPrompt: allowStyle
-                ? ((spec['suffix_prompt'] as String?)?.trim() ?? '')
-                : '',
+            prompt: promptText,
+            negativePrompt: negativeText,
+            prefixPrompt: prefixText,
+            suffixPrompt: suffixText,
+            preciseReferences: attachedPrecise,
+            vibeReferences: attachedVibes,
             createdAt: now,
             updatedAt: now,
             isFavorite: spec['favorite'] is bool
@@ -947,13 +1026,15 @@ List<String> _parseTags(dynamic raw) {
   return const [];
 }
 
-/// 统一本地词组合预设库管理工具（合并 search / add / update / delete / set_preview 为单工具）
+/// 统一本地词组合预设库管理工具（合并 search / add / update / delete / set_preview / apply 为单工具）
 class PromptLibraryTool extends AgentTool {
   final SearchPromptLibraryTool _searchTool;
   final AddPromptLibraryEntryTool _addTool;
   final UpdatePromptLibraryEntryTool _updateTool;
   final DeletePromptLibraryEntryTool _deleteTool;
   final SetPromptLibraryPreviewTool _previewTool;
+  final PromptLibraryEntriesGetter _getEntries;
+  final PromptLibraryApplyEntryCallback? applyEntry;
 
   PromptLibraryTool({
     required PromptLibraryEntriesGetter getEntries,
@@ -964,10 +1045,16 @@ class PromptLibraryTool extends AgentTool {
     required PromptLibraryImageBytesLoader loadImageBytes,
     PromptLibraryPreviewBytesSaver? savePreviewBytes,
     PromptLibraryPreviewPathCopier? copyPreviewFromPath,
-  }) : _searchTool = SearchPromptLibraryTool(getEntries: getEntries),
+    PromptLibraryWorkspacePreciseSnapshot? snapshotWorkspacePrecise,
+    PromptLibraryWorkspaceVibeSnapshot? snapshotWorkspaceVibe,
+    this.applyEntry,
+  }) : _getEntries = getEntries,
+       _searchTool = SearchPromptLibraryTool(getEntries: getEntries),
        _addTool = AddPromptLibraryEntryTool(
          getEntries: getEntries,
          addEntry: addEntry,
+         snapshotWorkspacePrecise: snapshotWorkspacePrecise,
+         snapshotWorkspaceVibe: snapshotWorkspaceVibe,
        ),
        _updateTool = UpdatePromptLibraryEntryTool(
          getEntries: getEntries,
@@ -989,25 +1076,33 @@ class PromptLibraryTool extends AgentTool {
          name: 'prompt_library',
          label: '本地词库管理',
          description:
-             '统一检索与管理本地词组合预设库（画风/角色/光影/构图/服装等）。通过 action 选择操作：\n'
-             '- search: 按关键词/分类检索条目；\n'
-             '- add: 新增单个或批量词库条目（entries 数组）；\n'
+             '统一检索、管理与应用本地词组合预设库（画风/角色/光影/构图/服装/关联精准参考与 Vibe）。通过 action 选择操作：\n'
+             '- search: 按关键词/分类检索条目，或按 id 读取详情（含已关联参考图与 Vibe）；\n'
+             '- add: 新增单个或批量词库条目（可传 attach_workspace_references / attach_workspace_vibes 一并保存当前工作台参考图）；\n'
              '- update: 按 id 或 updates 数组修改条目；\n'
              '- delete: 按 id 或 ids 数组删除条目；\n'
-             '- set_preview: 为词库条目设置/替换预览图（来自画板历史图或本地路径）。',
+             '- set_preview: 为词库条目设置/替换预览图（来自画板历史图或本地路径）；\n'
+             '- apply: 按 id 选择性应用条目到工作台（可自由控制是否应用提示词、精准参考、Vibe 及追加/替换模式）。',
          parameters: const {
            'type': 'object',
            'properties': {
              'action': {
                'type': 'string',
-               'enum': ['search', 'add', 'update', 'delete', 'set_preview'],
+               'enum': [
+                 'search',
+                 'add',
+                 'update',
+                 'delete',
+                 'set_preview',
+                 'apply',
+               ],
                'description':
-                   '操作类型：search / add / update / delete / set_preview',
+                   '操作类型：search / add / update / delete / set_preview / apply',
              },
              'query': {'type': 'string', 'description': '搜索关键词 (search)'},
              'category': {'type': 'string', 'description': '条目分类 (search / add / update)'},
              'limit': {'type': 'integer', 'description': '返回数量上限 (search)'},
-             'id': {'type': 'string', 'description': '条目 ID (update / delete / set_preview)'},
+             'id': {'type': 'string', 'description': '条目 ID (search / update / delete / set_preview / apply)'},
              'ids': {
                'type': 'array',
                'items': {'type': 'string'},
@@ -1015,9 +1110,47 @@ class PromptLibraryTool extends AgentTool {
              },
              'title': {'type': 'string', 'description': '条目标题 (add / update)'},
              'prompt': {'type': 'string', 'description': '正向提示词 (add / update)'},
+             'prefix_prompt': {'type': 'string', 'description': '前置词，仅风格分类生效 (add / update)'},
+             'suffix_prompt': {'type': 'string', 'description': '后置词，仅风格分类生效 (add / update)'},
              'negative_prompt': {'type': 'string', 'description': '负向提示词 (add / update)'},
              'tags': {'description': '标签数组或逗号分隔字符串 (add / update)'},
-             'note': {'type': 'string', 'description': '备注说明 (add / update)'},
+             'favorite': {'type': 'boolean', 'description': '是否收藏 (add / update)'},
+             'attach_workspace_references': {
+               'type': 'boolean',
+               'description': '新增条目时一并保存当前工作台精准参考图 (add)',
+             },
+             'attach_workspace_vibes': {
+               'type': 'boolean',
+               'description': '新增条目时一并保存当前工作台 Vibe Transfer (add)',
+             },
+             'apply_prompt': {
+               'type': 'boolean',
+               'description': '应用条目时是否应用提示词，默认 true (apply)',
+             },
+             'replace_prompt': {
+               'type': 'boolean',
+               'description': '应用提示词时是否替换而非追加，默认 false (apply)',
+             },
+             'as_character': {
+               'type': 'boolean',
+               'description': '角色条目是否作为多角色卡添加，默认 false (apply)',
+             },
+             'as_style': {
+               'type': 'boolean',
+               'description': '风格条目是否应用到固定前后缀，默认风格条目为 true (apply)',
+             },
+             'apply_precise_references': {
+               'type': 'boolean',
+               'description': '是否应用条目保存的精准参考图，默认 true (apply)',
+             },
+             'apply_vibe_references': {
+               'type': 'boolean',
+               'description': '是否应用条目保存的 Vibe Transfer，默认 true (apply)',
+             },
+             'replace_references': {
+               'type': 'boolean',
+               'description': '应用参考图/Vibe 时是否先清空同类型已有项，默认 false (apply)',
+             },
              'entries': {
                'type': 'array',
                'items': {'type': 'object'},
@@ -1057,12 +1190,86 @@ class PromptLibraryTool extends AgentTool {
       'update' => _updateTool.execute(toolCallId, args),
       'delete' || 'remove' => _deleteTool.execute(toolCallId, args),
       'set_preview' || 'preview' => _previewTool.execute(toolCallId, args),
+      'apply' => _executeApply(toolCallId, args),
       _ => ToolResult(
         toolCallId: toolCallId,
         content:
-            '错误：prompt_library 的 action 必须是 search / add / update / delete / set_preview。',
+            '错误：prompt_library 的 action 必须是 search / add / update / delete / set_preview / apply。',
         isError: true,
       ),
     };
+  }
+
+  Future<ToolResult> _executeApply(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final applier = applyEntry;
+    if (applier == null) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '当前环境不支持直接应用词库条目。',
+        isError: true,
+      );
+    }
+    final id = (args['id'] as String?)?.trim() ?? '';
+    if (id.isEmpty) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: 'apply 操作必须提供条目 id。',
+        isError: true,
+      );
+    }
+    final entry = _getEntries().where((e) => e.id == id).firstOrNull;
+    if (entry == null) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '未找到 ID 为 "$id" 的词库条目。',
+        isError: true,
+      );
+    }
+    final applyPrompt = args['apply_prompt'] is bool
+        ? args['apply_prompt'] as bool
+        : true;
+    final replacePrompt = args['replace_prompt'] == true;
+    final asCharacter = args['as_character'] == true;
+    final asStyle = args['as_style'] is bool
+        ? args['as_style'] as bool
+        : entry.isStyle;
+    final applyPrecise = args['apply_precise_references'] is bool
+        ? args['apply_precise_references'] as bool
+        : true;
+    final applyVibe = args['apply_vibe_references'] is bool
+        ? args['apply_vibe_references'] as bool
+        : true;
+    final replaceRefs = args['replace_references'] == true;
+
+    final outcome = await applier(
+      entry,
+      applyPrompt: applyPrompt,
+      replacePrompt: replacePrompt,
+      asCharacter: asCharacter,
+      asStyle: asStyle,
+      applyPreciseReferences: applyPrecise,
+      applyVibeReferences: applyVibe,
+      replaceReferences: replaceRefs,
+    );
+    final parts = <String>[
+      if (outcome.appliedPrompt) '提示词',
+      if (outcome.appliedPreciseCount > 0)
+        '精准参考 ${outcome.appliedPreciseCount} 张',
+      if (outcome.appliedVibeCount > 0) 'Vibe ${outcome.appliedVibeCount} 条',
+    ];
+    if (parts.isEmpty) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '词库条目「${entry.title}」没有符合条件的可应用内容。',
+        isError: true,
+      );
+    }
+    return ToolResult(
+      toolCallId: toolCallId,
+      content: '已应用词库条目「${entry.title}」到工作台：${parts.join(' + ')}。',
+    );
   }
 }

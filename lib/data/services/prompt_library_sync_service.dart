@@ -35,6 +35,7 @@ class PromptLibraryMergePlan {
 PromptLibraryMergePlan planPromptLibraryMerge({
   required List<PromptComboEntry> localEntries,
   required Map<String, LocalPreviewHashInfo> localImageHashes,
+  Map<String, LocalPreviewHashInfo> localPathHashes = const {},
   required Map<String, DateTime> localTombstones,
   required List<RemotePromptEntryRecord> remoteRecords,
 }) {
@@ -74,6 +75,7 @@ PromptLibraryMergePlan planPromptLibraryMerge({
             local,
             previewHash: img?.hash,
             previewExt: img?.ext,
+            pathHashes: localPathHashes,
           ),
         );
       } else if (localTomb != null) {
@@ -106,6 +108,7 @@ PromptLibraryMergePlan planPromptLibraryMerge({
             local,
             previewHash: img?.hash,
             previewExt: img?.ext,
+            pathHashes: localPathHashes,
           ),
         );
       } else if (localTomb != null) {
@@ -141,7 +144,17 @@ PromptLibraryMergePlan planPromptLibraryMerge({
         nextTombstones[id] = localTomb;
       } else if (local != null && !remote.isDeleted) {
         final img = localImageHashes[id];
-        if (img == null && remote.previewHash != null) {
+        final missingPreview = img == null && remote.previewHash != null;
+        final missingRefs =
+            remote.preciseReferences.isNotEmpty &&
+            local.preciseReferences.length != remote.preciseReferences.length;
+        final missingVibes =
+            remote.vibeReferences.isNotEmpty &&
+            local.vibeReferences.length != remote.vibeReferences.length;
+        final missingRefFiles = local.preciseReferences.any(
+          (r) => !localPathHashes.containsKey(r.imagePath.trim()),
+        );
+        if (missingPreview || missingRefs || missingVibes || missingRefFiles) {
           repairPreview.add(remote);
         }
       }
@@ -251,13 +264,16 @@ class PromptLibrarySyncService {
     final hashCache = Map<String, PromptPreviewHashCacheEntry>.from(
       syncState.previewHashCache,
     );
-    final localImageHashes = await _collectLocalImageHashes(
+    final localPathHashes = await _collectLocalPathHashes(
       localEntries,
       hashCache,
     );
-    final hashToLocalPath = await _buildExistingHashToPathMap(
+    final localImageHashes = _extractPreviewHashesById(
       localEntries,
-      localImageHashes,
+      localPathHashes,
+    );
+    final hashToLocalPath = await _buildExistingHashToPathMap(
+      localPathHashes,
       hashCache,
     );
 
@@ -267,27 +283,27 @@ class PromptLibrarySyncService {
     final plan = planPromptLibraryMerge(
       localEntries: localEntries,
       localImageHashes: localImageHashes,
+      localPathHashes: localPathHashes,
       localTombstones: syncState.tombstones,
       remoteRecords: remoteSnap.entries,
     );
 
-    // 1. 增量上传缺失预览图 + 推送变更词条
+    // 1. 增量上传缺失图片（预览图 + 精准参考图 + Vibe 图）+ 推送变更词条
     var uploadedImages = 0;
     final pushHashes = plan.toPush
-        .where((e) => !e.isDeleted && e.previewHash != null)
-        .map((e) => e.previewHash!)
+        .where((e) => !e.isDeleted)
+        .expand((e) => e.allReferencedImageHashes)
         .toSet()
         .toList();
     if (pushHashes.isNotEmpty) {
-      status('正在校验预览图哈希...');
+      status('正在校验图片哈希...');
       final missing = await _checkMissingImages(client, config, pushHashes);
       if (missing.isNotEmpty) {
         uploadedImages = await _uploadMissingImages(
           client,
           config,
           missing: missing,
-          localEntries: localEntries,
-          localImageHashes: localImageHashes,
+          localPathHashes: localPathHashes,
           status: status,
         );
       }
@@ -304,7 +320,7 @@ class PromptLibrarySyncService {
       );
     }
 
-    // 2. 下载缺失的远端预览图，并合并生成最终本地条目
+    // 2. 下载缺失的远端图片，并合并生成最终本地条目
     var downloadedImages = 0;
     final pulledById = <String, RemotePromptEntryRecord>{
       for (final r in plan.pulledActive) r.id: r,
@@ -318,22 +334,21 @@ class PromptLibrarySyncService {
       ...plan.repairPreview,
     ];
     final neededHashes = entriesNeedingImage
-        .map((r) => r.previewHash)
-        .whereType<String>()
+        .expand((r) => r.allReferencedImageHashes)
         .where((h) => !hashToLocalPath.containsKey(h))
         .toSet()
         .toList();
 
     for (var i = 0; i < neededHashes.length; i++) {
       final hash = neededHashes[i];
-      status('正在下载预览图 (${i + 1}/${neededHashes.length})...');
+      status('正在下载图片 (${i + 1}/${neededHashes.length})...');
       final savedPath = await _downloadAndSaveImage(
         client,
         config,
         hash: hash,
         extHint: entriesNeedingImage
-            .where((r) => r.previewHash == hash)
-            .map((r) => r.previewExt)
+            .map((r) => r.extHintForHash(hash))
+            .whereType<String>()
             .firstOrNull,
         hashCache: hashCache,
       );
@@ -356,14 +371,35 @@ class PromptLibrarySyncService {
         final previewPath = pulled.previewHash != null
             ? hashToLocalPath[pulled.previewHash!]
             : null;
-        mergedEntries.add(pulled.toLocalEntry(previewImagePath: previewPath));
+        mergedEntries.add(
+          pulled.toLocalEntry(
+            previewImagePath: previewPath,
+            resolveImagePath: (h) => hashToLocalPath[h],
+          ),
+        );
         continue;
       }
 
       final repaired = repairById[local.id];
-      if (repaired != null && repaired.previewHash != null) {
-        final previewPath = hashToLocalPath[repaired.previewHash!];
-        mergedEntries.add(local.copyWith(previewImagePath: previewPath));
+      if (repaired != null) {
+        final previewPath = repaired.previewHash != null
+            ? (hashToLocalPath[repaired.previewHash!] ?? local.previewImagePath)
+            : local.previewImagePath;
+        final hydrated = repaired.toLocalEntry(
+          previewImagePath: previewPath,
+          resolveImagePath: (h) => hashToLocalPath[h],
+        );
+        mergedEntries.add(
+          local.copyWith(
+            previewImagePath: previewPath,
+            preciseReferences: hydrated.preciseReferences.isNotEmpty
+                ? hydrated.preciseReferences
+                : local.preciseReferences,
+            vibeReferences: hydrated.vibeReferences.isNotEmpty
+                ? hydrated.vibeReferences
+                : local.vibeReferences,
+          ),
+        );
         continue;
       }
 
@@ -381,7 +417,12 @@ class PromptLibrarySyncService {
       final previewPath = remote.previewHash != null
           ? hashToLocalPath[remote.previewHash!]
           : null;
-      prepended.add(remote.toLocalEntry(previewImagePath: previewPath));
+      prepended.add(
+        remote.toLocalEntry(
+          previewImagePath: previewPath,
+          resolveImagePath: (h) => hashToLocalPath[h],
+        ),
+      );
     }
 
     final finalEntries = [...prepended, ...mergedEntries];
@@ -425,9 +466,13 @@ class PromptLibrarySyncService {
     final hashCache = Map<String, PromptPreviewHashCacheEntry>.from(
       syncState.previewHashCache,
     );
-    final localImageHashes = await _collectLocalImageHashes(
+    final localPathHashes = await _collectLocalPathHashes(
       localEntries,
       hashCache,
+    );
+    final localImageHashes = _extractPreviewHashesById(
+      localEntries,
+      localPathHashes,
     );
 
     final records = localEntries
@@ -437,26 +482,25 @@ class PromptLibrarySyncService {
             entry,
             previewHash: img?.hash,
             previewExt: img?.ext,
+            pathHashes: localPathHashes,
           );
         })
         .toList(growable: false);
 
     var uploadedImages = 0;
     final hashes = records
-        .map((r) => r.previewHash)
-        .whereType<String>()
+        .expand((r) => r.allReferencedImageHashes)
         .toSet()
         .toList();
     if (hashes.isNotEmpty) {
-      status('正在检查云端预览图...');
+      status('正在检查云端图片...');
       final missing = await _checkMissingImages(client, config, hashes);
       if (missing.isNotEmpty) {
         uploadedImages = await _uploadMissingImages(
           client,
           config,
           missing: missing,
-          localEntries: localEntries,
-          localImageHashes: localImageHashes,
+          localPathHashes: localPathHashes,
           status: status,
         );
       }
@@ -503,13 +547,12 @@ class PromptLibrarySyncService {
     final hashCache = Map<String, PromptPreviewHashCacheEntry>.from(
       syncState.previewHashCache,
     );
-    final localImageHashes = await _collectLocalImageHashes(
+    final localPathHashes = await _collectLocalPathHashes(
       localEntries,
       hashCache,
     );
     final hashToLocalPath = await _buildExistingHashToPathMap(
-      localEntries,
-      localImageHashes,
+      localPathHashes,
       hashCache,
     );
 
@@ -523,8 +566,7 @@ class PromptLibrarySyncService {
     };
 
     final neededHashes = activeRemote
-        .map((r) => r.previewHash)
-        .whereType<String>()
+        .expand((r) => r.allReferencedImageHashes)
         .where((h) => !hashToLocalPath.containsKey(h))
         .toSet()
         .toList();
@@ -532,14 +574,14 @@ class PromptLibrarySyncService {
     var downloadedImages = 0;
     for (var i = 0; i < neededHashes.length; i++) {
       final hash = neededHashes[i];
-      status('正在下载预览图 (${i + 1}/${neededHashes.length})...');
+      status('正在下载图片 (${i + 1}/${neededHashes.length})...');
       final savedPath = await _downloadAndSaveImage(
         client,
         config,
         hash: hash,
         extHint: activeRemote
-            .where((r) => r.previewHash == hash)
-            .map((r) => r.previewExt)
+            .map((r) => r.extHintForHash(hash))
+            .whereType<String>()
             .firstOrNull,
         hashCache: hashCache,
       );
@@ -555,6 +597,7 @@ class PromptLibrarySyncService {
             previewImagePath: r.previewHash != null
                 ? hashToLocalPath[r.previewHash!]
                 : null,
+            resolveImagePath: (h) => hashToLocalPath[h],
           ),
         )
         .toList(growable: false);
@@ -588,14 +631,13 @@ class PromptLibrarySyncService {
 
   // ------------------------- 本地文件哈希与缓存 -------------------------
 
-  Future<Map<String, LocalPreviewHashInfo>> _collectLocalImageHashes(
+  Future<Map<String, LocalPreviewHashInfo>> _collectLocalPathHashes(
     List<PromptComboEntry> entries,
     Map<String, PromptPreviewHashCacheEntry> hashCache,
   ) async {
     final result = <String, LocalPreviewHashInfo>{};
-    for (final entry in entries) {
-      final rawPath = entry.previewImagePath?.trim();
-      if (rawPath == null || rawPath.isEmpty) continue;
+    final uniquePaths = entries.expand((e) => e.managedImagePaths).toSet();
+    for (final rawPath in uniquePaths) {
       final file = File(rawPath);
       if (!file.existsSync()) continue;
 
@@ -606,7 +648,7 @@ class PromptLibrarySyncService {
         if (cached != null &&
             cached.sizeBytes == stat.size &&
             cached.modifiedMs == modMs) {
-          result[entry.id] = (hash: cached.sha256, ext: cached.ext);
+          result[rawPath] = (hash: cached.sha256, ext: cached.ext);
           continue;
         }
 
@@ -620,24 +662,35 @@ class PromptLibrarySyncService {
           sizeBytes: stat.size,
           modifiedMs: modMs,
         );
-        result[entry.id] = (hash: digest, ext: ext);
+        result[rawPath] = (hash: digest, ext: ext);
       } catch (_) {}
     }
     return result;
   }
 
+  Map<String, LocalPreviewHashInfo> _extractPreviewHashesById(
+    List<PromptComboEntry> entries,
+    Map<String, LocalPreviewHashInfo> pathHashes,
+  ) {
+    final byId = <String, LocalPreviewHashInfo>{};
+    for (final entry in entries) {
+      final path = entry.previewImagePath?.trim();
+      if (path == null || path.isEmpty) continue;
+      final info = pathHashes[path];
+      if (info != null) {
+        byId[entry.id] = info;
+      }
+    }
+    return byId;
+  }
+
   Future<Map<String, String>> _buildExistingHashToPathMap(
-    List<PromptComboEntry> localEntries,
-    Map<String, LocalPreviewHashInfo> localImageHashes,
+    Map<String, LocalPreviewHashInfo> localPathHashes,
     Map<String, PromptPreviewHashCacheEntry> hashCache,
   ) async {
     final map = <String, String>{};
-    for (final entry in localEntries) {
-      final info = localImageHashes[entry.id];
-      final path = entry.previewImagePath?.trim();
-      if (info != null && path != null && path.isNotEmpty) {
-        map.putIfAbsent(info.hash, () => path);
-      }
+    for (final entry in localPathHashes.entries) {
+      map.putIfAbsent(entry.value.hash, () => entry.key);
     }
     for (final cached in hashCache.entries) {
       if (map.containsKey(cached.value.sha256)) continue;
@@ -653,9 +706,7 @@ class PromptLibrarySyncService {
     List<PromptComboEntry> activeEntries,
   ) {
     final activePaths = activeEntries
-        .map((e) => e.previewImagePath?.trim())
-        .whereType<String>()
-        .where((path) => path.isNotEmpty)
+        .expand((e) => e.managedImagePaths)
         .toSet();
     return {
       for (final e in hashCache.entries)
@@ -821,17 +872,15 @@ class PromptLibrarySyncService {
     http.Client client,
     PromptLibrarySyncConfig config, {
     required List<String> missing,
-    required List<PromptComboEntry> localEntries,
-    required Map<String, LocalPreviewHashInfo> localImageHashes,
+    required Map<String, LocalPreviewHashInfo> localPathHashes,
     required void Function(String) status,
   }) async {
     final hashToSource = <String, ({String path, String ext})>{};
-    for (final entry in localEntries) {
-      final info = localImageHashes[entry.id];
-      final path = entry.previewImagePath?.trim();
-      if (info != null && path != null && path.isNotEmpty) {
-        hashToSource.putIfAbsent(info.hash, () => (path: path, ext: info.ext));
-      }
+    for (final entry in localPathHashes.entries) {
+      hashToSource.putIfAbsent(
+        entry.value.hash,
+        () => (path: entry.key, ext: entry.value.ext),
+      );
     }
 
     var uploaded = 0;
@@ -846,11 +895,11 @@ class PromptLibrarySyncService {
       if (bytes.isEmpty) continue;
       if (bytes.length > _maxImageBytes) {
         throw PromptLibrarySyncException(
-          '预览图超过 8 MiB 上传限制 (${p.basename(source.path)})',
+          '图片超过 8 MiB 上传限制 (${p.basename(source.path)})',
         );
       }
 
-      status('正在上传预览图 (${i + 1}/${missing.length})...');
+      status('正在上传图片 (${i + 1}/${missing.length})...');
       final uri = config.resolveApiUri('/api/images/$hash')!;
       final mime = switch (source.ext) {
         'jpg' || 'jpeg' => 'image/jpeg',
@@ -935,11 +984,17 @@ class PromptLibrarySyncService {
               r.suffixPrompt.trim().isNotEmpty ||
               r.negativePrompt.trim().isNotEmpty),
     );
+    final hasRefOnlyEntry = records.any(
+      (r) =>
+          !r.isDeleted &&
+          r.prompt.trim().isEmpty &&
+          (r.preciseReferences.isNotEmpty || r.vibeReferences.isNotEmpty),
+    );
     if (e.statusCode == 400 &&
-        hasAffixOnlyStyle &&
+        (hasAffixOnlyStyle || hasRefOnlyEntry) &&
         e.message.contains('缺少 title 或 prompt')) {
       throw PromptLibrarySyncException(
-        '云端 Worker 版本过旧，不支持新版「风格」前后缀词条同步，请在 cloudflare/prompt-library-sync 目录重新执行 npm run deploy 升级后重试 (${e.message})',
+        '云端 Worker 版本过旧，不支持新版词条（画风前后缀 / 关联参考图与 Vibe）同步，请在 cloudflare/prompt-library-sync 目录重新执行 npm run deploy 升级后重试 (${e.message})',
         statusCode: e.statusCode,
       );
     }

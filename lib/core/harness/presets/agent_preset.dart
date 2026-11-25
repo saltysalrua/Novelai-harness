@@ -54,6 +54,7 @@ class PresetToolKeys {
   static const String getParams = 'get_studio_parameters';
   static const String updateParams = 'update_studio_parameters';
   static const String characterPrompts = 'character_prompts';
+  static const String referenceGuides = 'reference_guides';
   static const String imageAnnotations = 'image_annotations';
   static const String promptLibrary = 'prompt_library';
   static const String danbooruTags = 'danbooru_tags';
@@ -74,6 +75,7 @@ class PresetToolKeys {
     getParams: '读取参数',
     updateParams: '修改参数',
     characterPrompts: '角色提示词管理',
+    referenceGuides: '参考引导管理',
     imageAnnotations: '图片批注管理',
     promptLibrary: '本地词库管理',
     danbooruTags: 'Danbooru 搜词与画师推荐',
@@ -143,6 +145,7 @@ const List<String> _fullTools = [
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
   PresetToolKeys.characterPrompts,
+  PresetToolKeys.referenceGuides,
   PresetToolKeys.imageAnnotations,
   PresetToolKeys.promptLibrary,
   PresetToolKeys.danbooruTags,
@@ -161,6 +164,7 @@ const List<String> _coreTools = [
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
   PresetToolKeys.characterPrompts,
+  PresetToolKeys.referenceGuides,
   PresetToolKeys.imageAnnotations,
   PresetToolKeys.promptLibrary,
   PresetToolKeys.danbooruTags,
@@ -180,6 +184,7 @@ const List<String> _coreUpscaleTools = [
   PresetToolKeys.getParams,
   PresetToolKeys.updateParams,
   PresetToolKeys.characterPrompts,
+  PresetToolKeys.referenceGuides,
   PresetToolKeys.imageAnnotations,
   PresetToolKeys.promptLibrary,
   PresetToolKeys.danbooruTags,

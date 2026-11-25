@@ -53,6 +53,37 @@ List<String> buildPaidGenerationReasons(NaiGenerationParams params) {
   if (params.nSamples > 1) {
     reasons.add('生成张数 ${params.nSamples} 张（超出 1 张限制）');
   }
+  final activePrecise = params.effectivePreciseReferences().length;
+  if (activePrecise > 0) {
+    final extra =
+        activePrecise *
+        AnlasCalculator.preciseReferenceCostPerImage *
+        params.nSamples;
+    reasons.add('精准参考 $activePrecise 张（+$extra Anlas）');
+  }
+  final activeVibes = params.effectiveVibeReferences();
+  if (activeVibes.isNotEmpty) {
+    final extraSlots = activeVibes.length > AnlasCalculator.vibeFreeSlotLimit
+        ? activeVibes.length - AnlasCalculator.vibeFreeSlotLimit
+        : 0;
+    if (extraSlots > 0) {
+      final slotCost =
+          extraSlots *
+          AnlasCalculator.vibeExtraSlotCostPerImage *
+          params.nSamples;
+      reasons.add('Vibe 超过 4 张槽位（+$slotCost Anlas）');
+    }
+    if (params.model.usesEncodedVibeTransfer) {
+      final pendingEncode = activeVibes
+          .where((v) => v.needsServerEncodingFor(params.model))
+          .length;
+      if (pendingEncode > 0) {
+        final encodeCost =
+            pendingEncode * AnlasCalculator.vibeEncodeCostPerImage;
+        reasons.add('Vibe 首次编码 $pendingEncode 条（+$encodeCost Anlas）');
+      }
+    }
+  }
   return reasons;
 }
 
@@ -66,6 +97,7 @@ class NovelAiGenerateTool extends AgentTool {
   final OnConfirmPaidGenerationCallback? onConfirmPaidGeneration;
   final CurrentAccountInfoGetter? getAccountInfo;
   final OnBeforeGenerateCallback? onBeforeGenerate;
+  final Future<bool> Function()? ensureVibesEncoded;
 
   NovelAiGenerateTool({
     required this.repository,
@@ -76,6 +108,7 @@ class NovelAiGenerateTool extends AgentTool {
     this.onConfirmPaidGeneration,
     this.getAccountInfo,
     this.onBeforeGenerate,
+    this.ensureVibesEncoded,
   }) : super(
          name: 'novelai_generate',
          label: '图像生成',
@@ -152,6 +185,25 @@ class NovelAiGenerateTool extends AgentTool {
       }
 
       NaiGeneratedImage? resultImage;
+
+      // V4/V4.5 含待编码 Vibe 时先完成预编码并写回缓存，再带入编码结果生图
+      if (ensureVibesEncoded != null &&
+          params.model.usesEncodedVibeTransfer &&
+          params
+              .effectiveVibeReferences()
+              .any((v) => v.needsServerEncodingFor(params.model))) {
+        final encodedOk = await ensureVibesEncoded!();
+        if (!encodedOk) {
+          return ToolResult(
+            toolCallId: toolCallId,
+            content: '错误：Vibe Transfer 编码失败，已中止本次生图。',
+            isError: true,
+          );
+        }
+        params = params.copyWith(
+          vibeReferences: getCurrentParams().vibeReferences,
+        );
+      }
 
       // 发起前通知 UI 捕获"是否正在看最新图"快照
       // (此时新图尚未入历史，isViewingLatest 反映的是生成前的真实浏览位置)

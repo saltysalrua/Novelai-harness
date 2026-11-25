@@ -104,7 +104,8 @@ Novelai-harness/
 │   │       │   ├── novelai_inpaint_tool.dart   # 局部修复与焦点特写工具 (novelai_inpaint / get_inpaint_geometry)
 │   │       │   ├── ai_edit_image_tool.dart    # AI 整图编辑工具 (ai_edit_image，外部多模态模型整图重绘)
 │   │       │   ├── pipeline_tool.dart          # 双轨 CodeMode 批量编排工具 (run_pipeline)
-│   │       │   ├── prompt_library_tools.dart   # 词组合预设库增删改查与预览图设置工具
+│   │       │   ├── prompt_library_tools.dart   # 词组合预设库增删改查、预览图设置与选择性应用工具
+│   │       │   ├── reference_guide_tools.dart  # 工作台精准参考与 Vibe Transfer 统一管理工具 (list/画板/词库/调参/清理)
 │   │       │   ├── studio_params_tool.dart     # 工作台生图参数查询与批量同步修改工具
 │   │       │   └── vision_image_codec.dart     # 视觉附件压缩 (最长边 1024 等比缩小 PNG) 与 MIME 嗅探
 │   │       └── skills/

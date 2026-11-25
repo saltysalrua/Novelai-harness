@@ -369,3 +369,108 @@ test('auto-migrates legacy sync_entries table missing style affix columns', asyn
   assert.equal(syncJson.entries[0].suffixPrompt, 'best quality');
   assert.equal(syncJson.entries[0].negativePrompt, 'blurry');
 });
+
+test('syncs preciseReferences & vibeReferences (incl. reference-only entries), migrates legacy schema, and protects images in GC', async () => {
+  const legacySchema = schemaSql
+    .replace(/\s*references_json TEXT NOT NULL DEFAULT '\[\]',?\n/, '\n')
+    .replace(/\s*vibes_json TEXT NOT NULL DEFAULT '\[\]',?\n/, '\n');
+  const env = makeEnv(createD1Mock(legacySchema));
+
+  const refBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+  const vibeBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 5, 6, 7, 8]);
+  const orphanBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9, 9, 9]);
+  const refHash = await sha256Hex(refBytes);
+  const vibeHash = await sha256Hex(vibeBytes);
+  const orphanHash = await sha256Hex(orphanBytes);
+
+  for (const [h, b] of [
+    [refHash, refBytes],
+    [vibeHash, vibeBytes],
+    [orphanHash, orphanBytes],
+  ]) {
+    const put = await handleRequest(
+      authedRequest(`/api/images/${h}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/png', 'X-Image-Ext': 'png' },
+        body: b,
+      }),
+      env,
+    );
+    assert.equal(put.status, 200);
+  }
+
+  // Push a reference-only entry (empty prompt!) carrying both Precise Ref & Vibe with cached encoding
+  const pushRes = await handleRequest(
+    authedRequest('/api/sync/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        namespace: 'default',
+        mode: 'merge',
+        entries: [
+          {
+            id: 'ref_only_1',
+            title: 'Inori Reference Sheet',
+            category: '角色',
+            prompt: '',
+            preciseReferences: [
+              {
+                id: 'p1',
+                imageHash: refHash,
+                imageExt: 'png',
+                fileName: 'inori_sheet.png',
+                type: 'character',
+                preferSameOutfit: true,
+                strength: 1.5,
+                fidelity: 1.0,
+                informationExtracted: 1.0,
+                enabled: true,
+              },
+            ],
+            vibeReferences: [
+              {
+                id: 'v1',
+                displayName: 'Soft Pastel Vibe',
+                sourceType: 'naiv4vibe',
+                rawImageHash: vibeHash,
+                rawImageExt: 'png',
+                encodingsByModel: { 'nai-diffusion-4-5-full': 'BASE64_ENC_VECTOR' },
+                encodedInfoExtractedByModel: { 'nai-diffusion-4-5-full': 0.85 },
+                strength: 0.7,
+                informationExtracted: 0.85,
+                enabled: true,
+              },
+            ],
+            createdAt: '2026-11-25T10:00:00.000Z',
+            updatedAt: '2026-11-25T10:00:00.000Z',
+          },
+        ],
+      }),
+    }),
+    env,
+  );
+  assert.equal(pushRes.status, 200);
+
+  const syncJson = await (await handleRequest(authedRequest('/api/sync'), env)).json();
+  assert.equal(syncJson.entries.length, 1);
+  const synced = syncJson.entries[0];
+  assert.equal(synced.preciseReferences.length, 1);
+  assert.equal(synced.preciseReferences[0].imageHash, refHash);
+  assert.equal(synced.preciseReferences[0].preferSameOutfit, true);
+  assert.equal(synced.preciseReferences[0].strength, 1.5);
+  assert.equal(synced.vibeReferences.length, 1);
+  assert.equal(synced.vibeReferences[0].rawImageHash, vibeHash);
+  assert.equal(
+    synced.vibeReferences[0].encodingsByModel['nai-diffusion-4-5-full'],
+    'BASE64_ENC_VECTOR',
+  );
+
+  // GC must delete ONLY orphanHash and keep refHash & vibeHash alive
+  const gcJson = await (
+    await handleRequest(authedRequest('/api/images/gc', { method: 'POST' }), env)
+  ).json();
+  assert.equal(gcJson.deletedImages, 1);
+  assert.equal((await handleRequest(authedRequest(`/api/images/${refHash}`), env)).status, 200);
+  assert.equal((await handleRequest(authedRequest(`/api/images/${vibeHash}`), env)).status, 200);
+  assert.equal((await handleRequest(authedRequest(`/api/images/${orphanHash}`), env)).status, 404);
+});
