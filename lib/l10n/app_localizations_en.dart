@@ -4931,7 +4931,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Drop images or official .naiv4vibe / .naiv4vibebundle files. Pre-encoded files reuse cached vectors with 0 encode cost.';
 
   @override
-  String get vibeNormalizeStrengths => 'Normalize Reference Strengths';
+  String get vibeNormalizeStrengths => 'Normalize Strengths';
 
   @override
   String get vibeInfoExtracted => 'Information Extracted';
@@ -5016,7 +5016,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pasteActionPreciseUnsupportedSubtitle =>
-      'Add to Precise Reference (switch to V5 or V4.5 to apply)';
+      'Unsupported by current model (requires V5 / V4.5)';
 
   @override
   String get pasteActionVibe => 'Add to Vibe Transfer';
@@ -5027,7 +5027,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pasteActionVibeUnsupportedSubtitle =>
-      'Add to Vibe Transfer (not available on V5; switch to V4.5 / V4 / V3)';
+      'Not available on V5 (requires V4.5 / V4 / V3)';
 
   @override
   String get pasteActionBoard => 'Import to Canvas Board';
@@ -5110,8 +5110,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not load reference images (local files missing)';
 
   @override
-  String get libraryEditFieldReferenceGuides =>
-      'Linked Precise Ref & Vibe (Optional)';
+  String get libraryEditFieldReferenceGuides => 'Linked Precise Ref & Vibe';
 
   @override
   String get libraryEditImportWorkspaceRefs => 'Import from Workbench';
@@ -5129,5 +5128,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String libraryEditImportedWorkspaceRefs(int precise, int vibe) {
     return 'Imported $precise Precise Ref(s) and $vibe Vibe(s)';
+  }
+
+  @override
+  String get referenceClearConfirmTitle => 'Clear Precise References';
+
+  @override
+  String referenceClearConfirmMessage(int count) {
+    return 'Remove all $count Precise Reference image(s)?';
+  }
+
+  @override
+  String get vibeClearConfirmTitle => 'Clear Vibe Transfer';
+
+  @override
+  String vibeClearConfirmMessage(int count) {
+    return 'Remove all $count Vibe Transfer item(s)? Unsaved encodings will be lost.';
   }
 }

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
 
 /// 统一双向绑定微调数值滑块组件
 ///
-/// 左侧数字输入框 + 右侧连续/分段滑块，支持整型与浮点型，
-/// 具备自动范围钳制、步长吸附、可选刻度线与单位后缀支持。
+/// 左侧数字输入框 + 右侧连续滑块，支持整型与浮点型，
+/// 具备自动范围钳制、步长吸附与单位后缀支持。
 ///
 /// 输入框同时支持回车提交与**失焦自动提交**（点击别处不丢输入）；
 /// 滑块手柄规格 (radius 8 + 白色浮起)；
-/// 当步长不能整除范围时自动退化为连续滑块（无刻度），避免刻度不均。
+/// 滑块始终以连续模式运行（不传 Material `divisions`），由内部按 `step` 实时吸附，
+/// 避免 Flutter 离散滑块自带的 100ms 追赶缓动动画导致拖动粘滞不跟手。
 class AppNumberSlider extends StatefulWidget {
   /// 标题；传 null 时隐藏标题行 (嵌入 AppSettingTile.bottomChild 等容器内使用)
   final String? title;
@@ -159,19 +161,9 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final step = widget.step;
-    // 仅当步长能整除范围时才显示均匀刻度；否则退化为连续滑块，
-    // 由 onChanged 手动吸附步长，杜绝「刻度不均/尾格缺失」。
-    int? divisions;
-    if (step != null && step > 0) {
-      final count = (widget.max - widget.min) / step;
-      divisions = (count - count.round()).abs() < 1e-6 ? count.round() : null;
-    } else if (widget.fractionDigits == 0) {
-      final span = widget.max - widget.min;
-      divisions = (span - span.round()).abs() < 1e-6 && span.round() > 0
-          ? span.round()
-          : null;
-    }
+    final sliderValue = _snapToStep(
+      _dragValue ?? widget.value,
+    ).clamp(widget.min, widget.max).toDouble();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,14 +254,9 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
                   ),
                 ),
                 child: Slider(
-                  value: _snapToStep(
-                    _dragValue ?? widget.value,
-                  ).clamp(widget.min, widget.max),
+                  value: sliderValue,
                   min: widget.min,
                   max: widget.max,
-                  divisions: (divisions != null && divisions > 0)
-                      ? divisions
-                      : null,
                   onChanged: widget.enabled
                       ? (v) {
                           final snapped = _snapToStep(v);
@@ -283,10 +270,19 @@ class _AppNumberSliderState extends State<AppNumberSlider> {
                       : null,
                   onChangeEnd: widget.enabled
                       ? (_) {
-                          final value = _dragValue;
-                          setState(() => _dragValue = null);
-                          if (value != null && value != widget.value) {
-                            widget.onChanged(value);
+                          final committed = _dragValue;
+                          if (committed == null) return;
+                          if (committed != widget.value) {
+                            widget.onChanged(committed);
+                            // 延后至帧末清理：若父级同步回传新 value，didUpdateWidget 会无缝清掉 _dragValue；
+                            // 若父级拒绝变更，则在帧末自动回正到真实 widget.value，避免松手瞬间闪回旧值。
+                            SchedulerBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted || _dragValue != committed) return;
+                              setState(() => _dragValue = null);
+                              _controller.text = _format(widget.value);
+                            });
+                          } else {
+                            setState(() => _dragValue = null);
                           }
                         }
                       : null,

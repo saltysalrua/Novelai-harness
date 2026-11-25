@@ -2027,7 +2027,7 @@
   "vibeDropSubtitle": "Supports PNG / JPG / WebP / .naiv4vibe / .naiv4vibebundle",
   "vibeEmptyTitle": "No Vibe Transfer references",
   "vibeEmptyDescription": "Drop images or official .naiv4vibe / .naiv4vibebundle files. Pre-encoded files reuse cached vectors with 0 encode cost.",
-  "vibeNormalizeStrengths": "Normalize Reference Strengths",
+  "vibeNormalizeStrengths": "Normalize Strengths",
   "vibeInfoExtracted": "Information Extracted",
   "vibeUnsupportedModelHint": "Vibe Transfer is not available on V5. Use Precise Reference or switch to V4.5 / V4 / V3.",
   "vibeBlockedByPreciseHint": "Precise Reference is active; Vibe Transfer is bypassed while Precise Reference images are enabled.",
@@ -2057,10 +2057,10 @@
   "pasteActionReadMetadataSubtitle": "View prompts, seed, and sampling settings with one-click apply",
   "pasteActionPrecise": "Add to Precise Reference",
   "pasteActionPreciseSubtitle": "Add to Precise Reference for character, style, or outfit guidance",
-  "pasteActionPreciseUnsupportedSubtitle": "Add to Precise Reference (switch to V5 or V4.5 to apply)",
+  "pasteActionPreciseUnsupportedSubtitle": "Unsupported by current model (requires V5 / V4.5)",
   "pasteActionVibe": "Add to Vibe Transfer",
   "pasteActionVibeSubtitle": "Add to Vibe Transfer to transfer visual vibe and aesthetics",
-  "pasteActionVibeUnsupportedSubtitle": "Add to Vibe Transfer (not available on V5; switch to V4.5 / V4 / V3)",
+  "pasteActionVibeUnsupportedSubtitle": "Not available on V5 (requires V4.5 / V4 / V3)",
   "pasteActionBoard": "Import to Canvas Board",
   "pasteActionBoardSubtitle": "Place on the freeform annotation board for reference or review",
   "referenceSaveToLibrary": "Save to Library",
@@ -2114,7 +2114,7 @@
     }
   },
   "libraryApplyRefMissingFiles": "Could not load reference images (local files missing)",
-  "libraryEditFieldReferenceGuides": "Linked Precise Ref & Vibe (Optional)",
+  "libraryEditFieldReferenceGuides": "Linked Precise Ref & Vibe",
   "libraryEditImportWorkspaceRefs": "Import from Workbench",
   "libraryEditAddPreciseRef": "Add Precise Ref",
   "libraryEditAddVibeRef": "Add Vibe",
@@ -2124,6 +2124,20 @@
     "placeholders": {
       "precise": {"type": "int"},
       "vibe": {"type": "int"}
+    }
+  },
+  "referenceClearConfirmTitle": "Clear Precise References",
+  "referenceClearConfirmMessage": "Remove all {count} Precise Reference image(s)?",
+  "@referenceClearConfirmMessage": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "vibeClearConfirmTitle": "Clear Vibe Transfer",
+  "vibeClearConfirmMessage": "Remove all {count} Vibe Transfer item(s)? Unsaved encodings will be lost.",
+  "@vibeClearConfirmMessage": {
+    "placeholders": {
+      "count": {"type": "int"}
     }
   }
 }

@@ -232,6 +232,10 @@ void main() {
         expect(find.text('查看大图'), findsOneWidget);
         expect(find.text('从历史记录删除'), findsOneWidget);
 
+        // 菜单较长时在默认 800x600 触控行高视口中需滚动可见后再点
+        await tester.ensureVisible(find.text('从历史记录删除'));
+        await tester.pumpAndSettle();
+
         // 点击从历史记录删除
         await tester.tap(find.text('从历史记录删除'));
         await tester.pumpAndSettle();

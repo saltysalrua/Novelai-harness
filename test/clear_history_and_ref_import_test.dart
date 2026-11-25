@@ -170,6 +170,10 @@ void main() {
 
       expect(find.text('清空历史记录'), findsOneWidget);
 
+      // 菜单较长时在默认 800x600 触控行高视口中需滚动可见后再点
+      await tester.ensureVisible(find.text('清空历史记录'));
+      await tester.pumpAndSettle();
+
       // 点开清空项 -> 弹出确认框
       await tester.tap(find.text('清空历史记录'));
       await tester.pumpAndSettle();
@@ -183,6 +187,8 @@ void main() {
 
       // 再次打开菜单并确认清空
       await tester.tap(find.text('Open Context Menu'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('清空历史记录'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('清空历史记录'));
       await tester.pumpAndSettle();

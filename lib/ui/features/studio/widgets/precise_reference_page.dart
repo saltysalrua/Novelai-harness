@@ -13,6 +13,7 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
+import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../../core/widgets/app_drop_target_overlay.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_empty_state.dart';
@@ -22,6 +23,7 @@ import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 import 'prompt_combo_edit_dialog.dart';
 import 'studio_shared.dart';
@@ -347,6 +349,40 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
     );
   }
 
+  Future<void> _confirmClearPrecise(
+    BuildContext context,
+    StudioViewModel vm,
+  ) async {
+    final l10n = context.l10n;
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: l10n.referenceClearConfirmTitle,
+      message: l10n.referenceClearConfirmMessage(vm.preciseReferences.length),
+      confirmLabel: l10n.clear,
+      isDestructive: true,
+    );
+    if (confirmed == true) {
+      vm.clearPreciseReferences();
+    }
+  }
+
+  Future<void> _confirmClearVibes(
+    BuildContext context,
+    StudioViewModel vm,
+  ) async {
+    final l10n = context.l10n;
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: l10n.vibeClearConfirmTitle,
+      message: l10n.vibeClearConfirmMessage(vm.vibeReferences.length),
+      confirmLabel: l10n.clear,
+      isDestructive: true,
+    );
+    if (confirmed == true) {
+      vm.clearVibeReferences();
+    }
+  }
+
   Widget _buildPreciseBody(BuildContext context, StudioViewModel vm) {
     final colors = context.colors;
     final l10n = context.l10n;
@@ -362,16 +398,11 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 页首标题 + 额外点数胶囊 + 清空按钮
+        // 页首标题 + 额外点数胶囊 + 保存/清空操作
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(
-              child: PageHeader(
-                title: l10n.tabReference,
-                subtitle: l10n.referencePageSubtitle,
-              ),
-            ),
+            Expanded(child: PageHeader(title: l10n.tabReference)),
             if (extraCost > 0 && !vm.isComfyUiMode) ...[
               const SizedBox(width: 8),
               AppBadge.pill(
@@ -381,24 +412,32 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
               ),
             ],
             if (refs.isNotEmpty) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               AppIconButton(
                 icon: Icons.bookmark_add_outlined,
-                size: 24,
+                size: 28,
                 iconSize: 15,
                 variant: AppIconButtonVariant.ghost,
                 tooltip: l10n.referenceSaveToLibrary,
                 onPressed: () =>
                     _saveCurrentRefsToLibrary(context, vm, isVibe: false),
               ),
-              const SizedBox(width: 4),
-              ClearTextLink(onTap: vm.clearPreciseReferences),
+              const SizedBox(width: 6),
+              AppIconButton(
+                icon: Icons.delete_sweep_outlined,
+                size: 28,
+                iconSize: 15,
+                variant: AppIconButtonVariant.ghost,
+                iconColor: colors.error.withValues(alpha: 0.85),
+                tooltip: l10n.clear,
+                onPressed: () => _confirmClearPrecise(context, vm),
+              ),
             ],
           ],
         ),
         const SizedBox(height: AppSpacing.md),
 
-        // 上下文能力提示条
+        // 上下文能力提示条 (仅不可用或强制挡位时提示)
         if (vm.isComfyUiMode) ...[
           _NoticeBanner(
             icon: Icons.info_outline_rounded,
@@ -413,24 +452,14 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
             toneColor: colors.warning,
           ),
           const SizedBox(height: AppSpacing.md),
-        ] else ...[
-          if (params.isEffortForcedByPreciseReference &&
-              params.effort == NaiEffort.medium) ...[
-            _NoticeBanner(
-              icon: Icons.bolt_rounded,
-              text: l10n.paramsEffortForcedByReferenceHint,
-              toneColor: colors.warning,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-          if (model.isV5 && activeCount > 0) ...[
-            _NoticeBanner(
-              icon: Icons.info_outline_rounded,
-              text: l10n.referenceV5InpaintHint,
-              toneColor: colors.textSecondary,
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
+        ] else if (params.isEffortForcedByPreciseReference &&
+            params.effort == NaiEffort.medium) ...[
+          _NoticeBanner(
+            icon: Icons.bolt_rounded,
+            text: l10n.paramsEffortForcedByReferenceHint,
+            toneColor: colors.warning,
+          ),
+          const SizedBox(height: AppSpacing.md),
         ],
 
         // 快捷添加按钮组
@@ -449,7 +478,6 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
             child: AppEmptyState(
               icon: Icons.style_outlined,
               title: l10n.referenceEmptyTitle,
-              description: l10n.referenceEmptyDescription,
               isCompact: true,
             ),
           )
@@ -515,16 +543,11 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 页首标题 + 额外点数胶囊 + 清空按钮
+        // 页首标题 + 额外点数胶囊 + 保存/清空操作
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(
-              child: PageHeader(
-                title: l10n.vibeTabTitle,
-                subtitle: l10n.vibePageSubtitle,
-              ),
-            ),
+            Expanded(child: PageHeader(title: l10n.vibeTabTitle)),
             if (totalExtraCost > 0 && !vm.isComfyUiMode) ...[
               const SizedBox(width: 8),
               AppBadge.pill(
@@ -534,18 +557,26 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
               ),
             ],
             if (vibes.isNotEmpty) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               AppIconButton(
                 icon: Icons.bookmark_add_outlined,
-                size: 24,
+                size: 28,
                 iconSize: 15,
                 variant: AppIconButtonVariant.ghost,
                 tooltip: l10n.referenceSaveToLibrary,
                 onPressed: () =>
                     _saveCurrentRefsToLibrary(context, vm, isVibe: true),
               ),
-              const SizedBox(width: 4),
-              ClearTextLink(onTap: vm.clearVibeReferences),
+              const SizedBox(width: 6),
+              AppIconButton(
+                icon: Icons.delete_sweep_outlined,
+                size: 28,
+                iconSize: 15,
+                variant: AppIconButtonVariant.ghost,
+                iconColor: colors.error.withValues(alpha: 0.85),
+                tooltip: l10n.clear,
+                onPressed: () => _confirmClearVibes(context, vm),
+              ),
             ],
           ],
         ),
@@ -634,7 +665,6 @@ class _PreciseReferencePageState extends State<PreciseReferencePage> {
             child: AppEmptyState(
               icon: Icons.auto_awesome_motion_outlined,
               title: l10n.vibeEmptyTitle,
-              description: l10n.vibeEmptyDescription,
               isCompact: true,
             ),
           )
@@ -834,7 +864,7 @@ class _PreciseReferenceCard extends StatelessWidget {
               const SizedBox(width: 6),
               AppIconButton(
                 icon: Icons.close_rounded,
-                size: 26,
+                size: 28,
                 iconSize: 15,
                 variant: AppIconButtonVariant.ghost,
                 tooltip: l10n.delete,
@@ -1062,7 +1092,7 @@ class _VibeReferenceCard extends StatelessWidget {
               const SizedBox(width: 6),
               AppIconButton(
                 icon: Icons.close_rounded,
-                size: 26,
+                size: 28,
                 iconSize: 15,
                 variant: AppIconButtonVariant.ghost,
                 tooltip: l10n.delete,
@@ -1144,20 +1174,46 @@ class _ThumbnailButton extends StatelessWidget {
   });
 
   void _showPreview(BuildContext context, Uint8List data) {
-    showDialog<void>(
+    showAppModalDialog<void>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(24),
-        child: GestureDetector(
-          onTap: () => Navigator.of(dialogContext).pop(),
-          child: InteractiveViewer(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              child: Image.memory(data, fit: BoxFit.contain),
+      barrierColor: Colors.black.withValues(alpha: 0.72),
+      builder: (dialogContext) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.of(dialogContext).pop(),
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {},
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        child: Image.memory(data, fit: BoxFit.contain),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+          Positioned(
+            top: 20,
+            right: 20,
+            child: AppIconButton(
+              icon: Icons.close_rounded,
+              size: 34,
+              iconSize: 18,
+              variant: AppIconButtonVariant.elevated,
+              tooltip: dialogContext.l10n.close,
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+          ),
+        ],
       ),
     );
   }

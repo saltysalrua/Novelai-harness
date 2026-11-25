@@ -62,12 +62,8 @@ class ClipboardImageActionDialog extends StatelessWidget {
   List<_ActionSpec> _buildOptions(BuildContext context) {
     final l10n = context.l10n;
     final hasMetadata = metadata != null && metadata!.hasData;
-    final preciseHint = currentModel.supportsPreciseReference
-        ? l10n.pasteActionPreciseSubtitle
-        : l10n.pasteActionPreciseUnsupportedSubtitle;
-    final vibeHint = currentModel.supportsVibeTransfer
-        ? l10n.pasteActionVibeSubtitle
-        : l10n.pasteActionVibeUnsupportedSubtitle;
+    final supportsPrecise = currentModel.supportsPreciseReference;
+    final supportsVibe = currentModel.supportsVibeTransfer;
 
     return [
       if (hasMetadata)
@@ -75,27 +71,31 @@ class ClipboardImageActionDialog extends StatelessWidget {
           action: ClipboardImageAction.readMetadata,
           icon: Icons.info_outline_rounded,
           title: l10n.pasteActionReadMetadata,
-          subtitle: l10n.pasteActionReadMetadataSubtitle,
           highlight: true,
         ),
       _ActionSpec(
         action: ClipboardImageAction.addPreciseReference,
         icon: Icons.style_outlined,
         title: l10n.pasteActionPrecise,
-        subtitle: preciseHint,
-        highlight: !hasMetadata && currentModel.supportsPreciseReference,
+        subtitle: supportsPrecise
+            ? null
+            : l10n.pasteActionPreciseUnsupportedSubtitle,
+        highlight: !hasMetadata && supportsPrecise,
+        muted: !supportsPrecise,
       ),
       _ActionSpec(
         action: ClipboardImageAction.addVibeTransfer,
         icon: Icons.auto_awesome_motion_outlined,
         title: l10n.pasteActionVibe,
-        subtitle: vibeHint,
+        subtitle: supportsVibe ? null : l10n.pasteActionVibeUnsupportedSubtitle,
+        highlight: !hasMetadata && !supportsPrecise && supportsVibe,
+        muted: !supportsVibe,
       ),
       _ActionSpec(
         action: ClipboardImageAction.importToBoard,
         icon: Icons.dashboard_customize_outlined,
         title: l10n.pasteActionBoard,
-        subtitle: l10n.pasteActionBoardSubtitle,
+        highlight: !hasMetadata && !supportsPrecise && !supportsVibe,
       ),
     ];
   }
@@ -106,22 +106,41 @@ class ClipboardImageActionDialog extends StatelessWidget {
     final l10n = context.l10n;
     final hasMetadata = metadata != null && metadata!.hasData;
     final options = _buildOptions(context);
+    final defaultOption = options.firstWhere(
+      (o) => o.highlight,
+      orElse: () => options.first,
+    );
+
+    final digitKeys = <LogicalKeyboardKey>[
+      LogicalKeyboardKey.digit1,
+      LogicalKeyboardKey.digit2,
+      LogicalKeyboardKey.digit3,
+      LogicalKeyboardKey.digit4,
+    ];
+    final numpadKeys = <LogicalKeyboardKey>[
+      LogicalKeyboardKey.numpad1,
+      LogicalKeyboardKey.numpad2,
+      LogicalKeyboardKey.numpad3,
+      LogicalKeyboardKey.numpad4,
+    ];
 
     return CallbackShortcuts(
       bindings: {
-        for (var i = 0; i < options.length && i < 4; i++)
-          SingleActivator(switch (i) {
-            0 => LogicalKeyboardKey.digit1,
-            1 => LogicalKeyboardKey.digit2,
-            2 => LogicalKeyboardKey.digit3,
-            _ => LogicalKeyboardKey.digit4,
-          }): () => Navigator.of(context).pop(options[i].action),
+        for (var i = 0; i < options.length && i < 4; i++) ...{
+          SingleActivator(digitKeys[i]): () =>
+              Navigator.of(context).pop(options[i].action),
+          SingleActivator(numpadKeys[i]): () =>
+              Navigator.of(context).pop(options[i].action),
+        },
+        const SingleActivator(LogicalKeyboardKey.enter): () =>
+            Navigator.of(context).pop(defaultOption.action),
+        const SingleActivator(LogicalKeyboardKey.numpadEnter): () =>
+            Navigator.of(context).pop(defaultOption.action),
       },
       child: AppDialogScaffold(
         title: l10n.pasteDialogTitle,
-        subtitle: l10n.pasteDialogSubtitle,
-        width: 440,
-        maxHeight: 560,
+        width: 420,
+        maxHeight: 520,
         minimalChrome: true,
         body: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
@@ -188,14 +207,21 @@ class ClipboardImageActionDialog extends StatelessWidget {
 
               // 可选动作列表
               for (var i = 0; i < options.length; i++) ...[
-                AppOptionCard<ClipboardImageAction>(
-                  key: Key('paste_action_${options[i].action.name}'),
-                  value: options[i].action,
-                  isSelected: options[i].highlight,
-                  icon: options[i].icon,
-                  title: '${i + 1}. ${options[i].title}',
-                  subtitle: options[i].subtitle,
-                  onSelected: (action) => Navigator.of(context).pop(action),
+                Opacity(
+                  opacity: options[i].muted ? 0.62 : 1.0,
+                  child: AppOptionCard<ClipboardImageAction>(
+                    key: Key('paste_action_${options[i].action.name}'),
+                    value: options[i].action,
+                    isSelected: options[i].highlight,
+                    icon: options[i].icon,
+                    title: '${i + 1}. ${options[i].title}',
+                    subtitle: options[i].subtitle,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    onSelected: (action) => Navigator.of(context).pop(action),
+                  ),
                 ),
                 if (i < options.length - 1) const SizedBox(height: 8),
               ],
@@ -211,14 +237,16 @@ class _ActionSpec {
   final ClipboardImageAction action;
   final IconData icon;
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final bool highlight;
+  final bool muted;
 
   const _ActionSpec({
     required this.action,
     required this.icon,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     this.highlight = false,
+    this.muted = false,
   });
 }

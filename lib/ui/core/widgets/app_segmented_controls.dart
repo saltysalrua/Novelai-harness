@@ -875,6 +875,9 @@ class AppSegmentedCardBar<T> extends StatelessWidget {
   /// 是否在未指定 [AppSegmentedItem.activeColor] 时，为选中项图标叠加主题主色高亮
   final bool highlightSelectedIcon;
 
+  /// 是否允许交互；为 false 时呈现视觉禁用态且屏蔽点击
+  final bool enabled;
+
   const AppSegmentedCardBar({
     super.key,
     required this.items,
@@ -890,7 +893,10 @@ class AppSegmentedCardBar<T> extends StatelessWidget {
     this.fontSize = 13.0,
     this.iconSize = 14.0,
     this.highlightSelectedIcon = false,
+    this.enabled = true,
   });
+
+  bool get _isInteractive => enabled && onValueChanged != null;
 
   @override
   Widget build(BuildContext context) {
@@ -902,7 +908,7 @@ class AppSegmentedCardBar<T> extends StatelessWidget {
       (item) => item.value == selectedValue,
     );
 
-    return Container(
+    final Widget bar = Container(
       padding: trackPadding,
       decoration: BoxDecoration(
         color: colors.mutedBackground,
@@ -957,6 +963,9 @@ class AppSegmentedCardBar<T> extends StatelessWidget {
         ],
       ),
     );
+
+    if (_isInteractive) return bar;
+    return Opacity(opacity: 0.58, child: bar);
   }
 
   Widget _buildCardItem(
@@ -967,6 +976,7 @@ class AppSegmentedCardBar<T> extends StatelessWidget {
     AppSegmentedItem<T> item,
   ) {
     final isSelected = item.value == selectedValue;
+    final interactive = _isInteractive;
     final accent = item.activeColor ?? colors.primary;
     final fg = isSelected
         ? (item.activeColor != null ? accent : colors.textPrimary)
@@ -980,9 +990,11 @@ class AppSegmentedCardBar<T> extends StatelessWidget {
 
     Widget card = InkWell(
       key: item.key ?? Key('segmented_card_${item.value}'),
-      onTap: () => onValueChanged?.call(item.value),
+      onTap: interactive ? () => onValueChanged?.call(item.value) : null,
       borderRadius: BorderRadius.circular(innerRadius),
-      hoverColor: colors.textPrimary.withValues(alpha: 0.04),
+      hoverColor: interactive
+          ? colors.textPrimary.withValues(alpha: 0.04)
+          : Colors.transparent,
       splashColor: Colors.transparent,
       child: Container(
         constraints: BoxConstraints(minHeight: minHeight),
@@ -1044,7 +1056,12 @@ class AppSegmentedCardBar<T> extends StatelessWidget {
       card = Tooltip(message: item.tooltip!, child: card);
     }
 
-    return Semantics(selected: isSelected, button: true, child: card);
+    return Semantics(
+      selected: isSelected,
+      enabled: interactive,
+      button: true,
+      child: card,
+    );
   }
 }
 

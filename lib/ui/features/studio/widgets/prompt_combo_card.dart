@@ -26,6 +26,7 @@ class PromptComboCard extends StatelessWidget {
   final void Function(bool replace, bool asCharacter) onApply;
   final void Function(bool replace)? onApplyStyle;
   final VoidCallback? onSelectiveApply;
+  final VoidCallback? onAddCharacterSelective;
   final VoidCallback? onApplyPreciseRefsOnly;
   final VoidCallback? onApplyVibesOnly;
   final VoidCallback? onSendToAgent;
@@ -44,6 +45,7 @@ class PromptComboCard extends StatelessWidget {
     required this.onApply,
     this.onApplyStyle,
     this.onSelectiveApply,
+    this.onAddCharacterSelective,
     this.onApplyPreciseRefsOnly,
     this.onApplyVibesOnly,
     this.onSendToAgent,
@@ -285,7 +287,13 @@ class PromptComboCard extends StatelessWidget {
               backgroundColor: colors.errorSurface,
               foregroundColor: colors.error,
               compact: compact,
-              onTap: () => onApply(false, true),
+              onTap: () {
+                if (hasRefs && onAddCharacterSelective != null) {
+                  onAddCharacterSelective!();
+                } else {
+                  onApply(false, true);
+                }
+              },
             ),
           ),
           if (onSendToAgent != null) ...[
@@ -335,8 +343,8 @@ class PromptComboCard extends StatelessWidget {
   List<Widget> _buildUtilityActions(BuildContext context) {
     final colors = context.colors;
     final l10n = context.l10n;
-    final btnSize = compact ? 22.0 : 24.0;
-    final iconSize = compact ? 13.0 : 14.0;
+    final btnSize = compact ? 26.0 : 28.0;
+    final iconSize = compact ? 13.5 : 14.5;
     return [
       _ComboCopyButton(
         tooltip: l10n.libraryMenuCopyPrompt,
@@ -355,7 +363,7 @@ class PromptComboCard extends StatelessWidget {
         variant: AppIconButtonVariant.ghost,
         onPressed: onEdit,
       ),
-      const SizedBox(width: 2),
+      const SizedBox(width: 4),
       AppIconButton(
         icon: Icons.delete_outline,
         tooltip: l10n.delete,
@@ -428,29 +436,47 @@ class PromptComboCard extends StatelessWidget {
                 ],
                 SizedBox(height: compact ? 6 : 8),
 
-                // 底部无边框操作区：紧凑两列模式下拆分为「应用」与「分类+工具」两行，避免挤压截断
-                if (compact) ...[
-                  _buildApplyPills(context, isChar: isChar),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: categoryLabel,
+                // 底部无边框操作区：紧凑或列宽不足以容纳角色多按钮时自动拆为两行，避免挤压截断
+                LayoutBuilder(
+                  builder: (context, box) {
+                    final splitActionRows =
+                        compact ||
+                        (isChar && box.maxWidth < 310) ||
+                        (!isChar && box.maxWidth < 210);
+                    if (splitActionRows) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildApplyPills(context, isChar: isChar),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: compact
+                                    ? Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: categoryLabel,
+                                      )
+                                    : const SizedBox.shrink(),
+                              ),
+                              ..._buildUtilityActions(context),
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _buildApplyPills(context, isChar: isChar),
                         ),
-                      ),
-                      ..._buildUtilityActions(context),
-                    ],
-                  ),
-                ] else
-                  Row(
-                    children: [
-                      Expanded(child: _buildApplyPills(context, isChar: isChar)),
-                      const SizedBox(width: 4),
-                      ..._buildUtilityActions(context),
-                    ],
-                  ),
+                        const SizedBox(width: 4),
+                        ..._buildUtilityActions(context),
+                      ],
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -633,9 +659,18 @@ class _SoftActionPillState extends State<_SoftActionPill> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = _hovered
-        ? widget.foregroundColor.withValues(alpha: 0.16)
-        : widget.backgroundColor;
+    final colors = context.colors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // 统一合成为不透明色再插值，避免不透明底色与低透明色之间 lerp 产生中间帧暴暗闪烁
+    final baseBg = Color.alphaBlend(
+      widget.backgroundColor,
+      colors.cardBackground,
+    );
+    final hoverBg = Color.alphaBlend(
+      widget.foregroundColor.withValues(alpha: isDark ? 0.12 : 0.08),
+      baseBg,
+    );
+    final bg = _hovered ? hoverBg : baseBg;
 
     Widget pill = MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -644,9 +679,14 @@ class _SoftActionPillState extends State<_SoftActionPill> {
       child: GestureDetector(
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
-        child: Container(
-          height: 24,
-          padding: EdgeInsets.symmetric(horizontal: widget.compact ? 5 : 6),
+        child: AnimatedContainer(
+          duration: AppMotion.resolveDuration(
+            context,
+            AppMotionDurations.quick,
+          ),
+          curve: AppMotionCurves.smoothOut,
+          height: 26,
+          padding: EdgeInsets.symmetric(horizontal: widget.compact ? 6 : 7),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -679,7 +719,11 @@ class _SoftActionPillState extends State<_SoftActionPill> {
     );
 
     if (widget.tooltip != null) {
-      pill = Tooltip(message: widget.tooltip!, child: pill);
+      pill = Tooltip(
+        message: widget.tooltip!,
+        waitDuration: AppMotionDurations.verySlow,
+        child: pill,
+      );
     }
     return pill;
   }
@@ -710,12 +754,22 @@ class _SoftIconPillState extends State<_SoftIconPill> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = _hovered
-        ? widget.foregroundColor.withValues(alpha: 0.16)
-        : widget.backgroundColor;
+    final colors = context.colors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // 统一合成为不透明色再插值，避免不透明底色与低透明色之间 lerp 产生中间帧暴暗闪烁
+    final baseBg = Color.alphaBlend(
+      widget.backgroundColor,
+      colors.cardBackground,
+    );
+    final hoverBg = Color.alphaBlend(
+      widget.foregroundColor.withValues(alpha: isDark ? 0.12 : 0.08),
+      baseBg,
+    );
+    final bg = _hovered ? hoverBg : baseBg;
 
     return Tooltip(
       message: widget.tooltip,
+      waitDuration: AppMotionDurations.verySlow,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
@@ -723,15 +777,20 @@ class _SoftIconPillState extends State<_SoftIconPill> {
         child: GestureDetector(
           onTap: widget.onTap,
           behavior: HitTestBehavior.opaque,
-          child: Container(
-            width: 24,
-            height: 24,
+          child: AnimatedContainer(
+            duration: AppMotion.resolveDuration(
+              context,
+              AppMotionDurations.quick,
+            ),
+            curve: AppMotionCurves.smoothOut,
+            width: 26,
+            height: 26,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            child: Icon(widget.icon, size: 13, color: widget.foregroundColor),
+            child: Icon(widget.icon, size: 13.5, color: widget.foregroundColor),
           ),
         ),
       ),
@@ -824,8 +883,13 @@ class _ComboCopyButtonState extends State<_ComboCopyButton> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final copiedBg = Color.alphaBlend(
+      colors.success.withValues(alpha: 0.14),
+      colors.cardBackground,
+    );
     return Tooltip(
       message: widget.tooltip,
+      waitDuration: AppMotionDurations.verySlow,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
@@ -844,7 +908,7 @@ class _ComboCopyButtonState extends State<_ComboCopyButton> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: _copied
-                  ? colors.success.withValues(alpha: 0.14)
+                  ? copiedBg
                   : (_hovered ? colors.mutedBackground : null),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),

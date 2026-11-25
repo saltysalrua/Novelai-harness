@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../data/services/inpaint_service.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
@@ -13,6 +14,7 @@ import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_floating_dock.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_tool_chip.dart';
+import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 修复画板：以当前修复底图为中心的独立画布
@@ -959,12 +961,16 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                   ),
                 ),
               ),
-              _buildBottomActionDock(
-                context,
-                vm,
-                isAiEdit: isAiEdit,
-                isExecuting: isExecuting,
-                showStartAction: false,
+              Positioned(
+                bottom: widget.compact ? 10.0 : 18.0,
+                right: widget.compact ? 10.0 : 18.0,
+                child: _buildBottomActionCard(
+                  context,
+                  vm,
+                  isAiEdit: isAiEdit,
+                  isExecuting: isExecuting,
+                  showStartAction: false,
+                ),
               ),
             ],
           );
@@ -1478,56 +1484,11 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                     child: _buildCostBadge(context, vm, inpaint),
                   ),
 
-                // 8. 执行中状态胶囊 (置于左下控制区上方，绝不重叠)
-                if (isExecuting)
-                  Positioned(
-                    key: const ValueKey('inpaint-status'),
-                    bottom: (widget.compact ? 10.0 : 18.0) + 42.0,
-                    left: widget.compact ? 10 : 18,
-                    child: AppFloatingDock(
-                      radius: 18,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 13,
-                            height: 13,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                context.colors.primary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            l10n.inpaintOverlayInProgress,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                // 8b. 左下角缩放 + 撤销/重做/显隐蒙版控制胶囊
-                _buildBottomLeftControls(
+                // 8. 底部响应式控制区：宽画布左右分置，窄画布自动折为上下两层防碰撞
+                _buildBottomControlsBar(
                   context,
                   vm,
-                  isAiEdit: isAiEdit,
-                ),
-
-                // 9. 右下角退出修复 / 快捷开始修复浮层 (收起左卡片与窄屏均直达)
-                _buildBottomActionDock(
-                  context,
-                  vm,
+                  canvasWidth: canvasSize.width,
                   isAiEdit: isAiEdit,
                   isExecuting: isExecuting,
                   showStartAction: !widget.compact && vm.isLeftSidebarCollapsed,
@@ -1722,6 +1683,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
       child: Container(width: 1, height: 15, color: colors.borderDefault),
     );
 
+    final iconBtnSize = widget.compact ? 30.0 : 28.0;
+    final iconBtnRadius = iconBtnSize / 2;
+
     return ValueListenableBuilder<bool>(
       valueListenable: _isPanModeNotifier,
       builder: (context, isPanMode, _) {
@@ -1732,9 +1696,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
             label: label,
             isSelected: selected,
             variant: AppToolChipVariant.tinted,
-            fontSize: 11,
-            iconSize: 13,
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+            fontSize: 11.5,
+            iconSize: 13.5,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             radius: 14,
             onTap: () {
               _isPanModeNotifier.value = false;
@@ -1758,9 +1722,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                       key: const Key('inpaint_pan_toggle_button'),
                       icon: Icons.pan_tool_outlined,
                       tooltip: l10n.inpaintToolPan,
-                      size: 26,
-                      iconSize: 14,
-                      radius: 13,
+                      size: iconBtnSize,
+                      iconSize: 15,
+                      radius: iconBtnRadius,
                       variant: isPanMode
                           ? AppIconButtonVariant.primary
                           : AppIconButtonVariant.ghost,
@@ -1785,14 +1749,16 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                     ),
                     divider(),
                     AppToolChip(
+                      key: const Key('inpaint_clear_mask_button'),
                       icon: Icons.delete_sweep_outlined,
                       label: l10n.inpaintClearMask,
                       variant: AppToolChipVariant.tinted,
-                      fontSize: 11,
-                      iconSize: 13,
+                      unselectedBackgroundColor: colors.errorSurface,
+                      fontSize: 11.5,
+                      iconSize: 13.5,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 4,
+                        horizontal: 8,
+                        vertical: 5,
                       ),
                       radius: 14,
                       onTap: vm.clearInpaintMask,
@@ -1801,236 +1767,341 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                 ),
               ),
             ),
-            if (showBrushSize && !isPanMode) ...[
-              const SizedBox(height: 6),
-              AppFloatingDock(
-                key: const ValueKey('inpaint-brush-size-dock'),
-                radius: 16,
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
-                enableBlur: true,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      vm.inpaintTool == InpaintTool.eraser
-                          ? Icons.layers_clear_rounded
-                          : Icons.circle,
-                      size: vm.inpaintTool == InpaintTool.eraser ? 12 : 9,
-                      color: vm.inpaintTool == InpaintTool.eraser
-                          ? colors.textSecondary
-                          : AppTheme.coral,
-                    ),
-                    const SizedBox(width: 4),
-                    _BrushSizeSlider(
-                      value: inpaint.brushRadius,
-                      min: _minBrushRadius,
-                      max: _maxBrushRadius,
-                      onPreviewChanged: (v) =>
-                          _brushSliderPreviewNotifier.value = v,
-                      onCommit: (v) {
-                        _brushSliderPreviewNotifier.value = null;
-                        vm.setInpaintBrushRadius(v);
-                      },
-                    ),
-                    const SizedBox(width: 4),
-                    ValueListenableBuilder<double?>(
-                      valueListenable: _brushSliderPreviewNotifier,
-                      builder: (context, preview, _) {
-                        final r = preview ?? inpaint.brushRadius;
-                        final px = (r * minSide * 2).round();
-                        return SizedBox(
-                          width: 34,
-                          child: Text(
-                            '${px}px',
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                              color: colors.textSecondary,
+            AppPanelReveal(
+              visible: showBrushSize && !isPanMode,
+              openDuration: AppMotionDurations.fast,
+              closeDuration: AppMotionDurations.quick,
+              slideOffset: AppMotionDistances.micro,
+              enableBlur: false,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: AppFloatingDock(
+                  key: const ValueKey('inpaint-brush-size-dock'),
+                  radius: 16,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 2,
+                  ),
+                  enableBlur: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        vm.inpaintTool == InpaintTool.eraser
+                            ? Icons.layers_clear_rounded
+                            : Icons.circle,
+                        size: vm.inpaintTool == InpaintTool.eraser ? 12 : 9,
+                        color: vm.inpaintTool == InpaintTool.eraser
+                            ? colors.textSecondary
+                            : AppTheme.coral,
+                      ),
+                      const SizedBox(width: 4),
+                      _BrushSizeSlider(
+                        value: inpaint.brushRadius,
+                        min: _minBrushRadius,
+                        max: _maxBrushRadius,
+                        onPreviewChanged: (v) =>
+                            _brushSliderPreviewNotifier.value = v,
+                        onCommit: (v) {
+                          _brushSliderPreviewNotifier.value = null;
+                          vm.setInpaintBrushRadius(v);
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                      ValueListenableBuilder<double?>(
+                        valueListenable: _brushSliderPreviewNotifier,
+                        builder: (context, preview, _) {
+                          final r = preview ?? inpaint.brushRadius;
+                          final px = (r * minSide * 2).round();
+                          return SizedBox(
+                            width: 34,
+                            child: Text(
+                              '${px}px',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                                color: colors.textSecondary,
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ],
         );
       },
     );
   }
 
-  Widget _buildBottomLeftControls(
+  Widget _buildBottomControlsBar(
     BuildContext context,
     StudioViewModel vm, {
+    required double canvasWidth,
     required bool isAiEdit,
+    required bool isExecuting,
+    required bool showStartAction,
   }) {
     final l10n = context.l10n;
-    final colors = context.colors;
     final edge = widget.compact ? 10.0 : 18.0;
+    final btnSize = widget.compact ? 30.0 : 28.0;
+    final btnRadius = btnSize / 2;
+    final isTightBottom = canvasWidth < (showStartAction ? 520.0 : 420.0);
+
+    final statusPill = isExecuting
+        ? AppFloatingDock(
+            key: const ValueKey('inpaint-status'),
+            radius: 18,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 13,
+                  height: 13,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      context.colors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.inpaintOverlayInProgress,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : null;
+
+    final leftControls = _buildBottomLeftCluster(
+      context,
+      vm,
+      isAiEdit: isAiEdit,
+      btnSize: btnSize,
+      btnRadius: btnRadius,
+    );
+    final rightDock = _buildBottomActionCard(
+      context,
+      vm,
+      isAiEdit: isAiEdit,
+      isExecuting: isExecuting,
+      showStartAction: showStartAction,
+    );
 
     return Positioned(
-      key: const ValueKey('inpaint-zoom-dock'),
       bottom: edge,
       left: edge,
-      child: Row(
+      right: edge,
+      child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppFloatingDock(
-            radius: 18,
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-            enableBlur: true,
-            child: ValueListenableBuilder<Matrix4>(
-              valueListenable: _transformController,
-              builder: (context, _, _) {
-                final scale = _currentScale;
-                final percentText = '${(scale * 100).round()}%';
-                final isDefaultView =
-                    (scale - 1.0).abs() < 0.01 &&
-                    _transformController.value.storage[12].abs() < 0.5 &&
-                    _transformController.value.storage[13].abs() < 0.5;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AppIconButton(
-                      key: const Key('inpaint_zoom_out_button'),
-                      icon: Icons.remove_rounded,
-                      tooltip: l10n.inpaintZoomOut,
-                      size: 26,
-                      iconSize: 15,
-                      radius: 13,
-                      variant: AppIconButtonVariant.ghost,
-                      onPressed: scale > _minZoom + 0.01
-                          ? () => _zoomBy(1 / 1.25)
-                          : null,
-                    ),
-                    Tooltip(
-                      message: l10n.inpaintZoomReset,
-                      child: InkWell(
-                        key: const Key('inpaint_zoom_reset_text'),
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: isDefaultView ? null : _resetViewport,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 4,
-                          ),
-                          child: SizedBox(
-                            width: 38,
-                            child: Text(
-                              percentText,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                                color: isDefaultView
-                                    ? colors.textSecondary
-                                    : colors.primary,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    AppIconButton(
-                      key: const Key('inpaint_zoom_in_button'),
-                      icon: Icons.add_rounded,
-                      tooltip: l10n.inpaintZoomIn,
-                      size: 26,
-                      iconSize: 15,
-                      radius: 13,
-                      variant: AppIconButtonVariant.ghost,
-                      onPressed: scale < _maxZoom - 0.01
-                          ? () => _zoomBy(1.25)
-                          : null,
-                    ),
-                    if (!isDefaultView)
-                      AppIconButton(
-                        key: const Key('inpaint_fit_view_button'),
-                        icon: Icons.fit_screen_rounded,
-                        tooltip: l10n.inpaintZoomReset,
-                        size: 26,
-                        iconSize: 14,
-                        radius: 13,
-                        variant: AppIconButtonVariant.ghost,
-                        onPressed: _resetViewport,
-                      ),
-                  ],
-                );
-              },
-            ),
-          ),
-          if (!isAiEdit) ...[
-            const SizedBox(width: 6),
-            AppFloatingDock(
-              key: const ValueKey('inpaint-history-dock'),
-              radius: 18,
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-              enableBlur: true,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AppIconButton(
-                    key: const Key('inpaint_undo_button'),
-                    icon: Icons.undo_rounded,
-                    tooltip: l10n.inpaintUndoMask,
-                    size: 26,
-                    iconSize: 15,
-                    radius: 13,
-                    variant: AppIconButtonVariant.ghost,
-                    onPressed: vm.canUndoInpaintMask
-                        ? vm.undoInpaintMask
-                        : null,
-                  ),
-                  AppIconButton(
-                    key: const Key('inpaint_redo_button'),
-                    icon: Icons.redo_rounded,
-                    tooltip: l10n.inpaintRedoMask,
-                    size: 26,
-                    iconSize: 15,
-                    radius: 13,
-                    variant: AppIconButtonVariant.ghost,
-                    onPressed: vm.canRedoInpaintMask
-                        ? vm.redoInpaintMask
-                        : null,
-                  ),
-                  ValueListenableBuilder<bool>(
-                    valueListenable: _maskVisibleNotifier,
-                    builder: (context, visible, _) => AppIconButton(
-                      key: const Key('inpaint_mask_visibility_button'),
-                      icon: visible
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      tooltip: visible
-                          ? l10n.inpaintToggleMaskVisibility
-                          : l10n.inpaintShowMask,
-                      size: 26,
-                      iconSize: 15,
-                      radius: 13,
-                      variant: visible
-                          ? AppIconButtonVariant.ghost
-                          : AppIconButtonVariant.primary,
-                      onPressed: () => _maskVisibleNotifier.value = !visible,
-                    ),
-                  ),
-                ],
+          if (statusPill != null) ...[
+            Align(alignment: Alignment.centerLeft, child: statusPill),
+            const SizedBox(height: 6),
+          ],
+          if (isTightBottom) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: leftControls,
               ),
             ),
-          ],
+            const SizedBox(height: 6),
+            Align(alignment: Alignment.centerRight, child: rightDock),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: leftControls,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                rightDock,
+              ],
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomActionDock(
+  Widget _buildBottomLeftCluster(
+    BuildContext context,
+    StudioViewModel vm, {
+    required bool isAiEdit,
+    required double btnSize,
+    required double btnRadius,
+  }) {
+    final l10n = context.l10n;
+    final colors = context.colors;
+
+    return Row(
+      key: const ValueKey('inpaint-zoom-dock'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppFloatingDock(
+          radius: 18,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+          enableBlur: true,
+          child: ValueListenableBuilder<Matrix4>(
+            valueListenable: _transformController,
+            builder: (context, _, _) {
+              final scale = _currentScale;
+              final percentText = '${(scale * 100).round()}%';
+              final isDefaultView =
+                  (scale - 1.0).abs() < 0.01 &&
+                  _transformController.value.storage[12].abs() < 0.5 &&
+                  _transformController.value.storage[13].abs() < 0.5;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppIconButton(
+                    key: const Key('inpaint_zoom_out_button'),
+                    icon: Icons.remove_rounded,
+                    tooltip: l10n.inpaintZoomOut,
+                    size: btnSize,
+                    iconSize: 15,
+                    radius: btnRadius,
+                    variant: AppIconButtonVariant.ghost,
+                    onPressed: scale > _minZoom + 0.01
+                        ? () => _zoomBy(1 / 1.25)
+                        : null,
+                  ),
+                  Tooltip(
+                    message: l10n.inpaintZoomReset,
+                    child: InkWell(
+                      key: const Key('inpaint_zoom_reset_text'),
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: isDefaultView ? null : _resetViewport,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 5,
+                        ),
+                        child: SizedBox(
+                          width: 38,
+                          child: Text(
+                            percentText,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                              color: isDefaultView
+                                  ? colors.textSecondary
+                                  : colors.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  AppIconButton(
+                    key: const Key('inpaint_zoom_in_button'),
+                    icon: Icons.add_rounded,
+                    tooltip: l10n.inpaintZoomIn,
+                    size: btnSize,
+                    iconSize: 15,
+                    radius: btnRadius,
+                    variant: AppIconButtonVariant.ghost,
+                    onPressed: scale < _maxZoom - 0.01
+                        ? () => _zoomBy(1.25)
+                        : null,
+                  ),
+                  if (!isDefaultView)
+                    AppIconButton(
+                      key: const Key('inpaint_fit_view_button'),
+                      icon: Icons.fit_screen_rounded,
+                      tooltip: l10n.inpaintZoomReset,
+                      size: btnSize,
+                      iconSize: 14,
+                      radius: btnRadius,
+                      variant: AppIconButtonVariant.ghost,
+                      onPressed: _resetViewport,
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+        if (!isAiEdit) ...[
+          const SizedBox(width: 6),
+          AppFloatingDock(
+            key: const ValueKey('inpaint-history-dock'),
+            radius: 18,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+            enableBlur: true,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppIconButton(
+                  key: const Key('inpaint_undo_button'),
+                  icon: Icons.undo_rounded,
+                  tooltip: l10n.inpaintUndoMask,
+                  size: btnSize,
+                  iconSize: 15,
+                  radius: btnRadius,
+                  variant: AppIconButtonVariant.ghost,
+                  onPressed: vm.canUndoInpaintMask ? vm.undoInpaintMask : null,
+                ),
+                AppIconButton(
+                  key: const Key('inpaint_redo_button'),
+                  icon: Icons.redo_rounded,
+                  tooltip: l10n.inpaintRedoMask,
+                  size: btnSize,
+                  iconSize: 15,
+                  radius: btnRadius,
+                  variant: AppIconButtonVariant.ghost,
+                  onPressed: vm.canRedoInpaintMask ? vm.redoInpaintMask : null,
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _maskVisibleNotifier,
+                  builder: (context, visible, _) => AppIconButton(
+                    key: const Key('inpaint_mask_visibility_button'),
+                    icon: visible
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    tooltip: visible
+                        ? l10n.inpaintToggleMaskVisibility
+                        : l10n.inpaintShowMask,
+                    size: btnSize,
+                    iconSize: 15,
+                    radius: btnRadius,
+                    variant: visible
+                        ? AppIconButtonVariant.ghost
+                        : AppIconButtonVariant.primary,
+                    onPressed: () => _maskVisibleNotifier.value = !visible,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildBottomActionCard(
     BuildContext context,
     StudioViewModel vm, {
     required bool isAiEdit,
@@ -2038,53 +2109,45 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     required bool showStartAction,
   }) {
     final l10n = context.l10n;
-    final edge = widget.compact ? 10.0 : 18.0;
 
-    return Positioned(
-      bottom: edge,
-      right: edge,
-      child: AppFloatingDock(
-        padding: const EdgeInsets.all(4),
-        enableBlur: true,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    return AppFloatingDock(
+      padding: const EdgeInsets.all(4),
+      enableBlur: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppActionButton(
+            key: const Key('inpaint_exit_button'),
+            icon: Icons.close_rounded,
+            label: l10n.inpaintExit,
+            variant: AppActionButtonVariant.ghost,
+            padding: widget.compact
+                ? const EdgeInsets.symmetric(horizontal: 10, vertical: 7)
+                : null,
+            onPressed: isExecuting
+                ? null
+                : (widget.onExit ??
+                      () => vm.exitInpaintMode(expandSidebar: false)),
+          ),
+          if (showStartAction) ...[
+            const SizedBox(width: 6),
             AppActionButton(
-              key: const Key('inpaint_exit_button'),
-              icon: Icons.close_rounded,
-              label: l10n.inpaintExit,
-              variant: AppActionButtonVariant.ghost,
-              padding: widget.compact
-                  ? const EdgeInsets.symmetric(horizontal: 10, vertical: 7)
-                  : null,
-              onPressed: isExecuting
+              key: const Key('inpaint_canvas_start_button'),
+              icon: isAiEdit
+                  ? Icons.auto_awesome
+                  : Icons.auto_fix_high_outlined,
+              label: isExecuting
+                  ? (isAiEdit ? l10n.dockAiEditing : l10n.dockInpainting)
+                  : (isAiEdit ? l10n.startAiEdit : l10n.startInpaint),
+              variant: AppActionButtonVariant.primary,
+              isLoading: isExecuting,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              onPressed: (isExecuting || vm.isGenerating)
                   ? null
-                  : (widget.onExit ??
-                        () => vm.exitInpaintMode(expandSidebar: false)),
+                  : () => vm.executeInpaint(),
             ),
-            if (showStartAction) ...[
-              const SizedBox(width: 6),
-              AppActionButton(
-                key: const Key('inpaint_canvas_start_button'),
-                icon: isAiEdit
-                    ? Icons.auto_awesome
-                    : Icons.auto_fix_high_outlined,
-                label: isExecuting
-                    ? (isAiEdit ? l10n.dockAiEditing : l10n.dockInpainting)
-                    : (isAiEdit ? l10n.startAiEdit : l10n.startInpaint),
-                variant: AppActionButtonVariant.primary,
-                isLoading: isExecuting,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 9,
-                ),
-                onPressed: (isExecuting || vm.isGenerating)
-                    ? null
-                    : () => vm.executeInpaint(),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }

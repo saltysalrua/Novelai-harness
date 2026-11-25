@@ -151,8 +151,9 @@ class _ParametersPageState extends State<ParametersPage> {
                   ],
                   selectedValue: params.effectiveEffort,
                   expand: true,
+                  enabled: !params.isEffortForcedByPreciseReference,
                   onValueChanged: params.isEffortForcedByPreciseReference
-                      ? (_) {}
+                      ? null
                       : viewModel.setEffort,
                 ),
                 AppPanelReveal(
@@ -163,12 +164,39 @@ class _ParametersPageState extends State<ParametersPage> {
                   enableBlur: false,
                   child: Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      l10n.paramsEffortForcedByReferenceHint,
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.4,
-                        color: context.colors.warning,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: context.colors.warning.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        border: Border.all(
+                          color: context.colors.warning.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.lock_outline_rounded,
+                            size: 14,
+                            color: context.colors.warning,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              l10n.paramsEffortForcedByReferenceHint,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                height: 1.4,
+                                color: context.colors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

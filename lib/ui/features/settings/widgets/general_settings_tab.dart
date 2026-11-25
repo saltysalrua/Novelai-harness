@@ -19,6 +19,7 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_color_picker_dialog.dart';
 import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
 import '../../../core/widgets/app_transitions.dart';
@@ -410,7 +411,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile(
                 title: l10n.settingsBackgroundMode,
-                subtitle: l10n.settingsBackgroundModeSubtitle,
                 control: AppDropdown.simple(
                   value: _draft.backgroundMode,
                   items: AppBackgroundMode.values,
@@ -1157,8 +1157,8 @@ class _BackgroundColorRow extends StatelessWidget {
                   AppMotionDurations.quick,
                 ),
                 curve: AppMotionCurves.smoothOut,
-                width: 24,
-                height: 24,
+                width: 26,
+                height: 26,
                 decoration: BoxDecoration(
                   color: preset,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -1181,20 +1181,14 @@ class _BackgroundColorRow extends StatelessWidget {
           onTap: onPickCustom,
         ),
         if (hasCustomValue && currentColor.toARGB32() != defaultColor.toARGB32())
-          Tooltip(
-            message: resetTooltip,
-            child: InkWell(
-              onTap: onReset,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  Icons.refresh_rounded,
-                  size: 16,
-                  color: colors.textMuted,
-                ),
-              ),
-            ),
+          AppIconButton(
+            icon: Icons.refresh_rounded,
+            size: 26,
+            iconSize: 15,
+            radius: AppRadius.sm,
+            variant: AppIconButtonVariant.ghost,
+            tooltip: resetTooltip,
+            onPressed: onReset,
           ),
       ],
     );

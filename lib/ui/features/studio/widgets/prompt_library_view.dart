@@ -319,7 +319,10 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
-  Future<void> _handleSelectiveApply(PromptComboEntry combo) async {
+  Future<void> _handleSelectiveApply(
+    PromptComboEntry combo, {
+    bool initialAsCharacter = false,
+  }) async {
     final l10n = context.l10n;
     // 若仅含单类单张参考且无提示词，无需多弹一步，直接一键载入
     final totalParts =
@@ -335,7 +338,11 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       return;
     }
 
-    final selection = await PromptComboApplyDialog.show(context, combo: combo);
+    final selection = await PromptComboApplyDialog.show(
+      context,
+      combo: combo,
+      initialAsCharacter: initialAsCharacter,
+    );
     if (selection == null || !selection.hasAnySelection || !mounted) return;
 
     final outcome = await widget.viewModel.applyPromptComboSelective(
@@ -1022,6 +1029,14 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                                     columns[c][i].entry.hasReferenceGuides
                                     ? () => _handleSelectiveApply(
                                         columns[c][i].entry,
+                                      )
+                                    : null,
+                                onAddCharacterSelective:
+                                    columns[c][i].entry.isCharacter &&
+                                        columns[c][i].entry.hasReferenceGuides
+                                    ? () => _handleSelectiveApply(
+                                        columns[c][i].entry,
+                                        initialAsCharacter: true,
                                       )
                                     : null,
                                 onApplyPreciseRefsOnly:

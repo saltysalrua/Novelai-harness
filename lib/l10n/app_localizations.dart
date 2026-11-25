@@ -8466,7 +8466,7 @@ abstract class AppLocalizations {
   /// No description provided for @vibeNormalizeStrengths.
   ///
   /// In zh, this message translates to:
-  /// **'归一化多图强度 (Normalize Strengths)'**
+  /// **'归一化多图强度'**
   String get vibeNormalizeStrengths;
 
   /// No description provided for @vibeInfoExtracted.
@@ -8616,7 +8616,7 @@ abstract class AppLocalizations {
   /// No description provided for @pasteActionPreciseUnsupportedSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'添加到精准参考 (当前模型不支持，切换至 V5 / V4.5 后生效)'**
+  /// **'当前模型不支持，切换至 V5 / V4.5 后生效'**
   String get pasteActionPreciseUnsupportedSubtitle;
 
   /// No description provided for @pasteActionVibe.
@@ -8634,7 +8634,7 @@ abstract class AppLocalizations {
   /// No description provided for @pasteActionVibeUnsupportedSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'添加到 Vibe Transfer (V5 暂不支持，切换至 V4.5 / V4 / V3 后生效)'**
+  /// **'V5 暂不支持，切换至 V4.5 / V4 / V3 后生效'**
   String get pasteActionVibeUnsupportedSubtitle;
 
   /// No description provided for @pasteActionBoard.
@@ -8772,7 +8772,7 @@ abstract class AppLocalizations {
   /// No description provided for @libraryEditFieldReferenceGuides.
   ///
   /// In zh, this message translates to:
-  /// **'关联精准参考与 Vibe (可选)'**
+  /// **'关联精准参考与 Vibe'**
   String get libraryEditFieldReferenceGuides;
 
   /// No description provided for @libraryEditImportWorkspaceRefs.
@@ -8804,6 +8804,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已导入 {precise} 张精准参考、{vibe} 条 Vibe'**
   String libraryEditImportedWorkspaceRefs(int precise, int vibe);
+
+  /// No description provided for @referenceClearConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空精准参考'**
+  String get referenceClearConfirmTitle;
+
+  /// No description provided for @referenceClearConfirmMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'将移除当前全部 {count} 张精准参考图。'**
+  String referenceClearConfirmMessage(int count);
+
+  /// No description provided for @vibeClearConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空 Vibe Transfer'**
+  String get vibeClearConfirmTitle;
+
+  /// No description provided for @vibeClearConfirmMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'将移除当前全部 {count} 条 Vibe Transfer，未保存的编码将丢失。'**
+  String vibeClearConfirmMessage(int count);
 }
 
 class _AppLocalizationsDelegate

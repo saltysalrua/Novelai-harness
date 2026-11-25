@@ -1,15 +1,19 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../data/models/nai_precise_reference.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
+import '../../../core/widgets/app_transitions.dart';
 
 /// 词库条目选择性应用结果
 class PromptComboApplySelection {
@@ -42,16 +46,25 @@ enum _PromptApplyMode { append, replace, asCharacter, asStyleReplace, asStyleApp
 /// 词库条目选择性应用弹窗：允许自由勾选「提示词 / 精准参考 / Vibe Transfer」及追加或替换模式。
 class PromptComboApplyDialog extends StatefulWidget {
   final PromptComboEntry combo;
+  final bool initialAsCharacter;
 
-  const PromptComboApplyDialog({super.key, required this.combo});
+  const PromptComboApplyDialog({
+    super.key,
+    required this.combo,
+    this.initialAsCharacter = false,
+  });
 
   static Future<PromptComboApplySelection?> show(
     BuildContext context, {
     required PromptComboEntry combo,
+    bool initialAsCharacter = false,
   }) {
     return AppDialogScaffold.show<PromptComboApplySelection>(
       context: context,
-      builder: (ctx) => PromptComboApplyDialog(combo: combo),
+      builder: (ctx) => PromptComboApplyDialog(
+        combo: combo,
+        initialAsCharacter: initialAsCharacter,
+      ),
     );
   }
 
@@ -72,9 +85,11 @@ class _PromptComboApplyDialogState extends State<PromptComboApplyDialog> {
   void initState() {
     super.initState();
     _applyPrompt = _combo.hasPromptText;
-    _promptMode = _combo.isStyle
-        ? _PromptApplyMode.asStyleReplace
-        : _PromptApplyMode.append;
+    _promptMode = widget.initialAsCharacter && _combo.isCharacter
+        ? _PromptApplyMode.asCharacter
+        : (_combo.isStyle
+              ? _PromptApplyMode.asStyleReplace
+              : _PromptApplyMode.append);
     _selectedPreciseIds = _combo.preciseReferences
         .where((r) => r.enabled)
         .map((r) => r.id)
@@ -136,29 +151,42 @@ class _PromptComboApplyDialogState extends State<PromptComboApplyDialog> {
     final hasAnyRefSelected =
         _selectedPreciseIds.isNotEmpty || _selectedVibeIds.isNotEmpty;
 
-    return AppDialogScaffold(
-      title: l10n.librarySelectiveApplyTitle(_combo.title),
-      width: 480,
-      minimalChrome: true,
-      body: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 520),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 1. 提示词勾选区块
-              if (_combo.hasPromptText) ...[
-                _SectionCard(
-                  checked: _applyPrompt,
-                  title: l10n.librarySelectiveApplyPromptSection,
-                  subtitle: _combo.displayPromptSummary,
-                  onToggle: () => setState(() => _applyPrompt = !_applyPrompt),
-                  footer: _applyPrompt ? _buildPromptModeSelector(context) : null,
-                ),
-                const SizedBox(height: 10),
-              ],
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter): _confirm,
+        const SingleActivator(LogicalKeyboardKey.numpadEnter): _confirm,
+      },
+      child: AppDialogScaffold(
+        title: l10n.librarySelectiveApplyTitle(_combo.title),
+        width: 480,
+        minimalChrome: true,
+        body: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 520),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 1. 提示词勾选区块
+                if (_combo.hasPromptText) ...[
+                  _SectionCard(
+                    checked: _applyPrompt,
+                    title: l10n.librarySelectiveApplyPromptSection,
+                    subtitle: _combo.displayPromptSummary,
+                    onToggle: () =>
+                        setState(() => _applyPrompt = !_applyPrompt),
+                    footer: AppPanelReveal(
+                      visible: _applyPrompt,
+                      openDuration: AppMotionDurations.fast,
+                      closeDuration: AppMotionDurations.quick,
+                      slideOffset: AppMotionDistances.micro,
+                      enableBlur: false,
+                      child: _buildPromptModeSelector(context),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
 
               // 2. 精准参考勾选区块
               if (_combo.hasPreciseReferences) ...[
@@ -322,6 +350,7 @@ class _PromptComboApplyDialogState extends State<PromptComboApplyDialog> {
           onPressed: _hasAnySelection ? _confirm : null,
         ),
       ],
+      ),
     );
   }
 
@@ -394,21 +423,13 @@ class _PromptComboApplyDialogState extends State<PromptComboApplyDialog> {
             ),
           ),
         ),
-        GestureDetector(
-          onTap: onToggleAll,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: Text(
-              allSelected
-                  ? l10n.librarySelectiveApplyUnselectAll
-                  : l10n.librarySelectiveApplySelectAll,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w500,
-                color: colors.primary,
-              ),
-            ),
-          ),
+        AppActionButton(
+          label: allSelected
+              ? l10n.librarySelectiveApplyUnselectAll
+              : l10n.librarySelectiveApplySelectAll,
+          variant: AppActionButtonVariant.ghost,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          onPressed: onToggleAll,
         ),
       ],
     );
@@ -433,7 +454,9 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Container(
+    return AnimatedContainer(
+      duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
+      curve: AppMotionCurves.smoothOut,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.elevatedBackground,
@@ -453,12 +476,14 @@ class _SectionCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  checked
-                      ? Icons.check_box_rounded
-                      : Icons.check_box_outline_blank_rounded,
-                  size: 18,
-                  color: checked ? colors.primary : colors.textMuted,
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: IgnorePointer(
+                    child: AppCheckbox(
+                      value: checked,
+                      onChanged: (_) {},
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -516,7 +541,7 @@ class _SelectableAssetTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final path = imagePath?.trim();
-    final hasFile = path != null && path.isNotEmpty && File(path).existsSync();
+    final hasPath = path != null && path.isNotEmpty;
 
     return Material(
       color: colors.elevatedBackground,
@@ -524,7 +549,12 @@ class _SelectableAssetTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.resolveDuration(
+            context,
+            AppMotionDurations.quick,
+          ),
+          curve: AppMotionCurves.smoothOut,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.md),
@@ -536,12 +566,11 @@ class _SelectableAssetTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(
-                checked
-                    ? Icons.check_box_rounded
-                    : Icons.check_box_outline_blank_rounded,
-                size: 18,
-                color: checked ? colors.primary : colors.textMuted,
+              IgnorePointer(
+                child: AppCheckbox(
+                  value: checked,
+                  onChanged: (_) {},
+                ),
               ),
               const SizedBox(width: 8),
               ClipRRect(
@@ -550,7 +579,7 @@ class _SelectableAssetTile extends StatelessWidget {
                   width: 36,
                   height: 36,
                   color: colors.mutedBackground,
-                  child: hasFile
+                  child: hasPath
                       ? Image(
                           image: ResizeImage(
                             FileImage(File(path)),
@@ -559,6 +588,7 @@ class _SelectableAssetTile extends StatelessWidget {
                             policy: ResizeImagePolicy.fit,
                           ),
                           fit: BoxFit.cover,
+                          gaplessPlayback: true,
                           errorBuilder: (_, _, _) => Icon(
                             Icons.image_not_supported_outlined,
                             size: 16,

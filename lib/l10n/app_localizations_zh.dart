@@ -4604,7 +4604,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '支持拖入图片或官方 .naiv4vibe / .naiv4vibebundle 预编码文件；预编码文件可零编码费直接复用。';
 
   @override
-  String get vibeNormalizeStrengths => '归一化多图强度 (Normalize Strengths)';
+  String get vibeNormalizeStrengths => '归一化多图强度';
 
   @override
   String get vibeInfoExtracted => '信息提取度';
@@ -4685,7 +4685,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pasteActionPreciseUnsupportedSubtitle =>
-      '添加到精准参考 (当前模型不支持，切换至 V5 / V4.5 后生效)';
+      '当前模型不支持，切换至 V5 / V4.5 后生效';
 
   @override
   String get pasteActionVibe => '设为 Vibe Transfer';
@@ -4695,7 +4695,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pasteActionVibeUnsupportedSubtitle =>
-      '添加到 Vibe Transfer (V5 暂不支持，切换至 V4.5 / V4 / V3 后生效)';
+      'V5 暂不支持，切换至 V4.5 / V4 / V3 后生效';
 
   @override
   String get pasteActionBoard => '导入大画布参考图';
@@ -4776,7 +4776,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get libraryApplyRefMissingFiles => '未能加载参考图（本地图片文件缺失）';
 
   @override
-  String get libraryEditFieldReferenceGuides => '关联精准参考与 Vibe (可选)';
+  String get libraryEditFieldReferenceGuides => '关联精准参考与 Vibe';
 
   @override
   String get libraryEditImportWorkspaceRefs => '导入当前工作台';
@@ -4793,5 +4793,21 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String libraryEditImportedWorkspaceRefs(int precise, int vibe) {
     return '已导入 $precise 张精准参考、$vibe 条 Vibe';
+  }
+
+  @override
+  String get referenceClearConfirmTitle => '清空精准参考';
+
+  @override
+  String referenceClearConfirmMessage(int count) {
+    return '将移除当前全部 $count 张精准参考图。';
+  }
+
+  @override
+  String get vibeClearConfirmTitle => '清空 Vibe Transfer';
+
+  @override
+  String vibeClearConfirmMessage(int count) {
+    return '将移除当前全部 $count 条 Vibe Transfer，未保存的编码将丢失。';
   }
 }

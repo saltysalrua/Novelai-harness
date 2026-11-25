@@ -226,12 +226,14 @@ class _StudioViewState extends State<StudioView> {
       }
     }
 
-    // 全局快捷键 Ctrl+V / Cmd+V 粘贴检查图片元数据
+    // 全局快捷键 Ctrl+V / Cmd+V 粘贴图片（仅顶层主路由生效，避免在弹窗上穿透叠弹）
     final isControlOrCmd =
         HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
     if (isControlOrCmd && event.logicalKey == LogicalKeyboardKey.keyV) {
-      if (!_isTypingText() &&
+      final isTopRoute = ModalRoute.of(context)?.isCurrent ?? true;
+      if (isTopRoute &&
+          !_isTypingText() &&
           !_viewModel.isEditingCharacterPositions &&
           !_viewModel.isEditingWatermarkPosition &&
           !_viewModel.board.isAnnotatingImage) {

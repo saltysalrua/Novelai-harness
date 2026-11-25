@@ -16,6 +16,7 @@ import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_number_slider.dart';
 import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
@@ -112,6 +113,7 @@ class _DraftPreciseRef {
     NaiPreciseRefType? type,
     bool? preferSameOutfit,
     double? strength,
+    double? fidelity,
   }) {
     final nextType = type ?? this.type;
     final nextPreferSameOutfit =
@@ -127,7 +129,7 @@ class _DraftPreciseRef {
       type: nextType,
       preferSameOutfit: nextPreferSameOutfit,
       strength: strength ?? this.strength,
-      fidelity: fidelity,
+      fidelity: fidelity ?? this.fidelity,
       informationExtracted: informationExtracted,
       enabled: enabled,
     );
@@ -871,15 +873,12 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           ),
         ),
         const Spacer(),
-        IconButton(
-          icon: Icon(
-            Icons.close_rounded,
-            size: 18,
-            color: colors.textSecondary,
-          ),
-          splashRadius: 16,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+        AppIconButton(
+          icon: Icons.close_rounded,
+          size: 28,
+          iconSize: 18,
+          variant: AppIconButtonVariant.ghost,
+          tooltip: context.l10n.cancel,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
@@ -1531,143 +1530,154 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   ) {
     final colors = context.colors;
     final l10n = context.l10n;
+    final model = widget.viewModel.params.model;
+    final strengthMax = model.supportsPreciseReference
+        ? model.preciseReferenceStrengthMax
+        : 5.0;
+    final supportsFidelity = model.supportsPreciseReferenceFidelity;
+    final savedPath = draft.savedPath?.trim();
     final ImageProvider? thumb = draft.pendingBytes != null
         ? MemoryImage(draft.pendingBytes!)
-        : (draft.savedPath != null && File(draft.savedPath!).existsSync()
-              ? FileImage(File(draft.savedPath!))
+        : (savedPath != null && savedPath.isNotEmpty
+              ? FileImage(File(savedPath))
               : null);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.elevatedBackground,
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            child: Container(
-              width: 38,
-              height: 38,
-              color: colors.mutedBackground,
-              child: thumb != null
-                  ? Image(
-                      image: ResizeImage(
-                        thumb,
-                        width: 96,
-                        height: 96,
-                        policy: ResizeImagePolicy.fit,
-                      ),
-                      fit: BoxFit.cover,
-                    )
-                  : Icon(
-                      Icons.style_outlined,
-                      size: 16,
-                      color: colors.textMuted,
-                    ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    AppBadge.pill(
-                      label: l10n.tabReference,
-                      variant: AppBadgeVariant.primary,
-                      fontSize: 9.5,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: AppDropdown<NaiPreciseRefType>(
-                        value: draft.type,
-                        items: [
-                          for (final t in NaiPreciseRefType.values)
-                            AppDropdownItem(
-                              value: t,
-                              label: _refTypeLabel(context, t),
-                            ),
-                        ],
-                        onChanged: (next) {
-                          setState(() {
-                            _preciseRefs[index] = draft.copyWith(type: next);
-                          });
-                        },
-                      ),
-                    ),
-                  ],
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  color: colors.mutedBackground,
+                  child: thumb != null
+                      ? Image(
+                          image: ResizeImage(
+                            thumb,
+                            width: 96,
+                            height: 96,
+                            policy: ResizeImagePolicy.fit,
+                          ),
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          errorBuilder: (_, _, _) => Icon(
+                            Icons.style_outlined,
+                            size: 16,
+                            color: colors.textMuted,
+                          ),
+                        )
+                      : Icon(
+                          Icons.style_outlined,
+                          size: 16,
+                          color: colors.textMuted,
+                        ),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      '${l10n.referenceStrength} ${draft.strength.toStringAsFixed(2)}',
-                      style: TextStyle(fontSize: 10.5, color: colors.textMuted),
-                    ),
-                    Expanded(
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 2,
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 5,
-                          ),
-                          overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 10,
-                          ),
-                        ),
-                        child: Slider(
-                          value: draft.strength.clamp(0.0, 5.0),
-                          min: 0.0,
-                          max: 5.0,
-                          divisions: 100,
-                          onChanged: (v) {
-                            setState(() {
-                              _preciseRefs[index] = draft.copyWith(strength: v);
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                    if (draft.type.supportsPreferSameOutfit)
-                      Tooltip(
-                        message: l10n.referencePreferSameOutfit,
-                        child: AppToolChip(
-                          icon: Icons.checkroom_outlined,
-                          label: l10n.referencePreferSameOutfitShort,
-                          isSelected: draft.preferSameOutfit,
-                          variant: AppToolChipVariant.tinted,
-                          fontSize: 10,
-                          iconSize: 11,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          onTap: () {
-                            setState(() {
-                              _preciseRefs[index] = draft.copyWith(
-                                preferSameOutfit: !draft.preferSameOutfit,
-                              );
-                            });
-                          },
-                        ),
+              ),
+              const SizedBox(width: 8),
+              AppBadge.pill(
+                label: l10n.tabReference,
+                variant: AppBadgeVariant.primary,
+                fontSize: 9.5,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: AppDropdown<NaiPreciseRefType>(
+                  value: draft.type,
+                  variant: AppDropdownVariant.compact,
+                  searchable: false,
+                  items: [
+                    for (final t in NaiPreciseRefType.values)
+                      AppDropdownItem(
+                        value: t,
+                        label: _refTypeLabel(context, t),
                       ),
                   ],
+                  onChanged: (next) {
+                    setState(() {
+                      _preciseRefs[index] = draft.copyWith(type: next);
+                    });
+                  },
+                ),
+              ),
+              if (draft.type.supportsPreferSameOutfit) ...[
+                const SizedBox(width: 6),
+                Tooltip(
+                  message: l10n.referencePreferSameOutfit,
+                  child: AppToolChip(
+                    icon: Icons.checkroom_outlined,
+                    label: l10n.referencePreferSameOutfitShort,
+                    isSelected: draft.preferSameOutfit,
+                    variant: AppToolChipVariant.tinted,
+                    fontSize: 11,
+                    iconSize: 13,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _preciseRefs[index] = draft.copyWith(
+                          preferSameOutfit: !draft.preferSameOutfit,
+                        );
+                      });
+                    },
+                  ),
                 ),
               ],
+              const SizedBox(width: 4),
+              AppIconButton(
+                icon: Icons.close_rounded,
+                size: 28,
+                iconSize: 15,
+                variant: AppIconButtonVariant.ghost,
+                tooltip: l10n.delete,
+                onPressed: () => setState(() => _preciseRefs.removeAt(index)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          AppNumberSlider(
+            title: l10n.referenceStrength,
+            value: draft.strength,
+            min: 0.0,
+            max: strengthMax,
+            step: 0.05,
+            fractionDigits: 2,
+            allowNegativeInput: true,
+            uncapInput: true,
+            onChanged: (v) {
+              setState(() {
+                _preciseRefs[index] = draft.copyWith(strength: v);
+              });
+            },
+          ),
+          if (supportsFidelity) ...[
+            const SizedBox(height: 8),
+            AppNumberSlider(
+              title: l10n.referenceFidelity,
+              value: draft.fidelity,
+              min: 0.0,
+              max: 1.0,
+              step: 0.05,
+              fractionDigits: 2,
+              allowNegativeInput: true,
+              uncapInput: true,
+              onChanged: (v) {
+                setState(() {
+                  _preciseRefs[index] = draft.copyWith(fidelity: v);
+                });
+              },
             ),
-          ),
-          const SizedBox(width: 4),
-          AppIconButton(
-            icon: Icons.close_rounded,
-            size: 24,
-            iconSize: 14,
-            variant: AppIconButtonVariant.ghost,
-            tooltip: l10n.delete,
-            onPressed: () => setState(() => _preciseRefs.removeAt(index)),
-          ),
+          ],
         ],
       ),
     );
@@ -1680,123 +1690,126 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   ) {
     final colors = context.colors;
     final l10n = context.l10n;
+    final displayPath = draft.displayPath?.trim();
     final ImageProvider? thumb = draft.displayBytes != null
         ? MemoryImage(draft.displayBytes!)
-        : (draft.displayPath != null && File(draft.displayPath!).existsSync()
-              ? FileImage(File(draft.displayPath!))
+        : (displayPath != null && displayPath.isNotEmpty
+              ? FileImage(File(displayPath))
               : null);
+    final hasRawSource =
+        (draft.pendingRawBytes != null && draft.pendingRawBytes!.isNotEmpty) ||
+        (draft.savedRawPath != null && draft.savedRawPath!.trim().isNotEmpty);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.elevatedBackground,
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            child: Container(
-              width: 38,
-              height: 38,
-              color: colors.mutedBackground,
-              child: thumb != null
-                  ? Image(
-                      image: ResizeImage(
-                        thumb,
-                        width: 96,
-                        height: 96,
-                        policy: ResizeImagePolicy.fit,
-                      ),
-                      fit: BoxFit.cover,
-                    )
-                  : Icon(
-                      Icons.auto_awesome_motion_outlined,
-                      size: 16,
-                      color: colors.textMuted,
-                    ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    AppBadge.pill(
-                      label: l10n.vibeTabTitle,
-                      variant: AppBadgeVariant.neutral,
-                      fontSize: 9.5,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        draft.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  color: colors.mutedBackground,
+                  child: thumb != null
+                      ? Image(
+                          image: ResizeImage(
+                            thumb,
+                            width: 96,
+                            height: 96,
+                            policy: ResizeImagePolicy.fit,
+                          ),
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          errorBuilder: (_, _, _) => Icon(
+                            Icons.auto_awesome_motion_outlined,
+                            size: 16,
+                            color: colors.textMuted,
+                          ),
+                        )
+                      : Icon(
+                          Icons.auto_awesome_motion_outlined,
+                          size: 16,
+                          color: colors.textMuted,
                         ),
-                      ),
-                    ),
-                    if (draft.encodingsByModel.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      AppBadge.pill(
-                        label: l10n.vibeStatusEncoded,
-                        variant: AppBadgeVariant.success,
-                        fontSize: 9.5,
-                      ),
-                    ],
-                  ],
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(
-                      '${l10n.referenceStrength} ${draft.strength.toStringAsFixed(2)}',
-                      style: TextStyle(fontSize: 10.5, color: colors.textMuted),
-                    ),
-                    Expanded(
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 2,
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 5,
-                          ),
-                          overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 10,
-                          ),
-                        ),
-                        child: Slider(
-                          value: draft.strength.clamp(0.0, 1.0),
-                          min: 0.0,
-                          max: 1.0,
-                          divisions: 100,
-                          onChanged: (v) {
-                            setState(() {
-                              _vibeRefs[index] = draft.copyWith(strength: v);
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
+              ),
+              const SizedBox(width: 8),
+              AppBadge.pill(
+                label: l10n.vibeTabTitle,
+                variant: AppBadgeVariant.neutral,
+                fontSize: 9.5,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  draft.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              if (draft.encodingsByModel.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                AppBadge.pill(
+                  label: l10n.vibeStatusEncoded,
+                  variant: AppBadgeVariant.success,
+                  fontSize: 9.5,
                 ),
               ],
+              const SizedBox(width: 4),
+              AppIconButton(
+                icon: Icons.close_rounded,
+                size: 28,
+                iconSize: 15,
+                variant: AppIconButtonVariant.ghost,
+                tooltip: l10n.delete,
+                onPressed: () => setState(() => _vibeRefs.removeAt(index)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          AppNumberSlider(
+            title: l10n.referenceStrength,
+            value: draft.strength,
+            min: 0.0,
+            max: 1.0,
+            step: 0.05,
+            fractionDigits: 2,
+            allowNegativeInput: true,
+            uncapInput: true,
+            onChanged: (v) {
+              setState(() {
+                _vibeRefs[index] = draft.copyWith(strength: v);
+              });
+            },
+          ),
+          if (hasRawSource) ...[
+            const SizedBox(height: 8),
+            AppNumberSlider(
+              title: l10n.vibeInfoExtracted,
+              value: draft.informationExtracted,
+              min: 0.01,
+              max: 1.0,
+              step: 0.05,
+              fractionDigits: 2,
+              onChanged: (v) {
+                setState(() {
+                  _vibeRefs[index] = draft.copyWith(informationExtracted: v);
+                });
+              },
             ),
-          ),
-          const SizedBox(width: 4),
-          AppIconButton(
-            icon: Icons.close_rounded,
-            size: 24,
-            iconSize: 14,
-            variant: AppIconButtonVariant.ghost,
-            tooltip: l10n.delete,
-            onPressed: () => setState(() => _vibeRefs.removeAt(index)),
-          ),
+          ],
         ],
       ),
     );
