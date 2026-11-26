@@ -1145,6 +1145,7 @@ void main() {
           promptSyncNamespace: 'org-ns',
           promptSyncAutoEnabled: true,
           promptSyncAutoIntervalMinutes: 0,
+          inboxOrganizerThinkingEffort: 'low',
           inboxOrganizerExcludedCategories: const ['构图', '环境'],
           inboxOrganizerPresetId: 'v5-architect-preset',
           inboxOrganizerCustomInstructions: '优先保留画师标签，不要翻译角色英文名',
@@ -1152,6 +1153,7 @@ void main() {
         await configService.saveConfig(initialCfg);
 
         final reloaded = await configService.loadConfig();
+        expect(reloaded.inboxOrganizerThinkingEffort, 'low');
         expect(reloaded.inboxOrganizerExcludedCategories, ['构图', '环境']);
         expect(reloaded.inboxOrganizerPresetId, 'v5-architect-preset');
         expect(
@@ -1188,6 +1190,35 @@ void main() {
         await vm.init();
         await Future<void>.delayed(const Duration(milliseconds: 100));
         expect(server.syncPushCount, 0);
+
+        // 思考强度解析：支持思考的模型应用指定档位，不支持的模型返回 null，不支持的档位回退默认
+        const thinkingModel = LlmModelConfig(
+          id: 'thinking-1',
+          name: 'Thinking 1',
+          reasoning: true,
+          supportedThinkingLevels: [ThinkingEffort.low, ThinkingEffort.high],
+          preferredThinkingEffort: ThinkingEffort.high,
+        );
+        const plainModel = LlmModelConfig(
+          id: 'plain-1',
+          name: 'Plain 1',
+          reasoning: false,
+        );
+        expect(
+          vm.resolveInboxOrganizerThinkingEffort(thinkingModel),
+          ThinkingEffort.low,
+        );
+        expect(vm.resolveInboxOrganizerThinkingEffort(plainModel), isNull);
+        await vm.updateInboxOrganizerSettings(thinkingEffort: 'xhigh');
+        expect(
+          vm.resolveInboxOrganizerThinkingEffort(thinkingModel),
+          ThinkingEffort.high,
+        );
+        await vm.updateInboxOrganizerSettings(thinkingEffort: '');
+        expect(
+          vm.resolveInboxOrganizerThinkingEffort(thinkingModel),
+          ThinkingEffort.high,
+        );
 
         var midRunPushCountAfterTurn1 = -1;
         var midRunPushCountAfterTurn2 = -1;

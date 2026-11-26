@@ -106,6 +106,9 @@ class SessionLogService implements SessionRecorder {
   Directory? _baseDir;
   File? _currentFile;
   String? _lastEntryId;
+  String? _lastRecordedProvider;
+  String? _lastRecordedModelId;
+  String? _lastRecordedThinkingLevel;
   static final Random _random = Random();
   int _sessionLoadEpoch = 0;
 
@@ -193,6 +196,9 @@ class SessionLogService implements SessionRecorder {
     if (resumed != null) {
       _currentFile = File(resumed.path);
       _lastEntryId = resumed.lastEntryId;
+      _lastRecordedProvider = resumed.provider;
+      _lastRecordedModelId = resumed.modelId;
+      _lastRecordedThinkingLevel = resumed.thinkingLevel;
     }
   }
 
@@ -303,7 +309,14 @@ class SessionLogService implements SessionRecorder {
   @override
   void recordModelChange(String provider, String modelId) {
     if (_baseDir == null) return;
+    if (_currentFile != null &&
+        _lastRecordedProvider == provider &&
+        _lastRecordedModelId == modelId) {
+      return;
+    }
     _ensureSession();
+    _lastRecordedProvider = provider;
+    _lastRecordedModelId = modelId;
     _appendEntry({
       'type': 'model_change',
       'provider': provider,
@@ -314,7 +327,11 @@ class SessionLogService implements SessionRecorder {
   @override
   void recordThinkingLevelChange(String level) {
     if (_baseDir == null) return;
+    if (_currentFile != null && _lastRecordedThinkingLevel == level) {
+      return;
+    }
     _ensureSession();
+    _lastRecordedThinkingLevel = level;
     _appendEntry({'type': 'thinking_level_change', 'thinkingLevel': level});
   }
 
@@ -324,6 +341,9 @@ class SessionLogService implements SessionRecorder {
     if (_baseDir == null) return;
     _currentFile = null;
     _lastEntryId = null;
+    _lastRecordedProvider = null;
+    _lastRecordedModelId = null;
+    _lastRecordedThinkingLevel = null;
     // 立即创建新的空会话文件 (写入头)，保证 /clear 后重启不会误恢复旧会话
     _ensureSession();
   }
@@ -333,6 +353,9 @@ class SessionLogService implements SessionRecorder {
     final file = _currentFile;
     if (file == null) return;
     final path = file.path;
+    _lastRecordedProvider = null;
+    _lastRecordedModelId = null;
+    _lastRecordedThinkingLevel = null;
     unawaited(
       _enqueue(() async {
         final lastId = await runIsolated(_truncateSessionFile, (
@@ -456,6 +479,9 @@ class SessionLogService implements SessionRecorder {
     if (snapshot != null) {
       _currentFile = file;
       _lastEntryId = snapshot.lastEntryId;
+      _lastRecordedProvider = snapshot.provider;
+      _lastRecordedModelId = snapshot.modelId;
+      _lastRecordedThinkingLevel = snapshot.thinkingLevel;
     }
     return snapshot;
   }
@@ -472,6 +498,9 @@ class SessionLogService implements SessionRecorder {
     if (snapshot != null) {
       _currentFile = file;
       _lastEntryId = snapshot.lastEntryId;
+      _lastRecordedProvider = snapshot.provider;
+      _lastRecordedModelId = snapshot.modelId;
+      _lastRecordedThinkingLevel = snapshot.thinkingLevel;
     }
     return snapshot;
   }
@@ -495,6 +524,9 @@ class SessionLogService implements SessionRecorder {
     if (snapshot != null && loaded.path != null) {
       _currentFile = File(loaded.path!);
       _lastEntryId = snapshot.lastEntryId;
+      _lastRecordedProvider = snapshot.provider;
+      _lastRecordedModelId = snapshot.modelId;
+      _lastRecordedThinkingLevel = snapshot.thinkingLevel;
     }
     return snapshot;
   }
@@ -526,6 +558,9 @@ class SessionLogService implements SessionRecorder {
     final file = File(p.join(_baseDir!.path, fileName));
     _currentFile = file;
     _lastEntryId = null;
+    _lastRecordedProvider = null;
+    _lastRecordedModelId = null;
+    _lastRecordedThinkingLevel = null;
 
     final header = <String, dynamic>{
       'type': 'session',
@@ -562,6 +597,9 @@ class SessionLogService implements SessionRecorder {
     if (_currentFile?.path == file.path) {
       _currentFile = null;
       _lastEntryId = null;
+      _lastRecordedProvider = null;
+      _lastRecordedModelId = null;
+      _lastRecordedThinkingLevel = null;
     }
 
     try {
@@ -653,6 +691,9 @@ class SessionLogService implements SessionRecorder {
     final file = File(p.join(_baseDir!.path, fileName));
     _currentFile = file;
     _lastEntryId = null;
+    _lastRecordedProvider = null;
+    _lastRecordedModelId = null;
+    _lastRecordedThinkingLevel = null;
     unawaited(
       _enqueue(() async {
         final header = <String, dynamic>{
@@ -746,16 +787,37 @@ class SessionLogService implements SessionRecorder {
     return null;
   }
 
-  static ({String path, String? lastEntryId})? _resumeLatestFile(
-    String directory,
-  ) {
+  static ({
+    String path,
+    String? lastEntryId,
+    String? provider,
+    String? modelId,
+    String? thinkingLevel,
+  })?
+  _resumeLatestFile(String directory) {
     final file = _latestSessionInDirectory(directory);
-    return file == null
-        ? null
-        : (path: file.path, lastEntryId: _lastEntryIdOfFile(file));
+    if (file == null) return null;
+    final tail = _tailMetaOfFile(file);
+    return (
+      path: file.path,
+      lastEntryId: tail.lastEntryId,
+      provider: tail.provider,
+      modelId: tail.modelId,
+      thinkingLevel: tail.thinkingLevel,
+    );
   }
 
-  static String? _lastEntryIdOfFile(File file) {
+  static ({
+    String? lastEntryId,
+    String? provider,
+    String? modelId,
+    String? thinkingLevel,
+  })
+  _tailMetaOfFile(File file) {
+    String? lastEntryId;
+    String? provider;
+    String? modelId;
+    String? thinkingLevel;
     try {
       final lines = file.readAsLinesSync();
       for (final line in lines.reversed) {
@@ -763,13 +825,32 @@ class SessionLogService implements SessionRecorder {
         if (trimmed.isEmpty) continue;
         try {
           final entry = jsonDecode(trimmed) as Map<String, dynamic>;
-          return entry['id'] as String?;
+          lastEntryId ??= entry['id'] as String?;
+          final type = entry['type'] as String?;
+          if (type == 'model_change' &&
+              provider == null &&
+              modelId == null) {
+            provider = entry['provider'] as String?;
+            modelId = entry['modelId'] as String?;
+          } else if (type == 'thinking_level_change' && thinkingLevel == null) {
+            thinkingLevel = entry['thinkingLevel'] as String?;
+          }
+          if (lastEntryId != null &&
+              provider != null &&
+              thinkingLevel != null) {
+            break;
+          }
         } catch (_) {
           continue;
         }
       }
     } catch (_) {}
-    return null;
+    return (
+      lastEntryId: lastEntryId,
+      provider: provider,
+      modelId: modelId,
+      thinkingLevel: thinkingLevel,
+    );
   }
 
   static SessionSnapshot? _loadSnapshotFromFile(File file) {

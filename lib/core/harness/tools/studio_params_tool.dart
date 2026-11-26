@@ -45,6 +45,37 @@ String _agentVisibleParamText(NaiGenerationParams params, String text) {
   return shown.isEmpty ? '(空)' : shown;
 }
 
+/// 压缩全量参数报表中的长提示词重复：
+/// 短提示词 (<= 120 字符) 原样双出以兼顾直观阅读；
+/// 长提示词若最终串与原始串一致或仅自动附加了前后缀，则只报告差异，
+/// 避免单次 get_studio_parameters 工具结果把数千字符重复发送两遍。
+String _formatCompactEffectivePromptLine({
+  required String label,
+  required String rawText,
+  required String effectiveText,
+}) {
+  if (rawText == '(空)' || rawText.length <= 120) {
+    return '• 最终$label: $effectiveText';
+  }
+  if (effectiveText == rawText) {
+    return '• 最终$label: (与原始$label一致，已省略重复输出)';
+  }
+  final rawIdx = effectiveText.indexOf(rawText);
+  if (rawIdx >= 0) {
+    final prefix = effectiveText.substring(0, rawIdx).trim();
+    final suffix = effectiveText.substring(rawIdx + rawText.length).trim();
+    final parts = <String>[
+      if (prefix.isNotEmpty) '前缀 "$prefix"',
+      if (suffix.isNotEmpty) '后缀 "$suffix"',
+    ];
+    if (parts.isEmpty) {
+      return '• 最终$label: (与原始$label一致，已省略重复输出)';
+    }
+    return '• 最终$label: (在原始$label基础上自动附加 ${parts.join('、')})';
+  }
+  return '• 最终$label: $effectiveText';
+}
+
 /// 按当前生图后端返回与请求路径一致的实际提示词。
 StudioEffectivePrompts resolveStudioEffectivePrompts(
   NaiGenerationParams params, {
@@ -88,11 +119,26 @@ String buildStudioParamsReport(
       effectivePrompts ??
       resolveStudioEffectivePrompts(params, isComfyUi: false);
   final costStatus = buildCostEstimateStatus(params);
+  final rawPositive = _agentVisibleParamText(params, params.prompt);
+  final effectivePositive = _agentVisibleParamText(params, effective.prompt);
+  final rawNegative = _agentVisibleParamText(params, params.negativePrompt);
+  final effectiveNegative = _agentVisibleParamText(
+    params,
+    effective.negativePrompt,
+  );
   final lines = <String>[
-    '• 原始正向提示词: ${_agentVisibleParamText(params, params.prompt)}',
-    '• 最终正向提示词: ${_agentVisibleParamText(params, effective.prompt)}',
-    '• 原始负向提示词: ${_agentVisibleParamText(params, params.negativePrompt)}',
-    '• 最终负向提示词: ${_agentVisibleParamText(params, effective.negativePrompt)}',
+    '• 原始正向提示词: $rawPositive',
+    _formatCompactEffectivePromptLine(
+      label: '正向提示词',
+      rawText: rawPositive,
+      effectiveText: effectivePositive,
+    ),
+    '• 原始负向提示词: $rawNegative',
+    _formatCompactEffectivePromptLine(
+      label: '负向提示词',
+      rawText: rawNegative,
+      effectiveText: effectiveNegative,
+    ),
     '• 实际生图后端: ${effective.backend}',
     '• 绘图模型: ${params.model.label} (${params.apiModelId})',
     if (params.supportsEffort) '• 算力: ${params.isMediumEffort ? '节约' : '通常'}',

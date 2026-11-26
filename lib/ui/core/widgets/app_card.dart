@@ -87,17 +87,80 @@ class AppCard extends StatefulWidget {
   State<AppCard> createState() => _AppCardState();
 }
 
-class _AppCardState extends State<AppCard> {
+class _AppCardState extends State<AppCard> with WidgetsBindingObserver {
   bool _isHovered = false;
+  ScrollPosition? _scrollPosition;
+
+  bool get _isInteractive =>
+      widget.onTap != null || widget.onContextMenu != null;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _attachScrollListener();
+    final tickerEnabled = TickerMode.valuesOf(context).enabled;
+    final routeCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    if ((!tickerEnabled || !routeCurrent) && _isHovered) {
+      _isHovered = false;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AppCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isInteractive && _isHovered) {
+      _isHovered = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed && _isHovered && mounted) {
+      setState(() => _isHovered = false);
+    }
+  }
+
+  void _attachScrollListener() {
+    final next = Scrollable.maybeOf(context)?.position;
+    if (identical(_scrollPosition, next)) return;
+    _scrollPosition?.isScrollingNotifier.removeListener(_handleScrollState);
+    _scrollPosition = next;
+    _scrollPosition?.isScrollingNotifier.addListener(_handleScrollState);
+  }
+
+  void _handleScrollState() {
+    if ((_scrollPosition?.isScrollingNotifier.value ?? false) &&
+        _isHovered &&
+        mounted) {
+      setState(() => _isHovered = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollPosition?.isScrollingNotifier.removeListener(_handleScrollState);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final isInteractive = widget.onTap != null || widget.onContextMenu != null;
+    final isInteractive = _isInteractive;
 
-    final bgColor = widget.isSelected
+    final rawBgColor = widget.isSelected
         ? (widget.selectedBackgroundColor ?? colors.cardBackground)
         : (widget.backgroundColor ?? colors.cardBackground);
+    // 半透明背景色先与 cardBackground 合成为实色，避免 BoxShadow 透过卡片本体显露成灰黑残影
+    final bgColor = rawBgColor.a < 1.0
+        ? Color.alphaBlend(rawBgColor, colors.cardBackground)
+        : rawBgColor;
 
     final resolvedBorderColor = widget.isSelected
         ? (widget.selectedBorderColor ?? colors.primary)
@@ -149,7 +212,7 @@ class _AppCardState extends State<AppCard> {
           color: resolvedBorderColor,
           width: resolvedBorderWidth,
         ),
-        boxShadow: shadows,
+        boxShadow: shadows ?? const <BoxShadow>[],
       ),
       child: inner,
     );
@@ -157,8 +220,12 @@ class _AppCardState extends State<AppCard> {
     if (isInteractive) {
       content = MouseRegion(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
+        onEnter: (_) {
+          if (!_isHovered) setState(() => _isHovered = true);
+        },
+        onExit: (_) {
+          if (_isHovered) setState(() => _isHovered = false);
+        },
         child: StudioContextMenuRegion(
           onShow: widget.onContextMenu,
           child: GestureDetector(

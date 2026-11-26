@@ -273,12 +273,18 @@ class AppConfig {
 
   /// 图片持久发送：历史轮次图片不再折叠为占位符，每轮重发给视觉模型
   final bool agentPersistentImages;
+
+  /// 缓存优先近期历史图片保留上限 (0 = 每轮折叠，> 0 = 活跃会话内保留最近 N 张不击穿前缀)
+  final int agentRetainedHistoryImages;
   final String compactionProviderId;
   final String compactionModelId;
 
   // 词库待整理区后台整理 Agent 配置 (留空 = 跟随主模型)
   final String inboxOrganizerProviderId;
   final String inboxOrganizerModelId;
+
+  /// 后台整理模型思考强度 (留空 = 使用该模型默认思考强度；非空时为 ThinkingEffort.id)
+  final String inboxOrganizerThinkingEffort;
   final bool inboxAutoRerunPreview;
 
   /// 禁止后台整理 Agent 拆分出的分类名列表 (空 = 允许全部标准分类)
@@ -407,10 +413,12 @@ class AppConfig {
     this.agentCompactionEnabled = true,
     this.agentBackgroundCompaction = true,
     this.agentPersistentImages = false,
+    this.agentRetainedHistoryImages = 3,
     this.compactionProviderId = '',
     this.compactionModelId = '',
     this.inboxOrganizerProviderId = '',
     this.inboxOrganizerModelId = '',
+    this.inboxOrganizerThinkingEffort = '',
     this.inboxAutoRerunPreview = false,
     this.inboxOrganizerExcludedCategories = const [],
     this.inboxOrganizerPresetId = '',
@@ -488,10 +496,12 @@ class AppConfig {
     bool? agentCompactionEnabled,
     bool? agentBackgroundCompaction,
     bool? agentPersistentImages,
+    int? agentRetainedHistoryImages,
     String? compactionProviderId,
     String? compactionModelId,
     String? inboxOrganizerProviderId,
     String? inboxOrganizerModelId,
+    String? inboxOrganizerThinkingEffort,
     bool? inboxAutoRerunPreview,
     List<String>? inboxOrganizerExcludedCategories,
     String? inboxOrganizerPresetId,
@@ -583,12 +593,16 @@ class AppConfig {
           agentBackgroundCompaction ?? this.agentBackgroundCompaction,
       agentPersistentImages:
           agentPersistentImages ?? this.agentPersistentImages,
+      agentRetainedHistoryImages:
+          agentRetainedHistoryImages ?? this.agentRetainedHistoryImages,
       compactionProviderId: compactionProviderId ?? this.compactionProviderId,
       compactionModelId: compactionModelId ?? this.compactionModelId,
       inboxOrganizerProviderId:
           inboxOrganizerProviderId ?? this.inboxOrganizerProviderId,
       inboxOrganizerModelId:
           inboxOrganizerModelId ?? this.inboxOrganizerModelId,
+      inboxOrganizerThinkingEffort:
+          inboxOrganizerThinkingEffort ?? this.inboxOrganizerThinkingEffort,
       inboxAutoRerunPreview:
           inboxAutoRerunPreview ?? this.inboxAutoRerunPreview,
       inboxOrganizerExcludedCategories:
@@ -719,6 +733,8 @@ class ConfigService {
       'novelai_inbox_organizer_provider_id';
   static const String _keyInboxOrganizerModelId =
       'novelai_inbox_organizer_model_id';
+  static const String _keyInboxOrganizerThinkingEffort =
+      'novelai_inbox_organizer_thinking_effort';
   static const String _keyInboxAutoRerunPreview =
       'novelai_inbox_auto_rerun_preview';
   static const String _keyInboxOrganizerExcludedCategories =
@@ -785,6 +801,8 @@ class ConfigService {
       'novelai_agent_background_compaction';
   static const String _keyAgentPersistentImages =
       'novelai_agent_persistent_images';
+  static const String _keyAgentRetainedHistoryImages =
+      'novelai_agent_retained_history_images';
   static const String _keyCompactionProviderId =
       'novelai_compaction_provider_id';
   static const String _keyCompactionModelId = 'novelai_compaction_model_id';
@@ -1175,12 +1193,16 @@ class ConfigService {
       agentBackgroundCompaction:
           prefs.getBool(_keyAgentBackgroundCompaction) ?? true,
       agentPersistentImages: prefs.getBool(_keyAgentPersistentImages) ?? false,
+      agentRetainedHistoryImages:
+          (prefs.getInt(_keyAgentRetainedHistoryImages) ?? 3).clamp(0, 10),
       compactionProviderId: compactionProviderId,
       compactionModelId: compactionModelId,
       inboxOrganizerProviderId:
           prefs.getString(_keyInboxOrganizerProviderId) ?? '',
       inboxOrganizerModelId:
           prefs.getString(_keyInboxOrganizerModelId) ?? '',
+      inboxOrganizerThinkingEffort:
+          prefs.getString(_keyInboxOrganizerThinkingEffort) ?? '',
       inboxAutoRerunPreview:
           prefs.getBool(_keyInboxAutoRerunPreview) ?? false,
       inboxOrganizerExcludedCategories: _parseStringListJson(
@@ -1318,10 +1340,15 @@ class ConfigService {
       _keyAgentCompactionEnabled: config.agentCompactionEnabled,
       _keyAgentBackgroundCompaction: config.agentBackgroundCompaction,
       _keyAgentPersistentImages: config.agentPersistentImages,
+      _keyAgentRetainedHistoryImages: config.agentRetainedHistoryImages.clamp(
+        0,
+        10,
+      ),
       _keyCompactionProviderId: config.compactionProviderId,
       _keyCompactionModelId: config.compactionModelId,
       _keyInboxOrganizerProviderId: config.inboxOrganizerProviderId,
       _keyInboxOrganizerModelId: config.inboxOrganizerModelId,
+      _keyInboxOrganizerThinkingEffort: config.inboxOrganizerThinkingEffort,
       _keyInboxAutoRerunPreview: config.inboxAutoRerunPreview,
       _keyInboxOrganizerExcludedCategories: jsonEncode(
         config.inboxOrganizerExcludedCategories,

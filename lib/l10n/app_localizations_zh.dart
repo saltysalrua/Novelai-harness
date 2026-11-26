@@ -5020,4 +5020,74 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get libraryInboxOrganizerCustomInstructionsHint =>
       '可选：补充拆解偏好，如保留画师词、命名风格、特殊合并规则等…';
+
+  @override
+  String get settingsProviderDefaultCache => '默认缓存策略';
+
+  @override
+  String get settingsProviderApplyCacheToAll => '应用到全部模型';
+
+  @override
+  String settingsProviderApplyCacheDone(int count) {
+    return '已将缓存策略应用到 $count 个模型';
+  }
+
+  @override
+  String get settingsAgentImageRetentionTitle => '历史图片发送策略';
+
+  @override
+  String get settingsAgentImageRetentionPerTurn => '每轮折叠';
+
+  @override
+  String get settingsAgentImageRetentionRecentCache => '保留近期（缓存优先）';
+
+  @override
+  String get settingsAgentImageRetentionAlways => '始终保留';
+
+  @override
+  String get settingsAgentRetainedImageCountTitle => '近期保留图片上限';
+
+  @override
+  String get skillTooltipPinPrefix => '常驻系统前缀（跨会话共享缓存）';
+
+  @override
+  String get skillTooltipUnpinPrefix => '取消常驻前缀';
+
+  @override
+  String get skillBadgePinned => '常驻';
+
+  @override
+  String chatSessionCacheActiveHitRate(String rate) {
+    return '连续命中 $rate%';
+  }
+
+  @override
+  String chatSessionCacheDriftCount(int count) {
+    return '短间隔归零 $count 次';
+  }
+
+  @override
+  String get chatSessionCacheAffinityHint => '检测到连续请求缓存归零，建议为当前模型/供应商开启会话亲和头';
+
+  @override
+  String get settingsDiscardChanges => '放弃更改';
+
+  @override
+  String get libraryInboxOrganizerThinkingEffortTitle => '思考强度';
+
+  @override
+  String get libraryInboxOrganizerThinkingEffortDefault => '默认';
+
+  @override
+  String settingsProviderCacheDivergedHint(int count) {
+    return '有 $count 个模型使用独立缓存配置';
+  }
+
+  @override
+  String get settingsProviderCacheSyncAll => '统一覆盖';
+
+  @override
+  String settingsProviderCacheAllSynced(int count) {
+    return '已同步至全部 $count 个模型';
+  }
 }

@@ -53,6 +53,35 @@ void main() {
       expect(report, contains('Euler Ancestral'));
       expect(report, contains('Rescale: 0.0'));
     });
+
+    test('长提示词在全量报表中省略重复正文并仅输出自动附加前后缀', () {
+      final longPrompt = List.generate(25, (i) => 'detailed_tag_$i').join(', ');
+      final reportWithQuality = buildStudioParamsReport(
+        NaiGenerationParams(
+          prompt: longPrompt,
+          negativePrompt: '',
+          qualityToggle: true,
+          qualityPreset: 'Standard',
+        ),
+      );
+      expect(reportWithQuality, contains('原始正向提示词: $longPrompt'));
+      expect(reportWithQuality, contains('最终正向提示词: (在原始正向提示词基础上自动附加 后缀'));
+      expect(
+        RegExp(RegExp.escape(longPrompt)).allMatches(reportWithQuality).length,
+        equals(1),
+      );
+
+      final reportSame = buildStudioParamsReport(
+        NaiGenerationParams(
+          prompt: longPrompt,
+          negativePrompt: longPrompt,
+          qualityToggle: false,
+          ucPresetKey: 'None',
+        ),
+      );
+      expect(reportSame, contains('最终正向提示词: (与原始正向提示词一致，已省略重复输出)'));
+      expect(reportSame, contains('最终负向提示词: (与原始负向提示词一致，已省略重复输出)'));
+    });
   });
 
   group('NovelAiUpdateParamsTool effort locks', () {

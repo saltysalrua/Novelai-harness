@@ -9212,6 +9212,126 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'可选：补充拆解偏好，如保留画师词、命名风格、特殊合并规则等…'**
   String get libraryInboxOrganizerCustomInstructionsHint;
+
+  /// No description provided for @settingsProviderDefaultCache.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认缓存策略'**
+  String get settingsProviderDefaultCache;
+
+  /// No description provided for @settingsProviderApplyCacheToAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用到全部模型'**
+  String get settingsProviderApplyCacheToAll;
+
+  /// No description provided for @settingsProviderApplyCacheDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'已将缓存策略应用到 {count} 个模型'**
+  String settingsProviderApplyCacheDone(int count);
+
+  /// No description provided for @settingsAgentImageRetentionTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'历史图片发送策略'**
+  String get settingsAgentImageRetentionTitle;
+
+  /// No description provided for @settingsAgentImageRetentionPerTurn.
+  ///
+  /// In zh, this message translates to:
+  /// **'每轮折叠'**
+  String get settingsAgentImageRetentionPerTurn;
+
+  /// No description provided for @settingsAgentImageRetentionRecentCache.
+  ///
+  /// In zh, this message translates to:
+  /// **'保留近期（缓存优先）'**
+  String get settingsAgentImageRetentionRecentCache;
+
+  /// No description provided for @settingsAgentImageRetentionAlways.
+  ///
+  /// In zh, this message translates to:
+  /// **'始终保留'**
+  String get settingsAgentImageRetentionAlways;
+
+  /// No description provided for @settingsAgentRetainedImageCountTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'近期保留图片上限'**
+  String get settingsAgentRetainedImageCountTitle;
+
+  /// No description provided for @skillTooltipPinPrefix.
+  ///
+  /// In zh, this message translates to:
+  /// **'常驻系统前缀（跨会话共享缓存）'**
+  String get skillTooltipPinPrefix;
+
+  /// No description provided for @skillTooltipUnpinPrefix.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消常驻前缀'**
+  String get skillTooltipUnpinPrefix;
+
+  /// No description provided for @skillBadgePinned.
+  ///
+  /// In zh, this message translates to:
+  /// **'常驻'**
+  String get skillBadgePinned;
+
+  /// No description provided for @chatSessionCacheActiveHitRate.
+  ///
+  /// In zh, this message translates to:
+  /// **'连续命中 {rate}%'**
+  String chatSessionCacheActiveHitRate(String rate);
+
+  /// No description provided for @chatSessionCacheDriftCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'短间隔归零 {count} 次'**
+  String chatSessionCacheDriftCount(int count);
+
+  /// No description provided for @chatSessionCacheAffinityHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测到连续请求缓存归零，建议为当前模型/供应商开启会话亲和头'**
+  String get chatSessionCacheAffinityHint;
+
+  /// No description provided for @settingsDiscardChanges.
+  ///
+  /// In zh, this message translates to:
+  /// **'放弃更改'**
+  String get settingsDiscardChanges;
+
+  /// No description provided for @libraryInboxOrganizerThinkingEffortTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'思考强度'**
+  String get libraryInboxOrganizerThinkingEffortTitle;
+
+  /// No description provided for @libraryInboxOrganizerThinkingEffortDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认'**
+  String get libraryInboxOrganizerThinkingEffortDefault;
+
+  /// No description provided for @settingsProviderCacheDivergedHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'有 {count} 个模型使用独立缓存配置'**
+  String settingsProviderCacheDivergedHint(int count);
+
+  /// No description provided for @settingsProviderCacheSyncAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'统一覆盖'**
+  String get settingsProviderCacheSyncAll;
+
+  /// No description provided for @settingsProviderCacheAllSynced.
+  ///
+  /// In zh, this message translates to:
+  /// **'已同步至全部 {count} 个模型'**
+  String settingsProviderCacheAllSynced(int count);
 }
 
 class _AppLocalizationsDelegate

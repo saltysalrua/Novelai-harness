@@ -26,13 +26,14 @@ import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../../studio/view_models/studio_view_model.dart';
+import 'model_cache_settings.dart';
 import 'model_card.dart';
 import 'model_profile_dialog.dart';
 import 'settings_shared.dart';
 
 /// Models 页草稿状态 (父级 SettingsDialog 持有，保存时统一聚合)
 class ModelsSettingsDraft {
-  ModelsSettingsDraft(AppConfig config) {
+  ModelsSettingsDraft(AppConfig config, {this.onChanged}) {
     providers =
         (config.llmProviders.isNotEmpty
                 ? config.llmProviders
@@ -51,9 +52,23 @@ class ModelsSettingsDraft {
     thinkingParamFormat = active.thinkingParamFormat;
     promptToolUse = active.promptToolUse;
     streaming = active.streaming;
+    defaultCacheConfig = active.defaultCacheConfig;
     imageEditProviderId = config.imageEditProviderId;
     imageEditModelId = config.imageEditModelId;
     _validateImageEditSelection();
+    nameController.addListener(_handleFormFieldChanged);
+    baseUrlController.addListener(_handleFormFieldChanged);
+    apiKeyController.addListener(_handleFormFieldChanged);
+  }
+
+  final VoidCallback? onChanged;
+  bool _loadingForm = false;
+
+  void notifyChanged() => onChanged?.call();
+
+  void _handleFormFieldChanged() {
+    if (_loadingForm) return;
+    notifyChanged();
   }
 
   late final List<LlmProviderConfig> providers;
@@ -67,6 +82,7 @@ class ModelsSettingsDraft {
   late ThinkingParamFormat thinkingParamFormat;
   late bool promptToolUse;
   late bool streaming;
+  late LlmCacheConfig defaultCacheConfig;
 
   /// AI 整图编辑：绘图模型供应商与模型 ID (独立于对话 LLM)
   late String imageEditProviderId;
@@ -82,6 +98,76 @@ class ModelsSettingsDraft {
     orElse: () => providers.first,
   );
 
+  /// 生成包含当前表单未提交编辑的只读供应商快照（用于脏检查，不修改草稿）。
+  List<LlmProviderConfig> snapshotProviders([String? fallbackName]) {
+    return providers
+        .map((p) {
+          if (p.id != selectedProviderId) return p;
+          return p.copyWith(
+            name: nameController.text.trim().isEmpty
+                ? (fallbackName ?? '自定义供应商')
+                : nameController.text.trim(),
+            baseUrl: baseUrlController.text.trim(),
+            protocol: protocol,
+            apiKey: apiKeyController.text.trim(),
+            thinkingParamFormat: thinkingParamFormat,
+            promptToolUse: promptToolUse,
+            streaming: streaming,
+            defaultCacheConfig: defaultCacheConfig,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  /// 当前供应商下与默认缓存策略不一致（独立配置/历史残留）的模型数量。
+  int get divergentCacheModelCount {
+    final provider = currentProvider;
+    var count = 0;
+    for (final m in provider.models) {
+      if (m.cacheConfig != defaultCacheConfig) count++;
+    }
+    return count;
+  }
+
+  /// 更新供应商默认缓存策略，并自动同步给所有未单独定制（等于旧默认策略）的模型；
+  /// 已经单独定制了不同缓存策略的模型保持原样，避免误覆盖。
+  ({int updatedCount, int totalCount, int divergentCount})
+  updateDefaultCacheConfig(LlmCacheConfig next, [String? fallbackName]) {
+    final previous = defaultCacheConfig;
+    defaultCacheConfig = next;
+    syncFromForm(fallbackName);
+    final idx = providers.indexWhere((p) => p.id == selectedProviderId);
+    if (idx < 0) {
+      notifyChanged();
+      return (updatedCount: 0, totalCount: 0, divergentCount: 0);
+    }
+    final provider = providers[idx];
+    var updatedCount = 0;
+    var divergentCount = 0;
+    final updatedModels = provider.models
+        .map((m) {
+          if (m.cacheConfig == previous) {
+            updatedCount++;
+            return m.copyWith(cacheConfig: next);
+          }
+          if (m.cacheConfig != next) {
+            divergentCount++;
+          }
+          return m;
+        })
+        .toList();
+    providers[idx] = provider.copyWith(
+      models: updatedModels,
+      defaultCacheConfig: next,
+    );
+    notifyChanged();
+    return (
+      updatedCount: updatedCount,
+      totalCount: updatedModels.length,
+      divergentCount: divergentCount,
+    );
+  }
+
   /// 将表单内容写回当前供应商条目 (切换 / 保存 / 拉取前调用)
   void syncFromForm([String? fallbackName]) {
     final idx = providers.indexWhere((p) => p.id == selectedProviderId);
@@ -96,21 +182,45 @@ class ModelsSettingsDraft {
         thinkingParamFormat: thinkingParamFormat,
         promptToolUse: promptToolUse,
         streaming: streaming,
+        defaultCacheConfig: defaultCacheConfig,
       );
     }
   }
 
+  /// 将当前供应商的默认缓存/亲和策略一键同步到该供应商下的全部模型。
+  int applyDefaultCacheToAllModels([String? fallbackName]) {
+    syncFromForm(fallbackName);
+    final idx = providers.indexWhere((p) => p.id == selectedProviderId);
+    if (idx < 0) return 0;
+    final provider = providers[idx];
+    final updatedModels = provider.models
+        .map((m) => m.copyWith(cacheConfig: defaultCacheConfig))
+        .toList();
+    providers[idx] = provider.copyWith(
+      models: updatedModels,
+      defaultCacheConfig: defaultCacheConfig,
+    );
+    notifyChanged();
+    return updatedModels.length;
+  }
+
   /// 载入指定供应商到表单
   void loadProviderToForm(LlmProviderConfig provider) {
-    selectedProviderId = provider.id;
-    nameController.text = provider.name;
-    baseUrlController.text = provider.baseUrl;
-    protocol = provider.protocol;
-    apiKeyController.text = provider.apiKey;
-    thinkingParamFormat = provider.thinkingParamFormat;
-    promptToolUse = provider.promptToolUse;
-    streaming = provider.streaming;
-    fetchStatusMessage = null;
+    _loadingForm = true;
+    try {
+      selectedProviderId = provider.id;
+      nameController.text = provider.name;
+      baseUrlController.text = provider.baseUrl;
+      protocol = provider.protocol;
+      apiKeyController.text = provider.apiKey;
+      thinkingParamFormat = provider.thinkingParamFormat;
+      promptToolUse = provider.promptToolUse;
+      streaming = provider.streaming;
+      defaultCacheConfig = provider.defaultCacheConfig;
+      fetchStatusMessage = null;
+    } finally {
+      _loadingForm = false;
+    }
   }
 
   /// 切换当前编辑的供应商，切换前自动同步表单
@@ -118,6 +228,7 @@ class ModelsSettingsDraft {
     if (newProviderId == selectedProviderId) return;
     syncFromForm(fallbackName);
     loadProviderToForm(providers.firstWhere((p) => p.id == newProviderId));
+    notifyChanged();
   }
 
   /// 新建供应商并载入表单
@@ -141,6 +252,7 @@ class ModelsSettingsDraft {
     );
     providers.add(newProvider);
     loadProviderToForm(newProvider);
+    notifyChanged();
   }
 
   /// 删除当前编辑的供应商 (至少保留一个)
@@ -149,6 +261,7 @@ class ModelsSettingsDraft {
     providers.removeWhere((p) => p.id == selectedProviderId);
     loadProviderToForm(providers.first);
     _validateImageEditSelection();
+    notifyChanged();
     return true;
   }
 
@@ -157,6 +270,7 @@ class ModelsSettingsDraft {
     final idx = providers.indexWhere((p) => p.id == selectedProviderId);
     if (idx < 0 || providers[idx].activeModelId == modelId) return;
     providers[idx] = providers[idx].copyWith(activeModelId: modelId);
+    notifyChanged();
   }
 
   /// 添加或替换同 ID 模型，并置为当前生效模型
@@ -172,6 +286,7 @@ class ModelsSettingsDraft {
       models: models,
       activeModelId: newModel.id,
     );
+    notifyChanged();
   }
 
   /// 用编辑结果替换旧模型 (保留生效模型指向)
@@ -186,6 +301,7 @@ class ModelsSettingsDraft {
     var activeId = provider.activeModelId;
     if (activeId == oldModel.id) activeId = updated.id;
     providers[idx] = provider.copyWith(models: models, activeModelId: activeId);
+    notifyChanged();
   }
 
   /// 删除指定模型 (至少保留一个)
@@ -202,6 +318,7 @@ class ModelsSettingsDraft {
           ? filtered.first.id
           : provider.activeModelId,
     );
+    notifyChanged();
   }
 
   /// 应用在线拉取结果 (尽量保留之前生效的模型指向)
@@ -217,9 +334,13 @@ class ModelsSettingsDraft {
       activeModelId: targetActiveId,
     );
     _validateImageEditSelection();
+    notifyChanged();
   }
 
   void dispose() {
+    nameController.removeListener(_handleFormFieldChanged);
+    baseUrlController.removeListener(_handleFormFieldChanged);
+    apiKeyController.removeListener(_handleFormFieldChanged);
     nameController.dispose();
     baseUrlController.dispose();
     apiKeyController.dispose();
@@ -253,11 +374,13 @@ class ModelsSettingsDraft {
     imageEditProviderId = providerId;
     imageEditModelId = '';
     _validateImageEditSelection();
+    notifyChanged();
   }
 
   /// 选择 AI 整图编辑模型
   void setImageEditModel(String modelId) {
     imageEditModelId = modelId;
+    notifyChanged();
   }
 }
 
@@ -382,7 +505,11 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
     _draft.syncFromForm(l10n.settingsCustomProviderDefaultName);
     final result = await ModelProfileDialog.show(
       context,
-      model: const LlmModelConfig(id: '', name: ''),
+      model: LlmModelConfig(
+        id: '',
+        name: '',
+        cacheConfig: _draft.defaultCacheConfig,
+      ),
       isNew: true,
       canDelete: false,
     );
@@ -446,6 +573,7 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         protocol: _draft.protocol,
         apiKey: apiKey,
         existingModels: existingModels,
+        defaultCacheConfig: _draft.defaultCacheConfig,
       );
 
       _draft.applyFetchResult(result);
@@ -640,8 +768,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                           ),
                         )
                         .toList(),
-                    onChanged: (val) =>
-                        setState(() => _draft.thinkingParamFormat = val),
+                    onChanged: (val) => setState(() {
+                      _draft.thinkingParamFormat = val;
+                      _draft.notifyChanged();
+                    }),
                   ),
                 ],
               );
@@ -657,7 +787,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                       ),
                     )
                     .toList(),
-                onChanged: (val) => setState(() => _draft.protocol = val),
+                onChanged: (val) => setState(() {
+                  _draft.protocol = val;
+                  _draft.notifyChanged();
+                }),
               );
 
               final behaviorToggles = SettingsSoftContainer(
@@ -673,8 +806,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                               key: const ValueKey('streaming_toggle'),
                               label: l10n.settingsStreaming,
                               value: _draft.streaming,
-                              onChanged: (value) =>
-                                  setState(() => _draft.streaming = value),
+                              onChanged: (value) => setState(() {
+                                _draft.streaming = value;
+                                _draft.notifyChanged();
+                              }),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -683,8 +818,10 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                               key: const ValueKey('prompt_tool_use_toggle'),
                               label: l10n.settingsPromptToolUse,
                               value: _draft.promptToolUse,
-                              onChanged: (value) =>
-                                  setState(() => _draft.promptToolUse = value),
+                              onChanged: (value) => setState(() {
+                                _draft.promptToolUse = value;
+                                _draft.notifyChanged();
+                              }),
                             ),
                           ),
                         ],
@@ -695,16 +832,20 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                             key: const ValueKey('streaming_toggle'),
                             label: l10n.settingsStreaming,
                             value: _draft.streaming,
-                            onChanged: (value) =>
-                                setState(() => _draft.streaming = value),
+                            onChanged: (value) => setState(() {
+                              _draft.streaming = value;
+                              _draft.notifyChanged();
+                            }),
                           ),
                           const SizedBox(height: 8),
                           _InlineSwitchItem(
                             key: const ValueKey('prompt_tool_use_toggle'),
                             label: l10n.settingsPromptToolUse,
                             value: _draft.promptToolUse,
-                            onChanged: (value) =>
-                                setState(() => _draft.promptToolUse = value),
+                            onChanged: (value) => setState(() {
+                              _draft.promptToolUse = value;
+                              _draft.notifyChanged();
+                            }),
                           ),
                         ],
                       ),
@@ -841,6 +982,116 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
                     const SizedBox(height: 6),
                     behaviorToggles,
                   ],
+                  const SizedBox(height: 12),
+                  Builder(
+                    builder: (context) {
+                      final totalModels = _draft.currentProvider.models.length;
+                      final divergentCount = _draft.divergentCacheModelCount;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SettingsFieldLabel(
+                            label: l10n.settingsProviderDefaultCache,
+                            trailing: totalModels > 0 && divergentCount == 0
+                                ? Text(
+                                    l10n.settingsProviderCacheAllSynced(
+                                      totalModels,
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: colors.textMuted,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 6),
+                          ModelCacheSettings(
+                            value: _draft.defaultCacheConfig,
+                            embedded: true,
+                            onChanged: (value) {
+                              setState(() {
+                                _draft.updateDefaultCacheConfig(
+                                  value,
+                                  l10n.settingsCustomProviderDefaultName,
+                                );
+                              });
+                            },
+                          ),
+                          AppPanelReveal(
+                            visible: divergentCount > 0,
+                            enableBlur: false,
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colors.primaryTint.withValues(
+                                    alpha: 0.65,
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.lg,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.sync_problem_rounded,
+                                      size: 15,
+                                      color: colors.primary,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        l10n.settingsProviderCacheDivergedHint(
+                                          divergentCount,
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: colors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    AppActionButton(
+                                      label: l10n.settingsProviderCacheSyncAll,
+                                      icon: Icons.done_all_rounded,
+                                      iconSize: 14,
+                                      variant: AppActionButtonVariant.primary,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      onPressed: () {
+                                        final count = _draft
+                                            .applyDefaultCacheToAllModels(
+                                              l10n.settingsCustomProviderDefaultName,
+                                            );
+                                        setState(() {});
+                                        if (count > 0) {
+                                          showAppToast(
+                                            context,
+                                            message: l10n
+                                                .settingsProviderApplyCacheDone(
+                                                  count,
+                                                ),
+                                            tone: AppToastTone.success,
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ],
               );
             },
@@ -1008,11 +1259,11 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
           controller: _scrollController,
           slivers: [
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 0),
+              padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 0),
               sliver: SliverToBoxAdapter(child: _buildHeaderSections(l10n)),
             ),
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 24),
+              padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 76),
               sliver: _ModelGridSection(
                 key: ValueKey<String>(_draft.selectedProviderId),
                 provider: _draft.currentProvider,

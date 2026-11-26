@@ -58,6 +58,16 @@ class PresetTransferService {
           throw PresetImportException(PresetImportError.invalidField, key);
         }
       }
+      if (entry.containsKey('pinnedSkillIds')) {
+        final pinned = entry['pinnedSkillIds'];
+        if (pinned is! List ||
+            pinned.any((v) => v is! String || v.trim().isEmpty)) {
+          throw const PresetImportException(
+            PresetImportError.invalidField,
+            'pinnedSkillIds',
+          );
+        }
+      }
       final preset = AgentPreset.fromJson({...entry, 'isBuiltin': false});
       for (final tool in preset.enabledToolNames) {
         if (!tools.contains(tool)) {

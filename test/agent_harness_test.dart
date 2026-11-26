@@ -867,6 +867,149 @@ void main() {
       expect(oldUser.images, isEmpty);
       expect(oldUser.content, contains('图片附件已折叠'));
     });
+
+    test('retainedHistoryImages 保留近期活跃图片不击穿前缀，超限或重启旧图仍折叠', () async {
+      final receivedBatches = <List<AgentMessage>>[];
+      final provider = MockLlmProvider((messages, toolList) {
+        receivedBatches.add(messages);
+        return [ContentDeltaEvent('OK')];
+      });
+      final harness = AgentHarness(tools: tools, provider: provider)
+        ..retainedHistoryImages = 2;
+
+      const img = AgentMessageImage(base64: 'aGk=');
+      // 模拟重启恢复的旧图 (imageEpoch == 0)：不参与近期缓存保活，直接折叠
+      harness.restoreMessages([
+        AgentMessage(
+          id: 'restored_img',
+          role: AgentRole.user,
+          content: '重启前旧图',
+          images: const [img],
+        ),
+      ]);
+
+      await harness.send('图1', images: [img]).toList();
+      await harness.send('微调1').toList();
+      // 仅 1 张活跃图 <= 2：图1 应原样保留，重启旧图保持折叠
+      var batch = receivedBatches.last;
+      expect(
+        batch.firstWhere((m) => m.content.contains('重启前旧图')).images,
+        isEmpty,
+      );
+      expect(batch.firstWhere((m) => m.content == '图1').images.length, 1);
+
+      await harness.send('图2', images: [img]).toList();
+      await harness.send('图3', images: [img]).toList();
+      // 活跃图共 3 张，超过上限 2：保留 图2 和 图3，最旧的 图1 折叠
+      batch = receivedBatches.last;
+      final msg1 = batch.firstWhere((m) => m.content.contains('图1'));
+      final msg2 = batch.firstWhere((m) => m.content == '图2');
+      final msg3 = batch.firstWhere((m) => m.content == '图3');
+      expect(msg1.images, isEmpty);
+      expect(msg1.content, contains('图片附件已折叠'));
+      expect(msg2.images.length, 1);
+      expect(msg3.images.length, 1);
+    });
+
+    test('pinnedSkillIds 直接内联进静态系统前缀且不重复出现在 available_skills', () {
+      const preset = AgentPreset(
+        id: 'pinned-test',
+        name: 'Pinned Test',
+        description: '',
+        systemPrompt: 'Base prompt',
+        enabledSkillIds: ['v5-architect', 'inpaint-specialist'],
+        pinnedSkillIds: ['v5-architect'],
+      );
+      final harness = AgentHarness(tools: tools, initialPreset: preset);
+      final prompt = harness.buildSystemPrompt(preset);
+
+      expect(prompt, contains('<pinned_skills>'));
+      expect(prompt, contains('<skill name="v5-architect">'));
+      expect(prompt, contains('<available_skills>'));
+      expect(prompt, contains('<name>inpaint-specialist</name>'));
+      expect(prompt, isNot(contains('<name>v5-architect</name>')));
+
+      // 关闭对应技能时，copyWith 自动同步清理 pinnedSkillIds
+      final disabled = preset.copyWith(enabledSkillIds: ['inpaint-specialist']);
+      expect(disabled.pinnedSkillIds, isEmpty);
+    });
+
+    test('SessionCacheHealth 准确计算活跃连续命中率与短间隔漂移归零次数', () {
+      final t0 = DateTime.utc(2026, 11, 26, 8, 30, 0);
+      final health = SessionCacheHealth.analyze([
+        // 第 1 轮冷启动：不计入活跃连续轮
+        AgentMessage(
+          id: 'a1',
+          role: AgentRole.assistant,
+          provider: 'Yuukarin',
+          model: 'google/gemini-4-carbon',
+          usage: const TokenUsage(
+            input: 4726,
+            cacheRead: 0,
+            cacheReadReported: true,
+          ),
+          createdAt: t0,
+        ),
+        // 第 2 轮 (+15s)：正常命中
+        AgentMessage(
+          id: 'a2',
+          role: AgentRole.assistant,
+          provider: 'Yuukarin',
+          model: 'google/gemini-4-carbon',
+          usage: const TokenUsage(
+            input: 4697,
+            cacheRead: 4727,
+            cacheReadReported: true,
+          ),
+          createdAt: t0.add(const Duration(seconds: 15)),
+        ),
+        // 第 3 轮 (+30s)：短间隔漂移归零
+        AgentMessage(
+          id: 'a3',
+          role: AgentRole.assistant,
+          provider: 'Yuukarin',
+          model: 'google/gemini-4-carbon',
+          usage: const TokenUsage(
+            input: 14256,
+            cacheRead: 0,
+            cacheReadReported: true,
+          ),
+          createdAt: t0.add(const Duration(seconds: 45)),
+        ),
+        // 第 4 轮 (+2h)：闲置超时过期，不计入短间隔归零
+        AgentMessage(
+          id: 'a4',
+          role: AgentRole.assistant,
+          provider: 'Yuukarin',
+          model: 'google/gemini-4-carbon',
+          usage: const TokenUsage(
+            input: 20589,
+            cacheRead: 0,
+            cacheReadReported: true,
+          ),
+          createdAt: t0.add(const Duration(hours: 2)),
+        ),
+        // 第 5 轮 (+2h 20s)：切模型冷启动，不计入漂移归零
+        AgentMessage(
+          id: 'a5',
+          role: AgentRole.assistant,
+          provider: 'AIStudio',
+          model: 'gemini-4-hydrogen',
+          usage: const TokenUsage(
+            input: 21000,
+            cacheRead: 0,
+            cacheReadReported: true,
+          ),
+          createdAt: t0.add(const Duration(hours: 2, seconds: 20)),
+        ),
+      ]);
+
+      expect(health.activeTurns, 2);
+      expect(health.midSessionResets, 1);
+      expect(health.activeTotalInput, 9424 + 14256);
+      expect(health.activeCacheRead, 4727);
+      expect(health.activeHitRate, closeTo(4727 / (9424 + 14256), 1e-6));
+    });
   });
 
   group('上下文自动压缩', () {

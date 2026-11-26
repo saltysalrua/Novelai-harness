@@ -2238,5 +2238,50 @@
   "libraryInboxOrganizerPresetTitle": "整理预设",
   "libraryInboxOrganizerPresetDefault": "内置整理规则",
   "libraryInboxOrganizerCustomInstructionsTitle": "自定义整理指令",
-  "libraryInboxOrganizerCustomInstructionsHint": "可选：补充拆解偏好，如保留画师词、命名风格、特殊合并规则等…"
+  "libraryInboxOrganizerCustomInstructionsHint": "可选：补充拆解偏好，如保留画师词、命名风格、特殊合并规则等…",
+  "settingsProviderDefaultCache": "默认缓存策略",
+  "settingsProviderApplyCacheToAll": "应用到全部模型",
+  "settingsProviderApplyCacheDone": "已将缓存策略应用到 {count} 个模型",
+  "@settingsProviderApplyCacheDone": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "settingsAgentImageRetentionTitle": "历史图片发送策略",
+  "settingsAgentImageRetentionPerTurn": "每轮折叠",
+  "settingsAgentImageRetentionRecentCache": "保留近期（缓存优先）",
+  "settingsAgentImageRetentionAlways": "始终保留",
+  "settingsAgentRetainedImageCountTitle": "近期保留图片上限",
+  "skillTooltipPinPrefix": "常驻系统前缀（跨会话共享缓存）",
+  "skillTooltipUnpinPrefix": "取消常驻前缀",
+  "skillBadgePinned": "常驻",
+  "chatSessionCacheActiveHitRate": "连续命中 {rate}%",
+  "@chatSessionCacheActiveHitRate": {
+    "placeholders": {
+      "rate": {"type": "String"}
+    }
+  },
+  "chatSessionCacheDriftCount": "短间隔归零 {count} 次",
+  "@chatSessionCacheDriftCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "chatSessionCacheAffinityHint": "检测到连续请求缓存归零，建议为当前模型/供应商开启会话亲和头",
+  "settingsDiscardChanges": "放弃更改",
+  "libraryInboxOrganizerThinkingEffortTitle": "思考强度",
+  "libraryInboxOrganizerThinkingEffortDefault": "默认",
+  "settingsProviderCacheDivergedHint": "有 {count} 个模型使用独立缓存配置",
+  "@settingsProviderCacheDivergedHint": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "settingsProviderCacheSyncAll": "统一覆盖",
+  "settingsProviderCacheAllSynced": "已同步至全部 {count} 个模型",
+  "@settingsProviderCacheAllSynced": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  }
 }

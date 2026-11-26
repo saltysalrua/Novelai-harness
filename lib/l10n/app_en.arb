@@ -2238,5 +2238,50 @@
   "libraryInboxOrganizerPresetTitle": "Organizer Preset",
   "libraryInboxOrganizerPresetDefault": "Built-in Organizer Rules",
   "libraryInboxOrganizerCustomInstructionsTitle": "Custom Instructions",
-  "libraryInboxOrganizerCustomInstructionsHint": "Optional: add split preferences, naming rules, or tags to keep…"
+  "libraryInboxOrganizerCustomInstructionsHint": "Optional: add split preferences, naming rules, or tags to keep…",
+  "settingsProviderDefaultCache": "Default cache policy",
+  "settingsProviderApplyCacheToAll": "Apply to all models",
+  "settingsProviderApplyCacheDone": "Applied cache policy to {count} models",
+  "@settingsProviderApplyCacheDone": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "settingsAgentImageRetentionTitle": "History image policy",
+  "settingsAgentImageRetentionPerTurn": "Collapse each turn",
+  "settingsAgentImageRetentionRecentCache": "Keep recent (cache-first)",
+  "settingsAgentImageRetentionAlways": "Always keep",
+  "settingsAgentRetainedImageCountTitle": "Recent image limit",
+  "skillTooltipPinPrefix": "Pin to system prefix (shared cache)",
+  "skillTooltipUnpinPrefix": "Unpin from system prefix",
+  "skillBadgePinned": "Pinned",
+  "chatSessionCacheActiveHitRate": "Active hit {rate}%",
+  "@chatSessionCacheActiveHitRate": {
+    "placeholders": {
+      "rate": {"type": "String"}
+    }
+  },
+  "chatSessionCacheDriftCount": "{count} mid-session resets",
+  "@chatSessionCacheDriftCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "chatSessionCacheAffinityHint": "Mid-session cache resets detected; enable session affinity headers for this model/provider",
+  "settingsDiscardChanges": "Discard",
+  "libraryInboxOrganizerThinkingEffortTitle": "Thinking Effort",
+  "libraryInboxOrganizerThinkingEffortDefault": "Default",
+  "settingsProviderCacheDivergedHint": "{count} model(s) use a custom cache policy",
+  "@settingsProviderCacheDivergedHint": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "settingsProviderCacheSyncAll": "Sync all",
+  "settingsProviderCacheAllSynced": "Synced to all {count} models",
+  "@settingsProviderCacheAllSynced": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  }
 }

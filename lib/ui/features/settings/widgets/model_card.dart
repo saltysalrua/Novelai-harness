@@ -38,7 +38,7 @@ class ModelCard extends StatelessWidget {
       isSelected: isSelected,
       onTap: () => onSelect(model),
       padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
-      radius: AppRadius.md,
+      radius: AppRadius.lg,
       selectedBackgroundColor: colors.primary.withValues(alpha: 0.05),
       selectedBorderColor: colors.primary.withValues(alpha: 0.55),
       child: Column(

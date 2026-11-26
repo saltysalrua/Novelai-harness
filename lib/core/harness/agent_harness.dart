@@ -39,9 +39,16 @@ class AgentHarness {
   bool compactionEnabled = true;
   bool backgroundCompactionEnabled = true;
 
-  /// 图片持久发送：关闭时历史轮次的图片折叠为占位符 (默认，省 Token
-  /// 且保住提示缓存前缀)；开启后历史图片每轮原样重发，模型可直接回看。
+  /// 图片持久发送：关闭时按 [retainedHistoryImages] 决定历史轮次图片的折叠策略；
+  /// 开启后历史图片每轮原样重发，模型可直接回看。
   bool persistentImages = false;
+
+  /// 缓存优先的近期历史图片保留上限（仅在 [persistentImages] 为 false 时生效）：
+  /// - 0：仅当前发送轮次 (`imageEpoch == _sendEpoch`) 原图可见，更早轮次立即折叠；
+  /// - > 0：活跃会话内保留最近 N 张历史图片原样发送，避免每轮发新消息立即改写前缀
+  ///   击穿整段 KV Cache；超出上限的最旧图片以及重启后恢复的旧图 (`imageEpoch == 0`)
+  ///   仍折叠为固定占位符。
+  int retainedHistoryImages = 0;
   LlmProvider? compactionProvider;
   int compactionModelWindowTokens = 128000;
   Duration compactionTimeout = const Duration(minutes: 2);
@@ -129,6 +136,7 @@ class AgentHarness {
 
   static const Set<String> defaultPrimaryToolNames = {
     'update_studio_parameters',
+    'character_prompts',
     'novelai_generate',
     'novelai_inpaint',
     'view_canvas_image',
@@ -213,10 +221,38 @@ class AgentHarness {
         )
         .whereType<Skill>()
         .toList();
-    if (enabledSkills.isNotEmpty) {
-      final skillsXml = Skill.formatSkillsForSystemPrompt(enabledSkills);
+    final pinnedSet = preset.pinnedSkillIds.toSet();
+    final pinnedSkills = enabledSkills
+        .where((s) => pinnedSet.contains(s.id) && !s.disableModelInvocation)
+        .toList();
+    final onDemandSkills = enabledSkills
+        .where((s) => !pinnedSet.contains(s.id))
+        .toList();
+    if (pinnedSkills.isNotEmpty) {
+      buffer.writeln('\n\n<pinned_skills>');
+      buffer.writeln(
+        '以下核心技能已常驻预加载至系统前缀，请直接遵循其中规范，无需重复调用 `load_skill` 读取其正文（若需读取其配套参考资源文件，可直接传 `skill_name` + `path`/`paths`）。',
+      );
+      for (final skill in pinnedSkills) {
+        buffer.writeln('<skill name="${skill.id}">');
+        buffer.writeln('### 【${skill.name}】专业指令与工作流');
+        buffer.writeln(skill.systemPrompt.trim());
+        if (skill.resourcePaths.isNotEmpty) {
+          buffer.writeln(
+            '配套资源（${skill.resourcePaths.length} 个）：${skill.resourcePaths.join(', ')}',
+          );
+        }
+        buffer.writeln('</skill>');
+      }
+      buffer.write('</pinned_skills>');
+    }
+    if (onDemandSkills.isNotEmpty) {
+      final skillsXml = Skill.formatSkillsForSystemPrompt(onDemandSkills);
       if (skillsXml.isNotEmpty) {
         buffer.writeln('\n\n$skillsXml');
+        buffer.writeln(
+          '如需加载多个技能/参考文档或同时读取工作台参数，请在首轮并行批量调用（`load_skill` 支持 `skill_names` / `paths`），避免串行多轮爬坡。',
+        );
       }
     }
     final enabledTools = _enabledToolsForPreset(preset);
@@ -686,14 +722,49 @@ class AgentHarness {
 
     final forgottenToolIds = <String>{};
     for (var i = _contextStartIndex; i < _messages.length; i++) {
+      final m = _messages[i];
+      if (memory.forgottenReplies.contains(m.replyNumber)) {
+        forgottenToolIds.addAll(
+          (m.toolCalls ?? const <ToolCall>[]).map((c) => c.id),
+        );
+      }
+    }
+
+    // 缓存优先模式：倒序锁定活跃会话内最近 [retainedHistoryImages] 张图片所在消息，
+    // 防止用户每发一句新消息就立刻改写前文触发整段 KV Cache 击穿。
+    final retainedImageIndices = <int>{};
+    if (!persistentImages && retainedHistoryImages > 0) {
+      var remainingBudget = retainedHistoryImages;
+      for (var i = _messages.length - 1; i >= _contextStartIndex; i--) {
+        if (remainingBudget <= 0) break;
+        final m = _messages[i];
+        if (m.role == AgentRole.tool &&
+            forgottenToolIds.contains(m.toolCallId)) {
+          continue;
+        }
+        if (memory.forgottenReplies.contains(m.replyNumber)) continue;
+        if (!m.hasVisionImages) continue;
+        // 重启后从磁盘恢复的历史图片 imageEpoch == 0，不重新注入冷启动上下文。
+        if (m.imageEpoch <= 0) continue;
+        final imgCount = m.role == AgentRole.user ? m.images.length : 1;
+        if (m.imageEpoch == _sendEpoch) {
+          retainedImageIndices.add(i);
+          remainingBudget -= imgCount;
+        } else if (imgCount <= remainingBudget) {
+          retainedImageIndices.add(i);
+          remainingBudget -= imgCount;
+        } else {
+          break;
+        }
+      }
+    }
+
+    for (var i = _contextStartIndex; i < _messages.length; i++) {
       var m = _messages[i];
       if (m.role == AgentRole.tool && forgottenToolIds.contains(m.toolCallId)) {
         continue;
       }
       if (memory.forgottenReplies.contains(m.replyNumber)) {
-        forgottenToolIds.addAll(
-          (m.toolCalls ?? const <ToolCall>[]).map((c) => c.id),
-        );
         result.add(
           AgentMessage(
             id: m.id,
@@ -718,10 +789,11 @@ class AgentHarness {
             : '${m.content}\n\n${m.llmContext!}';
         m = m.copyWith(content: merged);
       }
-      // 本轮新产生的图片原样发送；更早轮次的图片折叠为占位符
-      // (persistentImages 开启时全部原样发送，不折叠)
+      // 本轮新产生的图片、或处于近期缓存保留预算内的活跃图片原样发送；
+      // 更早轮次的图片折叠为固定占位符 (persistentImages 开启时全部原样发送)
       if (persistentImages ||
           m.imageEpoch == _sendEpoch ||
+          retainedImageIndices.contains(i) ||
           !m.hasVisionImages) {
         result.add(m);
       } else {

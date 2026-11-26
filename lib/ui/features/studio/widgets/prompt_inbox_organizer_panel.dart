@@ -381,6 +381,7 @@ class _PromptInboxOrganizerSettingsDialogState
     extends State<PromptInboxOrganizerSettingsDialog> {
   late String _providerId;
   late String _modelId;
+  late String _thinkingEffort;
   late bool _autoRerunPreview;
   late Set<String> _excludedCategories;
   late String _presetId;
@@ -392,6 +393,7 @@ class _PromptInboxOrganizerSettingsDialogState
     super.initState();
     _providerId = widget.viewModel.inboxOrganizerProviderId;
     _modelId = widget.viewModel.inboxOrganizerModelId;
+    _thinkingEffort = widget.viewModel.inboxOrganizerThinkingEffort;
     _autoRerunPreview = widget.viewModel.inboxAutoRerunPreview;
     _excludedCategories = widget.viewModel.inboxOrganizerExcludedCategories
         .toSet();
@@ -412,10 +414,24 @@ class _PromptInboxOrganizerSettingsDialogState
     super.dispose();
   }
 
+  LlmModelConfig? _resolveEffectiveModel(List<LlmProviderConfig> providers) {
+    if (_providerId.isNotEmpty && _modelId.isNotEmpty) {
+      final matchedProvider = providers
+          .where((p) => p.id == _providerId)
+          .firstOrNull;
+      final matchedModel = matchedProvider?.models
+          .where((m) => m.id == _modelId)
+          .firstOrNull;
+      if (matchedModel != null) return matchedModel;
+    }
+    return widget.viewModel.config.activeLlmProvider.activeModel;
+  }
+
   Future<void> _persist() async {
     await widget.viewModel.updateInboxOrganizerSettings(
       providerId: _providerId,
       modelId: _modelId,
+      thinkingEffort: _thinkingEffort,
       autoRerunPreview: _autoRerunPreview,
       excludedCategories: _excludedCategories.toList(growable: false),
       presetId: _presetId,
@@ -463,6 +479,17 @@ class _PromptInboxOrganizerSettingsDialogState
         .where((p) => p.id == _providerId)
         .firstOrNull;
     final models = selectedProvider?.models ?? const <LlmModelConfig>[];
+    final effectiveModel = _resolveEffectiveModel(providers);
+    final thinkingLevels =
+        effectiveModel?.availableThinkingLevels ?? const <ThinkingEffort>[];
+    final validThinkingEffortId =
+        thinkingLevels.any((level) => level.id == _thinkingEffort)
+        ? _thinkingEffort
+        : '';
+    final defaultEffortLabel =
+        effectiveModel != null && effectiveModel.supportsThinking
+        ? '${l10n.libraryInboxOrganizerThinkingEffortDefault} (${thinkingEffortLabelOf(l10n, effectiveModel.defaultThinkingEffort)})'
+        : l10n.libraryInboxOrganizerThinkingEffortDefault;
     final validPresetId = presets.any((p) => p.id == _presetId)
         ? _presetId
         : '';
@@ -508,6 +535,7 @@ class _PromptInboxOrganizerSettingsDialogState
                           setState(() {
                             _providerId = id;
                             _modelId = '';
+                            _thinkingEffort = '';
                           });
                           _persist();
                         },
@@ -541,7 +569,56 @@ class _PromptInboxOrganizerSettingsDialogState
                           width: 190,
                           isExpanded: false,
                           onChanged: (id) {
-                            setState(() => _modelId = id);
+                            setState(() {
+                              _modelId = id;
+                              final nextModel = _resolveEffectiveModel(
+                                providers,
+                              );
+                              if (nextModel == null ||
+                                  !nextModel.availableThinkingLevels.any(
+                                    (e) => e.id == _thinkingEffort,
+                                  )) {
+                                _thinkingEffort = '';
+                              }
+                            });
+                            _persist();
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (thinkingLevels.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.libraryInboxOrganizerThinkingEffortTitle,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        AppDropdown<String>.simple(
+                          key: const Key(
+                            'inbox_organizer_thinking_effort_dropdown',
+                          ),
+                          value: validThinkingEffortId,
+                          items: ['', ...thinkingLevels.map((e) => e.id)],
+                          labelOf: (id) => id.isEmpty
+                              ? defaultEffortLabel
+                              : thinkingEffortLabelOf(
+                                  l10n,
+                                  ThinkingEffort.fromId(id),
+                                ),
+                          variant: AppDropdownVariant.compact,
+                          width: 190,
+                          isExpanded: false,
+                          onChanged: (id) {
+                            setState(() => _thinkingEffort = id);
                             _persist();
                           },
                         ),

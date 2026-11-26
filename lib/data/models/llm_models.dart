@@ -254,6 +254,10 @@ class LlmProviderConfig {
   /// 是否使用流式响应。关闭后等待完整结果，默认开启以保持现有行为。
   final bool streaming;
 
+  /// 供应商级默认提示词缓存与会话亲和策略：新建或在线拉取新模型时自动继承，
+  /// 也支持一键同步到该供应商下全部模型，避免中转站切模型时漏配亲和头。
+  final LlmCacheConfig defaultCacheConfig;
+
   const LlmProviderConfig({
     required this.id,
     required this.name,
@@ -265,6 +269,7 @@ class LlmProviderConfig {
     this.thinkingParamFormat = ThinkingParamFormat.auto,
     this.promptToolUse = false,
     this.streaming = true,
+    this.defaultCacheConfig = const LlmCacheConfig(),
   });
 
   /// 获取当前激活的模型配置
@@ -319,6 +324,7 @@ class LlmProviderConfig {
     ThinkingParamFormat? thinkingParamFormat,
     bool? promptToolUse,
     bool? streaming,
+    LlmCacheConfig? defaultCacheConfig,
   }) {
     return LlmProviderConfig(
       id: id ?? this.id,
@@ -331,6 +337,7 @@ class LlmProviderConfig {
       thinkingParamFormat: thinkingParamFormat ?? this.thinkingParamFormat,
       promptToolUse: promptToolUse ?? this.promptToolUse,
       streaming: streaming ?? this.streaming,
+      defaultCacheConfig: defaultCacheConfig ?? this.defaultCacheConfig,
     );
   }
 
@@ -347,6 +354,7 @@ class LlmProviderConfig {
     'thinkingParamFormat': thinkingParamFormat.id,
     'promptToolUse': promptToolUse,
     'streaming': streaming,
+    'defaultCacheConfig': defaultCacheConfig.toJson(),
   };
 
   factory LlmProviderConfig.fromJson(Map<String, dynamic> json) {
@@ -419,6 +427,7 @@ class LlmProviderConfig {
       promptToolUse: json['promptToolUse'] == true,
       // 旧配置没有该字段时保持流式，避免升级后请求行为变化。
       streaming: json['streaming'] is bool ? json['streaming'] as bool : true,
+      defaultCacheConfig: LlmCacheConfig.fromJson(json['defaultCacheConfig']),
     )._migrateOfficialDeepSeekAliases()._migrateCanonicalChatBuiltins();
   }
 

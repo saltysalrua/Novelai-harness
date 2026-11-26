@@ -14,6 +14,9 @@ class SkillCard extends StatelessWidget {
   final Skill skill;
   final bool isEnabled;
 
+  /// 是否已常驻预加载进当前预设的系统提示词前缀
+  final bool isPinned;
+
   /// 是否显示左侧勾选框（预设页用于启停，技能库页隐藏勾选框且点击卡片直接编辑）
   final bool showToggleCheckbox;
 
@@ -22,6 +25,7 @@ class SkillCard extends StatelessWidget {
 
   /// 为空 (内置预设只读) 时点击卡片不切换，仅保留查看入口
   final ValueChanged<bool>? onToggle;
+  final ValueChanged<bool>? onTogglePin;
   final ValueChanged<Skill> onEdit;
   final ValueChanged<Skill>? onExport;
   final VoidCallback? onDelete;
@@ -32,9 +36,11 @@ class SkillCard extends StatelessWidget {
     super.key,
     required this.skill,
     required this.isEnabled,
+    this.isPinned = false,
     this.showToggleCheckbox = true,
     this.isOverridden = false,
     this.onToggle,
+    this.onTogglePin,
     required this.onEdit,
     this.onExport,
     this.onDelete,
@@ -55,7 +61,7 @@ class SkillCard extends StatelessWidget {
       isSelected: showToggleCheckbox && isEnabled,
       onTap: cardTap,
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-      radius: AppRadius.md,
+      radius: AppRadius.lg,
       selectedBackgroundColor: colors.primary.withValues(alpha: 0.05),
       selectedBorderColor: colors.primary.withValues(alpha: 0.55),
       child: Column(
@@ -111,6 +117,15 @@ class SkillCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              // 常驻系统前缀徽章 (仅在启用且已固定时展示)
+              if (showToggleCheckbox && isEnabled && isPinned) ...[
+                AppBadge(
+                  label: l10n.skillBadgePinned,
+                  variant: AppBadgeVariant.primary,
+                  fontSize: 10,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+              ],
               // 内置 / 已修改 / 自定义 徽章
               AppBadge(
                 label: skill.isBuiltin
@@ -126,6 +141,24 @@ class SkillCard extends StatelessWidget {
                 fontSize: 10,
               ),
               const SizedBox(width: AppSpacing.xs),
+              // 常驻前缀切换按钮 (启用后可用，跨会话共享静态系统前缀缓存)
+              if (showToggleCheckbox &&
+                  isEnabled &&
+                  !skill.disableModelInvocation &&
+                  onTogglePin != null)
+                AppIconButton(
+                  icon: isPinned
+                      ? Icons.push_pin_rounded
+                      : Icons.push_pin_outlined,
+                  size: 26,
+                  iconSize: 14,
+                  variant: AppIconButtonVariant.ghost,
+                  iconColor: isPinned ? colors.primary : null,
+                  tooltip: isPinned
+                      ? l10n.skillTooltipUnpinPrefix
+                      : l10n.skillTooltipPinPrefix,
+                  onPressed: () => onTogglePin!(!isPinned),
+                ),
               // 恢复默认按钮 (仅被覆盖修改过的内置技能显示)
               if (skill.isBuiltin && isOverridden && onResetDefault != null)
                 AppIconButton(

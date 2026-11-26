@@ -101,6 +101,69 @@ class TokenUsage {
   }
 }
 
+/// 单会话的提示词缓存健康诊断摘要。
+///
+/// 剔除首轮冷启动与超过 [idleThreshold] 的闲置过期轮次后，计算活跃连续轮次的
+/// 真实缓存命中率，并统计短间隔内的意外归零次数（常由中转站多节点漂移引起）。
+class SessionCacheHealth {
+  final int activeTurns;
+  final int activeTotalInput;
+  final int activeCacheRead;
+  final int midSessionResets;
+
+  const SessionCacheHealth({
+    this.activeTurns = 0,
+    this.activeTotalInput = 0,
+    this.activeCacheRead = 0,
+    this.midSessionResets = 0,
+  });
+
+  double? get activeHitRate =>
+      activeTotalInput > 0 ? activeCacheRead / activeTotalInput : null;
+
+  static SessionCacheHealth analyze(
+    List<AgentMessage> messages, {
+    Duration idleThreshold = const Duration(minutes: 5),
+  }) {
+    var activeTurns = 0;
+    var activeTotalInput = 0;
+    var activeCacheRead = 0;
+    var midSessionResets = 0;
+
+    DateTime? prevTime;
+    String? prevKey;
+
+    for (final m in messages) {
+      if (m.role != AgentRole.assistant) continue;
+      final u = m.usage;
+      if (u == null || u.totalInput <= 0 || !u.cacheReadReported) continue;
+
+      final key = m.providerModelKey;
+      if (prevTime != null) {
+        final gap = m.createdAt.difference(prevTime);
+        final sameModel = prevKey == null || key == null || prevKey == key;
+        if (!gap.isNegative && gap <= idleThreshold && sameModel) {
+          activeTurns++;
+          activeTotalInput += u.totalInput;
+          activeCacheRead += u.cacheRead;
+          if (u.cacheRead == 0) {
+            midSessionResets++;
+          }
+        }
+      }
+      prevTime = m.createdAt;
+      prevKey = key;
+    }
+
+    return SessionCacheHealth(
+      activeTurns: activeTurns,
+      activeTotalInput: activeTotalInput,
+      activeCacheRead: activeCacheRead,
+      midSessionResets: midSessionResets,
+    );
+  }
+}
+
 /// 对话角色
 enum AgentRole {
   system('system'),

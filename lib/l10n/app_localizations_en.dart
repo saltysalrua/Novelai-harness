@@ -5366,4 +5366,76 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get libraryInboxOrganizerCustomInstructionsHint =>
       'Optional: add split preferences, naming rules, or tags to keep…';
+
+  @override
+  String get settingsProviderDefaultCache => 'Default cache policy';
+
+  @override
+  String get settingsProviderApplyCacheToAll => 'Apply to all models';
+
+  @override
+  String settingsProviderApplyCacheDone(int count) {
+    return 'Applied cache policy to $count models';
+  }
+
+  @override
+  String get settingsAgentImageRetentionTitle => 'History image policy';
+
+  @override
+  String get settingsAgentImageRetentionPerTurn => 'Collapse each turn';
+
+  @override
+  String get settingsAgentImageRetentionRecentCache =>
+      'Keep recent (cache-first)';
+
+  @override
+  String get settingsAgentImageRetentionAlways => 'Always keep';
+
+  @override
+  String get settingsAgentRetainedImageCountTitle => 'Recent image limit';
+
+  @override
+  String get skillTooltipPinPrefix => 'Pin to system prefix (shared cache)';
+
+  @override
+  String get skillTooltipUnpinPrefix => 'Unpin from system prefix';
+
+  @override
+  String get skillBadgePinned => 'Pinned';
+
+  @override
+  String chatSessionCacheActiveHitRate(String rate) {
+    return 'Active hit $rate%';
+  }
+
+  @override
+  String chatSessionCacheDriftCount(int count) {
+    return '$count mid-session resets';
+  }
+
+  @override
+  String get chatSessionCacheAffinityHint =>
+      'Mid-session cache resets detected; enable session affinity headers for this model/provider';
+
+  @override
+  String get settingsDiscardChanges => 'Discard';
+
+  @override
+  String get libraryInboxOrganizerThinkingEffortTitle => 'Thinking Effort';
+
+  @override
+  String get libraryInboxOrganizerThinkingEffortDefault => 'Default';
+
+  @override
+  String settingsProviderCacheDivergedHint(int count) {
+    return '$count model(s) use a custom cache policy';
+  }
+
+  @override
+  String get settingsProviderCacheSyncAll => 'Sync all';
+
+  @override
+  String settingsProviderCacheAllSynced(int count) {
+    return 'Synced to all $count models';
+  }
 }

@@ -6,6 +6,7 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_setting_tile.dart';
 import '../../../core/widgets/app_transitions.dart';
+import 'settings_shared.dart';
 
 /// 纯表单视图：预览/校验由草稿提供，复用设置卡片、下拉与折叠原子组件。
 class ImageSaveTemplateSettings extends StatefulWidget {
@@ -121,12 +122,13 @@ class _ImageSaveTemplateSettingsState extends State<ImageSaveTemplateSettings> {
               minLines: 1,
               maxLines: 3,
               style: const TextStyle(fontSize: 12),
-              decoration: InputDecoration(
+              decoration: settingsSoftInputDecoration(
+                context,
                 hintText: ImageSavePathService.defaultTemplate,
                 errorText: errorText,
-                errorMaxLines: 4,
+                fillColor: context.colors.cardBackground,
                 contentPadding: const EdgeInsets.all(10),
-              ),
+              ).copyWith(errorMaxLines: 4),
             ),
           ),
           if (widget.error == null) ...[

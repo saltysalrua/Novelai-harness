@@ -36,6 +36,9 @@ abstract final class AppRadius {
   /// 12.0 - 大圆角 (主面板卡片、弹窗)
   static const double lg = 12.0;
 
+  /// 16.0 - 超大圆角 (整页浮层面板、悬浮操作坞)
+  static const double xl = 16.0;
+
   /// 9999.0 - 药丸圆角 (Pill 选择器、椭圆徽章)
   static const double pill = 9999.0;
 }

@@ -1093,6 +1093,36 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       }
       buffer.write('\n${entry.key}\n${detail.toString()}');
     }
+
+    final health = SessionCacheHealth.analyze(widget.viewModel.messages);
+    final activeHitRate = health.activeHitRate;
+    if (health.activeTurns > 0 && activeHitRate != null) {
+      final diag = StringBuffer(
+        l10n.chatSessionCacheActiveHitRate(
+          (activeHitRate * 100).toStringAsFixed(1),
+        ),
+      );
+      if (health.midSessionResets > 0) {
+        diag.write(' · ${l10n.chatSessionCacheDriftCount(health.midSessionResets)}');
+      }
+      buffer.write('\n${diag.toString()}');
+
+      final activeProvider = widget.viewModel.config.activeLlmProvider;
+      final activeModel = activeProvider.activeModel;
+      final host = Uri.tryParse(activeProvider.baseUrl.trim())?.host
+          .toLowerCase();
+      const officialHosts = {
+        'api.openai.com',
+        'api.anthropic.com',
+        'generativelanguage.googleapis.com',
+        'api.deepseek.com',
+      };
+      if (health.midSessionResets > 0 &&
+          activeModel.cacheConfig.affinity == LlmCacheAffinity.off &&
+          (host == null || !officialHosts.contains(host))) {
+        buffer.write('\n${l10n.chatSessionCacheAffinityHint}');
+      }
+    }
     return buffer.toString();
   }
 }

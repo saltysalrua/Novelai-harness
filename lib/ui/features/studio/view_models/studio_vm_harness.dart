@@ -363,6 +363,7 @@ mixin _StudioHarnessMixin on _StudioCore {
     _harness.compactionEnabled = _config.agentCompactionEnabled;
     _harness.backgroundCompactionEnabled = _config.agentBackgroundCompaction;
     _harness.persistentImages = _config.agentPersistentImages;
+    _harness.retainedHistoryImages = _config.agentRetainedHistoryImages;
     _harness.compactionProvider?.close();
     _harness.compactionProvider = null;
     _harness.compactionModelWindowTokens = activeModel.contextWindow;

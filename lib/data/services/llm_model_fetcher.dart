@@ -213,6 +213,7 @@ class LlmModelFetcher {
     required LlmProtocol protocol,
     required String apiKey,
     List<LlmModelConfig> existingModels = const [],
+    LlmCacheConfig defaultCacheConfig = const LlmCacheConfig(),
   }) async {
     final endpoint = calculateModelsEndpoint(baseUrl, protocol);
     if (endpoint.isEmpty) {
@@ -287,6 +288,7 @@ class LlmModelFetcher {
           dev,
           existingModels,
           suppressReasoning: suppressAnthropicCompatibilityReasoning,
+          defaultCacheConfig: defaultCacheConfig,
         ),
       );
     }
@@ -413,6 +415,7 @@ class LlmModelFetcher {
     ModelsDevModelInfo? dev,
     List<LlmModelConfig> existingModels, {
     bool suppressReasoning = false,
+    LlmCacheConfig defaultCacheConfig = const LlmCacheConfig(),
   }) {
     final existing = existingModels.where((m) => m.id == raw.id).firstOrNull;
     final lowerId = raw.id.toLowerCase();
@@ -481,7 +484,7 @@ class LlmModelFetcher {
       maxTokens: maxTokens,
       temperature: temperature,
       imageOutput: imageOutput,
-      cacheConfig: existing?.cacheConfig ?? const LlmCacheConfig(),
+      cacheConfig: existing?.cacheConfig ?? defaultCacheConfig,
     );
   }
 }

@@ -46,4 +46,15 @@ class LlmCacheConfig {
       affinity: value(LlmCacheAffinity.values, 'affinity'),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LlmCacheConfig &&
+          mode == other.mode &&
+          retention == other.retention &&
+          affinity == other.affinity;
+
+  @override
+  int get hashCode => Object.hash(mode, retention, affinity);
 }

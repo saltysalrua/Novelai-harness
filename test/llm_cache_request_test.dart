@@ -7,6 +7,10 @@ import 'package:novelai_harness/core/harness/providers/openai_provider.dart';
 import 'package:novelai_harness/core/harness/providers/prompt_cache_policy.dart';
 import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/data/models/llm_models.dart';
+import 'package:novelai_harness/data/services/config_service.dart';
+import 'package:novelai_harness/data/services/llm_model_fetcher.dart';
+import 'package:novelai_harness/data/services/models_dev_catalog.dart';
+import 'package:novelai_harness/ui/features/settings/widgets/models_settings_tab.dart';
 
 http.StreamedResponse _sse(
   List<Map<String, dynamic>> chunks,
@@ -441,4 +445,119 @@ void main() {
     );
     expect(LlmCacheConfig.fromJson({'mode': 'future'}).mode, LlmCacheMode.auto);
   });
+
+  test(
+    'provider defaultCacheConfig roundtrips and new fetched models inherit it',
+    () async {
+      const providerCache = LlmCacheConfig(
+        mode: LlmCacheMode.openai,
+        retention: LlmCacheRetention.short,
+        affinity: LlmCacheAffinity.openai,
+      );
+      const provider = LlmProviderConfig(
+        id: 'proxy',
+        name: 'Proxy',
+        baseUrl: 'https://proxy.example/v1beta',
+        protocol: LlmProtocol.googleInteractions,
+        defaultCacheConfig: providerCache,
+      );
+      final restored = LlmProviderConfig.fromJson(provider.toJson());
+      expect(restored.defaultCacheConfig.toJson(), providerCache.toJson());
+      expect(
+        LlmProviderConfig.fromJson({'id': 'legacy', 'name': 'Legacy'})
+            .defaultCacheConfig
+            .toJson(),
+        const LlmCacheConfig().toJson(),
+      );
+
+      final existingOverride = const LlmModelConfig(
+        id: 'existing-model',
+        name: 'Existing',
+        cacheConfig: LlmCacheConfig(affinity: LlmCacheAffinity.openrouter),
+      );
+      final fetcher = LlmModelFetcher(
+        client: MockClient(
+          (request) async => http.Response(
+            jsonEncode({
+              'data': [
+                {'id': 'existing-model'},
+                {'id': 'new-model'},
+              ],
+            }),
+            200,
+          ),
+        ),
+        modelsDevCatalog: ModelsDevCatalog(
+          client: MockClient((_) async => http.Response('{}', 200)),
+        ),
+      );
+      addTearDown(fetcher.close);
+
+      final result = await fetcher.fetchRemoteModels(
+        baseUrl: 'https://proxy.example/v1',
+        protocol: LlmProtocol.openAiChat,
+        apiKey: 'k',
+        existingModels: [existingOverride],
+        defaultCacheConfig: providerCache,
+      );
+      final kept = result.models.firstWhere((m) => m.id == 'existing-model');
+      final inherited = result.models.firstWhere((m) => m.id == 'new-model');
+      expect(kept.cacheConfig.affinity, LlmCacheAffinity.openrouter);
+      expect(inherited.cacheConfig.toJson(), providerCache.toJson());
+    },
+  );
+
+  test(
+    'ModelsSettingsDraft.updateDefaultCacheConfig auto-syncs default-following models and flags overrides',
+    () {
+      const baseCache = LlmCacheConfig(
+        mode: LlmCacheMode.auto,
+        retention: LlmCacheRetention.short,
+        affinity: LlmCacheAffinity.off,
+      );
+      const customCache = LlmCacheConfig(
+        mode: LlmCacheMode.anthropic,
+        retention: LlmCacheRetention.long,
+        affinity: LlmCacheAffinity.openrouter,
+      );
+      const nextCache = LlmCacheConfig(
+        mode: LlmCacheMode.openai,
+        retention: LlmCacheRetention.short,
+        affinity: LlmCacheAffinity.openai,
+      );
+      final draft = ModelsSettingsDraft(
+        const AppConfig(
+          activeLlmProviderId: 'p1',
+          llmProviders: [
+            LlmProviderConfig(
+              id: 'p1',
+              name: 'Proxy',
+              activeModelId: 'm1',
+              defaultCacheConfig: baseCache,
+              models: [
+                LlmModelConfig(id: 'm1', name: 'M1', cacheConfig: baseCache),
+                LlmModelConfig(id: 'm2', name: 'M2', cacheConfig: customCache),
+              ],
+            ),
+          ],
+        ),
+      );
+      addTearDown(draft.dispose);
+
+      expect(draft.divergentCacheModelCount, 1);
+
+      final summary = draft.updateDefaultCacheConfig(nextCache);
+      expect(summary.updatedCount, 1);
+      expect(summary.totalCount, 2);
+      expect(summary.divergentCount, 1);
+      expect(draft.currentProvider.models[0].cacheConfig, nextCache);
+      expect(draft.currentProvider.models[1].cacheConfig, customCache);
+      expect(draft.divergentCacheModelCount, 1);
+
+      final synced = draft.applyDefaultCacheToAllModels();
+      expect(synced, 2);
+      expect(draft.divergentCacheModelCount, 0);
+      expect(draft.currentProvider.models[1].cacheConfig, nextCache);
+    },
+  );
 }

@@ -1,13 +1,16 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../../core/harness/presets/agent_preset.dart';
+import '../../../../data/models/llm_models.dart';
+import '../../../../data/models/prompt_library_sync_models.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
-import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_icon_label.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_page_stack.dart';
@@ -25,10 +28,11 @@ import '../widgets/image_save_template_settings.dart';
 import '../widgets/models_settings_tab.dart';
 import '../widgets/presets_settings_tab.dart';
 
-/// 全局设置整页视图：左侧导航 + 右侧配置详情 + 底部保存栏
+/// 全局设置整页视图：柔和圆润画布 + 左侧无框导航 + 右侧圆角卡片详情 + 按需悬浮保存坞
 ///
 /// 各标签页持有独立的草稿状态 (Draft)，由本壳统一创建、装配与聚合保存；
-/// AppPageStack 首次激活时懒构建标签页，轻量过渡并保留输入与滚动状态。
+/// AppPageStack 首次激活时懒构建标签页，轻量过渡并保留输入与滚动状态；
+/// 仅在检测到未保存更改时于右下角浮现「放弃更改 / 保存设置」胶囊条。
 class SettingsDialog extends StatefulWidget {
   final StudioViewModel viewModel;
 
@@ -87,25 +91,37 @@ class _SettingsDialogState extends State<SettingsDialog> {
       };
 
   int _activeTabIndex = 0;
+  int _draftGeneration = 0;
+  final ValueNotifier<int> _draftRevision = ValueNotifier<int>(0);
 
-  late final GeneralSettingsDraft _generalDraft;
-  late final ModelsSettingsDraft _modelsDraft;
-  late final PresetsSettingsDraft _presetsDraft;
-  late final DefaultsSettingsDraft _defaultsDraft;
+  late GeneralSettingsDraft _generalDraft;
+  late ModelsSettingsDraft _modelsDraft;
+  late PresetsSettingsDraft _presetsDraft;
+  late DefaultsSettingsDraft _defaultsDraft;
 
   /// 页面缓存、隐藏页焦点/Ticker 隔离统一由 AppPageStack 管理。
-  late final List<Widget Function()> _tabBuilders;
+  late List<Widget Function()> _tabBuilders;
+
+  AppConfig? _cachedBaseConfig;
+  String _cachedBaseProvidersJson = '';
+  String _cachedBasePresetsJson = '';
+  String _cachedBaseActiveProviderId = '';
+  String _cachedBaseActivePresetId = '';
 
   @override
   void initState() {
     super.initState();
-    final cfg = widget.viewModel.config;
-    _generalDraft = GeneralSettingsDraft(cfg);
-    _modelsDraft = ModelsSettingsDraft(cfg);
-    _presetsDraft = PresetsSettingsDraft(cfg);
-    _defaultsDraft = DefaultsSettingsDraft(cfg);
+    _initDrafts();
+  }
 
-    // 每页自行包裹滚动容器 (含原外层 28/8/28/20 内边距)，弹窗壳不再统一包 SingleChildScrollView
+  void _initDrafts() {
+    final cfg = widget.viewModel.config;
+    _generalDraft = GeneralSettingsDraft(cfg, onChanged: _onDraftChanged);
+    _modelsDraft = ModelsSettingsDraft(cfg, onChanged: _onDraftChanged);
+    _presetsDraft = PresetsSettingsDraft(cfg, onChanged: _onDraftChanged);
+    _defaultsDraft = DefaultsSettingsDraft(cfg, onChanged: _onDraftChanged);
+
+    // 每页自行包裹滚动容器，弹窗壳不再统一包 SingleChildScrollView
     _tabBuilders = [
       () => GeneralSettingsTab(draft: _generalDraft),
       () => ModelsSettingsTab(viewModel: widget.viewModel, draft: _modelsDraft),
@@ -121,17 +137,194 @@ class _SettingsDialogState extends State<SettingsDialog> {
       () => DefaultsSettingsTab(
         draft: _defaultsDraft,
         getProviders: () => _modelsDraft.providers,
+        getActiveProviderId: () => _modelsDraft.selectedProviderId,
         getPresets: () => _presetsDraft.presets,
       ),
       () => BillSettingsTab(viewModel: widget.viewModel),
     ];
   }
 
-  @override
-  void dispose() {
+  void _disposeDrafts() {
     _generalDraft.dispose();
     _modelsDraft.dispose();
     _presetsDraft.dispose();
+  }
+
+  void _onDraftChanged() {
+    if (!mounted) return;
+    _draftRevision.value++;
+  }
+
+  void _handleDiscardChanges() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _disposeDrafts();
+    _draftGeneration++;
+    _initDrafts();
+    setState(() {});
+    _draftRevision.value++;
+  }
+
+  void _ensureBaseJsonCache(AppConfig base) {
+    if (identical(_cachedBaseConfig, base)) return;
+    _cachedBaseConfig = base;
+    final baseProviders = base.llmProviders.isNotEmpty
+        ? base.llmProviders
+        : LlmProviderConfig.defaultProviders;
+    _cachedBaseActiveProviderId =
+        baseProviders.any((p) => p.id == base.activeLlmProviderId)
+        ? base.activeLlmProviderId
+        : baseProviders.first.id;
+    _cachedBaseProvidersJson = jsonEncode(
+      baseProviders.map((p) => p.toJson()).toList(growable: false),
+    );
+    final basePresets = base.presets.isNotEmpty
+        ? base.presets
+        : BuiltinPresets.all;
+    _cachedBaseActivePresetId =
+        basePresets.any((p) => p.id == base.activePresetId)
+        ? base.activePresetId
+        : basePresets.first.id;
+    _cachedBasePresetsJson = jsonEncode(
+      basePresets.map((p) => p.toJson()).toList(growable: false),
+    );
+  }
+
+  /// 检测四个草稿页是否存在尚未保存的改动（与最新持久化 AppConfig 对比）。
+  bool _hasUnsavedChanges() {
+    final base = widget.viewModel.config;
+    _ensureBaseJsonCache(base);
+
+    // 1. General
+    final normalizedSyncNamespace =
+        _generalDraft.promptSyncNamespaceController.text.trim().isEmpty
+        ? 'default'
+        : _generalDraft.promptSyncNamespaceController.text.trim();
+    final baseSyncNamespace = base.promptSyncNamespace.trim().isEmpty
+        ? 'default'
+        : base.promptSyncNamespace.trim();
+    final baseSyncInterval = PromptLibrarySyncConfig(
+      autoSyncIntervalMinutes: base.promptSyncAutoIntervalMinutes,
+    ).normalizedAutoSyncIntervalMinutes;
+    if (_generalDraft.naiKeyController.text.trim() != base.novelAiKey.trim() ||
+        _generalDraft.anySearchKeyController.text.trim() !=
+            base.anySearchApiKey.trim() ||
+        _generalDraft.saveDirController.text.trim() !=
+            base.saveDirectory.trim() ||
+        _generalDraft.saveTemplateController.text.trim() !=
+            base.imageSaveTemplate.trim() ||
+        _generalDraft.opusFreeMode != base.opusFreeMode ||
+        _generalDraft.themeMode != base.themeMode ||
+        _generalDraft.accentMode != base.accentMode ||
+        _generalDraft.accentVariant != base.accentVariant ||
+        (_generalDraft.accentSeedColor ?? base.accentSeedColor) !=
+            base.accentSeedColor ||
+        _generalDraft.backgroundMode != base.backgroundMode ||
+        _generalDraft.customLightBackgroundColor !=
+            base.customLightBackgroundColor ||
+        _generalDraft.customDarkBackgroundColor !=
+            base.customDarkBackgroundColor ||
+        _generalDraft.localePreference != base.localePreference ||
+        _generalDraft.uiZoom != base.uiZoom ||
+        _generalDraft.maxFrameRate != base.maxFrameRate ||
+        _generalDraft.enableStreamPreview != base.enableStreamPreview ||
+        _generalDraft.enableTagAutocomplete != base.enableTagAutocomplete ||
+        _generalDraft.showTagTranslations != base.showTagTranslations ||
+        _generalDraft.showTagCategoryColors != base.showTagCategoryColors ||
+        _generalDraft.enableTagDictionaryAutoUpdate !=
+            base.enableTagDictionaryAutoUpdate ||
+        _generalDraft.enableImagePersistence != base.enableImagePersistence ||
+        _generalDraft.maxPersistentImages != base.maxPersistentImages ||
+        _generalDraft.autoSaveImages != base.autoSaveImages ||
+        _generalDraft.androidGalleryExport != base.androidGalleryExport ||
+        _generalDraft.androidExportTreeUri != base.androidExportTreeUri ||
+        _generalDraft.rtxUpscaleScale != base.rtxUpscaleScale ||
+        _generalDraft.comfyUiEnabled != base.comfyUiEnabled ||
+        _generalDraft.comfyBaseUrlController.text.trim() !=
+            base.comfyUiBaseUrl.trim() ||
+        _generalDraft.comfyPromptNodeController.text.trim() !=
+            base.comfyUiPromptNodeId.trim() ||
+        _generalDraft.comfyResolutionNodeController.text.trim() !=
+            base.comfyUiResolutionNodeId.trim() ||
+        _generalDraft.comfyParamsNodeController.text.trim() !=
+            base.comfyUiParamsNodeId.trim() ||
+        _generalDraft.promptSyncEndpointController.text.trim() !=
+            base.promptSyncEndpoint.trim() ||
+        _generalDraft.promptSyncTokenController.text.trim() !=
+            base.promptSyncToken.trim() ||
+        normalizedSyncNamespace != baseSyncNamespace ||
+        _generalDraft.promptSyncAutoEnabled != base.promptSyncAutoEnabled ||
+        _generalDraft.promptSyncAutoIntervalMinutes != baseSyncInterval) {
+      return true;
+    }
+
+    // 2. Defaults
+    if (_defaultsDraft.model != base.defaultModel ||
+        _defaultsDraft.sampler != base.defaultSampler ||
+        _defaultsDraft.noiseSchedule != base.defaultNoiseSchedule ||
+        _defaultsDraft.steps != base.defaultSteps ||
+        _defaultsDraft.scale != base.defaultScale ||
+        _defaultsDraft.agentMaxTurns.clamp(1, 100) !=
+            base.agentMaxTurns.clamp(1, 100) ||
+        _defaultsDraft.compactionEnabled != base.agentCompactionEnabled ||
+        _defaultsDraft.backgroundCompaction != base.agentBackgroundCompaction ||
+        _defaultsDraft.persistentImages != base.agentPersistentImages ||
+        _defaultsDraft.retainedHistoryImages.clamp(0, 10) !=
+            base.agentRetainedHistoryImages.clamp(0, 10) ||
+        _defaultsDraft.compactionProviderId != base.compactionProviderId ||
+        _defaultsDraft.compactionModelId != base.compactionModelId ||
+        _defaultsDraft.inboxOrganizerProviderId !=
+            base.inboxOrganizerProviderId ||
+        _defaultsDraft.inboxOrganizerModelId != base.inboxOrganizerModelId ||
+        _defaultsDraft.inboxOrganizerThinkingEffort !=
+            base.inboxOrganizerThinkingEffort ||
+        _defaultsDraft.inboxAutoRerunPreview != base.inboxAutoRerunPreview ||
+        !listEquals(
+          _defaultsDraft.inboxOrganizerExcludedCategories,
+          base.inboxOrganizerExcludedCategories,
+        ) ||
+        _defaultsDraft.inboxOrganizerPresetId != base.inboxOrganizerPresetId ||
+        _defaultsDraft.inboxOrganizerCustomInstructions !=
+            base.inboxOrganizerCustomInstructions) {
+      return true;
+    }
+
+    // 3. Models
+    if (_modelsDraft.selectedProviderId != _cachedBaseActiveProviderId ||
+        _modelsDraft.imageEditProviderId != base.imageEditProviderId ||
+        _modelsDraft.imageEditModelId != base.imageEditModelId) {
+      return true;
+    }
+    final candidateProvidersJson = jsonEncode(
+      _modelsDraft
+          .snapshotProviders()
+          .map((p) => p.toJson())
+          .toList(growable: false),
+    );
+    if (candidateProvidersJson != _cachedBaseProvidersJson) {
+      return true;
+    }
+
+    // 4. Presets
+    if (_presetsDraft.activePresetId != _cachedBaseActivePresetId) {
+      return true;
+    }
+    final candidatePresetsJson = jsonEncode(
+      _presetsDraft
+          .snapshotPresets()
+          .map((p) => p.toJson())
+          .toList(growable: false),
+    );
+    if (candidatePresetsJson != _cachedBasePresetsJson) {
+      return true;
+    }
+
+    return false;
+  }
+
+  @override
+  void dispose() {
+    _draftRevision.dispose();
+    _disposeDrafts();
     super.dispose();
   }
 
@@ -217,10 +410,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
       agentCompactionEnabled: _defaultsDraft.compactionEnabled,
       agentBackgroundCompaction: _defaultsDraft.backgroundCompaction,
       agentPersistentImages: _defaultsDraft.persistentImages,
+      agentRetainedHistoryImages: _defaultsDraft.retainedHistoryImages.clamp(
+        0,
+        10,
+      ),
       compactionProviderId: _defaultsDraft.compactionProviderId,
       compactionModelId: _defaultsDraft.compactionModelId,
       inboxOrganizerProviderId: _defaultsDraft.inboxOrganizerProviderId,
       inboxOrganizerModelId: _defaultsDraft.inboxOrganizerModelId,
+      inboxOrganizerThinkingEffort: _defaultsDraft.inboxOrganizerThinkingEffort,
       inboxAutoRerunPreview: _defaultsDraft.inboxAutoRerunPreview,
       inboxOrganizerExcludedCategories:
           _defaultsDraft.inboxOrganizerExcludedCategories,
@@ -266,7 +464,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         return KeyEventResult.handled;
       },
       child: Scaffold(
-        backgroundColor: colors.cardBackground,
+        backgroundColor: colors.canvasBackground,
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -276,44 +474,90 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 top: !showCustomTitleBar,
                 bottom: isNarrow,
                 child: isNarrow
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                    ? Stack(
                         children: [
-                          _buildContentHeader(context, isNarrow: true),
-                          _buildHorizontalTabs(context),
-                          Expanded(
-                            child: AppPageStack(
-                              index: _activeTabIndex,
-                              itemCount: _tabBuilders.length,
-                              itemBuilder: (context, index) =>
-                                  _tabBuilders[index](),
-                            ),
-                          ),
-                          _buildFooter(context, isNarrow: true),
-                        ],
-                      )
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // 1. 左侧贯穿导航栏
-                          _buildSidebar(context),
-
-                          // 2. 右侧配置详情内容区
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _buildContentHeader(context, isNarrow: false),
-                                Expanded(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildContentHeader(context, isNarrow: true),
+                              _buildHorizontalTabs(context),
+                              Expanded(
+                                child: Container(
+                                  margin: const EdgeInsets.fromLTRB(
+                                    8,
+                                    4,
+                                    8,
+                                    8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colors.cardBackground,
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.xl,
+                                    ),
+                                    border: Border.all(
+                                      color: colors.borderSubtle,
+                                    ),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
                                   child: AppPageStack(
+                                    key: ValueKey<int>(_draftGeneration),
                                     index: _activeTabIndex,
                                     itemCount: _tabBuilders.length,
                                     itemBuilder: (context, index) =>
                                         _tabBuilders[index](),
                                   ),
                                 ),
-                                _buildFooter(context, isNarrow: false),
-                              ],
+                              ),
+                            ],
+                          ),
+                          _buildFloatingSaveBar(context, isNarrow: true),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 1. 左侧无框画布导航栏 (零竖向硬分隔线)
+                          _buildSidebar(context),
+
+                          // 2. 右侧圆润白底主卡片 (与主工作台圆润视觉统一)
+                          Expanded(
+                            child: Container(
+                              margin: const EdgeInsets.fromLTRB(0, 8, 8, 8),
+                              decoration: BoxDecoration(
+                                color: colors.cardBackground,
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.xl,
+                                ),
+                                border: Border.all(color: colors.borderSubtle),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Stack(
+                                children: [
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      _buildContentHeader(
+                                        context,
+                                        isNarrow: false,
+                                      ),
+                                      Expanded(
+                                        child: AppPageStack(
+                                          key: ValueKey<int>(_draftGeneration),
+                                          index: _activeTabIndex,
+                                          itemCount: _tabBuilders.length,
+                                          itemBuilder: (context, index) =>
+                                              _tabBuilders[index](),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  _buildFloatingSaveBar(
+                                    context,
+                                    isNarrow: false,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -326,17 +570,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
     );
   }
 
-  /// 窄屏顶部横向滚动分类胶囊栏 (复用 AppSegmentedPillBar，与全应用观感一致)
+  /// 窄屏顶部横向滚动分类胶囊栏 (无分隔线，直接融入柔和画布底)
   Widget _buildHorizontalTabs(BuildContext context) {
-    final colors = context.colors;
     final l10n = context.l10n;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.elevatedBackground,
-        border: Border(bottom: BorderSide(color: colors.borderDefault)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
       child: AppSegmentedPillBar<int>(
         scrollable: true,
         variant: AppPillVariant.soft,
@@ -354,16 +593,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
     );
   }
 
-  /// 左侧导航栏
+  /// 左侧导航栏 (融入 canvasBackground，无硬分隔线与边框)
   Widget _buildSidebar(BuildContext context) {
-    final colors = context.colors;
     final l10n = context.l10n;
-    return Container(
-      width: 220,
-      decoration: BoxDecoration(
-        color: colors.elevatedBackground,
-        border: Border(right: BorderSide(color: colors.borderDefault)),
-      ),
+    return SizedBox(
+      width: 212,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -393,33 +627,34 @@ class _SettingsDialogState extends State<SettingsDialog> {
     required IconData icon,
     required String label,
   }) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: AppNavTile(
         title: label,
         icon: icon,
         isSelected: _activeTabIndex == index,
+        radius: AppRadius.lg,
+        activeBackgroundColor: colors.primaryTint,
+        activeBorderColor: Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         onTap: () => setState(() => _activeTabIndex = index),
       ),
     );
   }
 
-  /// 右侧顶部标头
+  /// 右侧顶部开放式标头 (零底部分隔线，移除重复的右上角关闭按钮)
   Widget _buildContentHeader(BuildContext context, {required bool isNarrow}) {
     final colors = context.colors;
     final l10n = context.l10n;
     final title = _settingsTabLabel(l10n, _activeTabIndex);
 
-    return Container(
+    return Padding(
       padding: EdgeInsets.fromLTRB(
         isNarrow ? 12 : 32,
-        isNarrow ? 12 : 18,
-        isNarrow ? 12 : 24,
-        12,
-      ),
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        border: Border(bottom: BorderSide(color: colors.borderSubtle)),
+        isNarrow ? 10 : 22,
+        isNarrow ? 12 : 32,
+        isNarrow ? 8 : 10,
       ),
       child: Row(
         children: [
@@ -434,7 +669,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 onTap: () => Navigator.of(context).pop(),
               ),
             )
-          else ...[
+          else
             Expanded(
               child: AppTextSwap(
                 text: title,
@@ -448,49 +683,80 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 ),
               ),
             ),
-            AppIconButton(
-              icon: Icons.close_rounded,
-              size: 30,
-              iconSize: 18,
-              variant: AppIconButtonVariant.ghost,
-              tooltip: l10n.close,
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
         ],
       ),
     );
   }
 
-  /// 底部操作栏
-  Widget _buildFooter(BuildContext context, {required bool isNarrow}) {
+  /// 按需浮现的右下角悬浮保存胶囊：仅存在未保存更改时平滑弹出，无更改时彻底隐藏。
+  Widget _buildFloatingSaveBar(BuildContext context, {required bool isNarrow}) {
     final colors = context.colors;
     final l10n = context.l10n;
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isNarrow ? 16 : 32,
-        vertical: 12,
-      ),
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        border: Border(top: BorderSide(color: colors.borderSubtle)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          AppActionButton(
-            label: l10n.cancel,
-            variant: AppActionButtonVariant.ghost,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          const SizedBox(width: 10),
-          AppActionButton(
-            label: l10n.settingsSaveButton,
-            variant: AppActionButtonVariant.primary,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            onPressed: _handleSave,
-          ),
-        ],
+    final duration = AppMotion.resolveDuration(
+      context,
+      AppMotionDurations.fast,
+    );
+
+    return Positioned(
+      right: isNarrow ? 20 : 28,
+      bottom: isNarrow ? 20 : 22,
+      child: ValueListenableBuilder<int>(
+        valueListenable: _draftRevision,
+        builder: (context, _, _) {
+          final hasChanges = _hasUnsavedChanges();
+          return IgnorePointer(
+            ignoring: !hasChanges,
+            child: AnimatedSlide(
+              duration: duration,
+              curve: AppMotionCurves.smoothOut,
+              offset: hasChanges ? Offset.zero : const Offset(0, 0.35),
+              child: AnimatedOpacity(
+                duration: duration,
+                curve: AppMotionCurves.smoothOut,
+                opacity: hasChanges ? 1.0 : 0.0,
+                child: Container(
+                  key: const ValueKey('settings_floating_save_bar'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.cardBackground,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    border: Border.all(color: colors.borderDefault),
+                    boxShadow: context.shadowElevated,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppActionButton(
+                        label: l10n.settingsDiscardChanges,
+                        variant: AppActionButtonVariant.ghost,
+                        radius: AppRadius.pill,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 9,
+                        ),
+                        onPressed: hasChanges ? _handleDiscardChanges : null,
+                      ),
+                      const SizedBox(width: 6),
+                      AppActionButton(
+                        label: l10n.settingsSaveButton,
+                        variant: AppActionButtonVariant.primary,
+                        radius: AppRadius.pill,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 9,
+                        ),
+                        onPressed: hasChanges ? _handleSave : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -511,7 +777,7 @@ class _SettingsBackBar extends StatefulWidget {
     required this.onTap,
     this.fontSize = 15,
     this.iconSize = 17,
-    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
   });
 
   @override
@@ -540,7 +806,7 @@ class _SettingsBackBarState extends State<_SettingsBackBar> {
             onExit: (_) => setState(() => _isHovered = false),
             child: InkWell(
               onTap: widget.onTap,
-              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
               hoverColor: Colors.transparent,
               splashColor: colors.primaryTint.withValues(alpha: 0.3),
               child: Container(
@@ -549,7 +815,7 @@ class _SettingsBackBarState extends State<_SettingsBackBar> {
                   color: _isHovered
                       ? colors.mutedBackground.withValues(alpha: 0.7)
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 child: AppIconLabel(
                   leading: Icon(

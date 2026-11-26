@@ -199,12 +199,25 @@ mixin _StudioLibraryMixin on _StudioCore {
 
   String get inboxOrganizerProviderId => _config.inboxOrganizerProviderId;
   String get inboxOrganizerModelId => _config.inboxOrganizerModelId;
+  String get inboxOrganizerThinkingEffort =>
+      _config.inboxOrganizerThinkingEffort;
   bool get inboxAutoRerunPreview => _config.inboxAutoRerunPreview;
   List<String> get inboxOrganizerExcludedCategories =>
       _config.inboxOrganizerExcludedCategories;
   String get inboxOrganizerPresetId => _config.inboxOrganizerPresetId;
   String get inboxOrganizerCustomInstructions =>
       _config.inboxOrganizerCustomInstructions;
+
+  /// 解析当前后台整理模型的实际生效思考强度：
+  /// - 模型不支持思考时返回 null；
+  /// - 配置留空时采用该模型的默认思考强度；
+  /// - 配置非空时收敛到该模型真实支持的思考档位集合。
+  ThinkingEffort? resolveInboxOrganizerThinkingEffort(LlmModelConfig modelCfg) {
+    if (!modelCfg.supportsThinking) return null;
+    final raw = _config.inboxOrganizerThinkingEffort.trim();
+    if (raw.isEmpty) return modelCfg.defaultThinkingEffort;
+    return modelCfg.normalizeThinkingEffort(ThinkingEffort.fromId(raw));
+  }
 
   /// 解析当前用于待整理区后台整理的供应商与模型（未指定或失效时跟随主模型）
   ({LlmProviderConfig provider, LlmModelConfig model, bool isFollowingMain})
@@ -234,10 +247,11 @@ mixin _StudioLibraryMixin on _StudioCore {
     );
   }
 
-  /// 更新待整理区后台整理设置（独立模型/跟随主模型 + 自动重跑预览图 + 禁止拆分分类 + 整理预设/自定义指令）
+  /// 更新待整理区后台整理设置（独立模型/跟随主模型 + 思考强度 + 自动重跑预览图 + 禁止拆分分类 + 整理预设/自定义指令）
   Future<void> updateInboxOrganizerSettings({
     String? providerId,
     String? modelId,
+    String? thinkingEffort,
     bool? autoRerunPreview,
     List<String>? excludedCategories,
     String? presetId,
@@ -247,6 +261,7 @@ mixin _StudioLibraryMixin on _StudioCore {
       _config.copyWith(
         inboxOrganizerProviderId: providerId,
         inboxOrganizerModelId: modelId,
+        inboxOrganizerThinkingEffort: thinkingEffort,
         inboxAutoRerunPreview: autoRerunPreview,
         inboxOrganizerExcludedCategories: excludedCategories,
         inboxOrganizerPresetId: presetId,
@@ -494,6 +509,7 @@ mixin _StudioLibraryMixin on _StudioCore {
               .where((p) => p.id == selectedPresetId)
               .firstOrNull;
     final customInstructions = _config.inboxOrganizerCustomInstructions.trim();
+    final resolvedThinkingEffort = resolveInboxOrganizerThinkingEffort(modelCfg);
 
     _appendInboxOrganizerLog(
       InboxOrganizerLogEntry(
@@ -502,6 +518,7 @@ mixin _StudioLibraryMixin on _StudioCore {
         title: '后台整理已启动',
         text:
             '模型: $_inboxOrganizerModelLabel${resolved.isFollowingMain ? ' (跟随主模型)' : ''} · '
+            '${resolvedThinkingEffort != null ? '思考: ${resolvedThinkingEffort.id} · ' : ''}'
             '视觉: ${multimodal ? '支持' : '纯文本'} · '
             '自动重跑预览图: ${autoRerun ? '开启' : '关闭'}'
             '${selectedPreset != null ? ' · 预设: ${selectedPreset.name}' : ''}'
@@ -592,11 +609,10 @@ mixin _StudioLibraryMixin on _StudioCore {
             baseUrl: providerCfg.fullEndpointUrl,
             apiKey: providerCfg.apiKey,
             model: modelCfg.id,
-            reasoning: modelCfg.supportsThinking &&
-                modelCfg.defaultThinkingEffort != ThinkingEffort.none,
-            thinkingEffort: modelCfg.supportsThinking
-                ? modelCfg.defaultThinkingEffort.id
-                : null,
+            reasoning:
+                resolvedThinkingEffort != null &&
+                resolvedThinkingEffort != ThinkingEffort.none,
+            thinkingEffort: resolvedThinkingEffort?.id,
             thinkingParamFormat: providerCfg.thinkingParamFormat.id,
             cacheConfig: modelCfg.cacheConfig,
             promptToolUse: providerCfg.promptToolUse,

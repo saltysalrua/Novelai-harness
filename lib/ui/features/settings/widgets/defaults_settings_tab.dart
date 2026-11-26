@@ -4,6 +4,7 @@ import '../../../../data/models/novelai_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dropdown.dart';
@@ -18,7 +19,7 @@ import 'settings_shared.dart';
 
 /// Defaults 页草稿状态 (父级 SettingsDialog 持有，保存时统一聚合)
 class DefaultsSettingsDraft {
-  DefaultsSettingsDraft(AppConfig config)
+  DefaultsSettingsDraft(AppConfig config, {this.onChanged})
     : model = config.defaultModel,
       sampler = config.defaultSampler,
       noiseSchedule = config.defaultNoiseSchedule,
@@ -28,10 +29,12 @@ class DefaultsSettingsDraft {
       compactionEnabled = config.agentCompactionEnabled,
       backgroundCompaction = config.agentBackgroundCompaction,
       persistentImages = config.agentPersistentImages,
+      retainedHistoryImages = config.agentRetainedHistoryImages,
       compactionProviderId = config.compactionProviderId,
       compactionModelId = config.compactionModelId,
       inboxOrganizerProviderId = config.inboxOrganizerProviderId,
       inboxOrganizerModelId = config.inboxOrganizerModelId,
+      inboxOrganizerThinkingEffort = config.inboxOrganizerThinkingEffort,
       inboxAutoRerunPreview = config.inboxAutoRerunPreview,
       inboxOrganizerExcludedCategories = List<String>.from(
         config.inboxOrganizerExcludedCategories,
@@ -39,6 +42,10 @@ class DefaultsSettingsDraft {
       inboxOrganizerPresetId = config.inboxOrganizerPresetId,
       inboxOrganizerCustomInstructions =
           config.inboxOrganizerCustomInstructions;
+
+  final VoidCallback? onChanged;
+
+  void notifyChanged() => onChanged?.call();
 
   NaiModel model;
   NaiSampler sampler;
@@ -51,15 +58,19 @@ class DefaultsSettingsDraft {
   bool compactionEnabled;
   bool backgroundCompaction;
   bool persistentImages;
+  int retainedHistoryImages;
   String compactionProviderId;
   String compactionModelId;
   String inboxOrganizerProviderId;
   String inboxOrganizerModelId;
+  String inboxOrganizerThinkingEffort;
   bool inboxAutoRerunPreview;
   List<String> inboxOrganizerExcludedCategories;
   String inboxOrganizerPresetId;
   String inboxOrganizerCustomInstructions;
 }
+
+enum _ImageRetentionMode { perTurn, recentCache, always }
 
 /// Defaults 页：启动出厂默认生图模型、采样算法与步数引导
 ///
@@ -69,12 +80,14 @@ class DefaultsSettingsTab extends StatefulWidget {
   final DefaultsSettingsDraft draft;
 
   final List<LlmProviderConfig> Function()? getProviders;
+  final String Function()? getActiveProviderId;
   final List<AgentPreset> Function()? getPresets;
 
   const DefaultsSettingsTab({
     super.key,
     required this.draft,
     this.getProviders,
+    this.getActiveProviderId,
     this.getPresets,
   });
 
@@ -88,6 +101,35 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
       SmoothWheelScrollController();
   late final TextEditingController _organizerInstructionsController =
       TextEditingController(text: _draft.inboxOrganizerCustomInstructions);
+
+  void _mutateDraft(VoidCallback fn) {
+    setState(fn);
+    _draft.notifyChanged();
+  }
+
+  /// 解析当前实际用于后台整理的模型配置（未指定时回落到当前主模型）。
+  LlmModelConfig? _resolveEffectiveOrganizerModel(
+    List<LlmProviderConfig> providers,
+  ) {
+    if (providers.isEmpty) return null;
+    final providerId = _draft.inboxOrganizerProviderId.trim();
+    final modelId = _draft.inboxOrganizerModelId.trim();
+    if (providerId.isNotEmpty && modelId.isNotEmpty) {
+      final matchedProvider = providers
+          .where((p) => p.id == providerId)
+          .firstOrNull;
+      final matchedModel = matchedProvider?.models
+          .where((m) => m.id == modelId)
+          .firstOrNull;
+      if (matchedModel != null) return matchedModel;
+    }
+    final activeProviderId = widget.getActiveProviderId?.call() ?? '';
+    final activeProvider = providers
+        .where((p) => p.id == activeProviderId)
+        .firstOrNull ??
+        providers.first;
+    return activeProvider.activeModel;
+  }
 
   @override
   void dispose() {
@@ -116,6 +158,20 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
         .firstOrNull;
     final organizerModels =
         organizerProvider?.models ?? const <LlmModelConfig>[];
+    final effectiveOrganizerModel = _resolveEffectiveOrganizerModel(providers);
+    final organizerThinkingLevels =
+        effectiveOrganizerModel?.availableThinkingLevels ??
+        const <ThinkingEffort>[];
+    final validOrganizerEffortId =
+        organizerThinkingLevels.any(
+          (level) => level.id == _draft.inboxOrganizerThinkingEffort,
+        )
+        ? _draft.inboxOrganizerThinkingEffort
+        : '';
+    final defaultEffortLabel = effectiveOrganizerModel != null &&
+            effectiveOrganizerModel.supportsThinking
+        ? '${l10n.libraryInboxOrganizerThinkingEffortDefault} (${thinkingEffortLabelOf(l10n, effectiveOrganizerModel.defaultThinkingEffort)})'
+        : l10n.libraryInboxOrganizerThinkingEffortDefault;
     return LayoutBuilder(
       builder: (context, constraints) {
         final hPad = constraints.maxWidth > 984
@@ -123,7 +179,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
             : (constraints.maxWidth < 560 ? 16.0 : 32.0);
         return SingleChildScrollView(
           controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 24),
+          padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 76),
           child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -135,7 +191,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               items: NaiModel.values,
               labelOf: (m) => m.label,
               width: 170,
-              onChanged: (m) => setState(() => _draft.model = m),
+              onChanged: (m) => _mutateDraft(() => _draft.model = m),
             ),
           ),
           AppSettingTile(
@@ -145,7 +201,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               items: NaiSampler.values,
               labelOf: (s) => s.label,
               width: 170,
-              onChanged: (s) => setState(() => _draft.sampler = s),
+              onChanged: (s) => _mutateDraft(() => _draft.sampler = s),
             ),
           ),
           AppSettingTile(
@@ -155,7 +211,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               items: NoiseSchedule.values,
               labelOf: (n) => n.label,
               width: 170,
-              onChanged: (n) => setState(() => _draft.noiseSchedule = n),
+              onChanged: (n) => _mutateDraft(() => _draft.noiseSchedule = n),
             ),
           ),
 
@@ -168,7 +224,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               value: _draft.steps,
               min: 1,
               max: 50,
-              onChanged: (v) => setState(() => _draft.steps = v),
+              onChanged: (v) => _mutateDraft(() => _draft.steps = v),
             ),
           ),
           AppSettingTile(
@@ -180,7 +236,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               max: 20.0,
               fractionDigits: 1,
               step: 0.5,
-              onChanged: (v) => setState(() => _draft.scale = v),
+              onChanged: (v) => _mutateDraft(() => _draft.scale = v),
             ),
           ),
 
@@ -189,19 +245,64 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
           AppSettingTile.switchTile(
             title: l10n.settingsAutoCompaction,
             value: _draft.compactionEnabled,
-            onChanged: (v) => setState(() => _draft.compactionEnabled = v),
+            onChanged: (v) => _mutateDraft(() => _draft.compactionEnabled = v),
           ),
           AppSettingTile.switchTile(
             title: l10n.settingsBackgroundCompaction,
             value: _draft.backgroundCompaction,
             onChanged: _draft.compactionEnabled
-                ? (v) => setState(() => _draft.backgroundCompaction = v)
+                ? (v) => _mutateDraft(() => _draft.backgroundCompaction = v)
                 : null,
           ),
-          AppSettingTile.switchTile(
-            title: l10n.settingsAgentPersistentImages,
-            value: _draft.persistentImages,
-            onChanged: (v) => setState(() => _draft.persistentImages = v),
+          AppSettingTile(
+            title: l10n.settingsAgentImageRetentionTitle,
+            control: AppDropdown<_ImageRetentionMode>.simple(
+              value: _draft.persistentImages
+                  ? _ImageRetentionMode.always
+                  : (_draft.retainedHistoryImages > 0
+                        ? _ImageRetentionMode.recentCache
+                        : _ImageRetentionMode.perTurn),
+              items: _ImageRetentionMode.values,
+              width: 190,
+              labelOf: (mode) => switch (mode) {
+                _ImageRetentionMode.perTurn =>
+                  l10n.settingsAgentImageRetentionPerTurn,
+                _ImageRetentionMode.recentCache =>
+                  l10n.settingsAgentImageRetentionRecentCache,
+                _ImageRetentionMode.always =>
+                  l10n.settingsAgentImageRetentionAlways,
+              },
+              onChanged: (mode) => _mutateDraft(() {
+                switch (mode) {
+                  case _ImageRetentionMode.perTurn:
+                    _draft.persistentImages = false;
+                    _draft.retainedHistoryImages = 0;
+                  case _ImageRetentionMode.recentCache:
+                    _draft.persistentImages = false;
+                    if (_draft.retainedHistoryImages <= 0) {
+                      _draft.retainedHistoryImages = 3;
+                    }
+                  case _ImageRetentionMode.always:
+                    _draft.persistentImages = true;
+                }
+              }),
+            ),
+          ),
+          AppPanelReveal(
+            visible:
+                !_draft.persistentImages && _draft.retainedHistoryImages > 0,
+            enableBlur: false,
+            child: AppSettingTile(
+              title: l10n.settingsAgentRetainedImageCountTitle,
+              control: const SizedBox.shrink(),
+              bottomChild: AppNumberSlider.integer(
+                value: _draft.retainedHistoryImages.clamp(1, 10),
+                min: 1,
+                max: 10,
+                onChanged: (v) =>
+                    _mutateDraft(() => _draft.retainedHistoryImages = v),
+              ),
+            ),
           ),
           AppSettingTile(
             title: l10n.settingsCompactionProvider,
@@ -212,7 +313,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               labelOf: (id) => id.isEmpty
                   ? l10n.settingsFollowMainModel
                   : providers.firstWhere((p) => p.id == id).name,
-              onChanged: (id) => setState(() {
+              onChanged: (id) => _mutateDraft(() {
                 _draft.compactionProviderId = id;
                 _draft.compactionModelId = '';
               }),
@@ -233,7 +334,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
                     ? l10n.settingsFollowMainModel
                     : models.firstWhere((m) => m.id == id).name,
                 onChanged: (id) =>
-                    setState(() => _draft.compactionModelId = id),
+                    _mutateDraft(() => _draft.compactionModelId = id),
               ),
             ),
           ),
@@ -248,9 +349,10 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               labelOf: (id) => id.isEmpty
                   ? l10n.settingsFollowMainModel
                   : providers.firstWhere((p) => p.id == id).name,
-              onChanged: (id) => setState(() {
+              onChanged: (id) => _mutateDraft(() {
                 _draft.inboxOrganizerProviderId = id;
                 _draft.inboxOrganizerModelId = '';
+                _draft.inboxOrganizerThinkingEffort = '';
               }),
             ),
           ),
@@ -271,8 +373,34 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
                 labelOf: (id) => id.isEmpty
                     ? l10n.settingsFollowMainModel
                     : organizerModels.firstWhere((m) => m.id == id).name,
-                onChanged: (id) =>
-                    setState(() => _draft.inboxOrganizerModelId = id),
+                onChanged: (id) => _mutateDraft(() {
+                  _draft.inboxOrganizerModelId = id;
+                  final nextModel = _resolveEffectiveOrganizerModel(providers);
+                  if (nextModel == null ||
+                      !nextModel.availableThinkingLevels.any(
+                        (e) => e.id == _draft.inboxOrganizerThinkingEffort,
+                      )) {
+                    _draft.inboxOrganizerThinkingEffort = '';
+                  }
+                }),
+              ),
+            ),
+          ),
+          AppPanelReveal(
+            visible: organizerThinkingLevels.isNotEmpty,
+            enableBlur: false,
+            child: AppSettingTile(
+              title: l10n.libraryInboxOrganizerThinkingEffortTitle,
+              control: AppDropdown<String>.simple(
+                value: validOrganizerEffortId,
+                items: ['', ...organizerThinkingLevels.map((e) => e.id)],
+                width: 170,
+                labelOf: (id) => id.isEmpty
+                    ? defaultEffortLabel
+                    : thinkingEffortLabelOf(l10n, ThinkingEffort.fromId(id)),
+                onChanged: (id) => _mutateDraft(
+                  () => _draft.inboxOrganizerThinkingEffort = id,
+                ),
               ),
             ),
           ),
@@ -280,7 +408,8 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
             title: l10n.libraryInboxOrganizerAutoRerunTitle,
             subtitle: l10n.libraryInboxOrganizerAutoRerunSubtitle,
             value: _draft.inboxAutoRerunPreview,
-            onChanged: (v) => setState(() => _draft.inboxAutoRerunPreview = v),
+            onChanged: (v) =>
+                _mutateDraft(() => _draft.inboxAutoRerunPreview = v),
           ),
           AppSettingTile(
             title: l10n.libraryInboxOrganizerCategoriesTitle,
@@ -307,7 +436,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
                   }
                   next.add(category);
                 }
-                setState(
+                _mutateDraft(
                   () => _draft.inboxOrganizerExcludedCategories = next.toList(
                     growable: false,
                   ),
@@ -325,7 +454,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
                   ? l10n.libraryInboxOrganizerPresetDefault
                   : presets.firstWhere((p) => p.id == id).name,
               onChanged: (id) =>
-                  setState(() => _draft.inboxOrganizerPresetId = id),
+                  _mutateDraft(() => _draft.inboxOrganizerPresetId = id),
             ),
           ),
           AppSettingTile(
@@ -343,10 +472,13 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               decoration: settingsSoftInputDecoration(
                 context,
                 hintText: l10n.libraryInboxOrganizerCustomInstructionsHint,
+                fillColor: colors.cardBackground,
                 contentPadding: const EdgeInsets.all(10),
               ),
-              onChanged: (val) =>
-                  _draft.inboxOrganizerCustomInstructions = val.trim(),
+              onChanged: (val) {
+                _draft.inboxOrganizerCustomInstructions = val.trim();
+                _draft.notifyChanged();
+              },
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -358,7 +490,7 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
               value: _draft.agentMaxTurns,
               min: 1,
               max: 100,
-              onChanged: (v) => setState(() => _draft.agentMaxTurns = v),
+              onChanged: (v) => _mutateDraft(() => _draft.agentMaxTurns = v),
             ),
           ),
         ],

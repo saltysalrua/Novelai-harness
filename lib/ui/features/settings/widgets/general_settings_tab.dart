@@ -29,7 +29,7 @@ import 'image_save_template_settings.dart';
 
 /// General 页草稿状态 (父级 SettingsDialog 持有，保存时统一聚合)
 class GeneralSettingsDraft {
-  GeneralSettingsDraft(AppConfig config)
+  GeneralSettingsDraft(AppConfig config, {this.onChanged})
     : naiKeyController = TextEditingController(text: config.novelAiKey),
       anySearchKeyController = TextEditingController(
         text: config.anySearchApiKey,
@@ -100,7 +100,29 @@ class GeneralSettingsDraft {
       androidExportTreeUri = config.androidExportTreeUri,
       androidExportFolderName = '',
       comfyUiEnabled = config.comfyUiEnabled,
-      rtxUpscaleScale = config.rtxUpscaleScale;
+      rtxUpscaleScale = config.rtxUpscaleScale {
+    for (final controller in _textControllers) {
+      controller.addListener(notifyChanged);
+    }
+  }
+
+  final VoidCallback? onChanged;
+
+  void notifyChanged() => onChanged?.call();
+
+  List<TextEditingController> get _textControllers => [
+    naiKeyController,
+    anySearchKeyController,
+    saveDirController,
+    saveTemplateController,
+    comfyBaseUrlController,
+    comfyPromptNodeController,
+    comfyResolutionNodeController,
+    comfyParamsNodeController,
+    promptSyncEndpointController,
+    promptSyncTokenController,
+    promptSyncNamespaceController,
+  ];
 
   final TextEditingController naiKeyController;
 
@@ -193,17 +215,10 @@ class GeneralSettingsDraft {
   String androidExportFolderName;
 
   void dispose() {
-    naiKeyController.dispose();
-    anySearchKeyController.dispose();
-    saveDirController.dispose();
-    saveTemplateController.dispose();
-    comfyBaseUrlController.dispose();
-    comfyPromptNodeController.dispose();
-    comfyResolutionNodeController.dispose();
-    comfyParamsNodeController.dispose();
-    promptSyncEndpointController.dispose();
-    promptSyncTokenController.dispose();
-    promptSyncNamespaceController.dispose();
+    for (final controller in _textControllers) {
+      controller.removeListener(notifyChanged);
+      controller.dispose();
+    }
   }
 }
 
@@ -269,6 +284,11 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
     }
   }
 
+  void _mutateDraft(VoidCallback fn) {
+    setState(fn);
+    _draft.notifyChanged();
+  }
+
   /// 唤起安卓系统目录选择器 (SAF)，选中后持久化读写授权。
   Future<void> _pickExportFolder() async {
     final mediaStore = MediaStoreService.instance;
@@ -276,7 +296,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
     try {
       final info = await mediaStore.pickExportDirectory();
       if (!mounted || info == null) return;
-      setState(() {
+      _mutateDraft(() {
         _draft.androidExportTreeUri = info.uri;
         _draft.androidExportFolderName = info.name;
       });
@@ -288,7 +308,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
   }
 
   Future<void> _clearExportFolder() async {
-    setState(() {
+    _mutateDraft(() {
       _draft.androidExportTreeUri = '';
       _draft.androidExportFolderName = '';
     });
@@ -393,7 +413,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
             : (constraints.maxWidth < 560 ? 16.0 : 32.0);
         return SingleChildScrollView(
           controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 24),
+          padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 76),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -409,7 +429,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     AppThemeModePreference.dark => l10n.themeModeDark,
                   },
                   width: 130,
-                  onChanged: (mode) => setState(() => _draft.themeMode = mode),
+                  onChanged: (mode) => _mutateDraft(() => _draft.themeMode = mode),
                 ),
               ),
               AppSettingTile(
@@ -426,7 +446,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   },
                   width: 130,
                   onChanged: (mode) =>
-                      setState(() => _draft.backgroundMode = mode),
+                      _mutateDraft(() => _draft.backgroundMode = mode),
                 ),
               ),
               AppPanelReveal(
@@ -449,7 +469,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                               _draft.customLightBackgroundColor != null,
                           tooltip: l10n.settingsBackgroundLightColor,
                           resetTooltip: l10n.settingsBackgroundReset,
-                          onSelectPreset: (color) => setState(() {
+                          onSelectPreset: (color) => _mutateDraft(() {
                             _draft.customLightBackgroundColor =
                                 color.toARGB32() ==
                                     kLightBackgroundPresets.first.toARGB32()
@@ -468,13 +488,13 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                               presets: kLightBackgroundPresets,
                             );
                             if (picked == null) return;
-                            setState(() {
+                            _mutateDraft(() {
                               _draft.customLightBackgroundColor = seedColorText(
                                 picked.toARGB32(),
                               );
                             });
                           },
-                          onReset: () => setState(
+                          onReset: () => _mutateDraft(
                             () => _draft.customLightBackgroundColor = null,
                           ),
                         ),
@@ -494,7 +514,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                               _draft.customDarkBackgroundColor != null,
                           tooltip: l10n.settingsBackgroundDarkColor,
                           resetTooltip: l10n.settingsBackgroundReset,
-                          onSelectPreset: (color) => setState(() {
+                          onSelectPreset: (color) => _mutateDraft(() {
                             _draft.customDarkBackgroundColor =
                                 color.toARGB32() ==
                                     kDarkBackgroundPresets.first.toARGB32()
@@ -513,13 +533,13 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                               presets: kDarkBackgroundPresets,
                             );
                             if (picked == null) return;
-                            setState(() {
+                            _mutateDraft(() {
                               _draft.customDarkBackgroundColor = seedColorText(
                                 picked.toARGB32(),
                               );
                             });
                           },
-                          onReset: () => setState(
+                          onReset: () => _mutateDraft(
                             () => _draft.customDarkBackgroundColor = null,
                           ),
                         ),
@@ -538,7 +558,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     AppAccentMode.manual => l10n.accentModeManual,
                   },
                   width: 130,
-                  onChanged: (mode) => setState(() => _draft.accentMode = mode),
+                  onChanged: (mode) => _mutateDraft(() => _draft.accentMode = mode),
                 ),
               ),
               AppPanelReveal(
@@ -558,7 +578,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                             const Color(0xFF0075DE),
                       );
                       if (picked == null) return;
-                      setState(() {
+                      _mutateDraft(() {
                         _draft.accentSeedColor = seedColorText(
                           picked.toARGB32(),
                         );
@@ -591,7 +611,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     },
                     width: 170,
                     onChanged: (variant) =>
-                        setState(() => _draft.accentVariant = variant),
+                        _mutateDraft(() => _draft.accentVariant = variant),
                   ),
                 ),
               ),
@@ -607,7 +627,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   },
                   width: 150,
                   onChanged: (locale) =>
-                      setState(() => _draft.localePreference = locale),
+                      _mutateDraft(() => _draft.localePreference = locale),
                 ),
               ),
               AppSettingTile(
@@ -617,7 +637,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   items: const [0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75],
                   labelOf: (zoom) => '${(zoom * 100).round()}%',
                   width: 110,
-                  onChanged: (zoom) => setState(() => _draft.uiZoom = zoom),
+                  onChanged: (zoom) => _mutateDraft(() => _draft.uiZoom = zoom),
                 ),
               ),
               AppSettingTile(
@@ -635,7 +655,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                       : l10n.frameRateFpsOption(fps),
                   width: 170,
                   onChanged: (fps) =>
-                      setState(() => _draft.maxFrameRate = fps),
+                      _mutateDraft(() => _draft.maxFrameRate = fps),
                 ),
               ),
               const SizedBox(height: 12),
@@ -645,6 +665,8 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 control: SettingsKeyField(
                   controller: _draft.naiKeyController,
                   hintText: 'pst-...',
+                  soft: true,
+                  fillColor: context.colors.cardBackground,
                 ),
               ),
               AppSettingTile(
@@ -661,8 +683,13 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                             controller: _draft.saveDirController,
                             readOnly: isAndroid,
                             style: const TextStyle(fontSize: 12),
-                            decoration: InputDecoration(
+                            decoration: settingsSoftInputDecoration(
+                              context,
                               hintText: l10n.settingsSaveDirHint,
+                              readOnly: isAndroid,
+                              fillColor: isAndroid
+                                  ? null
+                                  : context.colors.cardBackground,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 10,
                                 vertical: 8,
@@ -723,26 +750,26 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSettingTile.switchTile(
                 title: l10n.settingsAutoSaveTitle,
                 value: _draft.autoSaveImages,
-                onChanged: (val) => setState(() => _draft.autoSaveImages = val),
+                onChanged: (val) => _mutateDraft(() => _draft.autoSaveImages = val),
               ),
               if (isAndroid)
                 AppSettingTile.switchTile(
                   title: l10n.settingsGalleryExportTitle,
                   value: _draft.androidGalleryExport,
                   onChanged: (val) =>
-                      setState(() => _draft.androidGalleryExport = val),
+                      _mutateDraft(() => _draft.androidGalleryExport = val),
                 ),
               AppSettingTile.switchTile(
                 title: l10n.settingsStreamPreviewTitle,
                 value: _draft.enableStreamPreview,
                 onChanged: (val) =>
-                    setState(() => _draft.enableStreamPreview = val),
+                    _mutateDraft(() => _draft.enableStreamPreview = val),
               ),
               AppSettingTile.switchTile(
                 title: l10n.settingsImagePersistenceTitle,
                 value: _draft.enableImagePersistence,
                 onChanged: (val) =>
-                    setState(() => _draft.enableImagePersistence = val),
+                    _mutateDraft(() => _draft.enableImagePersistence = val),
               ),
               AppPanelReveal(
                 visible: _draft.enableImagePersistence,
@@ -764,7 +791,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     labelOf: (count) => l10n.settingsImageCount(count),
                     width: 110,
                     onChanged: (count) =>
-                        setState(() => _draft.maxPersistentImages = count),
+                        _mutateDraft(() => _draft.maxPersistentImages = count),
                   ),
                 ),
               ),
@@ -780,7 +807,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     labelOf: (scale) => '$scale×',
                     width: 110,
                     onChanged: (scale) =>
-                        setState(() => _draft.rtxUpscaleScale = scale),
+                        _mutateDraft(() => _draft.rtxUpscaleScale = scale),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -791,6 +818,8 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 control: SettingsKeyField(
                   controller: _draft.anySearchKeyController,
                   hintText: 'as_sk-...',
+                  soft: true,
+                  fillColor: context.colors.cardBackground,
                 ),
               ),
               const SizedBox(height: 12),
@@ -804,8 +833,10 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     child: TextField(
                       controller: _draft.promptSyncEndpointController,
                       style: const TextStyle(fontSize: 12),
-                      decoration: InputDecoration(
+                      decoration: settingsSoftInputDecoration(
+                        context,
                         hintText: l10n.settingsLibrarySyncEndpointHint,
+                        fillColor: context.colors.cardBackground,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 8,
@@ -821,6 +852,8 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                   controller: _draft.promptSyncTokenController,
                   hintText: l10n.settingsLibrarySyncTokenHint,
                   width: 260,
+                  soft: true,
+                  fillColor: context.colors.cardBackground,
                 ),
               ),
               AppSettingTile(
@@ -834,8 +867,10 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                       child: TextField(
                         controller: _draft.promptSyncNamespaceController,
                         style: const TextStyle(fontSize: 12),
-                        decoration: InputDecoration(
+                        decoration: settingsSoftInputDecoration(
+                          context,
                           hintText: l10n.settingsLibrarySyncNamespaceHint,
+                          fillColor: context.colors.cardBackground,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 10,
                             vertical: 8,
@@ -889,7 +924,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 subtitle: l10n.settingsLibrarySyncAutoSubtitle,
                 value: _draft.promptSyncAutoEnabled,
                 onChanged: (val) =>
-                    setState(() => _draft.promptSyncAutoEnabled = val),
+                    _mutateDraft(() => _draft.promptSyncAutoEnabled = val),
               ),
               AppPanelReveal(
                 visible: _draft.promptSyncAutoEnabled,
@@ -905,7 +940,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     variant: AppDropdownVariant.compact,
                     width: 180,
                     isExpanded: false,
-                    onChanged: (val) => setState(
+                    onChanged: (val) => _mutateDraft(
                       () => _draft.promptSyncAutoIntervalMinutes = val,
                     ),
                   ),
@@ -916,7 +951,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSettingTile.switchTile(
                 title: l10n.settingsComfyEnabledTitle,
                 value: _draft.comfyUiEnabled,
-                onChanged: (val) => setState(() => _draft.comfyUiEnabled = val),
+                onChanged: (val) => _mutateDraft(() => _draft.comfyUiEnabled = val),
               ),
               AppPanelReveal(
                 visible: _draft.comfyUiEnabled,
@@ -930,8 +965,10 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                         child: TextField(
                           controller: _draft.comfyBaseUrlController,
                           style: const TextStyle(fontSize: 12),
-                          decoration: InputDecoration(
+                          decoration: settingsSoftInputDecoration(
+                            context,
                             hintText: l10n.settingsComfyBaseUrlHint,
+                            fillColor: context.colors.cardBackground,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 10,
                               vertical: 8,
@@ -949,8 +986,10 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                             child: TextField(
                               controller: _draft.comfyPromptNodeController,
                               style: const TextStyle(fontSize: 12),
-                              decoration: InputDecoration(
+                              decoration: settingsSoftInputDecoration(
+                                context,
                                 hintText: l10n.settingsComfyPromptNodeHint,
+                                fillColor: context.colors.cardBackground,
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 10,
                                   vertical: 8,
@@ -963,8 +1002,10 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                             child: TextField(
                               controller: _draft.comfyResolutionNodeController,
                               style: const TextStyle(fontSize: 12),
-                              decoration: InputDecoration(
+                              decoration: settingsSoftInputDecoration(
+                                context,
                                 hintText: l10n.settingsComfyResolutionNodeHint,
+                                fillColor: context.colors.cardBackground,
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 10,
                                   vertical: 8,
@@ -977,8 +1018,10 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                             child: TextField(
                               controller: _draft.comfyParamsNodeController,
                               style: const TextStyle(fontSize: 12),
-                              decoration: InputDecoration(
+                              decoration: settingsSoftInputDecoration(
+                                context,
                                 hintText: l10n.settingsComfyParamsNodeHint,
+                                fillColor: context.colors.cardBackground,
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 10,
                                   vertical: 8,
@@ -998,7 +1041,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 title: l10n.settingsTagAutocompleteTitle,
                 value: _draft.enableTagAutocomplete,
                 onChanged: (val) =>
-                    setState(() => _draft.enableTagAutocomplete = val),
+                    _mutateDraft(() => _draft.enableTagAutocomplete = val),
               ),
               AppSettingTile(
                 title: l10n.settingsDictUpdateTitle,
@@ -1035,27 +1078,28 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSettingTile.switchTile(
                 title: l10n.settingsDictAutoCheckTitle,
                 value: _draft.enableTagDictionaryAutoUpdate,
-                onChanged: (val) =>
-                    setState(() => _draft.enableTagDictionaryAutoUpdate = val),
+                onChanged: (val) => _mutateDraft(
+                  () => _draft.enableTagDictionaryAutoUpdate = val,
+                ),
               ),
               AppSettingTile.switchTile(
                 title: l10n.settingsTagTranslationsTitle,
                 value: _draft.showTagTranslations,
                 onChanged: (val) =>
-                    setState(() => _draft.showTagTranslations = val),
+                    _mutateDraft(() => _draft.showTagTranslations = val),
               ),
               AppSettingTile.switchTile(
                 title: l10n.settingsTagColorsTitle,
                 value: _draft.showTagCategoryColors,
                 onChanged: (val) =>
-                    setState(() => _draft.showTagCategoryColors = val),
+                    _mutateDraft(() => _draft.showTagCategoryColors = val),
               ),
               const SizedBox(height: 12),
               AppSectionHeader(title: l10n.settingsSectionProtection),
               AppSettingTile.switchTile(
                 title: l10n.settingsOpusTitle,
                 value: _draft.opusFreeMode,
-                onChanged: (val) => setState(() => _draft.opusFreeMode = val),
+                onChanged: (val) => _mutateDraft(() => _draft.opusFreeMode = val),
               ),
             ],
           ),

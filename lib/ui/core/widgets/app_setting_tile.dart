@@ -129,12 +129,14 @@ class _AppSettingTileState extends State<AppSettingTile> {
             vertical: AppSpacing.md,
           ),
       decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        color: (interactive && _hovered)
+            ? colors.mutedBackground.withValues(alpha: 0.72)
+            : colors.elevatedBackground,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
           color: (interactive && _hovered)
-              ? colors.borderHover
-              : colors.borderDefault,
+              ? colors.borderDefault
+              : colors.borderSubtle,
         ),
       ),
       child: LayoutBuilder(

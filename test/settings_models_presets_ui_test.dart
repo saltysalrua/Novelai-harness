@@ -654,9 +654,16 @@ void main() {
       expect(tester.takeException(), isNull);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets('cancel discards a changed language draft', (tester) async {
+    testWidgets('discard resets a changed draft and back button closes without saving', (
+      tester,
+    ) async {
       final vm = await openEnglishDraft(tester);
-      await tester.tap(find.text('取消'));
+      await tester.tap(find.text('放弃更改'));
+      await tester.pumpAndSettle();
+      expect(vm.savedConfigs, isEmpty);
+      expect(find.byType(SettingsDialog), findsOneWidget);
+
+      await tester.tap(find.text('设置'));
       await tester.pumpAndSettle();
       expect(vm.savedConfigs, isEmpty);
       expect(find.byType(SettingsDialog), findsNothing);

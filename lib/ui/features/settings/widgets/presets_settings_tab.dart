@@ -41,7 +41,7 @@ import 'tool_editor_dialog.dart';
 
 /// Presets 页草稿状态 (父级 SettingsDialog 持有，保存时统一聚合)
 class PresetsSettingsDraft {
-  PresetsSettingsDraft(AppConfig config) {
+  PresetsSettingsDraft(AppConfig config, {this.onChanged}) {
     presets = (config.presets.isNotEmpty ? config.presets : BuiltinPresets.all)
         .map((p) => p.copyWith())
         .toList();
@@ -55,6 +55,18 @@ class PresetsSettingsDraft {
     nameController = TextEditingController(text: current.name);
     descController = TextEditingController(text: current.description);
     promptController = TextEditingController(text: current.systemPrompt);
+    nameController.addListener(_handleFormFieldChanged);
+    descController.addListener(_handleFormFieldChanged);
+    promptController.addListener(_handleFormFieldChanged);
+  }
+
+  final VoidCallback? onChanged;
+
+  void notifyChanged() => onChanged?.call();
+
+  void _handleFormFieldChanged() {
+    if (_loadingForm) return;
+    notifyChanged();
   }
 
   late final List<AgentPreset> presets;
@@ -70,6 +82,25 @@ class PresetsSettingsDraft {
     (p) => p.id == selectedPresetId,
     orElse: () => presets.first,
   );
+
+  /// 生成包含当前表单未提交编辑的只读预设列表快照（用于脏检查，不修改草稿）。
+  List<AgentPreset> snapshotPresets([String? fallbackName]) {
+    if (_loadingForm || currentPreset.isBuiltin) {
+      return List<AgentPreset>.unmodifiable(presets);
+    }
+    return presets
+        .map((p) {
+          if (p.id != selectedPresetId) return p;
+          return p.copyWith(
+            name: nameController.text.trim().isEmpty
+                ? (fallbackName ?? '自定义预设')
+                : nameController.text,
+            description: descController.text,
+            systemPrompt: promptController.text,
+          );
+        })
+        .toList(growable: false);
+  }
 
   /// 将表单内容写回当前编辑的预设条目
   void syncFromForm([String? fallbackName]) {
@@ -107,6 +138,7 @@ class PresetsSettingsDraft {
     syncFromForm(fallbackName);
     presets.addAll(imported);
     loadPresetToForm(imported.first);
+    notifyChanged();
   }
 
   /// 切换当前编辑的预设，切换前自动同步表单
@@ -125,6 +157,7 @@ class PresetsSettingsDraft {
   void setActivePreset(String presetId) {
     if (activePresetId == presetId) return;
     activePresetId = presetId;
+    notifyChanged();
   }
 
   /// 新建预设并载入表单
@@ -148,6 +181,7 @@ class PresetsSettingsDraft {
     );
     presets.add(newPreset);
     loadPresetToForm(newPreset);
+    notifyChanged();
   }
 
   /// 复制预设并载入表单
@@ -164,6 +198,7 @@ class PresetsSettingsDraft {
     );
     presets.add(clone);
     loadPresetToForm(clone);
+    notifyChanged();
   }
 
   /// 删除指定预设 (至少保留一个)
@@ -178,6 +213,7 @@ class PresetsSettingsDraft {
     if (activePresetId == presetId) {
       activePresetId = presets.first.id;
     }
+    notifyChanged();
   }
 
   /// 开关预设内的技能
@@ -187,6 +223,20 @@ class PresetsSettingsDraft {
       enabled: enable,
       read: (p) => p.enabledSkillIds,
       write: (p, v) => p.copyWith(enabledSkillIds: v),
+      value: skillId,
+    );
+  }
+
+  /// 开关预设内的常驻前缀技能 (必须已启用)
+  void togglePinnedSkill(String skillId, bool pin, [String? fallbackName]) {
+    syncFromForm(fallbackName);
+    final idx = presets.indexWhere((p) => p.id == selectedPresetId);
+    if (idx < 0 || presets[idx].isBuiltin) return;
+    if (pin && !presets[idx].enabledSkillIds.contains(skillId)) return;
+    _toggleListField(
+      enabled: pin,
+      read: (p) => p.pinnedSkillIds,
+      write: (p, v) => p.copyWith(pinnedSkillIds: v),
       value: skillId,
     );
   }
@@ -246,6 +296,7 @@ class PresetsSettingsDraft {
     final idx = presets.indexWhere((p) => p.id == selectedPresetId);
     if (idx < 0 || presets[idx].isBuiltin) return;
     presets[idx] = presets[idx].copyWith(allowMcpTools: allow);
+    notifyChanged();
   }
 
   void _replaceListField({
@@ -255,6 +306,7 @@ class PresetsSettingsDraft {
     final idx = presets.indexWhere((p) => p.id == selectedPresetId);
     if (idx < 0 || presets[idx].isBuiltin) return;
     presets[idx] = write(presets[idx], List<String>.of(values));
+    notifyChanged();
   }
 
   void _toggleListField({
@@ -273,6 +325,7 @@ class PresetsSettingsDraft {
       list.remove(value);
     }
     presets[idx] = write(current, list);
+    notifyChanged();
   }
 
   void replaceSkillReferences(String oldId, String? newId) {
@@ -283,11 +336,23 @@ class PresetsSettingsDraft {
           .whereType<String>()
           .toSet()
           .toList();
-      presets[index] = presets[index].copyWith(enabledSkillIds: ids);
+      final pinnedIds = presets[index].pinnedSkillIds
+          .map((id) => id == oldId ? newId : id)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      presets[index] = presets[index].copyWith(
+        enabledSkillIds: ids,
+        pinnedSkillIds: pinnedIds,
+      );
     }
+    notifyChanged();
   }
 
   void dispose() {
+    nameController.removeListener(_handleFormFieldChanged);
+    descController.removeListener(_handleFormFieldChanged);
+    promptController.removeListener(_handleFormFieldChanged);
     nameController.dispose();
     descController.dispose();
     promptController.dispose();
@@ -1129,17 +1194,30 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     final isEnabled = currentPreset.enabledSkillIds.contains(
                       skill.id,
                     );
+                    final isPinned = currentPreset.pinnedSkillIds.contains(
+                      skill.id,
+                    );
                     final isOverridden = widget.viewModel
                         .isBuiltinSkillOverridden(skill.id);
                     return SkillCard(
                       width: cardWidth,
                       skill: skill,
                       isEnabled: isEnabled,
+                      isPinned: isPinned,
                       isOverridden: isOverridden,
                       onToggle: currentPreset.isBuiltin
                           ? null
                           : (val) => setState(
                               () => _draft.toggleSkill(
+                                skill.id,
+                                val,
+                                l10n.presetDefaultCustomName,
+                              ),
+                            ),
+                      onTogglePin: currentPreset.isBuiltin
+                          ? null
+                          : (val) => setState(
+                              () => _draft.togglePinnedSkill(
                                 skill.id,
                                 val,
                                 l10n.presetDefaultCustomName,

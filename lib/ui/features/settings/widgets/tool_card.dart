@@ -41,7 +41,7 @@ class ToolCard extends StatelessWidget {
       isSelected: isEnabled,
       onTap: onToggle == null ? null : () => onToggle!(!isEnabled),
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-      radius: AppRadius.md,
+      radius: AppRadius.lg,
       selectedBackgroundColor: colors.primary.withValues(alpha: 0.05),
       selectedBorderColor: colors.primary.withValues(alpha: 0.55),
         child: Column(

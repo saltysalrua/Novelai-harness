@@ -64,6 +64,17 @@ String thinkingParamFormatLabelOf(
   ThinkingParamFormat.together => l10n.thinkingFormatTogether,
 };
 
+/// 思考强度等级展示名。
+String thinkingEffortLabelOf(AppLocalizations l10n, ThinkingEffort effort) =>
+    switch (effort) {
+      ThinkingEffort.none => l10n.chatThinkingEffortNone,
+      ThinkingEffort.low => l10n.chatThinkingEffortLow,
+      ThinkingEffort.medium => l10n.chatThinkingEffortMedium,
+      ThinkingEffort.high => l10n.chatThinkingEffortHigh,
+      ThinkingEffort.xhigh => l10n.chatThinkingEffortXHigh,
+      ThinkingEffort.max => l10n.chatThinkingEffortMax,
+    };
+
 /// 词组合预设分类展示名。
 ///
 /// 分类名是持久化数据域字符串 (默认分类以中文常量 [PromptComboCategories] 存档)，

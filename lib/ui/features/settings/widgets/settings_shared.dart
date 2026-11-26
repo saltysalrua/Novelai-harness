@@ -105,7 +105,7 @@ class SettingsSoftContainer extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(12),
-    this.radius = AppRadius.md,
+    this.radius = AppRadius.lg,
     this.color,
   });
 
@@ -174,6 +174,7 @@ class SettingsKeyField extends StatefulWidget {
   final String hintText;
   final double? width;
   final bool soft;
+  final Color? fillColor;
 
   const SettingsKeyField({
     super.key,
@@ -181,6 +182,7 @@ class SettingsKeyField extends StatefulWidget {
     required this.hintText,
     this.width = 250,
     this.soft = false,
+    this.fillColor,
   });
 
   @override
@@ -217,6 +219,7 @@ class _SettingsKeyFieldState extends State<SettingsKeyField> {
             ? settingsSoftInputDecoration(
                 context,
                 hintText: widget.hintText,
+                fillColor: widget.fillColor,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 11,
                   vertical: 8,

@@ -522,4 +522,44 @@ void main() {
     expect(updatedSnapshot!.messages.length, equals(3));
     expect(updatedSnapshot.messages[2].content, equals('新的第二轮提问'));
   });
+
+  test(
+    'deduplicates consecutive identical model_change and thinking_level_change across restarts',
+    () async {
+      service.recordModelChange('yuukarin', 'google/gemini-4-carbon');
+      service.recordModelChange('yuukarin', 'google/gemini-4-carbon');
+      service.recordThinkingLevelChange('medium');
+      service.recordThinkingLevelChange('medium');
+      service.recordMessage(userMsg('测试去重'));
+      await service.flush();
+
+      // 模拟应用重启后接管同一会话，再次上报相同模型与思考强度不应追加重复条目
+      final restarted = SessionLogService();
+      await restarted.init(baseDir: tempDir.path);
+      restarted.recordModelChange('yuukarin', 'google/gemini-4-carbon');
+      restarted.recordThinkingLevelChange('medium');
+      // 真正变化时必须正常落盘
+      restarted.recordModelChange('yuukarin', 'gemini-4-hydrogen');
+      restarted.recordThinkingLevelChange('high');
+      await restarted.flush();
+
+      final lines = restarted.currentSessionFile!.readAsLinesSync();
+      final entries = lines
+          .skip(1)
+          .map((l) => jsonDecode(l) as Map<String, dynamic>)
+          .toList();
+      final modelChanges = entries
+          .where((e) => e['type'] == 'model_change')
+          .toList();
+      final thinkingChanges = entries
+          .where((e) => e['type'] == 'thinking_level_change')
+          .toList();
+      expect(modelChanges.length, equals(2));
+      expect(modelChanges[0]['modelId'], equals('google/gemini-4-carbon'));
+      expect(modelChanges[1]['modelId'], equals('gemini-4-hydrogen'));
+      expect(thinkingChanges.length, equals(2));
+      expect(thinkingChanges[0]['thinkingLevel'], equals('medium'));
+      expect(thinkingChanges[1]['thinkingLevel'], equals('high'));
+    },
+  );
 }

@@ -227,6 +227,10 @@ class AgentPreset {
   /// 允许出现在技能声明清单中、可被 load_skill 加载的技能 ID
   final List<String> enabledSkillIds;
 
+  /// 常驻预加载进稳定静态系统前缀的技能 ID（必须属于 [enabledSkillIds]）：
+  /// 内联到 systemPrompt 后可跨会话共享 KV 前缀缓存，并省去首轮 load_skill 往返。
+  final List<String> pinnedSkillIds;
+
   /// 允许 LLM 调用的工具名 (显式白名单)
   final List<String> enabledToolNames;
 
@@ -244,6 +248,7 @@ class AgentPreset {
     required this.description,
     required this.systemPrompt,
     this.enabledSkillIds = const [],
+    this.pinnedSkillIds = const [],
     this.enabledToolNames = const [],
     this.allowedModifiableParams = const [],
     this.allowMcpTools = true,
@@ -268,17 +273,25 @@ class AgentPreset {
     String? description,
     String? systemPrompt,
     List<String>? enabledSkillIds,
+    List<String>? pinnedSkillIds,
     List<String>? enabledToolNames,
     List<String>? allowedModifiableParams,
     bool? allowMcpTools,
     bool? isBuiltin,
   }) {
+    final nextEnabledSkills =
+        enabledSkillIds ?? List<String>.from(this.enabledSkillIds);
+    final rawPinned = pinnedSkillIds ?? List<String>.from(this.pinnedSkillIds);
+    final nextPinnedSkills = rawPinned
+        .where(nextEnabledSkills.contains)
+        .toList();
     return AgentPreset(
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
       systemPrompt: systemPrompt ?? this.systemPrompt,
-      enabledSkillIds: enabledSkillIds ?? List.from(this.enabledSkillIds),
+      enabledSkillIds: nextEnabledSkills,
+      pinnedSkillIds: nextPinnedSkills,
       enabledToolNames: enabledToolNames ?? List.from(this.enabledToolNames),
       allowedModifiableParams:
           allowedModifiableParams ?? List.from(this.allowedModifiableParams),
@@ -294,6 +307,7 @@ class AgentPreset {
       'description': description,
       'systemPrompt': systemPrompt,
       'enabledSkillIds': enabledSkillIds,
+      if (pinnedSkillIds.isNotEmpty) 'pinnedSkillIds': pinnedSkillIds,
       'enabledToolNames': enabledToolNames,
       'allowedModifiableParams': allowedModifiableParams,
       'allowMcpTools': allowMcpTools,
@@ -310,6 +324,18 @@ class AgentPreset {
       return raw.map((e) => e.toString()).toList();
     }
 
+    final enabledSkills =
+        (json['enabledSkillIds'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const <String>[];
+    final pinnedSkills =
+        (json['pinnedSkillIds'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .where(enabledSkills.contains)
+            .toList() ??
+        const <String>[];
+
     return AgentPreset(
       id:
           json['id'] as String? ??
@@ -317,11 +343,8 @@ class AgentPreset {
       name: json['name'] as String? ?? '自定义预设',
       description: json['description'] as String? ?? '',
       systemPrompt: json['systemPrompt'] as String? ?? '',
-      enabledSkillIds:
-          (json['enabledSkillIds'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          const [],
+      enabledSkillIds: enabledSkills,
+      pinnedSkillIds: pinnedSkills,
       enabledToolNames: PresetToolKeys.migrateLegacyToolNames(
         parseList('enabledToolNames', PresetToolKeys.all),
       ),

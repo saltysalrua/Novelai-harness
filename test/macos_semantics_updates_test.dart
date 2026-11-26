@@ -217,7 +217,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('取消'));
+        await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
         expect(
           binding.recorder.violations,
