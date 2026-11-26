@@ -137,149 +137,145 @@ class _TagAutocompleteCardState extends State<TagAutocompleteCard> {
         clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 320),
-          child: Scrollbar(
+          child: ListView.separated(
             controller: _scrollController,
-            thumbVisibility: true,
-            child: ListView.separated(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              shrinkWrap: true,
-              itemCount: widget.suggestions.length,
-              separatorBuilder: (context, index) =>
-                  Divider(height: 1, color: colors.borderSubtle),
-              itemBuilder: (context, index) {
-                final item = widget.suggestions[index];
-                final isSelected = index == widget.selectedIndex;
-                final itemKey = index < _itemKeys.length
-                    ? _itemKeys[index]
-                    : null;
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            shrinkWrap: true,
+            itemCount: widget.suggestions.length,
+            separatorBuilder: (context, index) =>
+                Divider(height: 1, color: colors.borderSubtle),
+            itemBuilder: (context, index) {
+              final item = widget.suggestions[index];
+              final isSelected = index == widget.selectedIndex;
+              final itemKey = index < _itemKeys.length
+                  ? _itemKeys[index]
+                  : null;
 
-                return Container(
-                  key: itemKey,
-                  child: MouseRegion(
-                    onHover: (e) => _handlePointerHover(e, index),
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTapDown: (_) {
-                        // 立即在 pointer down 时执行精准上屏
-                        widget.onSelect(item);
-                      },
-                      child: AnimatedContainer(
-                        duration: AppMotion.resolveDuration(
-                          context,
-                          AppMotionDurations.micro,
-                        ),
-                        curve: AppMotionCurves.smoothOut,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        color: isSelected
-                            ? colors.primary.withValues(alpha: 0.08)
-                            : colors.primary.withValues(alpha: 0.0),
-                        child: Row(
-                          children: [
-                            // 分类标识胶囊
-                            TagCategoryPill(
-                              category: item.category,
-                              customLabel: item.customCategoryLabel,
-                            ),
-                            const SizedBox(width: 8),
+              return Container(
+                key: itemKey,
+                child: MouseRegion(
+                  onHover: (e) => _handlePointerHover(e, index),
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (_) {
+                      // 立即在 pointer down 时执行精准上屏
+                      widget.onSelect(item);
+                    },
+                    child: AnimatedContainer(
+                      duration: AppMotion.resolveDuration(
+                        context,
+                        AppMotionDurations.micro,
+                      ),
+                      curve: AppMotionCurves.smoothOut,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      color: isSelected
+                          ? colors.primary.withValues(alpha: 0.08)
+                          : colors.primary.withValues(alpha: 0.0),
+                      child: Row(
+                        children: [
+                          // 分类标识胶囊
+                          TagCategoryPill(
+                            category: item.category,
+                            customLabel: item.customCategoryLabel,
+                          ),
+                          const SizedBox(width: 8),
 
-                            // 英文 Tag + 匹配高亮
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _buildHighlightedTag(
-                                    context,
-                                    item.tag,
-                                    widget.query,
-                                    isSelected,
-                                  ),
-                                  if (widget.showTranslation &&
-                                      item.translation != null &&
-                                      item.translation!.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 1),
-                                      child: Text(
-                                        item.translation!,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: isSelected
-                                              ? colors.primary
-                                              : colors.textSecondary,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-
-                            // 词库特殊标识 / 别名 / 热度统计
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                          // 英文 Tag + 匹配高亮
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (item.isPromptCombo)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 5,
-                                      vertical: 1.5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: colors.mutedBackground,
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: colors.textSecondary.withValues(
-                                          alpha: 0.3,
-                                        ),
+                                _buildHighlightedTag(
+                                  context,
+                                  item.tag,
+                                  widget.query,
+                                  isSelected,
+                                ),
+                                if (widget.showTranslation &&
+                                    item.translation != null &&
+                                    item.translation!.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 1),
+                                    child: Text(
+                                      item.translation!,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isSelected
+                                            ? colors.primary
+                                            : colors.textSecondary,
                                       ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.collections_bookmark_outlined,
-                                          size: 10,
-                                          color: colors.textPrimary,
-                                        ),
-                                        const SizedBox(width: 3),
-                                        Text(
-                                          l10n.tabLibrary,
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                            color: colors.textPrimary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                else
-                                  TagCountText(
-                                    formattedCount: item.formattedCount,
-                                  ),
-                                if (item.matchedAlias != null)
-                                  Text(
-                                    l10n.tagAcAlias(item.matchedAlias!),
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: colors.textMuted,
                                     ),
                                   ),
                               ],
                             ),
-                          ],
-                        ),
+                          ),
+
+                          // 词库特殊标识 / 别名 / 热度统计
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (item.isPromptCombo)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 1.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colors.mutedBackground,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: colors.textSecondary.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.collections_bookmark_outlined,
+                                        size: 10,
+                                        color: colors.textPrimary,
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        l10n.tabLibrary,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: colors.textPrimary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                TagCountText(
+                                  formattedCount: item.formattedCount,
+                                ),
+                              if (item.matchedAlias != null)
+                                Text(
+                                  l10n.tagAcAlias(item.matchedAlias!),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: colors.textMuted,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),

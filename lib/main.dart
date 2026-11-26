@@ -165,9 +165,7 @@ class _BootFailureAppState extends State<_BootFailureApp> {
   Future<void> _continueAnyway() async {
     if (_retrying) return;
     setState(() => _retrying = true);
-    await _syncControllersFromBootConfig(
-      tolerateStorageDirectoryFailure: true,
-    );
+    await _syncControllersFromBootConfig(tolerateStorageDirectoryFailure: true);
     runApp(const NovelAiHarnessApp());
   }
 
@@ -227,9 +225,7 @@ class _BootFailureAppState extends State<_BootFailureApp> {
                           decoration: BoxDecoration(
                             color: const Color(0xFF232323),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: const Color(0xFF333333),
-                            ),
+                            border: Border.all(color: const Color(0xFF333333)),
                           ),
                           child: SelectableText(
                             _error.toString(),
@@ -310,6 +306,7 @@ class NovelAiHarnessApp extends StatelessWidget {
                   title: 'NovelAI Harness',
                   navigatorKey: navigatorKey,
                   locale: locale,
+                  scrollBehavior: const _AppScrollBehavior(),
                   theme: AppTheme.lightThemeFor(accent),
                   darkTheme: AppTheme.darkThemeFor(accent),
                   // 阶段 3 主题模式实装：跟随设置页「主题模式」选择器与持久化配置；
@@ -364,4 +361,17 @@ class NovelAiHarnessApp extends StatelessWidget {
       },
     );
   }
+}
+
+/// 全局滚动行为：关闭桌面端自动注入原生滚动条的默认行为，
+/// 仅由真正需要定位/拖拽的长列表显式挂载 [StableScrollbar]。
+class _AppScrollBehavior extends MaterialScrollBehavior {
+  const _AppScrollBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => child;
 }

@@ -161,6 +161,7 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
   };
   static const double _dividerHeight = 9.0;
   static const double _menuPadding = 4.0;
+  static const double _borderWidth = 1.0;
 
   void _handleDismiss() {
     if (_dismissed) return;
@@ -172,7 +173,7 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
     final contentHeight = widget.actions
         .map((a) => a is ContextMenuDivider ? _dividerHeight : _itemHeight)
         .fold<double>(0, (sum, h) => sum + h);
-    return contentHeight + _menuPadding * 2;
+    return contentHeight + (_menuPadding + _borderWidth) * 2;
   }
 
   @override
@@ -223,17 +224,23 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
         decoration: BoxDecoration(
           color: context.colors.cardBackground,
           borderRadius: BorderRadius.circular(AppRadius.md + 2),
-          border: Border.all(color: context.colors.borderDefault),
+          border: Border.all(
+            color: context.colors.borderDefault,
+            width: _borderWidth,
+          ),
           boxShadow: context.shadowElevated,
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < widget.actions.length; i++)
-                _buildAction(context, widget.actions[i], i),
-            ],
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < widget.actions.length; i++)
+                  _buildAction(context, widget.actions[i], i),
+              ],
+            ),
           ),
         ),
       ),
