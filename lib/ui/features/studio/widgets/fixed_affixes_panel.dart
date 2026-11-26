@@ -251,6 +251,7 @@ class _AffixFieldHeader extends StatelessWidget {
             shape: AppBadgeShape.rounded,
             fontSize: 10,
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+            animate: false,
           ),
         ],
       ),

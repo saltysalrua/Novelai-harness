@@ -562,10 +562,11 @@ class _PillSlotsBackgroundPainter extends CustomPainter {
   }
 }
 
-/// 通用弹性滑动选择指示器容器 (`AppSlidingSelectionBar`)
+/// 通用平滑滑动选择指示器容器 (`AppSlidingSelectionBar`)
 ///
-/// 负责测量选中子项的边界矩形，并以弹性曲线 (`AppMotionCurves.bounce`)
-/// 将背景指示器平滑滑动到目标项位置；供 [AppSegmentedCardBar] 与移动端导航栏复用。
+/// 负责测量选中子项的边界矩形，并以无过冲平滑曲线 (`AppMotionCurves.smoothOut`)
+/// 将背景指示器平滑滑动到目标项位置（避免过冲冲出轨道边界被裁切）；
+/// 供 [AppSegmentedCardBar] 与移动端导航栏复用。
 class AppSlidingSelectionBar extends StatefulWidget {
   /// 当前选中的子项索引；小于 0 或越界时隐藏指示器
   final int selectedIndex;
@@ -589,7 +590,7 @@ class AppSlidingSelectionBar extends StatefulWidget {
   /// 滑移动画时长，默认 [AppMotionDurations.fast]
   final Duration duration;
 
-  /// 滑移动画曲线，默认 [AppMotionCurves.bounce]
+  /// 滑移动画曲线，默认 [AppMotionCurves.smoothOut]
   final Curve curve;
 
   const AppSlidingSelectionBar({
@@ -601,7 +602,7 @@ class AppSlidingSelectionBar extends StatefulWidget {
     this.expand = false,
     this.scrollable = false,
     this.duration = AppMotionDurations.fast,
-    this.curve = AppMotionCurves.bounce,
+    this.curve = AppMotionCurves.smoothOut,
   });
 
   @override

@@ -87,6 +87,9 @@ class AppBadge extends StatefulWidget {
   /// 自定义内边距；若未指定则依据形状与字号自适应
   final EdgeInsetsGeometry? padding;
 
+  /// 是否启用挂载/数值变化弹出动效，静态区块标签可设为 false 避免切页重播弹跳
+  final bool animate;
+
   const AppBadge({
     super.key,
     required this.label,
@@ -100,6 +103,7 @@ class AppBadge extends StatefulWidget {
     this.customForegroundColor,
     this.customBorderColor,
     this.padding,
+    this.animate = true,
   });
 
   /// 极简便捷工厂：药丸形态
@@ -147,14 +151,14 @@ class _AppBadgeState extends State<AppBadge>
     _controller = AnimationController(
       vsync: this,
       duration: AppMotionDurations.verySlow,
-      value: 0.0,
+      value: widget.animate ? 0.0 : 1.0,
     );
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _reduceMotion = AppMotion.shouldReduceMotion(context);
+    _reduceMotion = AppMotion.shouldReduceMotion(context) || !widget.animate;
     if (_reduceMotion) {
       _controller.value = 1.0;
       _initialized = true;
@@ -167,13 +171,14 @@ class _AppBadgeState extends State<AppBadge>
   @override
   void didUpdateWidget(covariant AppBadge oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _reduceMotion = AppMotion.shouldReduceMotion(context) || !widget.animate;
+    if (_reduceMotion) {
+      _controller.value = 1.0;
+      return;
+    }
     if (oldWidget.label != widget.label) {
       _isCountUpdate = true;
-      if (_reduceMotion) {
-        _controller.value = 1.0;
-      } else {
-        _controller.forward(from: 0.0);
-      }
+      _controller.forward(from: 0.0);
     }
   }
 

@@ -180,44 +180,36 @@ class _PromptExtensionDeckState extends State<PromptExtensionDeck> {
 
           const SizedBox(height: 8),
 
-          // 2. 二级动态操作栏 (流式防溢出布局)
-          AnimatedSwitcher(
-            duration: AppMotion.resolveDuration(
-              context,
-              AppMotionDurations.quick,
-            ),
-            switchInCurve: AppMotionCurves.smoothOut,
-            switchOutCurve: AppMotionCurves.smoothOut,
-            child: _activeTabIndex == 0
-                ? _buildCharacterPromptsToolbar(
-                    viewModel: viewModel,
-                    characters: characters,
-                    supported: supported,
-                    isFull: isFull,
-                    params: params,
-                    l10n: l10n,
-                  )
-                : _buildFixedAffixesToolbar(
-                    viewModel: viewModel,
-                    isAffixesEnabled: isAffixesEnabled,
-                    params: params,
-                  ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // 3. 左右滑动切换的内容区 (平滑过渡动效)
+          // 2. 二级操作栏 + 内容区合并为同一侧滑入场容器，避免上下动画脱节与工具栏交叉叠影
           AppPageSideBySide(
             index: _activeTabIndex,
-            duration: AppMotionDurations.fast,
+            duration: AppMotionDurations.quick,
             curve: AppMotionCurves.smoothOut,
             slideDistance: AppMotionDistances.base,
             enableBlur: false,
-            child: KeyedSubtree(
+            child: Column(
               key: ValueKey<int>(_activeTabIndex),
-              child: _activeTabIndex == 0
-                  ? _buildCharacterPromptsContent(viewModel, l10n)
-                  : _buildFixedAffixesContent(viewModel),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _activeTabIndex == 0
+                    ? _buildCharacterPromptsToolbar(
+                        viewModel: viewModel,
+                        characters: characters,
+                        supported: supported,
+                        isFull: isFull,
+                        params: params,
+                        l10n: l10n,
+                      )
+                    : _buildFixedAffixesToolbar(
+                        viewModel: viewModel,
+                        isAffixesEnabled: isAffixesEnabled,
+                        params: params,
+                      ),
+                const SizedBox(height: 10),
+                _activeTabIndex == 0
+                    ? _buildCharacterPromptsContent(viewModel, l10n)
+                    : _buildFixedAffixesContent(viewModel),
+              ],
             ),
           ),
         ],
