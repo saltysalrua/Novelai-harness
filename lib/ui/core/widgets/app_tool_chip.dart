@@ -145,11 +145,24 @@ class _AppToolChipState extends State<AppToolChip> {
 
     final reduceMotion = AppMotion.shouldReduceMotion(context);
 
+    final labelChild = AppIconLabel(
+      leading: widget.icon != null
+          ? Icon(widget.icon, size: widget.iconSize, color: fgColor)
+          : null,
+      label: widget.label,
+      gap: 4,
+      style: TextStyle(
+        fontSize: widget.fontSize,
+        height: 1.2,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+        color: fgColor,
+      ),
+    );
+
     Widget content = AnimatedContainer(
       duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
       curve: AppMotionCurves.smoothOut,
       height: widget.height,
-      alignment: widget.height != null ? Alignment.center : null,
       transform: Matrix4.translationValues(
         0,
         (_isHovered && isEnabled && !reduceMotion) ? -1.0 : 0.0,
@@ -164,19 +177,9 @@ class _AppToolChipState extends State<AppToolChip> {
             ? Border.all(color: effectiveBorderColor)
             : null,
       ),
-      child: AppIconLabel(
-        leading: widget.icon != null
-            ? Icon(widget.icon, size: widget.iconSize, color: fgColor)
-            : null,
-        label: widget.label,
-        gap: 4,
-        style: TextStyle(
-          fontSize: widget.fontSize,
-          height: 1.2,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-          color: fgColor,
-        ),
-      ),
+      child: widget.height != null
+          ? Center(widthFactor: 1.0, child: labelChild)
+          : labelChild,
     );
 
     if (isEnabled) {
