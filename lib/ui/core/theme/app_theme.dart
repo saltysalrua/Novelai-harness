@@ -245,23 +245,27 @@ class AppTheme {
           fontSize: 18,
           fontWeight: FontWeight.w600,
           letterSpacing: -0.2,
+          leadingDistribution: TextLeadingDistribution.even,
         ),
         titleMedium: TextStyle(
           fontFamily: fontFamily,
           color: colors.textPrimary,
           fontSize: 14,
           fontWeight: FontWeight.w600,
+          leadingDistribution: TextLeadingDistribution.even,
         ),
         bodyMedium: TextStyle(
           fontFamily: fontFamily,
           color: colors.textPrimary,
           fontSize: 13,
           height: 1.45,
+          leadingDistribution: TextLeadingDistribution.even,
         ),
         bodySmall: TextStyle(
           fontFamily: fontFamily,
           color: colors.textSecondary,
           fontSize: 12,
+          leadingDistribution: TextLeadingDistribution.even,
         ),
       ),
       scrollbarTheme: ScrollbarThemeData(

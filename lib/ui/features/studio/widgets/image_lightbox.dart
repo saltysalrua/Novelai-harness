@@ -1,7 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Uint8List;
+import 'package:flutter/services.dart'
+    show KeyDownEvent, KeyRepeatEvent, LogicalKeyboardKey, Uint8List;
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_motion.dart';
@@ -215,9 +216,21 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog>
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: EdgeInsets.zero,
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event.logicalKey != LogicalKeyboardKey.escape) {
+          return KeyEventResult.ignored;
+        }
+        if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+          return KeyEventResult.ignored;
+        }
+        Navigator.of(context).pop();
+        return KeyEventResult.handled;
+      },
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final viewportSize = Size(
@@ -308,6 +321,7 @@ class _ImageLightboxDialogState extends State<ImageLightboxDialog>
             ],
           );
         },
+      ),
       ),
     );
   }

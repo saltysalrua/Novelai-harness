@@ -1,20 +1,14 @@
 import 'package:flutter/material.dart';
 import '../context_l10n.dart';
-import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_action_button.dart';
+import 'app_dialog_scaffold.dart';
 import 'app_transitions.dart';
 
 /// 统一操作确认弹窗与破坏性警告对话框 (AppConfirmDialog)
 ///
-/// 代码证据出处：
-/// - `image_canvas_actions.dart:200-237` (_confirmClearHistory 清空画板历史弹窗)
-/// - `prompt_library_view.dart:230-260` (_confirmDelete 删除词组合弹窗)
-/// - `agent_session_list_view.dart:122-164` (_showDeleteConfirmDialog 删除会话弹窗)
-///
-/// 核心职责：
-/// 彻底消灭全工程手写的 `AlertDialog` 与硬编码珊瑚红 (统一走语义令牌 `context.colors.coral`)，
-/// 统一 Notion 圆角外框、亮暗自适应背景、破坏性 (珊瑚红/Error) 与标准 (品牌蓝/Primary)
-/// 双模式确认按钮，以及标准取消按钮。
+/// 复用 [AppDialogScaffold] (minimalChrome) 与 [AppActionButton]，
+/// 与全应用所有浮窗保持统一的 Notion 极简圆角、描边、阴影与 ESC 行为。
 class AppConfirmDialog extends StatelessWidget {
   /// 弹窗标题
   final String title;
@@ -32,8 +26,10 @@ class AppConfirmDialog extends StatelessWidget {
   final String? cancelLabel;
 
   /// 是否为破坏性不可逆操作 (如清空、删除等)。
-  /// 为 true 时确认按钮呈现警示色并在视觉上强调不可撤销性。
   final bool isDestructive;
+
+  /// 是否允许 ESC / 右上角关闭
+  final bool barrierDismissible;
 
   /// 点击确认回调；未指定时默认执行 `Navigator.of(context).pop(true)`
   final VoidCallback? onConfirm;
@@ -49,6 +45,7 @@ class AppConfirmDialog extends StatelessWidget {
     this.confirmLabel,
     this.cancelLabel,
     this.isDestructive = false,
+    this.barrierDismissible = true,
     this.onConfirm,
     this.onCancel,
   });
@@ -56,60 +53,42 @@ class AppConfirmDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final cancelAction = onCancel ?? () => Navigator.of(context).pop(false);
+    final confirmAction = onConfirm ?? () => Navigator.of(context).pop(true);
 
-    final confirmBgColor = isDestructive ? colors.error : colors.primary;
-
-    return AlertDialog(
-      backgroundColor: colors.cardBackground,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: colors.borderDefault),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-      contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: colors.textPrimary,
-        ),
-      ),
-      content:
-          contentWidget ??
-          Text(
-            message ?? '',
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textSecondary,
-              height: 1.45,
+    return AppDialogScaffold(
+      minimalChrome: true,
+      title: title,
+      width: 420,
+      barrierDismissible: barrierDismissible,
+      onClose: barrierDismissible ? cancelAction : null,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 6, 22, 12),
+        child:
+            contentWidget ??
+            Text(
+              message ?? '',
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.textSecondary,
+                height: 1.5,
+              ),
             ),
-          ),
+      ),
       actions: [
-        TextButton(
-          onPressed: onCancel ?? () => Navigator.of(context).pop(false),
-          style: TextButton.styleFrom(
-            foregroundColor: colors.textSecondary,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-          child: Text(cancelLabel ?? context.maybeL10n?.cancel ?? '取消'),
+        AppActionButton(
+          label: cancelLabel ?? context.maybeL10n?.cancel ?? '取消',
+          variant: AppActionButtonVariant.ghost,
+          onPressed: cancelAction,
         ),
-        FilledButton(
-          onPressed: onConfirm ?? () => Navigator.of(context).pop(true),
-          style: FilledButton.styleFrom(
-            backgroundColor: confirmBgColor,
-            foregroundColor: isDestructive ? Colors.white : colors.onPrimary,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-          child: Text(confirmLabel ?? context.maybeL10n?.confirm ?? '确定'),
+        const SizedBox(width: 8),
+        AppActionButton(
+          label: confirmLabel ?? context.maybeL10n?.confirm ?? '确定',
+          variant: isDestructive
+              ? AppActionButtonVariant.danger
+              : AppActionButtonVariant.primary,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          onPressed: confirmAction,
         ),
       ],
     );
@@ -139,6 +118,7 @@ Future<bool?> showAppConfirmDialog(
       confirmLabel: confirmLabel,
       cancelLabel: cancelLabel,
       isDestructive: isDestructive,
+      barrierDismissible: barrierDismissible,
     ),
   );
 }

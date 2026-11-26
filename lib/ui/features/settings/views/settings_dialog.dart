@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../data/services/config_service.dart';
@@ -6,11 +7,14 @@ import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
+import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_icon_label.dart';
 import '../../../core/widgets/app_nav_tile.dart';
 import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../../core/widgets/custom_title_bar.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import '../widgets/bill_settings_tab.dart';
@@ -21,7 +25,7 @@ import '../widgets/image_save_template_settings.dart';
 import '../widgets/models_settings_tab.dart';
 import '../widgets/presets_settings_tab.dart';
 
-/// 全局设置弹窗：左侧导航 + 右侧配置详情 + 底部保存栏
+/// 全局设置整页视图：左侧导航 + 右侧配置详情 + 底部保存栏
 ///
 /// 各标签页持有独立的草稿状态 (Draft)，由本壳统一创建、装配与聚合保存；
 /// AppPageStack 首次激活时懒构建标签页，轻量过渡并保留输入与滚动状态。
@@ -39,19 +43,16 @@ class SettingsDialog extends StatefulWidget {
       from: context,
       to: navigator.context,
     );
-    final barrierLabel = MaterialLocalizations.of(
-      context,
-    ).modalBarrierDismissLabel;
     final route = AppModalPageRoute<AppConfig>(
-      opaque: false,
-      barrierDismissible: true,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
-      barrierLabel: barrierLabel,
+      opaque: true,
+      barrierDismissible: false,
+      barrierColor: null,
+      startScale: 0.985,
       builder: (ctx) =>
           capturedThemes.wrap(SettingsDialog(viewModel: viewModel)),
     );
     final config = await navigator.push<AppConfig>(route);
-    // pop completes before the outgoing dialog is removed. Applying locale or
+    // pop completes before the outgoing page is removed. Applying locale or
     // zoom changes during that transition can crash the macOS semantics bridge.
     await route.completed;
     if (config != null) await viewModel.updateConfig(config);
@@ -224,14 +225,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final colors = context.colors;
     final screenSize = MediaQuery.sizeOf(context);
     final isNarrow = screenSize.width < 768;
-
-    final dialogWidth = isNarrow
-        ? screenSize.width
-        : (screenSize.width * 0.8).clamp(520.0, 1600.0);
-    final dialogHeight = isNarrow
-        ? screenSize.height
-        : (screenSize.height * 0.8).clamp(400.0, 1200.0);
-    final borderRadius = isNarrow ? 0.0 : AppRadius.lg;
+    final showCustomTitleBar =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux);
 
     return Focus(
       autofocus: true,
@@ -242,87 +239,76 @@ class _SettingsDialogState extends State<SettingsDialog> {
         if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
           return KeyEventResult.ignored;
         }
-        // 内部输入框聚焦时首次 ESC 只退焦，不直接关闭丢草稿
+        // 内部输入框聚焦时首次 ESC 只退焦，不直接退出丢草稿
         final primary = FocusManager.instance.primaryFocus;
         final primaryContext = primary?.context;
         final bool editingText =
             primaryContext?.findAncestorStateOfType<EditableTextState>() !=
             null;
         if (editingText) {
-          primary!.unfocus();
+          // 将焦点收回设置页根 Focus，既退出文本输入又保证再次按 ESC 可稳定返回
+          node.requestFocus();
           return KeyEventResult.handled;
         }
         Navigator.of(context).pop();
         return KeyEventResult.handled;
       },
-      child: Center(
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            width: dialogWidth,
-            height: dialogHeight,
-            decoration: BoxDecoration(
-              color: colors.cardBackground,
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: isNarrow
-                  ? null
-                  : Border.all(color: colors.borderDefault),
-              boxShadow: isNarrow ? null : context.shadowDialog,
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: SafeArea(
-              top: isNarrow,
-              bottom: isNarrow,
-              child: isNarrow
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildContentHeader(context, isNarrow: true),
-                        _buildHorizontalTabs(context),
-                        Expanded(
-                          child: AppPageStack(
-                            index: _activeTabIndex,
-                            itemCount: _tabBuilders.length,
-                            itemBuilder: (context, index) =>
-                                _tabBuilders[index](),
+      child: Scaffold(
+        backgroundColor: colors.cardBackground,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showCustomTitleBar) const CustomTitleBar(),
+            Expanded(
+              child: SafeArea(
+                top: !showCustomTitleBar,
+                bottom: isNarrow,
+                child: isNarrow
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildContentHeader(context, isNarrow: true),
+                          _buildHorizontalTabs(context),
+                          Expanded(
+                            child: AppPageStack(
+                              index: _activeTabIndex,
+                              itemCount: _tabBuilders.length,
+                              itemBuilder: (context, index) =>
+                                  _tabBuilders[index](),
+                            ),
                           ),
-                        ),
-                        _buildFooter(context, isNarrow: true),
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // 1. 左侧导航栏 (Settings Categories)
-                        _buildSidebar(context),
+                          _buildFooter(context, isNarrow: true),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 1. 左侧贯穿导航栏
+                          _buildSidebar(context),
 
-                        // 2. 右侧配置详情内容区
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // 右侧顶部标题栏与关闭按键
-                              _buildContentHeader(context, isNarrow: false),
-
-                              // 懒构建保活，切页只动画绘制层，不逐帧重建表单。
-                              Expanded(
-                                child: AppPageStack(
-                                  index: _activeTabIndex,
-                                  itemCount: _tabBuilders.length,
-                                  itemBuilder: (context, index) =>
-                                      _tabBuilders[index](),
+                          // 2. 右侧配置详情内容区
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildContentHeader(context, isNarrow: false),
+                                Expanded(
+                                  child: AppPageStack(
+                                    index: _activeTabIndex,
+                                    itemCount: _tabBuilders.length,
+                                    itemBuilder: (context, index) =>
+                                        _tabBuilders[index](),
+                                  ),
                                 ),
-                              ),
-
-                              // 右侧底部保存 / 取消操作栏
-                              _buildFooter(context, isNarrow: false),
-                            ],
+                                _buildFooter(context, isNarrow: false),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -361,7 +347,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final colors = context.colors;
     final l10n = context.l10n;
     return Container(
-      width: 200,
+      width: 220,
       decoration: BoxDecoration(
         color: colors.elevatedBackground,
         border: Border(right: BorderSide(color: colors.borderDefault)),
@@ -369,17 +355,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 顶部小标题
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-            child: Text(
-              l10n.settings,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: colors.textMuted,
-                letterSpacing: 0.8,
-              ),
+            padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+            child: _SettingsBackBar(
+              title: l10n.settings,
+              tooltip: l10n.close,
+              onTap: () => Navigator.of(context).pop(),
             ),
           ),
 
@@ -416,62 +397,54 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final colors = context.colors;
     final l10n = context.l10n;
     final title = _settingsTabLabel(l10n, _activeTabIndex);
-    final subtitle = switch (_activeTabIndex) {
-      0 => l10n.settingsSubtitleGeneral,
-      1 => l10n.settingsSubtitleModels,
-      2 => l10n.settingsSubtitlePresets,
-      3 => l10n.settingsSubtitleExtensions,
-      4 => l10n.settingsSubtitleDefaults,
-      5 => l10n.settingsSubtitleBill,
-      _ => null,
-    };
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(isNarrow ? 16 : 28, 18, 18, 10),
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        isNarrow ? 12 : 32,
+        isNarrow ? 12 : 18,
+        isNarrow ? 12 : 24,
+        12,
+      ),
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        border: Border(bottom: BorderSide(color: colors.borderSubtle)),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppTextSwap(
-                  text: title,
-                  distance: AppMotionDistances.micro,
-                  enableBlur: false,
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
-                    letterSpacing: -0.4,
-                  ),
+          if (isNarrow)
+            Expanded(
+              child: _SettingsBackBar(
+                title: title,
+                tooltip: l10n.close,
+                fontSize: 18,
+                iconSize: 18,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            )
+          else ...[
+            Expanded(
+              child: AppTextSwap(
+                text: title,
+                distance: AppMotionDistances.micro,
+                enableBlur: false,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
+                  letterSpacing: -0.3,
                 ),
-                if (subtitle != null && subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: colors.textMuted),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(
-              Icons.close_rounded,
-              size: 19,
-              color: colors.textSecondary,
+            AppIconButton(
+              icon: Icons.close_rounded,
+              size: 30,
+              iconSize: 18,
+              variant: AppIconButtonVariant.ghost,
+              tooltip: l10n.close,
+              onPressed: () => Navigator.of(context).pop(),
             ),
-            splashRadius: 16,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-            tooltip: l10n.close,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
+          ],
         ],
       ),
     );
@@ -483,7 +456,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final l10n = context.l10n;
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isNarrow ? 16 : 28,
+        horizontal: isNarrow ? 16 : 32,
         vertical: 12,
       ),
       decoration: BoxDecoration(
@@ -506,6 +479,88 @@ class _SettingsDialogState extends State<SettingsDialog> {
             onPressed: _handleSave,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 整行可点击的设置页返回标题条：热区覆盖箭头与文字整条区域，图标与中文字形视觉居中对齐
+class _SettingsBackBar extends StatefulWidget {
+  final String title;
+  final String tooltip;
+  final VoidCallback onTap;
+  final double fontSize;
+  final double iconSize;
+  final EdgeInsetsGeometry padding;
+
+  const _SettingsBackBar({
+    required this.title,
+    required this.tooltip,
+    required this.onTap,
+    this.fontSize = 15,
+    this.iconSize = 17,
+    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+  });
+
+  @override
+  State<_SettingsBackBar> createState() => _SettingsBackBarState();
+}
+
+class _SettingsBackBarState extends State<_SettingsBackBar> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Semantics(
+      container: true,
+      button: true,
+      label: widget.tooltip,
+      child: Tooltip(
+        message: widget.tooltip,
+        excludeFromSemantics: true,
+        child: Material(
+          color: Colors.transparent,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            onEnter: (_) => setState(() => _isHovered = true),
+            onExit: (_) => setState(() => _isHovered = false),
+            child: InkWell(
+              onTap: widget.onTap,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              hoverColor: Colors.transparent,
+              splashColor: colors.primaryTint.withValues(alpha: 0.3),
+              child: Container(
+                padding: widget.padding,
+                decoration: BoxDecoration(
+                  color: _isHovered
+                      ? colors.mutedBackground.withValues(alpha: 0.7)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: AppIconLabel(
+                  leading: Icon(
+                    Icons.arrow_back_rounded,
+                    size: widget.iconSize,
+                    color: _isHovered
+                        ? colors.textPrimary
+                        : colors.textSecondary,
+                  ),
+                  label: widget.title,
+                  gap: 10,
+                  style: TextStyle(
+                    fontSize: widget.fontSize,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

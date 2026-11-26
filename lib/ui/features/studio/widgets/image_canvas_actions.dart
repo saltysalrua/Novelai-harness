@@ -520,9 +520,13 @@ Future<void> showMobileImageActionSheet(
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: colors.cardBackground,
+    barrierColor: Colors.black.withValues(alpha: 0.5),
     isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    shape: RoundedRectangleBorder(
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(AppRadius.lg),
+      ),
+      side: BorderSide(color: colors.borderDefault),
     ),
     builder: (sheetContext) {
       final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.78;

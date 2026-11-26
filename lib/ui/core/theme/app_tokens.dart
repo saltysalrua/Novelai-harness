@@ -42,9 +42,8 @@ abstract final class AppRadius {
 
 /// 统一阴影层级 (亮暗自适应)
 ///
-/// 亮色模式维持 Notion 轻投影；暗色模式下纯黑低透明度阴影在深色表面上
-/// 不可见，因此自动加深阴影不透明度并扩大扩散半径，配合组件自身的
-/// 亮色描边形成「外发光」层级感。
+/// 亮色模式维持 Notion 轻投影；暗色模式保持克制的深色下沉投影，
+/// 不做外扩发光 (spreadRadius = 0)，层级区分由表面底色与描边承担。
 abstract final class AppShadows {
   /// 卡片微弱浮起 (微质感，适合工作台悬浮操作坞)
   static List<BoxShadow> subtle(
@@ -61,9 +60,8 @@ abstract final class AppShadows {
       ],
       Brightness.dark => [
         BoxShadow(
-          color: shadowColor.withValues(alpha: 0.30),
-          blurRadius: 12,
-          spreadRadius: 1,
+          color: shadowColor.withValues(alpha: 0.24),
+          blurRadius: 8,
           offset: const Offset(0, 2),
         ),
       ],
@@ -85,9 +83,8 @@ abstract final class AppShadows {
       ],
       Brightness.dark => [
         BoxShadow(
-          color: shadowColor.withValues(alpha: 0.45),
-          blurRadius: 22,
-          spreadRadius: 2,
+          color: shadowColor.withValues(alpha: 0.40),
+          blurRadius: 18,
           offset: const Offset(0, 4),
         ),
       ],
@@ -109,9 +106,8 @@ abstract final class AppShadows {
       ],
       Brightness.dark => [
         BoxShadow(
-          color: shadowColor.withValues(alpha: 0.55),
-          blurRadius: 38,
-          spreadRadius: 3,
+          color: shadowColor.withValues(alpha: 0.50),
+          blurRadius: 32,
           offset: const Offset(0, 10),
         ),
       ],

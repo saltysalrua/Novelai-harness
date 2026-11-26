@@ -139,11 +139,8 @@ class _AppAsyncIconButtonState extends State<AppAsyncIconButton> {
             (_isHovered && isInteractive ? colors.primaryDark : colors.primary),
         widget.borderColor ?? Colors.transparent,
         widget.iconColor ?? colors.onPrimary,
-        isInteractive && _isHovered
-            ? AppShadows.subtle(
-                colors.primary,
-                brightness: context.themeBrightness,
-              )
+        isInteractive && _isHovered && !context.isDarkMode
+            ? context.shadowSubtle
             : null,
       ),
       AppIconButtonVariant.ghost => (

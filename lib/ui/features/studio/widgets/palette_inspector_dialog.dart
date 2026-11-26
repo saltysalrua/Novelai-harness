@@ -17,6 +17,7 @@ import '../../../core/widgets/app_color_picker_dialog.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_skeleton.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
 
@@ -52,6 +53,8 @@ class PaletteInspectorDialog extends StatefulWidget {
 }
 
 class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
+  final SmoothWheelScrollController _scrollController =
+      SmoothWheelScrollController();
   ImagePalette? _palette;
   bool _loading = true;
   String? _error;
@@ -60,6 +63,12 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
   void initState() {
     super.initState();
     _extract();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _extract() async {
@@ -106,6 +115,7 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
     final accentState = AppAccentController.instance.state.value;
 
     return AppDialogScaffold(
+      minimalChrome: true,
       title: l10n.paletteDialogTitle,
       width: 560,
       body: _error != null
@@ -122,8 +132,9 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
               child: _palette == null
                   ? const SizedBox.shrink()
                   : SingleChildScrollView(
+                      controller: _scrollController,
                       child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
+                        padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_icon_button.dart';
 import 'app_transitions.dart';
 
 /// 统一模态对话框外壳 (Dialog Scaffold)
@@ -71,186 +75,206 @@ class AppDialogScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final screenSize = MediaQuery.sizeOf(context);
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final horizontalMargin = screenSize.width < 600 ? 24.0 : 48.0;
+    final verticalMargin = screenSize.height < 600 ? 24.0 : 48.0;
+    final availWidth = math.max(240.0, screenSize.width - horizontalMargin);
+    final availHeight = math.max(
+      200.0,
+      screenSize.height - viewInsets.bottom - verticalMargin,
+    );
+    final effectiveMaxHeight = maxHeight != null
+        ? math.min(maxHeight!, availHeight)
+        : availHeight;
+    final effectiveHeight = height != null
+        ? math.min(height!, effectiveMaxHeight)
+        : null;
+    final VoidCallback? effectiveClose =
+        onClose ?? (barrierDismissible ? () => Navigator.of(context).pop() : null);
 
-    return Focus(
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event.logicalKey != LogicalKeyboardKey.escape) {
-          return KeyEventResult.ignored;
-        }
-        // 长按 ESC 的重复事件同样消费，防止穿透到外层快捷键层
-        if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
-          return KeyEventResult.ignored;
-        }
-        // 内部输入框正持有焦点时，首次 ESC 只退焦不关弹窗，避免丢数据
-        // (聚焦时 primaryFocus 的 context.widget 是 Focus，
-        //  需沿祖先链找 EditableTextState 判定)
-        final primary = FocusManager.instance.primaryFocus;
-        final primaryContext = primary?.context;
-        final bool editingText =
-            primaryContext?.findAncestorStateOfType<EditableTextState>() !=
-            null;
-        if (editingText) {
-          primary!.unfocus();
+    return PopScope(
+      canPop: barrierDismissible,
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event.logicalKey != LogicalKeyboardKey.escape) {
+            return KeyEventResult.ignored;
+          }
+          // 长按 ESC 的重复事件同样消费，防止穿透到外层快捷键层
+          if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+            return KeyEventResult.ignored;
+          }
+          // 内部输入框正持有焦点时，首次 ESC 只退焦不关弹窗，避免丢数据
+          // (聚焦时 primaryFocus 的 context.widget 是 Focus，
+          //  需沿祖先链找 EditableTextState 判定)
+          final primary = FocusManager.instance.primaryFocus;
+          final primaryContext = primary?.context;
+          final bool editingText =
+              primaryContext?.findAncestorStateOfType<EditableTextState>() !=
+              null;
+          if (editingText) {
+            node.requestFocus();
+            return KeyEventResult.handled;
+          }
+          if (effectiveClose != null) {
+            effectiveClose();
+          }
           return KeyEventResult.handled;
-        }
-        if (onClose != null) {
-          onClose!();
-        } else {
-          Navigator.of(context).pop();
-        }
-        return KeyEventResult.handled;
-      },
-      child: Center(
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            width: width,
-            height: height,
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width - 48,
-              maxHeight: maxHeight ?? (MediaQuery.of(context).size.height - 48),
-            ),
-            decoration: BoxDecoration(
-              color: colors.cardBackground,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(color: colors.borderDefault),
-              boxShadow: context.shadowDialog,
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 顶部标题栏
-                Container(
-                  padding: minimalChrome
-                      ? const EdgeInsets.fromLTRB(22, 18, 16, 8)
-                      : const EdgeInsets.fromLTRB(
-                          AppSpacing.xl,
-                          AppSpacing.lg,
-                          AppSpacing.lg,
-                          AppSpacing.md,
-                        ),
-                  decoration: BoxDecoration(
-                    color: colors.cardBackground,
-                    border: minimalChrome
-                        ? null
-                        : Border(
-                            bottom: BorderSide(color: colors.borderDefault),
-                          ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: minimalChrome
-                        ? CrossAxisAlignment.start
-                        : CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: colors.textPrimary,
-                              ),
+        },
+        child: Padding(
+          padding: EdgeInsets.only(bottom: viewInsets.bottom),
+          child: Center(
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: width,
+                height: effectiveHeight,
+                constraints: BoxConstraints(
+                  maxWidth: availWidth,
+                  maxHeight: effectiveMaxHeight,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.cardBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  border: Border.all(color: colors.borderDefault),
+                  boxShadow: context.shadowDialog,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 顶部标题栏
+                    Container(
+                      padding: minimalChrome
+                          ? const EdgeInsets.fromLTRB(22, 18, 16, 8)
+                          : const EdgeInsets.fromLTRB(
+                              AppSpacing.xl,
+                              AppSpacing.lg,
+                              AppSpacing.lg,
+                              AppSpacing.md,
                             ),
-                            if (subtitle != null && subtitle!.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                subtitle!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: minimalChrome
-                                      ? colors.textMuted
-                                      : colors.textSecondary,
+                      decoration: BoxDecoration(
+                        color: colors.cardBackground,
+                        border: minimalChrome
+                            ? null
+                            : Border(
+                                bottom: BorderSide(color: colors.borderDefault),
+                              ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: minimalChrome
+                            ? CrossAxisAlignment.start
+                            : CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: colors.textPrimary,
+                                  ),
+                                ),
+                                if (subtitle != null &&
+                                    subtitle!.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    subtitle!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: minimalChrome
+                                          ? colors.textMuted
+                                          : colors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          AppIconButton(
+                            icon: Icons.close_rounded,
+                            size: 28,
+                            iconSize: 17,
+                            variant: AppIconButtonVariant.ghost,
+                            tooltip: context.maybeL10n?.close,
+                            onPressed: effectiveClose,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // 内容主体 (可选双栏: 左 sidebar 贯穿 + 右 body)
+                    Flexible(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (sidebar != null)
+                            Container(
+                              width: sidebarWidth,
+                              decoration: BoxDecoration(
+                                color: colors.elevatedBackground,
+                                border: Border(
+                                  right: BorderSide(
+                                    color: colors.borderDefault,
+                                  ),
                                 ),
                               ),
+                              child: sidebar,
+                            ),
+                          Expanded(child: body),
+                        ],
+                      ),
+                    ),
+
+                    // 可选底部操作栏
+                    if (actions != null && actions!.isNotEmpty)
+                      Container(
+                        padding: minimalChrome
+                            ? const EdgeInsets.fromLTRB(22, 10, 22, 18)
+                            : const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.xl,
+                                vertical: AppSpacing.md,
+                              ),
+                        decoration: BoxDecoration(
+                          color: minimalChrome
+                              ? colors.cardBackground
+                              : colors.elevatedBackground,
+                          border: minimalChrome
+                              ? null
+                              : Border(
+                                  top: BorderSide(color: colors.borderDefault),
+                                ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: footerLeading != null
+                              ? MainAxisAlignment.spaceBetween
+                              : MainAxisAlignment.end,
+                          children: [
+                            if (footerLeading != null) ...[
+                              footerLeading!,
+                              const SizedBox(width: AppSpacing.md),
                             ],
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: actions!,
+                            ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.close_rounded,
-                          size: 18,
-                          color: colors.textSecondary,
-                        ),
-                        splashRadius: minimalChrome ? 16 : 18,
-                        padding: minimalChrome ? EdgeInsets.zero : null,
-                        constraints: minimalChrome
-                            ? const BoxConstraints.tightFor(
-                                width: 28,
-                                height: 28,
-                              )
-                            : null,
-                        onPressed: onClose ?? () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
-
-                // 内容主体 (可选双栏: 左 sidebar 贯穿 + 右 body)
-                Flexible(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (sidebar != null)
-                        Container(
-                          width: sidebarWidth,
-                          decoration: BoxDecoration(
-                            color: colors.elevatedBackground,
-                            border: Border(
-                              right: BorderSide(color: colors.borderDefault),
-                            ),
-                          ),
-                          child: sidebar,
-                        ),
-                      Expanded(child: body),
-                    ],
-                  ),
-                ),
-
-                // 可选底部操作栏
-                if (actions != null && actions!.isNotEmpty)
-                  Container(
-                    padding: minimalChrome
-                        ? const EdgeInsets.fromLTRB(22, 10, 22, 18)
-                        : const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.xl,
-                            vertical: AppSpacing.md,
-                          ),
-                    decoration: BoxDecoration(
-                      color: minimalChrome
-                          ? colors.cardBackground
-                          : colors.elevatedBackground,
-                      border: minimalChrome
-                          ? null
-                          : Border(
-                              top: BorderSide(color: colors.borderDefault),
-                            ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: footerLeading != null
-                          ? MainAxisAlignment.spaceBetween
-                          : MainAxisAlignment.end,
-                      children: [
-                        if (footerLeading != null) ...[
-                          footerLeading!,
-                          const SizedBox(width: AppSpacing.md),
-                        ],
-                        Row(mainAxisSize: MainAxisSize.min, children: actions!),
-                      ],
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
         ),

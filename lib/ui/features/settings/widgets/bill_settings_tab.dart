@@ -63,10 +63,12 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final hPad = constraints.maxWidth < 560 ? 16.0 : 28.0;
+        final hPad = constraints.maxWidth > 1184
+            ? (constraints.maxWidth - 1120) / 2
+            : (constraints.maxWidth < 560 ? 16.0 : 32.0);
         return SingleChildScrollView(
           controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 20),
+          padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 24),
           child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

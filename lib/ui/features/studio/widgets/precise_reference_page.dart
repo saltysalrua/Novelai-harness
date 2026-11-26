@@ -23,8 +23,8 @@ import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/app_toggle_controls.dart';
-import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
+import 'image_lightbox.dart';
 import 'prompt_combo_edit_dialog.dart';
 import 'studio_shared.dart';
 
@@ -1174,48 +1174,7 @@ class _ThumbnailButton extends StatelessWidget {
   });
 
   void _showPreview(BuildContext context, Uint8List data) {
-    showAppModalDialog<void>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.72),
-      builder: (dialogContext) => Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(dialogContext).pop(),
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Center(
-                  child: GestureDetector(
-                    onTap: () {},
-                    child: InteractiveViewer(
-                      minScale: 0.5,
-                      maxScale: 5.0,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        child: Image.memory(data, fit: BoxFit.contain),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 20,
-            right: 20,
-            child: AppIconButton(
-              icon: Icons.close_rounded,
-              size: 34,
-              iconSize: 18,
-              variant: AppIconButtonVariant.elevated,
-              tooltip: dialogContext.l10n.close,
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-          ),
-        ],
-      ),
-    );
+    showImageLightboxBytes(context, data);
   }
 
   @override

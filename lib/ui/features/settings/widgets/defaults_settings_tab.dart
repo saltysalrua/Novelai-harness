@@ -81,10 +81,12 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
     final models = summaryProvider?.models ?? const <LlmModelConfig>[];
     return LayoutBuilder(
       builder: (context, constraints) {
-        final hPad = constraints.maxWidth < 560 ? 16.0 : 28.0;
+        final hPad = constraints.maxWidth > 984
+            ? (constraints.maxWidth - 920) / 2
+            : (constraints.maxWidth < 560 ? 16.0 : 32.0);
         return SingleChildScrollView(
           controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 20),
+          padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 24),
           child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

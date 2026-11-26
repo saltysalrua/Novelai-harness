@@ -718,41 +718,50 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final l10n = context.l10n;
     final screenSize = MediaQuery.sizeOf(context);
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final hMargin = screenSize.width < 600 ? 24.0 : 48.0;
+    final vMargin = screenSize.height < 600 ? 24.0 : 48.0;
     final dialogWidth = (screenSize.width * 0.74).clamp(620.0, 1020.0);
     final dialogHeight = (screenSize.height * 0.80).clamp(480.0, 720.0);
 
-    return Focus(
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event.logicalKey != LogicalKeyboardKey.escape) {
-          return KeyEventResult.ignored;
-        }
-        if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
-          return KeyEventResult.ignored;
-        }
-        final primary = FocusManager.instance.primaryFocus;
-        final editingText =
-            primary?.context?.findAncestorStateOfType<EditableTextState>() !=
-            null;
-        if (editingText) {
-          primary!.unfocus();
+    return PopScope(
+      canPop: !_isSaving,
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event.logicalKey != LogicalKeyboardKey.escape) {
+            return KeyEventResult.ignored;
+          }
+          if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+            return KeyEventResult.ignored;
+          }
+          final primary = FocusManager.instance.primaryFocus;
+          final editingText =
+              primary?.context?.findAncestorStateOfType<EditableTextState>() !=
+              null;
+          if (editingText) {
+            node.requestFocus();
+            return KeyEventResult.handled;
+          }
+          if (!_isSaving) {
+            Navigator.of(context).pop();
+          }
           return KeyEventResult.handled;
-        }
-        Navigator.of(context).pop();
-        return KeyEventResult.handled;
-      },
-      child: Center(
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            width: dialogWidth,
-            height: dialogHeight,
-            constraints: BoxConstraints(
-              maxWidth: screenSize.width - 48,
-              maxHeight: screenSize.height - 48,
-            ),
+        },
+        child: Padding(
+          padding: EdgeInsets.only(bottom: viewInsets.bottom),
+          child: Center(
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: dialogWidth,
+                height: dialogHeight,
+                constraints: BoxConstraints(
+                  maxWidth: (screenSize.width - hMargin).clamp(240.0, 1200.0),
+                  maxHeight: (screenSize.height - viewInsets.bottom - vMargin)
+                      .clamp(220.0, 1000.0),
+                ),
             decoration: BoxDecoration(
               color: colors.cardBackground,
               borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -769,7 +778,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 10, 0),
-                        child: _buildDialogTopRow(context, l10n),
+                        child: _buildDialogTopRow(context),
                       ),
                       Expanded(
                         child: SingleChildScrollView(
@@ -827,7 +836,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _buildDialogTopRow(context, l10n),
+                            _buildDialogTopRow(context),
                             Expanded(
                               child: SingleChildScrollView(
                                 controller: _formScrollController,
@@ -854,11 +863,13 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
             ),
           ),
         ),
+        ),
+      ),
       ),
     );
   }
 
-  Widget _buildDialogTopRow(BuildContext context, dynamic l10n) {
+  Widget _buildDialogTopRow(BuildContext context) {
     final colors = context.colors;
     return Row(
       children: [
@@ -878,8 +889,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           size: 28,
           iconSize: 18,
           variant: AppIconButtonVariant.ghost,
-          tooltip: context.l10n.cancel,
-          onPressed: () => Navigator.of(context).pop(),
+          tooltip: context.l10n.close,
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
         ),
       ],
     );

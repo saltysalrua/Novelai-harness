@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_icon_label.dart';
 import 'app_transitions.dart';
 
 /// [AppActionButton] 的视觉变体
@@ -12,6 +13,9 @@ enum AppActionButtonVariant {
 
   /// 品牌主色高亮 (强行动，如 新建 / 保存)
   primary,
+
+  /// 危险/破坏性操作高亮 (如 删除 / 强制覆盖)
+  danger,
 
   /// 无边框轻量行动 (如 取消 / 退出批注)
   ghost,
@@ -104,6 +108,8 @@ class _AppActionButtonState extends State<AppActionButton> {
         visuallyActive ? colors.textPrimary : colors.textMuted,
       AppActionButtonVariant.primary =>
         visuallyActive ? colors.onPrimary : colors.textMuted,
+      AppActionButtonVariant.danger =>
+        visuallyActive ? Colors.white : colors.textMuted,
       AppActionButtonVariant.ghost =>
         visuallyActive ? colors.textSecondary : colors.textMuted,
     };
@@ -111,6 +117,8 @@ class _AppActionButtonState extends State<AppActionButton> {
       AppActionButtonVariant.outlined => colors.cardBackground,
       AppActionButtonVariant.primary =>
         visuallyActive ? colors.primary : colors.mutedBackground,
+      AppActionButtonVariant.danger =>
+        visuallyActive ? colors.error : colors.mutedBackground,
       AppActionButtonVariant.ghost => Colors.transparent,
     };
     final borderColor = switch (widget.variant) {
@@ -118,19 +126,28 @@ class _AppActionButtonState extends State<AppActionButton> {
       AppActionButtonVariant.primary => colors.primary.withValues(
         alpha: visuallyActive ? 1.0 : 0.5,
       ),
+      AppActionButtonVariant.danger => colors.error.withValues(
+        alpha: visuallyActive ? 1.0 : 0.5,
+      ),
       AppActionButtonVariant.ghost => Colors.transparent,
     };
+
+    final textStyle = TextStyle(
+      fontSize: 12,
+      height: 1.2,
+      leadingDistribution: TextLeadingDistribution.even,
+      fontWeight:
+          widget.variant == AppActionButtonVariant.primary ||
+              widget.variant == AppActionButtonVariant.danger
+          ? FontWeight.w600
+          : FontWeight.w500,
+      color: foreground,
+    );
 
     final text = AppTextSwap(
       text: widget.label,
       enableBlur: false,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: widget.variant == AppActionButtonVariant.primary
-            ? FontWeight.w600
-            : FontWeight.w500,
-        color: foreground,
-      ),
+      style: textStyle,
     );
 
     Widget? leading;
@@ -204,13 +221,12 @@ class _AppActionButtonState extends State<AppActionButton> {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       child: leading != null
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                leading,
-                const SizedBox(width: AppSpacing.xs),
-                text,
-              ],
+          ? AppIconLabel(
+              leading: leading,
+              label: widget.label,
+              labelWidget: text,
+              gap: AppSpacing.xs,
+              style: textStyle,
             )
           : text,
     );

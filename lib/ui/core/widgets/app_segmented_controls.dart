@@ -4,6 +4,7 @@ import '../theme/app_tokens.dart';
 import '../theme/app_colors_extension.dart';
 import '../theme/theme_context_extensions.dart';
 import 'app_badge.dart';
+import 'app_icon_label.dart';
 
 /// 胶囊按钮项配置
 class AppSegmentedItem<T> {
@@ -451,10 +452,6 @@ class _AppSegmentedPillBarState<T> extends State<AppSegmentedPillBar<T>>
           mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (item.icon != null) ...[
-              Icon(item.icon, size: 13, color: fg),
-              if (item.label.isNotEmpty) const SizedBox(width: 4),
-            ],
             if (item.label.isNotEmpty)
               Flexible(
                 child: AnimatedDefaultTextStyle(
@@ -464,18 +461,24 @@ class _AppSegmentedPillBarState<T> extends State<AppSegmentedPillBar<T>>
                     fontSize: widget.variant == AppPillVariant.underline
                         ? 14
                         : 12,
+                    height: 1.2,
+                    leadingDistribution: TextLeadingDistribution.even,
                     fontWeight: isSelected
                         ? FontWeight.w600
                         : FontWeight.normal,
                     color: fg,
                   ),
-                  child: Text(
-                    item.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: AppIconLabel(
+                    leading: item.icon != null
+                        ? Icon(item.icon, size: 13, color: fg)
+                        : null,
+                    label: item.label,
+                    gap: 4,
                   ),
                 ),
-              ),
+              )
+            else if (item.icon != null)
+              Icon(item.icon, size: 13, color: fg),
             if (item.badge) ...[
               const SizedBox(width: 4),
               Container(
@@ -1003,10 +1006,6 @@ class AppSegmentedCardBar<T> extends StatelessWidget {
           mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (item.icon != null) ...[
-              Icon(item.icon, size: iconSize, color: iconFg),
-              if (item.label.isNotEmpty) const SizedBox(width: 5),
-            ],
             if (item.label.isNotEmpty)
               Flexible(
                 child: AnimatedDefaultTextStyle(
@@ -1014,16 +1013,22 @@ class AppSegmentedCardBar<T> extends StatelessWidget {
                   curve: AppMotionCurves.smoothOut,
                   style: DefaultTextStyle.of(context).style.copyWith(
                     fontSize: fontSize,
+                    height: 1.2,
+                    leadingDistribution: TextLeadingDistribution.even,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: fg,
                   ),
-                  child: Text(
-                    item.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: AppIconLabel(
+                    leading: item.icon != null
+                        ? Icon(item.icon, size: iconSize, color: iconFg)
+                        : null,
+                    label: item.label,
+                    gap: 5,
                   ),
                 ),
-              ),
+              )
+            else if (item.icon != null)
+              Icon(item.icon, size: iconSize, color: iconFg),
             if (item.badge) ...[
               const SizedBox(width: 5),
               Container(

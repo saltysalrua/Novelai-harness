@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_icon_label.dart';
 
 /// 徽章语义视觉变体
 enum AppBadgeVariant {
@@ -245,28 +246,20 @@ class _AppBadgeState extends State<AppBadge>
             ? Border.all(color: effectiveBorder)
             : null,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          if (widget.icon != null) ...[
-            Icon(widget.icon, size: widget.iconSize, color: effectiveFg),
-            const SizedBox(width: 3.5),
-          ],
-          Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: widget.fontSize,
-              fontWeight: FontWeight.w700,
-              color: effectiveFg,
-              height: 1.15,
-            ),
-          ),
-          if (widget.trailing != null) ...[
-            const SizedBox(width: 3.5),
-            widget.trailing!,
-          ],
-        ],
+      child: AppIconLabel(
+        leading: widget.icon != null
+            ? Icon(widget.icon, size: widget.iconSize, color: effectiveFg)
+            : null,
+        label: widget.label,
+        trailing: widget.trailing,
+        gap: 3.5,
+        trailingGap: 3.5,
+        style: TextStyle(
+          fontSize: widget.fontSize,
+          fontWeight: FontWeight.w700,
+          color: effectiveFg,
+          height: 1.15,
+        ),
       ),
     );
 

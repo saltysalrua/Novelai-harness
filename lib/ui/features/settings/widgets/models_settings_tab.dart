@@ -513,7 +513,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         // 1. 供应商快捷选择条 (一键切换 + 新建)
         AppSectionHeader(
           title: l10n.settingsSectionProviderSelection,
-          subtitle: l10n.settingsCurrentProviderSubtitle,
           trailing: AppActionButton(
             icon: Icons.add_rounded,
             label: l10n.settingsNewProviderButton,
@@ -854,7 +853,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         AppSectionHeader(title: l10n.settingsSectionImageEdit),
         AppSettingTile(
           title: l10n.settingsImageEditModelTitle,
-          subtitle: l10n.settingsImageEditTip,
           control: AppControlFlow(
             alignment: WrapAlignment.end,
             children: [
@@ -908,7 +906,6 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
         // 4. 模型列表与在线拉取
         AppSectionHeader(
           title: l10n.settingsSectionModels,
-          subtitle: l10n.settingsModelsListSubtitle,
           trailing: AppControlFlow(
             children: [
               AppActionButton(
@@ -1004,16 +1001,18 @@ class _ModelsSettingsTabState extends State<ModelsSettingsTab> {
     final l10n = context.l10n;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final hPad = constraints.maxWidth < 560 ? 16.0 : 28.0;
+        final hPad = constraints.maxWidth > 1264
+            ? (constraints.maxWidth - 1200) / 2
+            : (constraints.maxWidth < 560 ? 16.0 : 32.0);
         return CustomScrollView(
           controller: _scrollController,
           slivers: [
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 0),
+              padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 0),
               sliver: SliverToBoxAdapter(child: _buildHeaderSections(l10n)),
             ),
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 20),
+              padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 24),
               sliver: _ModelGridSection(
                 key: ValueKey<String>(_draft.selectedProviderId),
                 provider: _draft.currentProvider,
@@ -1359,7 +1358,6 @@ class _ModelGridSectionState extends State<_ModelGridSection> {
         child: AppEmptyState(
           icon: Icons.view_in_ar_outlined,
           title: l10n.settingsNoModelsInProvider,
-          description: l10n.settingsNoModelsInProviderDesc,
           isCompact: true,
         ),
       );

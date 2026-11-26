@@ -9,8 +9,11 @@ import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_nav_tile.dart';
+import '../../../core/widgets/app_page_stack.dart';
 import '../../../core/widgets/app_search_field.dart';
+import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import 'tag_inspiration_presets.dart';
 import 'tag_suggestion_tile.dart';
 
@@ -47,6 +50,10 @@ class TagBrowserDialog extends StatefulWidget {
 
 class _TagBrowserDialogState extends State<TagBrowserDialog> {
   final TextEditingController _searchController = TextEditingController();
+  final SmoothWheelScrollController _presetScrollController =
+      SmoothWheelScrollController();
+  final SmoothWheelScrollController _searchScrollController =
+      SmoothWheelScrollController();
   Timer? _searchDebounce;
   List<TagSuggestion> _searchResults = [];
   bool _isSearching = false;
@@ -55,6 +62,8 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _presetScrollController.dispose();
+    _searchScrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -100,6 +109,7 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
     final l10n = context.l10n;
 
     return AppDialogScaffold(
+      minimalChrome: true,
       title: l10n.tagBrowserTitle,
       width: 720,
       height: 600,
@@ -108,7 +118,7 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
         children: [
           // 顶部搜索条
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+            padding: const EdgeInsets.fromLTRB(22, 6, 22, 10),
             child: AppSearchField(
               controller: _searchController,
               hintText: l10n.tagBrowserSearchHint,
@@ -120,18 +130,14 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
               },
             ),
           ),
-          Divider(height: 1, color: colors.borderDefault),
+          Divider(height: 1, color: colors.borderSubtle),
 
-          // 主体内容
+          // 主体内容 (使用 AppPageStack 单向入场，避免双视图叠影残留)
           Expanded(
-            child: AnimatedSwitcher(
-              duration: AppMotion.resolveDuration(
-                context,
-                AppMotionDurations.quick,
-              ),
-              switchInCurve: AppMotionCurves.smoothOut,
-              switchOutCurve: AppMotionCurves.smoothOut,
-              child: _isSearching
+            child: AppPageStack(
+              index: _isSearching ? 1 : 0,
+              itemCount: 2,
+              itemBuilder: (context, index) => index == 1
                   ? _buildSearchResults(context)
                   : _buildPresetBrowser(context),
             ),
@@ -148,13 +154,13 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
       return AppEmptyState(
         icon: Icons.search_off_outlined,
         title: l10n.tagBrowserNoMatchingTitle,
-        description: l10n.tagBrowserNoMatchingDesc,
         isCompact: true,
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      controller: _searchScrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       itemCount: _searchResults.length,
       separatorBuilder: (context, index) =>
           Divider(height: 1, color: colors.borderDefault),
@@ -209,58 +215,103 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
 
   Widget _buildPresetBrowser(BuildContext context) {
     final colors = context.colors;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final l10n = context.l10n;
+    final tagList = ListView(
+      controller: _presetScrollController,
+      padding: const EdgeInsets.all(16),
       children: [
-        // 左侧分类导航
-        Container(
-          width: 160,
-          decoration: BoxDecoration(
-            color: colors.mutedBackground,
-            border: Border(right: BorderSide(color: colors.borderDefault)),
-          ),
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: kTagInspirationGroups.length,
-            itemBuilder: (context, index) {
-              final group = kTagInspirationGroups[index];
-              final isSelected = index == _activeCategoryIndex;
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                child: AppNavTile(
-                  icon: group.icon,
-                  title: group.localizedTitle(context.l10n),
-                  isSelected: isSelected,
-                  onTap: () => setState(() => _activeCategoryIndex = index),
-                ),
-              );
-            },
-          ),
-        ),
-
-        // 右侧标签卡片列表
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final (tag, zh)
-                      in kTagInspirationGroups[_activeCategoryIndex].tags)
-                    _TagChipItem(
-                      tag: tag,
-                      zh: widget.showTranslation ? zh : '',
-                      onTap: () => _addTag(tag, zh),
-                    ),
-                ],
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final (tag, zh)
+                in kTagInspirationGroups[_activeCategoryIndex].tags)
+              _TagChipItem(
+                tag: tag,
+                zh: widget.showTranslation ? zh : '',
+                onTap: () => _addTag(tag, zh),
               ),
-            ],
-          ),
+          ],
         ),
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: colors.elevatedBackground,
+                  border: Border(
+                    bottom: BorderSide(color: colors.borderSubtle),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: AppSegmentedPillBar<int>(
+                  scrollable: true,
+                  variant: AppPillVariant.soft,
+                  selectedValue: _activeCategoryIndex,
+                  onValueChanged: (index) =>
+                      setState(() => _activeCategoryIndex = index),
+                  items: [
+                    for (var i = 0; i < kTagInspirationGroups.length; i++)
+                      AppSegmentedItem<int>(
+                        value: i,
+                        icon: kTagInspirationGroups[i].icon,
+                        label: kTagInspirationGroups[i].localizedTitle(l10n),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(child: tagList),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 左侧分类导航
+            Container(
+              width: 164,
+              decoration: BoxDecoration(
+                color: colors.elevatedBackground,
+                border: Border(right: BorderSide(color: colors.borderSubtle)),
+              ),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: kTagInspirationGroups.length,
+                itemBuilder: (context, index) {
+                  final group = kTagInspirationGroups[index];
+                  final isSelected = index == _activeCategoryIndex;
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    child: AppNavTile(
+                      icon: group.icon,
+                      title: group.localizedTitle(l10n),
+                      isSelected: isSelected,
+                      onTap: () => setState(() => _activeCategoryIndex = index),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // 右侧标签卡片列表
+            Expanded(child: tagList),
+          ],
+        );
+      },
     );
   }
 }

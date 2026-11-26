@@ -11,6 +11,7 @@ import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/app_toast.dart';
 import '../../../core/widgets/overlay_anchor.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../view_models/studio_view_model.dart';
 
 /// 通知中心触发按钮：复用 [AppIconButton] 并在存在未读记录时叠加右上角红点。
@@ -86,10 +87,11 @@ class NotificationCenterPopover extends StatefulWidget {
   static Future<void> show(
     BuildContext anchorContext, {
     required StudioViewModel viewModel,
+    bool preferAbove = false,
   }) {
     return showAnchoredPopover<void>(
       context: anchorContext,
-      preferAbove: false,
+      preferAbove: preferAbove,
       gap: 6,
       minWidth: 340,
       maxWidth: 400,
@@ -104,12 +106,21 @@ class NotificationCenterPopover extends StatefulWidget {
 }
 
 class _NotificationCenterPopoverState extends State<NotificationCenterPopover> {
+  final SmoothWheelScrollController _scrollController =
+      SmoothWheelScrollController();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.viewModel.markAllNotificationsRead();
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   String _sourceLabel(AppLocalizations l10n, AppNoticeSource source) =>
@@ -249,6 +260,7 @@ class _NotificationCenterPopoverState extends State<NotificationCenterPopover> {
               else
                 Flexible(
                   child: ListView.separated(
+                    controller: _scrollController,
                     shrinkWrap: true,
                     padding: const EdgeInsets.all(10),
                     itemCount: records.length,

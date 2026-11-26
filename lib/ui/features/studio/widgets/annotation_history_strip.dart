@@ -113,17 +113,6 @@ class AnnotationHistoryStrip extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: colors.mutedBackground,
                             borderRadius: BorderRadius.circular(AppRadius.sm),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: colors.primary.withValues(
-                                        alpha: 0.18,
-                                      ),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : null,
                           ),
                           foregroundDecoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(AppRadius.sm),

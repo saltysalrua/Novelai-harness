@@ -6,6 +6,7 @@ import '../../../data/services/config_service.dart' show seedColorText;
 import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_action_button.dart';
 import 'app_dialog_scaffold.dart';
 import 'app_transitions.dart';
 
@@ -141,35 +142,24 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
     return AppDialogScaffold(
       title: widget.title ?? l10n.colorPickerTitle,
       width: 420,
+      minimalChrome: true,
       onClose: () => Navigator.of(context).pop(),
       actions: [
-        OutlinedButton(
+        AppActionButton(
+          label: l10n.cancel,
+          variant: AppActionButtonVariant.ghost,
           onPressed: () => Navigator.of(context).pop(),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.textSecondary,
-            side: BorderSide(color: colors.borderDefault),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-          child: Text(l10n.cancel),
         ),
         const SizedBox(width: AppSpacing.sm),
-        FilledButton(
+        AppActionButton(
+          label: l10n.save,
+          variant: AppActionButtonVariant.primary,
           onPressed: () => Navigator.of(context).pop(current),
-          style: FilledButton.styleFrom(
-            backgroundColor: colors.primary,
-            foregroundColor: colors.onPrimary,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-          child: Text(l10n.save),
         ),
       ],
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -321,19 +311,25 @@ class _HexField extends StatelessWidget {
         ),
         decoration: InputDecoration(
           isDense: true,
+          filled: true,
+          fillColor: colors.elevatedBackground,
+          hoverColor: colors.mutedBackground.withValues(alpha: 0.7),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.sm,
             vertical: AppSpacing.sm,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            borderSide: BorderSide(
-              color: errorText != null ? colors.error : colors.borderDefault,
-            ),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: errorText != null
+                ? BorderSide(color: colors.error, width: 1.2)
+                : BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            borderSide: BorderSide(color: colors.primary, width: 1.5),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: BorderSide(
+              color: errorText != null ? colors.error : colors.primary,
+              width: 1.5,
+            ),
           ),
         ),
       ),
@@ -356,17 +352,20 @@ class _PresetSwatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 26,
-        height: 26,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(
-            color: selected ? colors.textPrimary : colors.borderDefault,
-            width: selected ? 2 : 1,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            border: Border.all(
+              color: selected ? colors.textPrimary : colors.borderDefault,
+              width: selected ? 2 : 1,
+            ),
           ),
         ),
       ),
@@ -432,7 +431,9 @@ class _GradientSlider extends StatelessWidget {
             final width = constraints.maxWidth;
             return SizedBox(
               height: 22,
-              child: GestureDetector(
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapDown: (details) =>
                     onChanged(_fromFraction(details.localPosition.dx / width)),
@@ -485,6 +486,7 @@ class _GradientSlider extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
               ),
             );
           },

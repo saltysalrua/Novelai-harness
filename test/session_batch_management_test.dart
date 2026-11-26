@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
+import 'package:novelai_harness/ui/core/widgets/app_action_button.dart';
 import 'package:novelai_harness/ui/core/widgets/app_toggle_controls.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_session_list_view.dart';
@@ -73,7 +74,7 @@ void main() {
     await tester.tap(find.byTooltip('删除'));
     await tester.pumpAndSettle();
     expect(find.text('删除选中的 2 个会话？此操作无法撤销。'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, '删除'));
+    await tester.tap(find.widgetWithText(AppActionButton, '删除'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     // 目录流与 isolate 是真实异步 IO；逐次让出真实事件循环并 pump，

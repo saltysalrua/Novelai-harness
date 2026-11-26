@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_icon_label.dart';
 
 /// 统一侧栏与导航列表项 (AppNavTile)
 ///
@@ -201,30 +202,49 @@ class _AppNavTileState extends State<AppNavTile> {
                     )
                   : Row(
                       children: [
-                        if (widget.icon != null) ...[
-                          Icon(widget.icon, size: 16, color: iconFg),
-                          // 图标间距对齐旧设置侧栏的 10px 节奏
-                          const SizedBox(width: 10),
-                        ],
-                        Expanded(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.title,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  // 未选中态 w500 对齐替换前旧侧栏字重，避免 MiSans w400 过细显糊
-                                  fontWeight: widget.isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                  color: effectiveFg,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                        if (widget.subtitle == null ||
+                            widget.subtitle!.isEmpty)
+                          Expanded(
+                            child: AppIconLabel(
+                              leading: widget.icon != null
+                                  ? Icon(widget.icon, size: 16, color: iconFg)
+                                  : null,
+                              label: widget.title,
+                              gap: 10,
+                              style: TextStyle(
+                                fontSize: 13,
+                                height: 1.2,
+                                // 未选中态 w500 对齐替换前旧侧栏字重，避免 MiSans w400 过细显糊
+                                fontWeight: widget.isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                                color: effectiveFg,
                               ),
-                              if (widget.subtitle != null &&
-                                  widget.subtitle!.isNotEmpty) ...[
+                            ),
+                          )
+                        else ...[
+                          if (widget.icon != null) ...[
+                            Icon(widget.icon, size: 16, color: iconFg),
+                            // 图标间距对齐旧设置侧栏的 10px 节奏
+                            const SizedBox(width: 10),
+                          ],
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.title,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    // 未选中态 w500 对齐替换前旧侧栏字重，避免 MiSans w400 过细显糊
+                                    fontWeight: widget.isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    color: effectiveFg,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                                 const SizedBox(height: 2),
                                 Text(
                                   widget.subtitle!,
@@ -235,9 +255,9 @@ class _AppNavTileState extends State<AppNavTile> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
-                            ],
+                            ),
                           ),
-                        ),
+                        ],
                         if (displayBadge != null) ...[
                           const SizedBox(width: 6),
                           Container(

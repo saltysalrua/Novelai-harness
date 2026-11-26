@@ -213,10 +213,26 @@ class _AnchoredPopoverRoute<T> extends PopupRoute<T> {
             .toDouble();
 
         final colors = layoutContext.colors;
-        final panelChild = CallbackShortcuts(
-          bindings: {
-            const SingleActivator(LogicalKeyboardKey.escape): () =>
-                Navigator.of(layoutContext).maybePop(),
+        final panelChild = Focus(
+          autofocus: true,
+          onKeyEvent: (node, event) {
+            if (event.logicalKey != LogicalKeyboardKey.escape) {
+              return KeyEventResult.ignored;
+            }
+            if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+              return KeyEventResult.ignored;
+            }
+            // 输入框聚焦时首次 ESC 只退焦，再按 ESC 关闭浮层，与弹窗行为一致
+            final primary = FocusManager.instance.primaryFocus;
+            final editingText =
+                primary?.context?.findAncestorStateOfType<EditableTextState>() !=
+                null;
+            if (editingText) {
+              node.requestFocus();
+              return KeyEventResult.handled;
+            }
+            Navigator.of(layoutContext).maybePop();
+            return KeyEventResult.handled;
           },
           child: Material(
             color: Colors.transparent,

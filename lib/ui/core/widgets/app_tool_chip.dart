@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_icon_label.dart';
 
 /// 工具坞按钮视觉呈现风格
 enum AppToolChipVariant {
@@ -156,25 +157,18 @@ class _AppToolChipState extends State<AppToolChip> {
             ? Border.all(color: effectiveBorderColor)
             : null,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          if (widget.icon != null) ...[
-            Icon(widget.icon, size: widget.iconSize, color: fgColor),
-            const SizedBox(width: 4),
-          ],
-          Flexible(
-            child: Text(
-              widget.label,
-              style: TextStyle(
-                fontSize: widget.fontSize,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: fgColor,
-              ),
-            ),
-          ),
-        ],
+      child: AppIconLabel(
+        leading: widget.icon != null
+            ? Icon(widget.icon, size: widget.iconSize, color: fgColor)
+            : null,
+        label: widget.label,
+        gap: 4,
+        style: TextStyle(
+          fontSize: widget.fontSize,
+          height: 1.2,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          color: fgColor,
+        ),
       ),
     );
 

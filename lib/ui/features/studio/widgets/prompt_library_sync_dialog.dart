@@ -272,7 +272,6 @@ class _PromptLibrarySyncDialogState extends State<PromptLibrarySyncDialog> {
 
         return AppDialogScaffold(
           title: l10n.librarySyncDialogTitle,
-          subtitle: l10n.librarySyncDialogSubtitle,
           width: 520,
           minimalChrome: true,
           barrierDismissible: !syncing,
@@ -380,7 +379,6 @@ class _PromptLibrarySyncDialogState extends State<PromptLibrarySyncDialog> {
                 // 强制覆盖与恢复区：折叠收起 + 内联确认（避免弹窗叠弹窗双重黑屏）
                 AppCollapsibleSection(
                   title: l10n.librarySyncOverwriteSection,
-                  subtitle: l10n.librarySyncOverwriteSectionHint,
                   isExpanded: _overwriteExpanded,
                   onExpansionChanged: (v) => setState(() {
                     _overwriteExpanded = v;
@@ -705,28 +703,14 @@ class _InlineOverwriteConfirmBar extends StatelessWidget {
                 onPressed: onCancel,
               ),
               const SizedBox(width: 6),
-              FilledButton(
+              AppActionButton(
+                label: confirmLabel,
+                variant: AppActionButtonVariant.danger,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 onPressed: onConfirm,
-                style: FilledButton.styleFrom(
-                  backgroundColor: colors.error,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                  ),
-                ),
-                child: Text(
-                  confirmLabel,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
               ),
             ],
           ),

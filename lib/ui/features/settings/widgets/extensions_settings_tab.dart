@@ -33,7 +33,6 @@ import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../../studio/view_models/studio_view_model.dart';
 import 'mcp_server_editor_dialog.dart';
 import 'presets_settings_tab.dart';
-import 'settings_shared.dart';
 import 'skill_card.dart';
 import 'skill_editor_dialog.dart';
 
@@ -472,12 +471,14 @@ class _ExtensionsSettingsTabState extends State<ExtensionsSettingsTab> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final hPad = constraints.maxWidth < 560 ? 16.0 : 28.0;
+        final hPad = constraints.maxWidth > 1264
+            ? (constraints.maxWidth - 1200) / 2
+            : (constraints.maxWidth < 560 ? 16.0 : 32.0);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 14),
+              padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 14),
               child: AppSegmentedCardBar<_ExtensionsSegment>(
                 highlightSelectedIcon: true,
                 items: [
@@ -576,30 +577,17 @@ class _ExtensionsSettingsTabState extends State<ExtensionsSettingsTab> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _isDraggingFile
-                          ? l10n.skillDropActiveTitle
-                          : l10n.skillDropHintTitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: _isDraggingFile
-                            ? colors.primary
-                            : colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      l10n.skillDropHintSubtitle,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  _isDraggingFile
+                      ? l10n.skillDropActiveTitle
+                      : l10n.skillDropHintTitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _isDraggingFile
+                        ? colors.primary
+                        : colors.textPrimary,
+                  ),
                 ),
               ),
             ],
@@ -722,7 +710,7 @@ class _ExtensionsSettingsTabState extends State<ExtensionsSettingsTab> {
           LayoutBuilder(
             builder: (context, constraints) {
               const spacing = 10.0;
-              final columns = (constraints.maxWidth / 270).floor().clamp(1, 3);
+              final columns = (constraints.maxWidth / 270).floor().clamp(1, 4);
               final cardWidth =
                   (constraints.maxWidth - spacing * (columns - 1)) / columns;
               return Wrap(
@@ -757,7 +745,6 @@ class _ExtensionsSettingsTabState extends State<ExtensionsSettingsTab> {
   }
 
   Widget _buildMcpSection(BuildContext context) {
-    final colors = context.colors;
     final l10n = context.l10n;
 
     return ValueListenableBuilder<int>(
@@ -769,31 +756,6 @@ class _ExtensionsSettingsTabState extends State<ExtensionsSettingsTab> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SettingsSoftContainer(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.hub_outlined,
-                    size: 16,
-                    color: colors.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      l10n.mcpCodeModeNotice,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textSecondary,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
             AppSectionHeader(
               title:
                   '${l10n.extensionsSegmentMcp} (${servers.length} · ${l10n.mcpToolsCount(totalTools)})',
@@ -830,7 +792,6 @@ class _ExtensionsSettingsTabState extends State<ExtensionsSettingsTab> {
               AppEmptyState(
                 icon: Icons.extension_outlined,
                 title: l10n.mcpEmptyTitle,
-                description: l10n.mcpEmptySubtitle,
               )
             else
               Column(

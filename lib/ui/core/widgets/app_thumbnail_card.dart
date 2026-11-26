@@ -94,17 +94,9 @@ class _AppThumbnailCardState extends State<AppThumbnailCard> {
             decoration: BoxDecoration(
               color: colors.mutedBackground,
               borderRadius: BorderRadius.circular(widget.radius),
-              boxShadow: isSelected
-                  ? AppShadows.subtle(
-                      colors.primary,
-                      brightness: context.themeBrightness,
-                    )
-                  : (_isHovered
-                        ? AppShadows.subtle(
-                            Colors.black,
-                            brightness: context.themeBrightness,
-                          )
-                        : null),
+              boxShadow: (!context.isDarkMode && _isHovered)
+                  ? context.shadowSubtle
+                  : null,
             ),
             foregroundDecoration: BoxDecoration(
               borderRadius: BorderRadius.circular(widget.radius),

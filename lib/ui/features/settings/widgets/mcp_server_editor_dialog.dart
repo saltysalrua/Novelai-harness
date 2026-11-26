@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/harness/mcp/mcp_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
@@ -197,47 +198,55 @@ class _McpServerEditorDialogState extends State<McpServerEditorDialog> {
               ),
             ],
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SettingsFieldLabel(label: l10n.mcpFieldName),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: _nameController,
-                        style: const TextStyle(fontSize: 12),
-                        decoration: settingsSoftInputDecoration(
-                          context,
-                          hintText: l10n.mcpFieldNameHint,
-                        ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final nameField = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SettingsFieldLabel(label: l10n.mcpFieldName),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _nameController,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: settingsSoftInputDecoration(
+                        context,
+                        hintText: l10n.mcpFieldNameHint,
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SettingsFieldLabel(label: l10n.mcpFieldId),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: _idController,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontFamily: 'monospace',
-                        ),
-                        decoration: settingsSoftInputDecoration(
-                          context,
-                          hintText: l10n.mcpFieldIdHint,
-                        ),
+                    ),
+                  ],
+                );
+                final idField = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SettingsFieldLabel(label: l10n.mcpFieldId),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _idController,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
                       ),
-                    ],
-                  ),
-                ),
-              ],
+                      decoration: settingsSoftInputDecoration(
+                        context,
+                        hintText: l10n.mcpFieldIdHint,
+                      ),
+                    ),
+                  ],
+                );
+                if (constraints.maxWidth < 400) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [nameField, const SizedBox(height: 10), idField],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: nameField),
+                    const SizedBox(width: 12),
+                    Expanded(child: idField),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 12),
             if (_transport == McpTransportType.http) ...[
@@ -328,6 +337,7 @@ class _McpServerEditorDialogState extends State<McpServerEditorDialog> {
                   TextField(
                     controller: _timeoutController,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     style: const TextStyle(
                       fontSize: 12,
                       fontFamily: 'monospace',
@@ -392,7 +402,6 @@ class _McpJsonImportDialogState extends State<McpJsonImportDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final l10n = context.l10n;
 
     return AppDialogScaffold(
@@ -402,34 +411,22 @@ class _McpJsonImportDialogState extends State<McpJsonImportDialog> {
       height: 460,
       body: Padding(
         padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.mcpImportJsonHelp,
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: TextField(
-                controller: _controller,
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  height: 1.48,
-                ),
-                decoration: settingsSoftInputDecoration(
-                  context,
-                  hintText:
-                      '{\n  "mcpServers": {\n    "context7": {\n      "url": "https://mcp.context7.com/mcp"\n    },\n    "filesystem": {\n      "command": "npx",\n      "args": ["-y", "@modelcontextprotocol/server-filesystem", "D:/Workspace"]\n    }\n  }\n}',
-                  contentPadding: const EdgeInsets.all(12),
-                ),
-              ),
-            ),
-          ],
+        child: TextField(
+          controller: _controller,
+          maxLines: null,
+          expands: true,
+          textAlignVertical: TextAlignVertical.top,
+          style: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'monospace',
+            height: 1.48,
+          ),
+          decoration: settingsSoftInputDecoration(
+            context,
+            hintText:
+                '{\n  "mcpServers": {\n    "context7": {\n      "url": "https://mcp.context7.com/mcp"\n    },\n    "filesystem": {\n      "command": "npx",\n      "args": ["-y", "@modelcontextprotocol/server-filesystem", "D:/Workspace"]\n    }\n  }\n}',
+            contentPadding: const EdgeInsets.all(12),
+          ),
         ),
       ),
       actions: [

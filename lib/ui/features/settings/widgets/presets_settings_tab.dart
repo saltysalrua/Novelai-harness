@@ -526,52 +526,35 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
         minimalChrome: true,
         title: l10n.skillDialogImportTitle,
         width: 460,
-        body: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SettingsSoftContainer(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
+          body: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ImportOptionCard(
+                  icon: Icons.file_open_outlined,
+                  title: l10n.skillImportFile,
+                  onTap: () => Navigator.of(ctx).pop(_SkillImportSource.file),
                 ),
-                child: Text(
-                  l10n.skillPackageImportHelp,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: ctx.colors.textSecondary,
-                    height: 1.4,
+                if (_isDesktop) ...[
+                  const SizedBox(height: 8),
+                  _ImportOptionCard(
+                    icon: Icons.folder_open_outlined,
+                    title: l10n.skillImportFolder,
+                    onTap: () =>
+                        Navigator.of(ctx).pop(_SkillImportSource.folder),
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _ImportOptionCard(
-                icon: Icons.file_open_outlined,
-                title: l10n.skillImportFile,
-                description: l10n.skillImportFileDesc,
-                onTap: () => Navigator.of(ctx).pop(_SkillImportSource.file),
-              ),
-              if (_isDesktop) ...[
+                ],
                 const SizedBox(height: 8),
                 _ImportOptionCard(
-                  icon: Icons.folder_open_outlined,
-                  title: l10n.skillImportFolder,
-                  description: l10n.skillImportFolderDesc,
-                  onTap: () => Navigator.of(ctx).pop(_SkillImportSource.folder),
+                  icon: Icons.content_paste_outlined,
+                  title: l10n.skillImportPaste,
+                  onTap: () => Navigator.of(ctx).pop(_SkillImportSource.paste),
                 ),
               ],
-              const SizedBox(height: 8),
-              _ImportOptionCard(
-                icon: Icons.content_paste_outlined,
-                title: l10n.skillImportPaste,
-                description: l10n.skillImportPasteDesc,
-                onTap: () => Navigator.of(ctx).pop(_SkillImportSource.paste),
-              ),
-            ],
+            ),
           ),
-        ),
       ),
     );
     if (source == null || !mounted) return;
@@ -815,17 +798,18 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
 
     return LayoutBuilder(
       builder: (context, outerConstraints) {
-        final hPad = outerConstraints.maxWidth < 560 ? 16.0 : 28.0;
+        final hPad = outerConstraints.maxWidth > 1264
+            ? (outerConstraints.maxWidth - 1200) / 2
+            : (outerConstraints.maxWidth < 560 ? 16.0 : 32.0);
         return SingleChildScrollView(
           controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 24),
+          padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 1. 预设快捷选择条 + 管理操作坞
               AppSectionHeader(
                 title: l10n.settingsSectionPresetSelection,
-                subtitle: l10n.presetCurrentPresetSubtitle,
                 trailing: AppControlFlow(
                   spacing: 6,
                   children: [
@@ -1201,27 +1185,13 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.presetAllowMcpTools,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: colors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            l10n.presetAllowMcpToolsHint,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: colors.textSecondary,
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        l10n.presetAllowMcpTools,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1441,7 +1411,7 @@ class _PresetsSettingsTabState extends State<PresetsSettingsTab> {
     const spacing = 10.0;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = (constraints.maxWidth / 270).floor().clamp(1, 3);
+        final columns = (constraints.maxWidth / 270).floor().clamp(1, 4);
         final cardWidth =
             (constraints.maxWidth - spacing * (columns - 1)) / columns;
         return Wrap(
@@ -1578,13 +1548,11 @@ class _PresetPillState extends State<_PresetPill> {
 class _ImportOptionCard extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String description;
   final VoidCallback onTap;
 
   const _ImportOptionCard({
     required this.icon,
     required this.title,
-    required this.description,
     required this.onTap,
   });
 
@@ -1610,24 +1578,13 @@ class _ImportOptionCard extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
-                ),
-              ],
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
             ),
           ),
           const SizedBox(width: 8),

@@ -31,7 +31,7 @@ when_to_do:
         离线标签检索: TagDictionaryService
     - 高频交互优化: 分割线拖拽、漫游、画笔绘制、微调必须用 ValueNotifier 或图层隔离，不逐帧触发 notifyListeners()
     - 拆分大组件: 提炼为无状态、参数驱动的原子组件放 lib/ui/core/widgets/，不要按行数硬切，不复制代码
-    - 界面文案: 一律用官方大白话 (生成图片、开始修复、Opus 免费、需点数)，不加营销修饰后缀
+    - 界面文案: 一律用官方大白话 (生成图片、开始修复、Opus 免费、需点数)，不加营销修饰后缀；**非必要不加说明性文字** (自解释标题/开关/控件不附加引导副标题或内部机制科普，仅保留必要动态状态、计费提示与破坏性确认)
   after_coding:
     - 静态检查: 执行 dart run tool/gates.dart analyze，必须 0 警告
     - 针对性验证: 若改动涉及既有测试或 Cloudflare Worker，跑对应的门禁确保绿灯即可，不强求每次全量跑
@@ -45,7 +45,9 @@ how_to_do:
     - 杜绝废弃 API: 统一使用 withValues(alpha: ...) 替代 withOpacity；使用 CardThemeData 替代 CardTheme
   ui_components:
     - 原子组件保持纯粹: 无业务状态，不耦合 StudioViewModel，纯靠参数与事件回调驱动
-    - 统一样式类型: 按钮、输入框、滑块、分组标题、胶囊选择器一律使用既有原子组件
+    - 统一样式类型: 按钮、输入框、滑块、分组标题、胶囊选择器一律使用既有原子组件；模态浮窗统一复用 AppDialogScaffold(minimalChrome: true) + AppActionButton
+    - 图标与文字视觉对齐: 单行「图标 + 文字」优先使用 AppIconLabel (底层通过 TextPainter 实测字体 PlaceholderAlignment.middle 中轴偏移并保留独立 Text 节点)，按字体真实光学中轴原生对齐，严禁用魔法数字 Transform.translate 偏移凑居中
+    - 深色模式与切页动效: 深色模式卡片与缩略图禁止叠加彩色外发光或 spreadRadius 扩散阴影；多视图/双模式切换优先使用 AppPageStack 单向入场，避免 AnimatedSwitcher 交叉淡入淡出导致文字叠影残留
 
 ## 测试策略 (Testing)
 testing:

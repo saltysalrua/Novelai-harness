@@ -382,15 +382,12 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 560;
+        final hPad = constraints.maxWidth > 984
+            ? (constraints.maxWidth - 920) / 2
+            : (constraints.maxWidth < 560 ? 16.0 : 32.0);
         return SingleChildScrollView(
           controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(
-            isNarrow ? 16 : 28,
-            8,
-            isNarrow ? 16 : 28,
-            20,
-          ),
+          padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -609,11 +606,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile(
                 title: l10n.settingsUiZoom,
-                subtitle: l10n.settingsUiZoomSubtitle(
-                  Theme.of(context).platform == TargetPlatform.macOS
-                      ? '⌘'
-                      : 'Ctrl',
-                ),
                 control: AppDropdown<double>.simple(
                   value: _draft.uiZoom,
                   items: const [0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75],
@@ -624,7 +616,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile(
                 title: l10n.settingsFrameRateLimit,
-                subtitle: l10n.settingsFrameRateLimitSubtitle,
                 control: AppDropdown<int>.simple(
                   value:
                       ConfigService.supportedMaxFrameRates.contains(
@@ -731,7 +722,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               if (isAndroid)
                 AppSettingTile.switchTile(
                   title: l10n.settingsGalleryExportTitle,
-                  subtitle: l10n.settingsGalleryExportSubtitle,
                   value: _draft.androidGalleryExport,
                   onChanged: (val) =>
                       setState(() => _draft.androidGalleryExport = val),
@@ -744,7 +734,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile.switchTile(
                 title: l10n.settingsImagePersistenceTitle,
-                subtitle: l10n.settingsImagePersistenceSubtitle,
                 value: _draft.enableImagePersistence,
                 onChanged: (val) =>
                     setState(() => _draft.enableImagePersistence = val),
@@ -802,7 +791,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               AppSectionHeader(title: l10n.settingsSectionLibrarySync),
               AppSettingTile(
                 title: l10n.settingsLibrarySyncEndpointTitle,
-                subtitle: l10n.librarySyncEndpointSubtitle,
                 control: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 260),
                   child: SizedBox(
@@ -823,7 +811,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile(
                 title: l10n.settingsLibrarySyncTokenTitle,
-                subtitle: l10n.librarySyncTokenSubtitle,
                 control: SettingsKeyField(
                   controller: _draft.promptSyncTokenController,
                   hintText: l10n.settingsLibrarySyncTokenHint,
@@ -832,7 +819,6 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               ),
               AppSettingTile(
                 title: l10n.settingsLibrarySyncNamespaceTitle,
-                subtitle: l10n.librarySyncNamespaceSubtitle,
                 control: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

@@ -197,30 +197,19 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
           minimalChrome: true,
           body: Padding(
             padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.libraryImportPrompt,
-                  style: TextStyle(fontSize: 12, color: ctx.colors.textSecondary),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: controller,
-                  maxLines: 6,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: 'monospace',
-                    color: ctx.colors.textPrimary,
-                  ),
-                  decoration: settingsSoftInputDecoration(
-                    ctx,
-                    hintText: '[{"title": "...", "prompt": "..."}]',
-                    contentPadding: const EdgeInsets.all(12),
-                  ),
-                ),
-              ],
+            child: TextField(
+              controller: controller,
+              maxLines: 6,
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                color: ctx.colors.textPrimary,
+              ),
+              decoration: settingsSoftInputDecoration(
+                ctx,
+                hintText: '[{"title": "...", "prompt": "..."}]',
+                contentPadding: const EdgeInsets.all(12),
+              ),
             ),
           ),
           actions: [

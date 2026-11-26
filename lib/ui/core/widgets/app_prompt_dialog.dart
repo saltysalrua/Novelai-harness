@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 import '../context_l10n.dart';
 import '../theme/app_tokens.dart';
 import '../theme/theme_context_extensions.dart';
+import 'app_action_button.dart';
+import 'app_dialog_scaffold.dart';
 import 'app_transitions.dart';
 
 /// 统一单行输入模态对话框 (AppPromptDialog)
 ///
-/// 代码证据出处：
-/// - `agent_session_list_view.dart:55-120` (_showRenameDialog 会话重命名模态弹窗)
-///
-/// 核心职责：
-/// 统一单行短文本录入模态，支持自动聚焦、输入清洗、非空/自定义校验、
-/// 回车直接提交以及取消返回 null，消灭零散手写的重命名与文本弹窗。
+/// 复用 [AppDialogScaffold] (minimalChrome) 与柔底输入框、统一 [AppActionButton]，
+/// 支持自动聚焦、非空/自定义校验、回车提交以及首次 ESC 退焦保护。
 class AppPromptDialog extends StatefulWidget {
   /// 弹窗标题
   final String title;
@@ -37,6 +35,9 @@ class AppPromptDialog extends StatefulWidget {
   /// 自定义非空或格式校验回调 (返回错误提示文字；返回 null 表示校验通过)
   final String? Function(String?)? validator;
 
+  /// 是否允许点击外部或 ESC 关闭
+  final bool barrierDismissible;
+
   /// 提交确认回调；若未指定则默认执行 `Navigator.of(context).pop(text)`
   final ValueChanged<String>? onConfirm;
 
@@ -53,6 +54,7 @@ class AppPromptDialog extends StatefulWidget {
     this.cancelLabel,
     this.allowEmpty = false,
     this.validator,
+    this.barrierDismissible = true,
     this.onConfirm,
     this.onCancel,
   });
@@ -111,111 +113,80 @@ class _AppPromptDialogState extends State<AppPromptDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final cancelAction = widget.onCancel ?? () => Navigator.of(context).pop(null);
 
-    return AlertDialog(
-      backgroundColor: colors.cardBackground,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: colors.borderDefault),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
-      contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.icon != null) ...[
-            Icon(widget.icon, size: 18, color: colors.primary),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Text(
-              widget.title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
+    return AppDialogScaffold(
+      minimalChrome: true,
+      title: widget.title,
+      width: 420,
+      barrierDismissible: widget.barrierDismissible,
+      onClose: widget.barrierDismissible ? cancelAction : null,
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
+        child: AppErrorShake(
+          controller: _shakeController,
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            style: TextStyle(fontSize: 13, color: colors.textPrimary),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText:
+                  widget.hintText ??
+                  context.maybeL10n?.commonInputHint ??
+                  '请输入内容…',
+              hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              filled: true,
+              fillColor: colors.elevatedBackground,
+              hoverColor: colors.mutedBackground.withValues(alpha: 0.7),
+              errorText: _errorText,
+              errorStyle: TextStyle(fontSize: 11, color: colors.error),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: BorderSide(color: colors.primary, width: 1.5),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: BorderSide(color: colors.error, width: 1.2),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: BorderSide(color: colors.error, width: 1.5),
               ),
             ),
+            onChanged: (_) {
+              if (_errorText != null) {
+                setState(() => _errorText = null);
+              }
+            },
+            onSubmitted: (_) => _handleSubmit(),
           ),
-        ],
-      ),
-      content: SizedBox(
-        width: 380,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AppErrorShake(
-              controller: _shakeController,
-              child: TextField(
-                controller: _controller,
-                autofocus: true,
-                style: TextStyle(fontSize: 13, color: colors.textPrimary),
-                decoration: InputDecoration(
-                  hintText:
-                      widget.hintText ??
-                      context.maybeL10n?.commonInputHint ??
-                      '请输入内容…',
-                  hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  filled: true,
-                  fillColor: colors.mutedBackground.withValues(alpha: 0.5),
-                  errorText: _errorText,
-                  errorStyle: TextStyle(fontSize: 11, color: colors.error),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: BorderSide(color: colors.borderDefault),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: BorderSide(color: colors.borderDefault),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: BorderSide(color: colors.primary, width: 1.5),
-                  ),
-                ),
-                onChanged: (_) {
-                  if (_errorText != null) {
-                    setState(() => _errorText = null);
-                  }
-                },
-                onSubmitted: (_) => _handleSubmit(),
-              ),
-            ),
-          ],
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: widget.onCancel ?? () => Navigator.of(context).pop(null),
-          style: TextButton.styleFrom(
-            foregroundColor: colors.textSecondary,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-          child: Text(widget.cancelLabel ?? context.maybeL10n?.cancel ?? '取消'),
+        AppActionButton(
+          label: widget.cancelLabel ?? context.maybeL10n?.cancel ?? '取消',
+          variant: AppActionButtonVariant.ghost,
+          onPressed: cancelAction,
         ),
-        FilledButton(
+        const SizedBox(width: 8),
+        AppActionButton(
+          label: widget.confirmLabel ?? context.maybeL10n?.confirm ?? '确定',
+          variant: AppActionButtonVariant.primary,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           onPressed: _handleSubmit,
-          style: FilledButton.styleFrom(
-            backgroundColor: colors.primary,
-            foregroundColor: colors.onPrimary,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-          child: Text(
-            widget.confirmLabel ?? context.maybeL10n?.confirm ?? '确定',
-          ),
         ),
       ],
     );
@@ -249,6 +220,7 @@ Future<String?> showAppPromptDialog(
       cancelLabel: cancelLabel,
       allowEmpty: allowEmpty,
       validator: validator,
+      barrierDismissible: barrierDismissible,
     ),
   );
 }

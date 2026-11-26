@@ -109,13 +109,11 @@ class _AppCardState extends State<AppCard> {
         ? widget.selectedBorderWidth
         : widget.borderWidth;
 
+    final isDark = context.isDarkMode;
     List<BoxShadow>? shadows;
-    if (widget.isSelected) {
-      shadows = AppShadows.subtle(
-        colors.primary,
-        brightness: context.themeBrightness,
-      );
-    } else if (widget.elevated || (_isHovered && isInteractive)) {
+    if (widget.elevated) {
+      shadows = context.shadowSubtle;
+    } else if (!isDark && _isHovered && isInteractive) {
       shadows = context.shadowSubtle;
     }
 

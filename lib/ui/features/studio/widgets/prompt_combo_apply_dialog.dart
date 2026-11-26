@@ -14,6 +14,7 @@ import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../../../core/widgets/app_segmented_controls.dart';
 import '../../../core/widgets/app_toggle_controls.dart';
 import '../../../core/widgets/app_transitions.dart';
+import '../../../core/widgets/smooth_scroll_controller.dart';
 
 /// 词库条目选择性应用结果
 class PromptComboApplySelection {
@@ -73,6 +74,8 @@ class PromptComboApplyDialog extends StatefulWidget {
 }
 
 class _PromptComboApplyDialogState extends State<PromptComboApplyDialog> {
+  final SmoothWheelScrollController _scrollController =
+      SmoothWheelScrollController();
   late bool _applyPrompt;
   late _PromptApplyMode _promptMode;
   late final Set<String> _selectedPreciseIds;
@@ -80,6 +83,12 @@ class _PromptComboApplyDialogState extends State<PromptComboApplyDialog> {
   bool _replaceReferences = false;
 
   PromptComboEntry get _combo => widget.combo;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -159,12 +168,12 @@ class _PromptComboApplyDialogState extends State<PromptComboApplyDialog> {
       child: AppDialogScaffold(
         title: l10n.librarySelectiveApplyTitle(_combo.title),
         width: 480,
+        maxHeight: 600,
         minimalChrome: true,
-        body: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 520),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-            child: Column(
+        body: SingleChildScrollView(
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
+          child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -335,7 +344,6 @@ class _PromptComboApplyDialogState extends State<PromptComboApplyDialog> {
             ],
           ),
         ),
-      ),
       actions: [
         AppActionButton(
           label: l10n.cancel,

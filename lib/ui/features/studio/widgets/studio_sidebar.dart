@@ -144,6 +144,7 @@ class StudioSidebar extends StatelessWidget {
                 onTap: () => NotificationCenterPopover.show(
                   buttonContext,
                   viewModel: viewModel,
+                  preferAbove: true,
                 ),
               ),
             ),
