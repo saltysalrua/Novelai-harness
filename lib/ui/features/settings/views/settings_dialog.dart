@@ -121,6 +121,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       () => DefaultsSettingsTab(
         draft: _defaultsDraft,
         getProviders: () => _modelsDraft.providers,
+        getPresets: () => _presetsDraft.presets,
       ),
       () => BillSettingsTab(viewModel: widget.viewModel),
     ];
@@ -221,6 +222,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
       inboxOrganizerProviderId: _defaultsDraft.inboxOrganizerProviderId,
       inboxOrganizerModelId: _defaultsDraft.inboxOrganizerModelId,
       inboxAutoRerunPreview: _defaultsDraft.inboxAutoRerunPreview,
+      inboxOrganizerExcludedCategories:
+          _defaultsDraft.inboxOrganizerExcludedCategories,
+      inboxOrganizerPresetId: _defaultsDraft.inboxOrganizerPresetId,
+      inboxOrganizerCustomInstructions:
+          _defaultsDraft.inboxOrganizerCustomInstructions,
     );
 
     Navigator.of(context).pop(newConfig);

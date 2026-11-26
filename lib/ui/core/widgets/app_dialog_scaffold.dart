@@ -214,27 +214,31 @@ class AppDialogScaffold extends StatelessWidget {
                       ),
                     ),
 
-                    // 内容主体 (可选双栏: 左 sidebar 贯穿 + 右 body)
+                    // 内容主体 (可选双栏: 左 sidebar 贯穿 + 右 body；单栏无固定高度时随内容紧凑贴合)
                     Flexible(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (sidebar != null)
-                            Container(
-                              width: sidebarWidth,
-                              decoration: BoxDecoration(
-                                color: colors.elevatedBackground,
-                                border: Border(
-                                  right: BorderSide(
-                                    color: colors.borderDefault,
+                      fit: effectiveHeight != null || sidebar != null
+                          ? FlexFit.tight
+                          : FlexFit.loose,
+                      child: sidebar == null
+                          ? body
+                          : Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Container(
+                                  width: sidebarWidth,
+                                  decoration: BoxDecoration(
+                                    color: colors.elevatedBackground,
+                                    border: Border(
+                                      right: BorderSide(
+                                        color: colors.borderDefault,
+                                      ),
+                                    ),
                                   ),
+                                  child: sidebar,
                                 ),
-                              ),
-                              child: sidebar,
+                                Expanded(child: body),
+                              ],
                             ),
-                          Expanded(child: body),
-                        ],
-                      ),
                     ),
 
                     // 可选底部操作栏

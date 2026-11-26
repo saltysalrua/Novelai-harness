@@ -62,11 +62,13 @@ ActiveCharacterMention? extractActiveCharacterMention(
   );
 }
 
-/// 解析指定条目的全部关联条目（同时包含显式出链 linkedEntryIds 与其他条目指向本条目的反链，去重保序）
+/// 解析指定条目的关联条目（默认仅解析单向显式出链 linkedEntryIds，避免角色被大量服装反链撑爆；
+/// 如确需包含其他条目指向本条目的反链，可传 [includeIncoming] 为 true）
 List<PromptComboEntry> resolveLinkedLibraryEntries(
   PromptComboEntry target,
-  List<PromptComboEntry> allEntries,
-) {
+  List<PromptComboEntry> allEntries, {
+  bool includeIncoming = false,
+}) {
   if (allEntries.isEmpty) return const [];
   final byId = <String, PromptComboEntry>{
     for (final e in allEntries)
@@ -81,10 +83,12 @@ List<PromptComboEntry> resolveLinkedLibraryEntries(
       result.add(found);
     }
   }
-  for (final other in allEntries) {
-    if (other.id == target.id) continue;
-    if (other.linkedEntryIds.contains(target.id) && seen.add(other.id)) {
-      result.add(other);
+  if (includeIncoming) {
+    for (final other in allEntries) {
+      if (other.id == target.id) continue;
+      if (other.linkedEntryIds.contains(target.id) && seen.add(other.id)) {
+        result.add(other);
+      }
     }
   }
   return result;

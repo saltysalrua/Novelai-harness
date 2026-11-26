@@ -90,13 +90,6 @@ String formatPromptComboEntry(
         linkedSummary.add('[${found.id}] ${found.title} (${found.category})');
       }
     }
-    for (final other in allEntries) {
-      if (other.id != entry.id &&
-          other.linkedEntryIds.contains(entry.id) &&
-          seen.add(other.id)) {
-        linkedSummary.add('[${other.id}] ${other.title} (${other.category})');
-      }
-    }
   } else if (entry.linkedEntryIds.isNotEmpty) {
     linkedSummary.addAll(entry.linkedEntryIds);
   }
@@ -295,6 +288,7 @@ class AddPromptLibraryEntryTool extends AgentTool {
   final PromptLibraryEntriesGetter getEntries;
   final PromptLibraryAddEntry addEntry;
   final PromptLibraryInboxGetter? getInboxItems;
+  final Set<String>? excludedCategories;
   final PromptLibraryWorkspacePreciseSnapshot? snapshotWorkspacePrecise;
   final PromptLibraryWorkspaceVibeSnapshot? snapshotWorkspaceVibe;
 
@@ -302,6 +296,7 @@ class AddPromptLibraryEntryTool extends AgentTool {
     required this.getEntries,
     required this.addEntry,
     this.getInboxItems,
+    this.excludedCategories,
     this.snapshotWorkspacePrecise,
     this.snapshotWorkspaceVibe,
   }) : super(
@@ -410,6 +405,27 @@ class AddPromptLibraryEntryTool extends AgentTool {
       final category = (spec['category'] as String?)?.trim().isNotEmpty == true
           ? (spec['category'] as String).trim()
           : PromptComboCategories.other;
+      final excluded = excludedCategories;
+      if (excluded != null &&
+          excluded.isNotEmpty &&
+          excluded.any(
+            (ex) => ex.trim().toLowerCase() == category.toLowerCase(),
+          )) {
+        final allowed = PromptComboCategories.defaults
+            .where(
+              (c) => !excluded.any(
+                (ex) => ex.trim().toLowerCase() == c.toLowerCase(),
+              ),
+            )
+            .toList(growable: false);
+        return ToolResult(
+          toolCallId: toolCallId,
+          content:
+              '用户已禁用后台整理拆分「$category」分类，请不要创建该分类条目'
+              '${allowed.isNotEmpty ? '（当前允许的分类：${allowed.join(' / ')}）' : ''}。',
+          isError: true,
+        );
+      }
       final isStyle = PromptComboEntry.isStyleCategory(category);
       final prompt = (spec['prompt'] as String?)?.trim() ?? '';
       final prefix = (spec['prefix_prompt'] as String?)?.trim() ?? '';
@@ -1415,6 +1431,7 @@ class PromptLibraryTool extends AgentTool {
     PromptLibraryInboxGetter? getInboxItems,
     this.deleteInboxItems,
     this.isModelMultimodal,
+    Set<String>? excludedCategories,
     required PromptLibraryHistoryGetter getHistory,
     required PromptLibraryImageBytesLoader loadImageBytes,
     PromptLibraryPreviewBytesSaver? savePreviewBytes,
@@ -1429,6 +1446,7 @@ class PromptLibraryTool extends AgentTool {
          getEntries: getEntries,
          addEntry: addEntry,
          getInboxItems: getInboxItems,
+         excludedCategories: excludedCategories,
          snapshotWorkspacePrecise: snapshotWorkspacePrecise,
          snapshotWorkspaceVibe: snapshotWorkspaceVibe,
        ),

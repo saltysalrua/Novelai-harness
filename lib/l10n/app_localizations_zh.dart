@@ -4998,4 +4998,26 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsSectionInboxOrganizer => '词库后台整理';
+
+  @override
+  String get libraryInboxOrganizerCategoriesTitle => '允许拆分的分类';
+
+  @override
+  String get libraryInboxOrganizerCategoriesHint => '取消勾选的分类将被禁止由后台助手拆出';
+
+  @override
+  String get libraryInboxOrganizerAtLeastOneCategory => '至少保留一个允许拆分的分类';
+
+  @override
+  String get libraryInboxOrganizerPresetTitle => '整理预设';
+
+  @override
+  String get libraryInboxOrganizerPresetDefault => '内置整理规则';
+
+  @override
+  String get libraryInboxOrganizerCustomInstructionsTitle => '自定义整理指令';
+
+  @override
+  String get libraryInboxOrganizerCustomInstructionsHint =>
+      '可选：补充拆解偏好，如保留画师词、命名风格、特殊合并规则等…';
 }

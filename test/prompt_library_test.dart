@@ -908,10 +908,22 @@ void main() {
         expect(restored.characterPrompts.first.name, '祈酱');
         expect(restored.linkedEntryIds, ['char_inori', 'attire_maid']);
 
-        // Bidirectional link resolution (character card sees outfit & scene backlinks)
+        // One-way link resolution by default (character card is NOT bloated by reverse outfit links)
         final all = [charEntry, outfitEntry, sceneEntry];
-        final charLinks = resolveLinkedLibraryEntries(charEntry, all);
-        expect(charLinks.map((e) => e.id), containsAll(['attire_maid', 'comp_duet']));
+        final outfitLinks = resolveLinkedLibraryEntries(outfitEntry, all);
+        expect(outfitLinks.map((e) => e.id), ['char_inori']);
+        final charLinksDefault = resolveLinkedLibraryEntries(charEntry, all);
+        expect(charLinksDefault, isEmpty);
+        // Optional incoming backlinks remain available when explicitly requested
+        final charLinksWithIncoming = resolveLinkedLibraryEntries(
+          charEntry,
+          all,
+          includeIncoming: true,
+        );
+        expect(
+          charLinksWithIncoming.map((e) => e.id),
+          containsAll(['attire_maid', 'comp_duet']),
+        );
 
         // All-category @ mention suggestions & explicit resolution include outfit & linked character info
         final suggestions = matchCharacterMentionSuggestions(

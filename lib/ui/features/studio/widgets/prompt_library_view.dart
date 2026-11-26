@@ -739,6 +739,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 ],
                 Expanded(child: SizedBox(height: 34, child: searchField)),
                 const SizedBox(width: 6),
+                _buildOrganizerLogToggleButton(context, compact: true),
                 _buildSyncButton(context, compact: true),
                 const SizedBox(width: 6),
                 _buildManageMenu(context, compact: true),
@@ -758,6 +759,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 Row(
                   children: [
                     Expanded(child: title),
+                    _buildOrganizerLogToggleButton(context, compact: true),
                     _buildSyncButton(context, compact: true),
                     const SizedBox(width: 6),
                     _buildManageMenu(context, compact: true),
@@ -785,6 +787,7 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                 ),
               ),
               const SizedBox(width: 10),
+              _buildOrganizerLogToggleButton(context, compact: false),
               _buildSyncButton(context, compact: false),
               const SizedBox(width: 8),
               _buildManageMenu(context, compact: false),
@@ -1031,6 +1034,68 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  /// 顶部全局整理日志开关（任意分类页均可收起或重开日志栏，不必切回待整理区）
+  Widget _buildOrganizerLogToggleButton(
+    BuildContext context, {
+    required bool compact,
+  }) {
+    return ListenableBuilder(
+      listenable: widget.viewModel.inboxOrganizerNotifier,
+      builder: (context, _) {
+        final vm = widget.viewModel;
+        final running = vm.isOrganizingInbox;
+        final hasLogs = vm.hasInboxOrganizerLogs;
+        if (!running && !hasLogs && !_showOrganizerLogs) {
+          return const SizedBox.shrink();
+        }
+        final l10n = context.l10n;
+        final label = _showOrganizerLogs
+            ? l10n.libraryInboxHideLogs
+            : l10n.libraryInboxViewLogs;
+
+        if (compact) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: AppIconButton(
+              key: const Key('library_header_toggle_logs_button'),
+              icon: _showOrganizerLogs
+                  ? Icons.expand_less_rounded
+                  : Icons.terminal_rounded,
+              size: 34,
+              iconSize: 17,
+              variant: _showOrganizerLogs
+                  ? AppIconButtonVariant.primary
+                  : AppIconButtonVariant.outlined,
+              tooltip: label,
+              onPressed: () =>
+                  setState(() => _showOrganizerLogs = !_showOrganizerLogs),
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: SizedBox(
+            height: 34,
+            child: AppActionButton(
+              key: const Key('library_header_toggle_logs_button'),
+              icon: _showOrganizerLogs
+                  ? Icons.expand_less_rounded
+                  : Icons.terminal_rounded,
+              iconSize: 15,
+              label: label,
+              variant: AppActionButtonVariant.outlined,
+              isLoading: running && !_showOrganizerLogs,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+              onPressed: () =>
+                  setState(() => _showOrganizerLogs = !_showOrganizerLogs),
+            ),
+          ),
         );
       },
     );

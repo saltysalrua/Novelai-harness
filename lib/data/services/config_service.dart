@@ -281,6 +281,15 @@ class AppConfig {
   final String inboxOrganizerModelId;
   final bool inboxAutoRerunPreview;
 
+  /// 禁止后台整理 Agent 拆分出的分类名列表 (空 = 允许全部标准分类)
+  final List<String> inboxOrganizerExcludedCategories;
+
+  /// 后台整理 Agent 选用的系统预设 ID (留空 = 使用内置词库整理规则)
+  final String inboxOrganizerPresetId;
+
+  /// 后台整理 Agent 额外自定义指令 (可选，注入整理系统提示词末尾)
+  final String inboxOrganizerCustomInstructions;
+
   // Agent 预设 (多预设配置)
   final List<AgentPreset> presets;
   final String activePresetId;
@@ -403,6 +412,9 @@ class AppConfig {
     this.inboxOrganizerProviderId = '',
     this.inboxOrganizerModelId = '',
     this.inboxAutoRerunPreview = false,
+    this.inboxOrganizerExcludedCategories = const [],
+    this.inboxOrganizerPresetId = '',
+    this.inboxOrganizerCustomInstructions = '',
 
     this.presets = const [],
     this.activePresetId = 'v5-architect-preset',
@@ -481,6 +493,9 @@ class AppConfig {
     String? inboxOrganizerProviderId,
     String? inboxOrganizerModelId,
     bool? inboxAutoRerunPreview,
+    List<String>? inboxOrganizerExcludedCategories,
+    String? inboxOrganizerPresetId,
+    String? inboxOrganizerCustomInstructions,
 
     List<AgentPreset>? presets,
     String? activePresetId,
@@ -576,6 +591,14 @@ class AppConfig {
           inboxOrganizerModelId ?? this.inboxOrganizerModelId,
       inboxAutoRerunPreview:
           inboxAutoRerunPreview ?? this.inboxAutoRerunPreview,
+      inboxOrganizerExcludedCategories:
+          inboxOrganizerExcludedCategories ??
+          this.inboxOrganizerExcludedCategories,
+      inboxOrganizerPresetId:
+          inboxOrganizerPresetId ?? this.inboxOrganizerPresetId,
+      inboxOrganizerCustomInstructions:
+          inboxOrganizerCustomInstructions ??
+          this.inboxOrganizerCustomInstructions,
 
       presets: presets ?? this.presets,
       activePresetId: activePresetId ?? this.activePresetId,
@@ -698,6 +721,12 @@ class ConfigService {
       'novelai_inbox_organizer_model_id';
   static const String _keyInboxAutoRerunPreview =
       'novelai_inbox_auto_rerun_preview';
+  static const String _keyInboxOrganizerExcludedCategories =
+      'novelai_inbox_organizer_excluded_categories_json';
+  static const String _keyInboxOrganizerPresetId =
+      'novelai_inbox_organizer_preset_id';
+  static const String _keyInboxOrganizerCustomInstructions =
+      'novelai_inbox_organizer_custom_instructions';
 
   // 页面布局持久化 Keys
   static const String _keySplitLeftWidth = 'novelai_layout_split_left_width';
@@ -1154,6 +1183,13 @@ class ConfigService {
           prefs.getString(_keyInboxOrganizerModelId) ?? '',
       inboxAutoRerunPreview:
           prefs.getBool(_keyInboxAutoRerunPreview) ?? false,
+      inboxOrganizerExcludedCategories: _parseStringListJson(
+        prefs.getString(_keyInboxOrganizerExcludedCategories),
+      ),
+      inboxOrganizerPresetId:
+          prefs.getString(_keyInboxOrganizerPresetId) ?? '',
+      inboxOrganizerCustomInstructions:
+          prefs.getString(_keyInboxOrganizerCustomInstructions) ?? '',
 
       presets: presets,
       activePresetId: activePresetId,
@@ -1178,6 +1214,21 @@ class ConfigService {
 
   /// 仅保存变化的字段；Windows 每个 setter 都会重写整个偏好文件。
   /// 保持现有 keys，避免关闭窗口时重复写入几十次大型 Skills/预设 JSON。
+  static List<String> _parseStringListJson(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList(growable: false);
+      }
+    } catch (_) {}
+    return const [];
+  }
+
   Future<void> saveConfig(AppConfig config) =>
       _enqueueWrite(() => _saveConfig(config));
 
@@ -1272,6 +1323,12 @@ class ConfigService {
       _keyInboxOrganizerProviderId: config.inboxOrganizerProviderId,
       _keyInboxOrganizerModelId: config.inboxOrganizerModelId,
       _keyInboxAutoRerunPreview: config.inboxAutoRerunPreview,
+      _keyInboxOrganizerExcludedCategories: jsonEncode(
+        config.inboxOrganizerExcludedCategories,
+      ),
+      _keyInboxOrganizerPresetId: config.inboxOrganizerPresetId,
+      _keyInboxOrganizerCustomInstructions:
+          config.inboxOrganizerCustomInstructions,
       _keyPresets: presetsJson,
       _keyActivePresetId: config.activePresetId,
       _keyCustomSkills: customSkillsJson,

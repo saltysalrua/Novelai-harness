@@ -200,6 +200,11 @@ mixin _StudioLibraryMixin on _StudioCore {
   String get inboxOrganizerProviderId => _config.inboxOrganizerProviderId;
   String get inboxOrganizerModelId => _config.inboxOrganizerModelId;
   bool get inboxAutoRerunPreview => _config.inboxAutoRerunPreview;
+  List<String> get inboxOrganizerExcludedCategories =>
+      _config.inboxOrganizerExcludedCategories;
+  String get inboxOrganizerPresetId => _config.inboxOrganizerPresetId;
+  String get inboxOrganizerCustomInstructions =>
+      _config.inboxOrganizerCustomInstructions;
 
   /// 解析当前用于待整理区后台整理的供应商与模型（未指定或失效时跟随主模型）
   ({LlmProviderConfig provider, LlmModelConfig model, bool isFollowingMain})
@@ -229,17 +234,23 @@ mixin _StudioLibraryMixin on _StudioCore {
     );
   }
 
-  /// 更新待整理区后台整理设置（独立模型/跟随主模型 + 分离后自动重跑预览图开关）
+  /// 更新待整理区后台整理设置（独立模型/跟随主模型 + 自动重跑预览图 + 禁止拆分分类 + 整理预设/自定义指令）
   Future<void> updateInboxOrganizerSettings({
     String? providerId,
     String? modelId,
     bool? autoRerunPreview,
+    List<String>? excludedCategories,
+    String? presetId,
+    String? customInstructions,
   }) async {
     await updateConfig(
       _config.copyWith(
         inboxOrganizerProviderId: providerId,
         inboxOrganizerModelId: modelId,
         inboxAutoRerunPreview: autoRerunPreview,
+        inboxOrganizerExcludedCategories: excludedCategories,
+        inboxOrganizerPresetId: presetId,
+        inboxOrganizerCustomInstructions: customInstructions,
       ),
     );
     promptLibraryNotifier.value++;
@@ -469,6 +480,20 @@ mixin _StudioLibraryMixin on _StudioCore {
 
     final autoRerun = _config.inboxAutoRerunPreview;
     final multimodal = overrideMultimodalForTest ?? modelCfg.isMultimodal;
+    final excludedSet = _config.inboxOrganizerExcludedCategories
+        .map((c) => c.trim())
+        .where((c) => c.isNotEmpty)
+        .toSet();
+    final allowedCategories = PromptComboCategories.defaults
+        .where((c) => !excludedSet.contains(c))
+        .toList(growable: false);
+    final selectedPresetId = _config.inboxOrganizerPresetId.trim();
+    final selectedPreset = selectedPresetId.isEmpty
+        ? null
+        : _config.presets
+              .where((p) => p.id == selectedPresetId)
+              .firstOrNull;
+    final customInstructions = _config.inboxOrganizerCustomInstructions.trim();
 
     _appendInboxOrganizerLog(
       InboxOrganizerLogEntry(
@@ -478,7 +503,10 @@ mixin _StudioLibraryMixin on _StudioCore {
         text:
             '模型: $_inboxOrganizerModelLabel${resolved.isFollowingMain ? ' (跟随主模型)' : ''} · '
             '视觉: ${multimodal ? '支持' : '纯文本'} · '
-            '分离后自动重跑预览图: ${autoRerun ? '开启' : '关闭'}',
+            '自动重跑预览图: ${autoRerun ? '开启' : '关闭'}'
+            '${selectedPreset != null ? ' · 预设: ${selectedPreset.name}' : ''}'
+            '${customInstructions.isNotEmpty ? ' · 已附自定义指令' : ''}'
+            '${excludedSet.isNotEmpty ? ' · 允许分类: ${allowedCategories.join('/')}' : ''}',
       ),
     );
 
@@ -492,6 +520,7 @@ mixin _StudioLibraryMixin on _StudioCore {
         getInboxItems: () => promptInboxItems,
         deleteInboxItems: deletePromptInboxItems,
         isModelMultimodal: () => multimodal,
+        excludedCategories: excludedSet.isEmpty ? null : excludedSet,
         getHistory: () => _repository.history,
         loadImageBytes: ensureImageLoaded,
         savePreviewBytes: savePromptPreviewFromBytes,
@@ -521,8 +550,12 @@ mixin _StudioLibraryMixin on _StudioCore {
       ..writeln('工作流程与规范：')
       ..writeln('1. 调用 prompt_library(action: "list_inbox") 查看待整理清单，再用 read_inbox 逐条读取完整主提示词、角色提示词和图片。')
       ..writeln('2. 调用 prompt_library(action: "search") 检查正式词库中是否已有同名或同类条目，避免重复建条，已有角色/套装可优先 update 补充。')
-      ..writeln('3. 将有复用价值的元素拆分为独立条目（分类：角色 / 风格 / 服装 / 构图 / 环境 / 特效 / 其他），去掉杂乱质量词、无意义临时词，保留精炼有效的 Danbooru 标签；必要时可在同一条目保留主提示词 + character_prompts。')
-      ..writeln('4. 重要关联规范：如果某条「服装」「配饰」或专属构图属于某个角色，请先创建或查找到该角色条目，再在服装条目中通过 linked_entry_titles: ["角色标题"] 或 linked_entry_ids 关联到对应角色！')
+      ..writeln(
+        excludedSet.isEmpty
+            ? '3. 将有复用价值的元素拆分为独立条目（分类：角色 / 风格 / 服装 / 构图 / 环境 / 特效 / 其他），去掉杂乱质量词、无意义临时词，保留精炼有效的 Danbooru 标签；必要时可在同一条目保留主提示词 + character_prompts。'
+            : '3. 【严格分类限制】用户仅允许拆分以下分类：${allowedCategories.join(' / ')}；严禁为【${excludedSet.join(' / ')}】创建词条，忽略这些维度的标签不要拆出单独条目！其余维度按需去杂提炼，保留精炼有效的 Danbooru 标签。',
+      )
+      ..writeln('4. 重要关联规范：关联为单向引用——如果某条「服装」「配饰」或专属构图属于某个角色，请先创建或查找到该角色条目，再仅在该服装/构图条目中通过 linked_entry_titles: ["角色标题"] 或 linked_entry_ids 单向指向对应角色（不要在角色条目上反向堆叠大量服装链接）。')
       ..writeln('5. 新增条目时可传 preview_inbox_id 复用原待整理图作初始预览图。')
       ..writeln(
         autoRerun
@@ -530,6 +563,20 @@ mixin _StudioLibraryMixin on _StudioCore {
             : '6. 当前未开启自动重跑预览图，直接用 preview_inbox_id 复用原图作为预览图即可。',
       )
       ..writeln('7. 确认入库成功后，调用 prompt_library(action: "delete_inbox") 清理已整理完毕的待整理项，最后用简明中文汇报整理结果（新增/更新了哪些条目、建立了哪些关联、是否重跑了预览图）。');
+
+    if (selectedPreset != null && selectedPreset.systemPrompt.trim().isNotEmpty) {
+      systemPrompt
+        ..writeln()
+        ..writeln('【已选用整理预设：${selectedPreset.name}】')
+        ..writeln(selectedPreset.systemPrompt.trim())
+        ..writeln('（请在遵循上述预设风格与标签规范的前提下，严格执行词库工具流程与允许拆分分类限制。）');
+    }
+    if (customInstructions.isNotEmpty) {
+      systemPrompt
+        ..writeln()
+        ..writeln('【用户自定义整理指令（高优先级）】')
+        ..writeln(customInstructions);
+    }
 
     final organizerPreset = AgentPreset(
       id: '_inbox_organizer_bg',
@@ -722,6 +769,11 @@ mixin _StudioLibraryMixin on _StudioCore {
       if (!_disposed) {
         promptLibraryNotifier.value++;
         _notifyInboxOrganizerNow();
+        // 后台整理期间暂缓的自动云同步：全部条目与预览图落地后统一合并上传一次
+        if (_pendingAutoPromptSync && _canRunAutoPromptSync) {
+          _pendingAutoPromptSync = false;
+          _scheduleAutoPromptSync();
+        }
       }
     }
   }
@@ -1208,7 +1260,8 @@ mixin _StudioLibraryMixin on _StudioCore {
 
   void _scheduleAutoPromptSync() {
     if (_disposed || !_canRunAutoPromptSync) return;
-    if (_isSyncingPromptLibrary) {
+    if (_isOrganizingInbox || _isSyncingPromptLibrary) {
+      // 后台整理或已有同步进行中：合并为结束后的一次同步，避免反复触发云同步
       _pendingAutoPromptSync = true;
       return;
     }
@@ -1221,7 +1274,7 @@ mixin _StudioLibraryMixin on _StudioCore {
 
   Future<void> _runAutoPromptSync() async {
     if (_disposed || !_canRunAutoPromptSync) return;
-    if (_isSyncingPromptLibrary) {
+    if (_isOrganizingInbox || _isSyncingPromptLibrary) {
       _pendingAutoPromptSync = true;
       return;
     }

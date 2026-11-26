@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:novelai_harness/core/harness/providers/llm_provider.dart';
+import 'package:novelai_harness/core/harness/tools/agent_tool.dart';
+import 'package:novelai_harness/core/harness/types.dart';
 import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/models/prompt_library_models.dart';
 import 'package:novelai_harness/data/models/prompt_library_sync_models.dart';
@@ -29,6 +32,7 @@ class _FakeCloudflareSyncServer {
 
   int imageUploadCount = 0;
   int imageDownloadCount = 0;
+  int syncPushCount = 0;
 
   late final MockClient client = MockClient(_handle);
 
@@ -83,6 +87,7 @@ class _FakeCloudflareSyncServer {
     }
 
     if (req.method == 'POST' && path == '/api/sync/push') {
+      syncPushCount++;
       final body = jsonDecode(req.body) as Map<String, dynamic>;
       final bodyNs = body['namespace'] as String? ?? 'default';
       final mode = body['mode'] as String? ?? 'merge';
@@ -1119,5 +1124,175 @@ void main() {
         expect(pulled.linkedEntryIds, ['char_inori']);
       },
     );
+
+    test(
+      'background inbox organizer defers auto-sync until completion and enforces excluded categories',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final server = _FakeCloudflareSyncServer(expectedToken: 'org-tok');
+        final dir = Directory.systemTemp.createTempSync('prompt_org_sync_');
+        addTearDown(() {
+          try {
+            dir.deleteSync(recursive: true);
+          } catch (_) {}
+        });
+
+        PromptLibraryService.instance.setCustomStorageDirectory(dir.path);
+        final configService = ConfigService();
+        final initialCfg = (await configService.loadConfig()).copyWith(
+          promptSyncEndpoint: 'https://sync.example.com',
+          promptSyncToken: 'org-tok',
+          promptSyncNamespace: 'org-ns',
+          promptSyncAutoEnabled: true,
+          promptSyncAutoIntervalMinutes: 0,
+          inboxOrganizerExcludedCategories: const ['构图', '环境'],
+          inboxOrganizerPresetId: 'v5-architect-preset',
+          inboxOrganizerCustomInstructions: '优先保留画师标签，不要翻译角色英文名',
+        );
+        await configService.saveConfig(initialCfg);
+
+        final reloaded = await configService.loadConfig();
+        expect(reloaded.inboxOrganizerExcludedCategories, ['构图', '环境']);
+        expect(reloaded.inboxOrganizerPresetId, 'v5-architect-preset');
+        expect(
+          reloaded.inboxOrganizerCustomInstructions,
+          '优先保留画师标签，不要翻译角色英文名',
+        );
+
+        final syncSvc = PromptLibrarySyncService(
+          libraryService: PromptLibraryService.instance,
+          httpClient: server.client,
+        );
+        final vm = StudioViewModel(
+          configService: configService,
+          promptLibraryService: PromptLibraryService.instance,
+          promptLibrarySyncService: syncSvc,
+          sessionLogBaseDir: dir.path,
+        );
+        vm.promptAutoSyncDebounceDelayForTest = const Duration(
+          milliseconds: 30,
+        );
+        addTearDown(vm.dispose);
+
+        // Seed 1 inbox item before init so vm loads it into _promptInboxItems
+        final now = DateTime.now();
+        await PromptLibraryService.instance.addInboxItem(
+          PromptInboxItem(
+            id: 'inbox_org_1',
+            prompt: '1girl, low angle, white thighhighs',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+        await vm.init();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(server.syncPushCount, 0);
+
+        var midRunPushCountAfterTurn1 = -1;
+        var midRunPushCountAfterTurn2 = -1;
+        String capturedSystemPrompt = '';
+        final fakeProvider = _FakeOrganizerLlmProvider(
+          onTurn: (turn, messages) async* {
+            if (turn == 0) {
+              capturedSystemPrompt = messages
+                  .where((m) => m.role == AgentRole.system)
+                  .map((m) => m.content)
+                  .join('\n');
+              yield ToolCallEvent(
+                const ToolCall(
+                  id: 'tc_blocked',
+                  name: 'prompt_library',
+                  arguments: {
+                    'action': 'add',
+                    'title': '被禁构图条目',
+                    'category': '构图',
+                    'prompt': 'low angle',
+                  },
+                ),
+              );
+              yield ToolCallEvent(
+                const ToolCall(
+                  id: 'tc_char',
+                  name: 'prompt_library',
+                  arguments: {
+                    'action': 'add',
+                    'title': '整理角色甲',
+                    'category': '角色',
+                    'prompt': '1girl, black hair',
+                  },
+                ),
+              );
+            } else if (turn == 1) {
+              // Sleep longer than debounce (30ms) to confirm auto-sync is suppressed while organizing
+              await Future<void>.delayed(const Duration(milliseconds: 80));
+              midRunPushCountAfterTurn1 = server.syncPushCount;
+              yield ToolCallEvent(
+                const ToolCall(
+                  id: 'tc_attire',
+                  name: 'prompt_library',
+                  arguments: {
+                    'action': 'add',
+                    'title': '整理服装乙',
+                    'category': '服装',
+                    'prompt': 'white thighhighs',
+                  },
+                ),
+              );
+            } else {
+              await Future<void>.delayed(const Duration(milliseconds: 80));
+              midRunPushCountAfterTurn2 = server.syncPushCount;
+              yield ContentDeltaEvent('整理完成');
+            }
+          },
+        );
+
+        await vm.startBackgroundInboxOrganizer(
+          overrideProviderForTest: fakeProvider,
+          overrideMultimodalForTest: false,
+        );
+
+        // Verify system prompt injected selected preset + custom instructions + one-way link rule
+        expect(capturedSystemPrompt, contains('已选用整理预设'));
+        expect(capturedSystemPrompt, contains('优先保留画师标签，不要翻译角色英文名'));
+        expect(capturedSystemPrompt, contains('单向引用'));
+
+        // Must not have pushed mid-run
+        expect(midRunPushCountAfterTurn1, 0);
+        expect(midRunPushCountAfterTurn2, 0);
+
+        // After completion, one consolidated debounce sync pushes both allowed entries
+        await Future<void>.delayed(const Duration(milliseconds: 140));
+        expect(server.syncPushCount, 1);
+
+        final remoteTitles = (server.entriesByNs['org-ns']?.values ?? const [])
+            .map((e) => e['title'])
+            .toSet();
+        expect(remoteTitles, containsAll(['整理角色甲', '整理服装乙']));
+        expect(remoteTitles, isNot(contains('被禁构图条目')));
+      },
+    );
   });
+}
+
+class _FakeOrganizerLlmProvider extends LlmProvider {
+  final Stream<HarnessEvent> Function(int turn, List<AgentMessage> messages)
+  onTurn;
+  int _turn = 0;
+
+  _FakeOrganizerLlmProvider({required this.onTurn});
+
+  @override
+  String get modelId => 'fake-organizer-model';
+
+  @override
+  Stream<HarnessEvent> streamChat({
+    required List<AgentMessage> messages,
+    required List<AgentTool> tools,
+    double temperature = 0.7,
+    String? promptCacheKey,
+  }) {
+    final currentTurn = _turn++;
+    return onTurn(currentTurn, messages);
+  }
 }

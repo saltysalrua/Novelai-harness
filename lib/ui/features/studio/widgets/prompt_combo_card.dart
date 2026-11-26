@@ -881,29 +881,37 @@ class _QuietRefBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 5 : 6,
-        vertical: compact ? 1.5 : 2,
-      ),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: compact ? 10 : 11, color: foregroundColor),
-          const SizedBox(width: 3),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: compact ? 9.5 : 10,
-              fontWeight: FontWeight.w600,
-              color: foregroundColor,
+    return Tooltip(
+      message: label,
+      waitDuration: AppMotionDurations.verySlow,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 5 : 6,
+          vertical: compact ? 1.5 : 2,
+        ),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: compact ? 10 : 11, color: foregroundColor),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: compact ? 9.5 : 10,
+                  fontWeight: FontWeight.w600,
+                  color: foregroundColor,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

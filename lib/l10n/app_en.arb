@@ -2231,5 +2231,12 @@
       "title": {"type": "String"}
     }
   },
-  "settingsSectionInboxOrganizer": "Library Background Organizer"
+  "settingsSectionInboxOrganizer": "Library Background Organizer",
+  "libraryInboxOrganizerCategoriesTitle": "Allowed Split Categories",
+  "libraryInboxOrganizerCategoriesHint": "Unchecked categories will not be extracted by the background organizer",
+  "libraryInboxOrganizerAtLeastOneCategory": "Keep at least one category enabled",
+  "libraryInboxOrganizerPresetTitle": "Organizer Preset",
+  "libraryInboxOrganizerPresetDefault": "Built-in Organizer Rules",
+  "libraryInboxOrganizerCustomInstructionsTitle": "Custom Instructions",
+  "libraryInboxOrganizerCustomInstructionsHint": "Optional: add split preferences, naming rules, or tags to keep…"
 }

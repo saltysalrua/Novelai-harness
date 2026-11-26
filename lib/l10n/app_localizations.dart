@@ -9170,6 +9170,48 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'词库后台整理'**
   String get settingsSectionInboxOrganizer;
+
+  /// No description provided for @libraryInboxOrganizerCategoriesTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'允许拆分的分类'**
+  String get libraryInboxOrganizerCategoriesTitle;
+
+  /// No description provided for @libraryInboxOrganizerCategoriesHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消勾选的分类将被禁止由后台助手拆出'**
+  String get libraryInboxOrganizerCategoriesHint;
+
+  /// No description provided for @libraryInboxOrganizerAtLeastOneCategory.
+  ///
+  /// In zh, this message translates to:
+  /// **'至少保留一个允许拆分的分类'**
+  String get libraryInboxOrganizerAtLeastOneCategory;
+
+  /// No description provided for @libraryInboxOrganizerPresetTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'整理预设'**
+  String get libraryInboxOrganizerPresetTitle;
+
+  /// No description provided for @libraryInboxOrganizerPresetDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'内置整理规则'**
+  String get libraryInboxOrganizerPresetDefault;
+
+  /// No description provided for @libraryInboxOrganizerCustomInstructionsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义整理指令'**
+  String get libraryInboxOrganizerCustomInstructionsTitle;
+
+  /// No description provided for @libraryInboxOrganizerCustomInstructionsHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'可选：补充拆解偏好，如保留画师词、命名风格、特殊合并规则等…'**
+  String get libraryInboxOrganizerCustomInstructionsHint;
 }
 
 class _AppLocalizationsDelegate

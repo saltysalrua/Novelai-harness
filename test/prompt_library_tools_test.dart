@@ -965,14 +965,21 @@ void main() {
       expect(compEntry.characterPrompts.length, 1);
       expect(compEntry.characterPrompts.first.name, '小祈');
 
-      // search detail shows reverse links on character card
-      final detailRes = await tool.execute('link_2', {
+      // search detail shows one-way link on outfit card without bloating character card
+      final outfitDetailRes = await tool.execute('link_2', {
+        'action': 'search',
+        'id': outfitEntry.id,
+      });
+      expect(outfitDetailRes.isError, isFalse);
+      expect(outfitDetailRes.content, contains('关联条目'));
+      expect(outfitDetailRes.content, contains('小祈本体'));
+
+      final charDetailRes = await tool.execute('link_3', {
         'action': 'search',
         'id': charEntry.id,
       });
-      expect(detailRes.isError, isFalse);
-      expect(detailRes.content, contains('关联条目'));
-      expect(detailRes.content, contains('小祈白丝针织开衫'));
+      expect(charDetailRes.isError, isFalse);
+      expect(charDetailRes.content, isNot(contains('小祈白丝针织开衫')));
 
       // GenerateLibraryPreviewTool clamps dimensions to <= 1MP and triggers callback
       int? receivedW;
@@ -1004,6 +1011,59 @@ void main() {
       expect(genRes.isError, isFalse);
       expect(receivedEntryId, outfitEntry.id);
       expect(receivedW! * receivedH!, lessThanOrEqualTo(1048576));
+    });
+
+    test('新增工具: excludedCategories 拦截被禁拆分的分类并放行允许分类', () async {
+      final tool = PromptLibraryTool(
+        getEntries: () => entries,
+        addEntry: addEntry,
+        updateEntry: updateEntry,
+        deleteEntry: deleteEntry,
+        excludedCategories: const {'构图', '环境'},
+        getHistory: () => const [],
+        loadImageBytes: (_) async => null,
+      );
+
+      // Single add of forbidden category is rejected
+      final blockedSingle = await tool.execute('ex_1', {
+        'action': 'add',
+        'title': '仰拍构图',
+        'category': '构图',
+        'prompt': 'low angle, dutch angle',
+      });
+      expect(blockedSingle.isError, isTrue);
+      expect(blockedSingle.content, contains('已禁用后台整理拆分'));
+      expect(entries.any((e) => e.title == '仰拍构图'), isFalse);
+
+      // Batch containing a forbidden category rejects the entire batch atomically
+      final blockedBatch = await tool.execute('ex_2', {
+        'action': 'add',
+        'entries': [
+          {
+            'title': '允许的新服装',
+            'category': '服装',
+            'prompt': 'school uniform, white thighhighs',
+          },
+          {
+            'title': '被禁的新环境',
+            'category': '环境',
+            'prompt': 'classroom, sunset',
+          },
+        ],
+      });
+      expect(blockedBatch.isError, isTrue);
+      expect(blockedBatch.content, contains('环境'));
+      expect(entries.any((e) => e.title == '允许的新服装'), isFalse);
+
+      // Allowed category succeeds normally
+      final allowedRes = await tool.execute('ex_3', {
+        'action': 'add',
+        'title': '允许的新服装',
+        'category': '服装',
+        'prompt': 'school uniform, white thighhighs',
+      });
+      expect(allowedRes.isError, isFalse);
+      expect(entries.any((e) => e.title == '允许的新服装'), isTrue);
     });
   });
 }

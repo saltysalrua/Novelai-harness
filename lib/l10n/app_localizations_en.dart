@@ -5341,4 +5341,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsSectionInboxOrganizer => 'Library Background Organizer';
+
+  @override
+  String get libraryInboxOrganizerCategoriesTitle => 'Allowed Split Categories';
+
+  @override
+  String get libraryInboxOrganizerCategoriesHint =>
+      'Unchecked categories will not be extracted by the background organizer';
+
+  @override
+  String get libraryInboxOrganizerAtLeastOneCategory =>
+      'Keep at least one category enabled';
+
+  @override
+  String get libraryInboxOrganizerPresetTitle => 'Organizer Preset';
+
+  @override
+  String get libraryInboxOrganizerPresetDefault => 'Built-in Organizer Rules';
+
+  @override
+  String get libraryInboxOrganizerCustomInstructionsTitle =>
+      'Custom Instructions';
+
+  @override
+  String get libraryInboxOrganizerCustomInstructionsHint =>
+      'Optional: add split preferences, naming rules, or tags to keep…';
 }
