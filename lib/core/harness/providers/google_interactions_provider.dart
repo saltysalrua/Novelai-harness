@@ -288,7 +288,25 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
         }
       }
     } else {
+      final pendingCallIds = <String>[];
+      final pendingToolImageParts = <Map<String, dynamic>>[];
+
+      void flushToolImages() {
+        if (pendingToolImageParts.isEmpty) return;
+        inputSteps.add({
+          'type': 'user_input',
+          'content': [
+            {'type': 'text', 'text': '以下是前面工具结果附带的图片，请直接查看。'},
+            ...pendingToolImageParts,
+          ],
+        });
+        pendingToolImageParts.clear();
+      }
+
       for (final msg in normalizedMessages) {
+        if (msg.role != AgentRole.tool) {
+          flushToolImages();
+        }
         switch (msg.role) {
           case AgentRole.system:
             if (msg.content.trim().isNotEmpty) {
@@ -307,6 +325,9 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                     'mime_type': img.mimeType,
                   },
             ];
+            if (contentParts.isEmpty) {
+              contentParts.add({'type': 'text', 'text': ''});
+            }
             inputSteps.add({'type': 'user_input', 'content': contentParts});
 
           case AgentRole.assistant:
@@ -346,6 +367,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
               final calls = msg.toolCalls!;
               for (final tc in calls) {
                 toolNameByCallId[tc.id] = tc.name;
+                pendingCallIds.add(tc.id);
                 inputSteps.add({
                   'type': 'function_call',
                   'id': tc.id,
@@ -356,29 +378,70 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
             }
 
           case AgentRole.tool:
-            final callId = msg.toolCallId ?? '';
+            var callId = msg.toolCallId?.trim() ?? '';
+            if (callId.isEmpty && pendingCallIds.isNotEmpty) {
+              callId = pendingCallIds.removeAt(0);
+            } else if (callId.isNotEmpty) {
+              pendingCallIds.remove(callId);
+            }
             final resolvedName =
                 (msg.toolName != null && msg.toolName!.isNotEmpty)
                 ? msg.toolName!
                 : (toolNameByCallId[callId] ?? 'tool');
-            final resultParts = <Map<String, dynamic>>[
-              {'type': 'text', 'text': msg.content},
-              if (msg.imageBase64 != null && msg.imageBase64!.isNotEmpty)
+            final hasImage =
+                msg.imageBase64 != null && msg.imageBase64!.isNotEmpty;
+            if (callId.isEmpty) {
+              // 孤立工具结果无法配对 call_id，降级为 user_input 避免空 call_id 触发 400
+              final fallbackText = '[工具 $resolvedName 结果] ${msg.content}'.trim();
+              inputSteps.add({
+                'type': 'user_input',
+                'content': [
+                  {'type': 'text', 'text': fallbackText},
+                  if (hasImage)
+                    {
+                      'type': 'image',
+                      'data': msg.imageBase64,
+                      'mime_type': msg.imageMimeType,
+                    },
+                ],
+              });
+              break;
+            }
+            // Interactions API 规范允许 FunctionResultStep.result 为 object / string / array；
+            // 统一使用 JSON 对象 ({result: ...} / {error: ...}) 映射底层 Gemini
+            // FunctionResponse.response (google.protobuf.Struct)，避免传数组在非多模态
+            // 后端或兼容网关上触发「Proto field is not repeating, cannot start list」400。
+            final resultText = msg.content.isEmpty && hasImage
+                ? '图片见随后的附件。'
+                : msg.content;
+            inputSteps.add({
+              'type': 'function_result',
+              'call_id': callId,
+              'name': resolvedName,
+              'result': msg.isError
+                  ? <String, dynamic>{'error': resultText}
+                  : <String, dynamic>{'result': resultText},
+              if (msg.isError) 'is_error': true,
+            });
+            if (hasImage) {
+              pendingToolImageParts.addAll([
+                {
+                  'type': 'text',
+                  'text': jsonEncode({
+                    'tool_name': resolvedName,
+                    'tool_call_id': callId,
+                  }),
+                },
                 {
                   'type': 'image',
                   'data': msg.imageBase64,
                   'mime_type': msg.imageMimeType,
                 },
-            ];
-            inputSteps.add({
-              'type': 'function_result',
-              'call_id': callId,
-              'name': resolvedName,
-              'result': resultParts,
-              if (msg.isError) 'is_error': true,
-            });
+              ]);
+            }
         }
       }
+      flushToolImages();
     }
 
     final generationConfig = <String, dynamic>{
@@ -654,7 +717,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
                 }
               }
 
-            case 'function_call' || 'arguments_delta':
+            case 'function_call' || 'arguments_delta' || 'arguments':
               state.type = 'function_call';
               state.absorbFunctionCallDelta(delta);
 
@@ -668,6 +731,7 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
               if (delta.containsKey('name') ||
                   delta.containsKey('arguments') ||
                   delta.containsKey('arguments_delta') ||
+                  delta.containsKey('partial_arguments') ||
                   state.type == 'function_call') {
                 state.type = 'function_call';
                 state.absorbFunctionCallDelta(delta);
@@ -880,7 +944,10 @@ class GoogleInteractionsProvider implements LlmProvider, LlmRequestOverhead {
     required void Function(String) onSignature,
     required Iterable<ContentDeltaEvent> Function(String) emitContentText,
   }) async* {
-    final outputs = interactionMap['output'] ?? interactionMap['outputs'];
+    final outputs =
+        interactionMap['steps'] ??
+        interactionMap['output'] ??
+        interactionMap['outputs'];
     if (outputs is! List) return;
 
     final allowThoughtEmit = !emittedThoughts();
@@ -1062,7 +1129,9 @@ class _InteractionStepState {
 
   void absorbFunctionCallDelta(Map<String, dynamic> delta) {
     absorbFunctionCallMap(delta);
-    final argsDelta = delta['arguments_delta'] as String?;
+    final argsDelta =
+        (delta['arguments_delta'] as String?) ??
+        (delta['partial_arguments'] as String?);
     if (argsDelta != null && argsDelta.isNotEmpty) {
       argumentsBuffer.write(argsDelta);
     }

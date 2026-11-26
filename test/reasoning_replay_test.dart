@@ -769,6 +769,286 @@ void main() {
       expect(thought['signature'], 'thought_sig');
       expect(functionCall.containsKey('thought_signature'), isFalse);
     });
+
+    test('多工具 function_result 使用对象 result 而非数组，避免 Proto field is not repeating 400', () {
+      final body = GoogleInteractionsProvider.buildRequestBody(
+        messages: [
+          AgentMessage(id: 'u', role: AgentRole.user, content: 'draw'),
+          AgentMessage(
+            id: 'a',
+            role: AgentRole.assistant,
+            thoughtSignature: 'sig_1',
+            toolCalls: const [
+              ToolCall(id: 'fc_1', name: 'lookup', arguments: {'q': 'cat'}),
+              ToolCall(id: 'fc_2', name: 'describe_tools', arguments: {}),
+            ],
+          ),
+          AgentMessage(
+            id: 't1',
+            role: AgentRole.tool,
+            toolCallId: 'fc_1',
+            toolName: 'lookup',
+            content: 'ok_1',
+          ),
+          AgentMessage(
+            id: 't2',
+            role: AgentRole.tool,
+            toolCallId: 'fc_2',
+            toolName: 'describe_tools',
+            content: '[{"name":"foo"}]',
+            isError: true,
+          ),
+        ],
+        tools: const [_LookupTool()],
+        modelId: 'gemini-4-argon',
+        reasoning: true,
+        thinkingEffort: 'medium',
+        promptToolUse: false,
+      );
+
+      final input = body['input'] as List;
+      final results = input
+          .whereType<Map<String, dynamic>>()
+          .where((step) => step['type'] == 'function_result')
+          .toList();
+      expect(results, hasLength(2));
+      expect(results[0]['result'], isA<Map<String, dynamic>>());
+      expect(results[0]['result'], {'result': 'ok_1'});
+      expect(results[1]['result'], isA<Map<String, dynamic>>());
+      expect(results[1]['result'], {'error': '[{"name":"foo"}]'});
+      expect(results[1]['is_error'], isTrue);
+    });
+
+    test('带图片的 function_result 保持对象 result，并在工具结果批后追加 user_input 附图', () {
+      final body = GoogleInteractionsProvider.buildRequestBody(
+        messages: [
+          AgentMessage(id: 'u', role: AgentRole.user, content: 'check'),
+          AgentMessage(
+            id: 'a',
+            role: AgentRole.assistant,
+            thoughtSignature: 'sig_img',
+            toolCalls: const [
+              ToolCall(id: 'fc_1', name: 'view_canvas_image', arguments: {}),
+              ToolCall(id: 'fc_2', name: 'lookup', arguments: {'q': 'a'}),
+            ],
+          ),
+          AgentMessage(
+            id: 't1',
+            role: AgentRole.tool,
+            toolCallId: 'fc_1',
+            toolName: 'view_canvas_image',
+            content: '画板图',
+            imageBase64: 'aW1nX2RhdGE=',
+            imageMimeType: 'image/png',
+          ),
+          AgentMessage(
+            id: 't2',
+            role: AgentRole.tool,
+            toolCallId: 'fc_2',
+            toolName: 'lookup',
+            content: 'done',
+          ),
+        ],
+        tools: const [_LookupTool()],
+        modelId: 'gemini-4-argon',
+        reasoning: true,
+        thinkingEffort: 'medium',
+        promptToolUse: false,
+      );
+
+      final input = (body['input'] as List).cast<Map<String, dynamic>>();
+      final resultIndices = [
+        for (var i = 0; i < input.length; i++)
+          if (input[i]['type'] == 'function_result') i,
+      ];
+      expect(resultIndices, hasLength(2));
+      // 连续工具结果保持相邻，不被图片插入打断
+      expect(resultIndices[1], resultIndices[0] + 1);
+      expect(input[resultIndices[0]]['result'], isA<Map<String, dynamic>>());
+      expect(input[resultIndices[1]]['result'], isA<Map<String, dynamic>>());
+      // 附图在整批 function_result 之后的 user_input 步发送
+      final imageStep = input[resultIndices.last + 1];
+      expect(imageStep['type'], 'user_input');
+      final parts = (imageStep['content'] as List).cast<Map<String, dynamic>>();
+      expect(
+        parts.any(
+          (p) =>
+              p['type'] == 'image' &&
+              p['data'] == 'aW1nX2RhdGE=' &&
+              p['mime_type'] == 'image/png',
+        ),
+        isTrue,
+      );
+    });
+
+    test('缺失 call_id 的孤立工具结果降级为 user_input，不发送空 call_id', () {
+      final body = GoogleInteractionsProvider.buildRequestBody(
+        messages: [
+          AgentMessage(id: 'u', role: AgentRole.user, content: 'hi'),
+          AgentMessage(
+            id: 't_orphan',
+            role: AgentRole.tool,
+            toolName: 'lookup',
+            content: 'orphan_result',
+          ),
+        ],
+        tools: const [],
+        modelId: 'gemini-4-argon',
+        reasoning: true,
+        thinkingEffort: 'medium',
+        promptToolUse: false,
+      );
+
+      final input = (body['input'] as List).cast<Map<String, dynamic>>();
+      expect(input.any((s) => s['type'] == 'function_result'), isFalse);
+      expect(input.last['type'], 'user_input');
+      expect(jsonEncode(input.last), contains('orphan_result'));
+    });
+
+    test('非流式与完成事件兼容官方 GA steps 字段及 partial_arguments 增量', () async {
+      final client = MockClient.streaming((request, bodyStream) async {
+        final body =
+            jsonDecode(await bodyStream.bytesToString()) as Map<String, dynamic>;
+        if (body['stream'] == false) {
+          return http.StreamedResponse(
+            Stream.value(
+              utf8.encode(
+                jsonEncode({
+                  'status': 'requires_action',
+                  'steps': [
+                    {
+                      'type': 'thought',
+                      'signature': 'ga_sig',
+                      'summary': [
+                        {'type': 'text', 'text': 'GA思考'},
+                      ],
+                    },
+                    {
+                      'type': 'function_call',
+                      'id': 'fc_ga',
+                      'name': 'lookup',
+                      'arguments': {'q': 'ga'},
+                    },
+                    {
+                      'type': 'model_output',
+                      'content': [
+                        {'type': 'text', 'text': 'GA正文'},
+                      ],
+                    },
+                  ],
+                }),
+              ),
+            ),
+            200,
+          );
+        }
+        return _sse([
+          {
+            'event_type': 'step.start',
+            'index': 0,
+            'step': {
+              'type': 'function_call',
+              'id': 'fc_stream',
+              'name': 'lookup',
+            },
+          },
+          {
+            'event_type': 'step.delta',
+            'index': 0,
+            'delta': {'type': 'arguments', 'partial_arguments': '{"q":'},
+          },
+          {
+            'event_type': 'step.delta',
+            'index': 0,
+            'delta': {'type': 'arguments', 'partial_arguments': '"stream"}'},
+          },
+          {'event_type': 'step.stop', 'index': 0},
+          {
+            'event_type': 'interaction.completed',
+            'interaction': {'status': 'requires_action'},
+          },
+        ]);
+      });
+
+      final nonStream = GoogleInteractionsProvider(
+        apiKey: 'goog-key',
+        modelId: 'gemini-4-argon',
+        streaming: false,
+        client: client,
+      );
+      final nonStreamEvents = await nonStream
+          .streamChat(
+            messages: [
+              AgentMessage(id: 'u', role: AgentRole.user, content: 'go'),
+            ],
+            tools: const [_LookupTool()],
+          )
+          .toList();
+      expect(
+        nonStreamEvents.whereType<ThoughtDeltaEvent>().map((e) => e.delta).join(),
+        'GA思考',
+      );
+      expect(
+        nonStreamEvents.whereType<ContentDeltaEvent>().map((e) => e.delta).join(),
+        'GA正文',
+      );
+      final gaCall = nonStreamEvents.whereType<ToolCallEvent>().single.toolCall;
+      expect(gaCall.id, 'fc_ga');
+      expect(gaCall.arguments, {'q': 'ga'});
+      expect(gaCall.thoughtSignature, 'ga_sig');
+
+      final streaming = GoogleInteractionsProvider(
+        apiKey: 'goog-key',
+        modelId: 'gemini-4-argon',
+        streaming: true,
+        client: client,
+      );
+      final streamEvents = await streaming
+          .streamChat(
+            messages: [
+              AgentMessage(id: 'u', role: AgentRole.user, content: 'go'),
+            ],
+            tools: const [_LookupTool()],
+          )
+          .toList();
+      final streamCall = streamEvents.whereType<ToolCallEvent>().single.toolCall;
+      expect(streamCall.id, 'fc_stream');
+      expect(streamCall.arguments, {'q': 'stream'});
+    });
+  });
+
+  group('Anthropic 连续用户消息合并', () {
+    test('tool_result 后紧跟 user（如 context_notes）时合并为同一 user 轮次', () {
+      final encoded = AnthropicMessages.encodeMessages([
+        AgentMessage(id: 'u1', role: AgentRole.user, content: 'hello'),
+        AgentMessage(
+          id: 'a1',
+          role: AgentRole.assistant,
+          toolCalls: const [
+            ToolCall(id: 'toolu_1', name: 'lookup', arguments: {'q': 'a'}),
+          ],
+        ),
+        AgentMessage(
+          id: 't1',
+          role: AgentRole.tool,
+          toolCallId: 'toolu_1',
+          toolName: 'lookup',
+          content: 'ok',
+        ),
+        AgentMessage(
+          id: 'context_notes',
+          role: AgentRole.user,
+          content: '<context_notes>remember</context_notes>',
+        ),
+      ]);
+
+      expect(encoded.messages, hasLength(3));
+      expect(encoded.messages[2]['role'], 'user');
+      final blocks = encoded.messages[2]['content'] as List;
+      expect(blocks, hasLength(2));
+      expect(blocks[0]['type'], 'tool_result');
+      expect(blocks[1]['type'], 'text');
+    });
   });
 
   group('Chat Completions 推理回放保持原样', () {

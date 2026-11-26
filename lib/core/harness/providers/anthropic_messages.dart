@@ -64,12 +64,19 @@ class AnthropicMessages {
     final encoded = <Map<String, dynamic>>[];
     final pendingResults = <Map<String, dynamic>>[];
 
+    void appendUserBlocks(List<Map<String, dynamic>> blocks) {
+      if (blocks.isEmpty) return;
+      if (encoded.isNotEmpty && encoded.last['role'] == 'user') {
+        final prev = encoded.last['content'] as List<Map<String, dynamic>>;
+        prev.addAll(blocks);
+      } else {
+        encoded.add({'role': 'user', 'content': blocks});
+      }
+    }
+
     void flushResults() {
       if (pendingResults.isEmpty) return;
-      encoded.add({
-        'role': 'user',
-        'content': [for (final block in pendingResults) block],
-      });
+      appendUserBlocks([for (final block in pendingResults) block]);
       pendingResults.clear();
     }
 
@@ -82,9 +89,7 @@ class AnthropicMessages {
         case AgentRole.user:
           flushResults();
           final content = _userContent(message);
-          if (content.isNotEmpty) {
-            encoded.add({'role': 'user', 'content': content});
-          }
+          appendUserBlocks(content);
         case AgentRole.assistant:
           flushResults();
           final blocks = assistantBlocks(message);

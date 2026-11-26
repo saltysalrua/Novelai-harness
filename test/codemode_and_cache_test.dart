@@ -196,6 +196,14 @@ void main() {
       expect(res.isError, isFalse);
       expect(res.content, contains('danbooru_search_tags'));
       expect(res.content, contains('未找到或未启用的工具：novelai_upscale'));
+
+      // 纯匹配时返回 JSON 对象而非裸数组，避免网关映射到 Gemini Struct 时报 cannot start list
+      final pure = await describe.execute('d2', {
+        'names': ['danbooru_search_tags'],
+      });
+      final decoded = jsonDecode(pure.content);
+      expect(decoded, isA<Map<String, dynamic>>());
+      expect((decoded as Map<String, dynamic>)['tools'], isA<List>());
     });
   });
 

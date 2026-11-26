@@ -87,14 +87,16 @@ class DescribeToolsTool extends AgentTool {
       );
     }
 
-    final payload = [
-      for (final tool in matched)
-        {
-          'name': tool.name,
-          'description': tool.description,
-          'parameters': tool.parameters,
-        },
-    ];
+    final payload = {
+      'tools': [
+        for (final tool in matched)
+          {
+            'name': tool.name,
+            'description': tool.description,
+            'parameters': tool.parameters,
+          },
+      ],
+    };
     final buffer = StringBuffer(jsonEncode(payload));
     if (missing.isNotEmpty) {
       buffer.write('\n未找到或未启用的工具：${missing.join(', ')}');
