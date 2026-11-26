@@ -13,6 +13,7 @@ import '../../../core/widgets/app_action_button.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_floating_dock.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/app_icon_label.dart';
 import '../../../core/widgets/app_tool_chip.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../view_models/studio_view_model.dart';
@@ -944,6 +945,10 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
         final isAiEdit = inpaint.mode == InpaintMode.aiEdit;
         final isExecuting = vm.isExecutingInpaint || vm.isExecutingAiEdit;
 
+        final edge = widget.compact ? 10.0 : 16.0;
+        const btnSize = 28.0;
+        const dockHeight = btnSize + 8.0;
+
         if (image == null) {
           return Stack(
             fit: StackFit.expand,
@@ -962,14 +967,15 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                 ),
               ),
               Positioned(
-                bottom: widget.compact ? 10.0 : 18.0,
-                right: widget.compact ? 10.0 : 18.0,
+                bottom: edge,
+                right: edge,
                 child: _buildBottomActionCard(
                   context,
                   vm,
                   isAiEdit: isAiEdit,
                   isExecuting: isExecuting,
                   showStartAction: false,
+                  btnSize: btnSize,
                 ),
               ),
             ],
@@ -1462,8 +1468,8 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                   top: 14,
                   left: (!widget.compact && vm.isLeftSidebarCollapsed)
                       ? 60
-                      : 12,
-                  right: 12,
+                      : edge,
+                  right: edge,
                   child: Center(
                     child: _buildToolDock(
                       context,
@@ -1471,24 +1477,28 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                       inpaint,
                       srcW: srcW,
                       srcH: srcH,
+                      btnSize: btnSize,
                     ),
                   ),
                 ),
 
-                // 7b. 右上角点数标识 (宽画布独立停靠，不挤占顶部工具坞宽度)
+                // 7b. 右上角点数标识 (与主工具坞严格同一水平中轴，与底部右侧同边距对齐)
                 if (!isAiEdit && canvasSize.width >= 540)
                   Positioned(
                     key: const ValueKey('inpaint-cost-badge'),
-                    top: 19,
-                    right: 14,
-                    child: _buildCostBadge(context, vm, inpaint),
+                    top: 14,
+                    right: edge,
+                    height: dockHeight,
+                    child: Center(child: _buildCostBadge(context, vm, inpaint)),
                   ),
 
-                // 8. 底部响应式控制区：宽画布左右分置，窄画布自动折为上下两层防碰撞
+                // 8. 底部响应式控制区：宽画布左右分置对齐，窄画布自动折为上下两层防碰撞
                 _buildBottomControlsBar(
                   context,
                   vm,
                   canvasWidth: canvasSize.width,
+                  edge: edge,
+                  btnSize: btnSize,
                   isAiEdit: isAiEdit,
                   isExecuting: isExecuting,
                   showStartAction: !widget.compact && vm.isLeftSidebarCollapsed,
@@ -1635,6 +1645,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     return AppBadge(
       label: isFree ? l10n.opusFree : l10n.inpaintRequiresPoints,
       variant: isFree ? AppBadgeVariant.success : AppBadgeVariant.warning,
+      shape: AppBadgeShape.pill,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      animate: false,
     );
   }
 
@@ -1644,30 +1657,29 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     InpaintParams inpaint, {
     required int srcW,
     required int srcH,
+    required double btnSize,
   }) {
     final colors = context.colors;
     final l10n = context.l10n;
+    final dockRadius = (btnSize + 8.0) / 2;
+    final iconBtnRadius = btnSize / 2;
 
     if (inpaint.mode == InpaintMode.aiEdit) {
       return AppFloatingDock(
-        radius: 20,
+        radius: dockRadius,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        enableBlur: true,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.auto_awesome, size: 13, color: colors.primary),
-              const SizedBox(width: 5),
-              Text(
-                l10n.inpaintOverlayAiEditHint,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
+          child: AppIconLabel(
+            leading: Icon(Icons.auto_awesome, size: 13, color: colors.primary),
+            label: l10n.inpaintOverlayAiEditHint,
+            gap: 5,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+            ),
           ),
         ),
       );
@@ -1676,15 +1688,14 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     final showBrushSize =
         vm.inpaintTool == InpaintTool.brush ||
         vm.inpaintTool == InpaintTool.eraser;
+    final hasMask =
+        inpaint.selectionRect != null || inpaint.brushStrokes.isNotEmpty;
     final minSide = math.min(srcW, srcH);
 
     Widget divider() => Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Container(width: 1, height: 15, color: colors.borderDefault),
     );
-
-    final iconBtnSize = widget.compact ? 30.0 : 28.0;
-    final iconBtnRadius = iconBtnSize / 2;
 
     return ValueListenableBuilder<bool>(
       valueListenable: _isPanModeNotifier,
@@ -1698,8 +1709,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
             variant: AppToolChipVariant.tinted,
             fontSize: 11.5,
             iconSize: 13.5,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            radius: 14,
+            height: btnSize,
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            radius: iconBtnRadius,
             onTap: () {
               _isPanModeNotifier.value = false;
               vm.setInpaintTool(tool);
@@ -1711,8 +1723,9 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
           mainAxisSize: MainAxisSize.min,
           children: [
             AppFloatingDock(
-              radius: 20,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              radius: dockRadius,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              enableBlur: true,
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -1722,7 +1735,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                       key: const Key('inpaint_pan_toggle_button'),
                       icon: Icons.pan_tool_outlined,
                       tooltip: l10n.inpaintToolPan,
-                      size: iconBtnSize,
+                      size: btnSize,
                       iconSize: 15,
                       radius: iconBtnRadius,
                       variant: isPanMode
@@ -1737,11 +1750,13 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                       Icons.crop_free_rounded,
                       l10n.inpaintToolRect,
                     ),
+                    const SizedBox(width: 2),
                     toolChip(
                       InpaintTool.brush,
                       Icons.brush_rounded,
                       l10n.inpaintToolBrush,
                     ),
+                    const SizedBox(width: 2),
                     toolChip(
                       InpaintTool.eraser,
                       Icons.layers_clear_rounded,
@@ -1753,15 +1768,16 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                       icon: Icons.delete_sweep_outlined,
                       label: l10n.inpaintClearMask,
                       variant: AppToolChipVariant.tinted,
-                      unselectedBackgroundColor: colors.errorSurface,
+                      unselectedBackgroundColor: hasMask
+                          ? colors.errorSurface
+                          : Colors.transparent,
+                      unselectedForegroundColor: colors.error,
                       fontSize: 11.5,
                       iconSize: 13.5,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      radius: 14,
-                      onTap: vm.clearInpaintMask,
+                      height: btnSize,
+                      padding: const EdgeInsets.symmetric(horizontal: 9),
+                      radius: iconBtnRadius,
+                      onTap: hasMask ? vm.clearInpaintMask : null,
                     ),
                   ],
                 ),
@@ -1845,44 +1861,42 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     BuildContext context,
     StudioViewModel vm, {
     required double canvasWidth,
+    required double edge,
+    required double btnSize,
     required bool isAiEdit,
     required bool isExecuting,
     required bool showStartAction,
   }) {
     final l10n = context.l10n;
-    final edge = widget.compact ? 10.0 : 18.0;
-    final btnSize = widget.compact ? 30.0 : 28.0;
     final btnRadius = btnSize / 2;
-    final isTightBottom = canvasWidth < (showStartAction ? 520.0 : 420.0);
+    final dockRadius = (btnSize + 8.0) / 2;
+    // 仅在真正放不下右侧操作坞的极窄宽度下才折两行；360px 手机屏默认保持单行不阶梯错位
+    final isTightBottom = canvasWidth < (showStartAction ? 430.0 : 300.0);
 
     final statusPill = isExecuting
         ? AppFloatingDock(
             key: const ValueKey('inpaint-status'),
-            radius: 18,
+            radius: dockRadius,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 13,
-                  height: 13,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      context.colors.primary,
-                    ),
+            enableBlur: true,
+            child: AppIconLabel(
+              leading: SizedBox(
+                width: 13,
+                height: 13,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    context.colors.primary,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  l10n.inpaintOverlayInProgress,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: context.colors.textPrimary,
-                  ),
-                ),
-              ],
+              ),
+              label: l10n.inpaintOverlayInProgress,
+              gap: 8,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: context.colors.textPrimary,
+              ),
             ),
           )
         : null;
@@ -1893,6 +1907,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
       isAiEdit: isAiEdit,
       btnSize: btnSize,
       btnRadius: btnRadius,
+      dockRadius: dockRadius,
     );
     final rightDock = _buildBottomActionCard(
       context,
@@ -1900,6 +1915,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
       isAiEdit: isAiEdit,
       isExecuting: isExecuting,
       showStartAction: showStartAction,
+      btnSize: btnSize,
     );
 
     return Positioned(
@@ -1926,12 +1942,15 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
             Align(alignment: Alignment.centerRight, child: rightDock),
           ] else
             Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Flexible(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: leftControls,
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: leftControls,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1949,6 +1968,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     required bool isAiEdit,
     required double btnSize,
     required double btnRadius,
+    required double dockRadius,
   }) {
     final l10n = context.l10n;
     final colors = context.colors;
@@ -1958,7 +1978,7 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
       mainAxisSize: MainAxisSize.min,
       children: [
         AppFloatingDock(
-          radius: 18,
+          radius: dockRadius,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
           enableBlur: true,
           child: ValueListenableBuilder<Matrix4>(
@@ -1993,13 +2013,15 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                       onTap: isDefaultView ? null : _resetViewport,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
+                          horizontal: 4,
                           vertical: 5,
                         ),
-                        child: SizedBox(
-                          width: 38,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 38),
                           child: Text(
                             percentText,
+                            maxLines: 1,
+                            softWrap: false,
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 11,
@@ -2045,10 +2067,10 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
           ),
         ),
         if (!isAiEdit) ...[
-          const SizedBox(width: 6),
+          SizedBox(width: widget.compact ? 6 : 8),
           AppFloatingDock(
             key: const ValueKey('inpaint-history-dock'),
-            radius: 18,
+            radius: dockRadius,
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
             enableBlur: true,
             child: Row(
@@ -2107,11 +2129,15 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
     required bool isAiEdit,
     required bool isExecuting,
     required bool showStartAction,
+    required double btnSize,
   }) {
     final l10n = context.l10n;
+    final btnRadius = btnSize / 2;
+    final dockRadius = (btnSize + 8.0) / 2;
 
     return AppFloatingDock(
-      padding: const EdgeInsets.all(4),
+      radius: dockRadius,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
       enableBlur: true,
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2121,16 +2147,17 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
             icon: Icons.close_rounded,
             label: l10n.inpaintExit,
             variant: AppActionButtonVariant.ghost,
-            padding: widget.compact
-                ? const EdgeInsets.symmetric(horizontal: 10, vertical: 7)
-                : null,
+            iconSize: 14,
+            height: btnSize,
+            radius: btnRadius,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             onPressed: isExecuting
                 ? null
                 : (widget.onExit ??
                       () => vm.exitInpaintMode(expandSidebar: false)),
           ),
           if (showStartAction) ...[
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             AppActionButton(
               key: const Key('inpaint_canvas_start_button'),
               icon: isAiEdit
@@ -2141,7 +2168,10 @@ class _InpaintRepairCanvasState extends State<InpaintRepairCanvas> {
                   : (isAiEdit ? l10n.startAiEdit : l10n.startInpaint),
               variant: AppActionButtonVariant.primary,
               isLoading: isExecuting,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              iconSize: 14,
+              height: btnSize,
+              radius: btnRadius,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               onPressed: (isExecuting || vm.isGenerating)
                   ? null
                   : () => vm.executeInpaint(),

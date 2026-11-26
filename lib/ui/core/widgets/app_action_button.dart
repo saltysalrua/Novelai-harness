@@ -54,6 +54,9 @@ class AppActionButton extends StatefulWidget {
   /// 自定义内边距，未指定时使用紧凑默认内边距
   final EdgeInsetsGeometry? padding;
 
+  /// 可选固定高度 (传入时覆写 Material 3 默认 40px 最小高度，便于与同排胶囊按钮等高对齐)
+  final double? height;
+
   /// 是否显示加载态旋转指示器 (同时禁用点击)
   final bool isLoading;
 
@@ -66,6 +69,7 @@ class AppActionButton extends StatefulWidget {
     this.iconSize = 15,
     this.radius = AppRadius.md,
     this.padding,
+    this.height,
     this.isLoading = false,
   });
 
@@ -214,7 +218,13 @@ class _AppActionButtonState extends State<AppActionButton> {
             : BorderSide(color: borderColor),
         padding:
             widget.padding ??
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            (widget.height != null
+                ? const EdgeInsets.symmetric(horizontal: 10)
+                : const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+        minimumSize: widget.height != null ? Size(0, widget.height!) : null,
+        maximumSize: widget.height != null
+            ? Size(double.infinity, widget.height!)
+            : null,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(widget.radius),
         ),

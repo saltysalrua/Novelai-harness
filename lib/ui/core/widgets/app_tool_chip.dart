@@ -57,6 +57,9 @@ class AppToolChip extends StatefulWidget {
   /// 未选中态自定义背景色 (默认为透明)
   final Color? unselectedBackgroundColor;
 
+  /// 未选中且可用态自定义前景色 (如破坏性清空按钮用语义错误色)
+  final Color? unselectedForegroundColor;
+
   /// 可选描边颜色 (未选中态使用此描边；选中态自动匹配主色)
   final Color? borderColor;
 
@@ -76,6 +79,7 @@ class AppToolChip extends StatefulWidget {
     this.radius = 6.0,
     this.height,
     this.unselectedBackgroundColor,
+    this.unselectedForegroundColor,
     this.borderColor,
     this.tooltip,
   });
@@ -126,15 +130,17 @@ class _AppToolChipState extends State<AppToolChip> {
                     : colors.primary.withValues(alpha: 0.35))
               : widget.borderColor);
 
+    final Color enabledUnselectedFg =
+        widget.unselectedForegroundColor ?? colors.textPrimary;
     final Color fgColor = switch (widget.variant) {
       AppToolChipVariant.filled =>
         isSelected
             ? colors.onPrimary
-            : (isEnabled ? colors.textPrimary : colors.textMuted),
+            : (isEnabled ? enabledUnselectedFg : colors.textMuted),
       AppToolChipVariant.tinted =>
         isSelected
             ? colors.primary
-            : (isEnabled ? colors.textPrimary : colors.textMuted),
+            : (isEnabled ? enabledUnselectedFg : colors.textMuted),
     };
 
     final reduceMotion = AppMotion.shouldReduceMotion(context);
@@ -143,6 +149,7 @@ class _AppToolChipState extends State<AppToolChip> {
       duration: AppMotion.resolveDuration(context, AppMotionDurations.quick),
       curve: AppMotionCurves.smoothOut,
       height: widget.height,
+      alignment: widget.height != null ? Alignment.center : null,
       transform: Matrix4.translationValues(
         0,
         (_isHovered && isEnabled && !reduceMotion) ? -1.0 : 0.0,
