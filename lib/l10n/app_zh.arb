@@ -2139,5 +2139,97 @@
     "placeholders": {
       "count": {"type": "int"}
     }
-  }
+  },
+  "canvasActionSaveToLibraryInbox": "保存到词库待整理区",
+  "canvasSavedToLibraryInbox": "已保存到词库待整理区",
+  "canvasSaveToLibraryInboxFailed": "图片与提示词均为空，未保存到待整理区",
+  "libraryCategoryInbox": "待整理",
+  "libraryInboxEmptyTitle": "待整理区为空",
+  "libraryInboxEmptyDescription": "在画板或历史图片上右键「保存到词库待整理区」，可暂存主提示词、角色提示词与图片，后续交给助手统一整理。",
+  "libraryInboxAskAgentAll": "让助手整理全部",
+  "libraryInboxAskAgentOne": "让助手整理",
+  "libraryInboxManualConvert": "手动建词条",
+  "libraryInboxClearAll": "清空",
+  "libraryInboxClearConfirmTitle": "清空待整理区",
+  "libraryInboxClearConfirmMessage": "将删除待整理区内的全部 {count} 项，尚未转存为正式词条的暂存图也会被清理。",
+  "@libraryInboxClearConfirmMessage": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "libraryInboxCleared": "已清空待整理区",
+  "libraryInboxDeleted": "已删除待整理项",
+  "libraryInboxCopiedPrompt": "已复制待整理提示词",
+  "libraryInboxCharacterCount": "{count} 个角色",
+  "@libraryInboxCharacterCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "libraryInboxAgentBusy": "助手正在回复中，请稍后再试",
+  "libraryInboxAgentPromptAll": "请帮我整理词库待整理区中的全部条目：先调用 prompt_library(action: \"list_inbox\") 查看清单，逐条用 read_inbox 读取完整主提示词、角色提示词与图片，按角色/风格/服装/构图/环境/特效等分类提炼并查重后存入正式词库（可用 preview_inbox_id 复用待整理图片作为预览图），整理完成后调用 delete_inbox 清理已处理的待整理项。",
+  "libraryInboxAgentPromptOne": "请帮我整理词库待整理区中 ID 为 {id} 的条目：调用 prompt_library(action: \"read_inbox\", inbox_id: \"{id}\") 查看其主提示词、角色提示词与图片，拆解提炼为合适的正式词库条目并查重入库（可用 preview_inbox_id: \"{id}\" 复用该图片作预览图），整理完成后调用 delete_inbox 删除该待整理项。",
+  "@libraryInboxAgentPromptOne": {
+    "placeholders": {
+      "id": {"type": "String"}
+    }
+  },
+  "settingsLibrarySyncAutoTitle": "自动云同步",
+  "settingsLibrarySyncAutoSubtitle": "启动时及词库变更后自动双向合并",
+  "settingsLibrarySyncAutoIntervalTitle": "定时同步间隔",
+  "librarySyncIntervalChangeOnly": "仅启动与变更时",
+  "librarySyncIntervalMinutes": "每 {minutes} 分钟",
+  "@librarySyncIntervalMinutes": {
+    "placeholders": {
+      "minutes": {"type": "int"}
+    }
+  },
+  "librarySyncAutoBadge": "自动同步",
+  "libraryInboxOrganizerSettings": "整理设置",
+  "libraryInboxOrganizerModelTitle": "后台整理模型",
+  "libraryInboxOrganizerProviderTitle": "整理供应商",
+  "libraryInboxOrganizerAutoRerunTitle": "分离后自动重跑预览图",
+  "libraryInboxOrganizerAutoRerunSubtitle": "拆出角色/服装/构图等条目后，后台分别重跑专属预览图（受免点保护，不改工作台）",
+  "libraryInboxLogsTitle": "后台整理日志",
+  "libraryInboxLogsEmpty": "暂无整理日志",
+  "libraryInboxStopOrganizing": "停止整理",
+  "libraryInboxClearLogs": "清空日志",
+  "libraryInboxRunningBanner": "后台整理运行中",
+  "libraryInboxViewLogs": "查看日志",
+  "libraryInboxHideLogs": "收起日志",
+  "libraryInboxDetailTitle": "待整理项详情",
+  "libraryInboxMainPromptLabel": "主提示词（不含固定词缀）",
+  "libraryInboxMainNegativeLabel": "主负面提示词",
+  "libraryInboxCharactersLabel": "角色提示词",
+  "libraryInboxAddCharacter": "添加角色",
+  "libraryInboxCharacterNameHint": "角色名称（可选）",
+  "libraryInboxCharacterPromptHint": "角色正向提示词",
+  "libraryInboxCharacterNegativeHint": "角色负面提示词（可选）",
+  "libraryInboxSavedChanges": "已保存待整理项修改",
+  "libraryEditFieldCharacters": "多角色提示词",
+  "libraryEditImportWorkspaceChars": "导入当前工作台角色",
+  "libraryEditWorkspaceCharsEmpty": "当前工作台没有启用的角色提示词",
+  "libraryEditFieldLinkedEntries": "关联条目",
+  "libraryEditAddLinkedEntry": "关联词条",
+  "libraryEditLinkedEntryEmpty": "暂无其他可关联的词库条目",
+  "libraryEditLinkedEntryHint": "关联所属角色或配套套装",
+  "libraryCardCharacterPromptBadge": "角色词 ×{count}",
+  "@libraryCardCharacterPromptBadge": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "libraryCardLinkedLabel": "关联：{title}",
+  "@libraryCardLinkedLabel": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "librarySentComboToAgent": "已将「{title}」发送到助手输入框",
+  "@librarySentComboToAgent": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "settingsSectionInboxOrganizer": "词库后台整理"
 }

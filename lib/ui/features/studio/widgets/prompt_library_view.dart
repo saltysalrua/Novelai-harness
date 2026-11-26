@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../../data/models/prompt_library_sync_models.dart';
 import '../../../../data/services/prompt_image_probe.dart';
+import '../../../../data/services/prompt_library_mention.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -22,6 +23,9 @@ import '../view_models/studio_view_model.dart';
 import 'prompt_combo_apply_dialog.dart';
 import 'prompt_combo_card.dart';
 import 'prompt_combo_edit_dialog.dart';
+import 'prompt_inbox_card.dart';
+import 'prompt_inbox_detail_dialog.dart';
+import 'prompt_inbox_organizer_panel.dart';
 import 'prompt_library_sync_dialog.dart';
 import 'studio_shared.dart';
 
@@ -52,12 +56,17 @@ class PromptLibraryView extends StatefulWidget {
 }
 
 class _PromptLibraryViewState extends State<PromptLibraryView> {
+  static const String _inboxCategorySentinel = '__inbox__';
+
   final TextEditingController _searchController = TextEditingController();
   late final SmoothWheelScrollController _gridScrollController;
   final ValueNotifier<int> _scrollBucket = ValueNotifier<int>(0);
 
   String _selectedCategory = '全部';
   String _searchQuery = '';
+  bool _showOrganizerLogs = false;
+
+  bool get _isInboxSelected => _selectedCategory == _inboxCategorySentinel;
 
   // 派生状态缓存：避免每次 build 对全量词库重复统计与过滤
   List<PromptComboEntry>? _cachedSourceEntries;
@@ -409,12 +418,12 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
-  void _sendCharacterToAgent(PromptComboEntry combo) {
+  void _sendComboToAgent(PromptComboEntry combo) {
     final l10n = context.l10n;
-    widget.viewModel.insertCharacterToChatInput(combo);
+    widget.viewModel.insertComboToChatInput(combo);
     showAppToast(
       context,
-      message: l10n.librarySentCharacterToAgent(combo.title),
+      message: l10n.librarySentComboToAgent(combo.title),
       tone: AppToastTone.success,
       duration: const Duration(milliseconds: 1400),
     );
@@ -476,6 +485,95 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     }
   }
 
+  void _askAgentToOrganizeInbox({PromptInboxItem? item}) {
+    final vm = widget.viewModel;
+    if (vm.isOrganizingInbox) {
+      setState(() => _showOrganizerLogs = true);
+      return;
+    }
+    setState(() => _showOrganizerLogs = true);
+    vm.startBackgroundInboxOrganizer(inboxItemId: item?.id);
+  }
+
+  void _inspectInboxItem(PromptInboxItem item) {
+    PromptInboxDetailDialog.show(
+      context,
+      viewModel: widget.viewModel,
+      item: item,
+      onOrganizeWithAgent: () => _askAgentToOrganizeInbox(item: item),
+      onManualConvert: _manualConvertInboxItem,
+    );
+  }
+
+  void _manualConvertInboxItem(PromptInboxItem item) {
+    PromptComboEditDialog.show(
+      context,
+      viewModel: widget.viewModel,
+      initialEntry: PromptComboEntry(
+        id: '',
+        title: '',
+        category: PromptComboCategories.other,
+        prompt: item.prompt,
+        negativePrompt: item.negativePrompt,
+        characterPrompts: item.characterPrompts,
+        previewImagePath: item.imagePath,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      ),
+    );
+  }
+
+  Future<void> _deleteInboxItem(PromptInboxItem item) async {
+    await widget.viewModel.deletePromptInboxItem(item.id);
+    if (!mounted) return;
+    showAppToast(
+      context,
+      message: context.l10n.libraryInboxDeleted,
+      tone: AppToastTone.info,
+      duration: const Duration(milliseconds: 1200),
+    );
+  }
+
+  Future<void> _confirmClearInbox(int count) async {
+    final l10n = context.l10n;
+    final ok = await showAppConfirmDialog(
+      context,
+      title: l10n.libraryInboxClearConfirmTitle,
+      message: l10n.libraryInboxClearConfirmMessage(count),
+      confirmLabel: l10n.clear,
+      cancelLabel: l10n.cancel,
+      isDestructive: true,
+    );
+    if (ok == true) {
+      await widget.viewModel.clearPromptInbox();
+      if (!mounted) return;
+      showAppToast(
+        context,
+        message: l10n.libraryInboxCleared,
+        tone: AppToastTone.info,
+        duration: const Duration(milliseconds: 1400),
+      );
+    }
+  }
+
+  List<PromptInboxItem> _filterInboxItems(List<PromptInboxItem> items) {
+    final q = _searchQuery.toLowerCase();
+    if (q.isEmpty) return items;
+    return items
+        .where((item) {
+          if (item.prompt.toLowerCase().contains(q)) return true;
+          if (item.negativePrompt.toLowerCase().contains(q)) return true;
+          if (item.note?.toLowerCase().contains(q) == true) return true;
+          return item.characterPrompts.any(
+            (c) =>
+                c.name.toLowerCase().contains(q) ||
+                c.prompt.toLowerCase().contains(q) ||
+                c.negativePrompt.toLowerCase().contains(q),
+          );
+        })
+        .toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -486,10 +584,14 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
       builder: (context, _) {
         final colors = context.colors;
         final allEntries = widget.viewModel.promptLibraryEntries;
+        final allInboxItems = widget.viewModel.promptInboxItems;
         _ensureDerivedData(allEntries);
         final categories = _cachedCategories;
         final counts = _cachedCategoryCounts;
         final filtered = _cachedFilteredEntries;
+        final filteredInbox = _isInboxSelected
+            ? _filterInboxItems(allInboxItems)
+            : const <PromptInboxItem>[];
 
         return Container(
           margin: widget.compact
@@ -514,13 +616,28 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
             children: [
               // 1. 开放式顶栏与内联分类筛选 (同一画布，零分隔线、零套壳)
               _buildHeader(context, allEntries.length),
-              _buildCategoryBar(context, categories, counts),
+              _buildCategoryBar(
+                context,
+                categories,
+                counts,
+                inboxCount: allInboxItems.length,
+              ),
+              if (_isInboxSelected)
+                _buildInboxToolbar(context, allInboxItems.length),
+              _buildOrganizerStatusOrLogs(context),
 
               // 2. 瀑布流画廊主体
               Expanded(
-                child: filtered.isEmpty
-                    ? _buildEmptyState(context, allEntries.isEmpty)
-                    : _buildMasonryGallery(filtered),
+                child: _isInboxSelected
+                    ? (filteredInbox.isEmpty
+                          ? _buildInboxEmptyState(
+                              context,
+                              allInboxItems.isEmpty,
+                            )
+                          : _buildInboxMasonryGallery(filteredInbox))
+                    : (filtered.isEmpty
+                          ? _buildEmptyState(context, allEntries.isEmpty)
+                          : _buildMasonryGallery(filtered, allEntries)),
               ),
             ],
           ),
@@ -683,8 +800,9 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
   Widget _buildCategoryBar(
     BuildContext context,
     List<String> categories,
-    Map<String, int> counts,
-  ) {
+    Map<String, int> counts, {
+    required int inboxCount,
+  }) {
     final colors = context.colors;
     final l10n = context.l10n;
 
@@ -710,7 +828,23 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
               }
             },
             items: [
-              for (final cat in categories)
+              if (categories.isNotEmpty)
+                AppSegmentedItem<String>(
+                  value: categories.first,
+                  label: comboCategoryLabelOf(l10n, categories.first),
+                  tooltip: comboCategoryLabelOf(l10n, categories.first),
+                  icon: _getCategoryIcon(categories.first),
+                  badgeLabel: '${counts[categories.first] ?? 0}',
+                ),
+              AppSegmentedItem<String>(
+                value: _inboxCategorySentinel,
+                label: l10n.libraryCategoryInbox,
+                tooltip: l10n.libraryCategoryInbox,
+                icon: Icons.inbox_outlined,
+                activeColor: colors.warning,
+                badgeLabel: '$inboxCount',
+              ),
+              for (final cat in categories.skip(1))
                 AppSegmentedItem<String>(
                   value: cat,
                   label: comboCategoryLabelOf(l10n, cat),
@@ -728,14 +862,195 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     );
   }
 
+  Widget _buildOrganizerStatusOrLogs(BuildContext context) {
+    return ListenableBuilder(
+      listenable: widget.viewModel.inboxOrganizerNotifier,
+      builder: (context, _) {
+        final vm = widget.viewModel;
+        final colors = context.colors;
+        final l10n = context.l10n;
+        if (_showOrganizerLogs) {
+          return PromptInboxOrganizerLogPanel(
+            viewModel: vm,
+            onClose: () => setState(() => _showOrganizerLogs = false),
+          );
+        }
+        if (!vm.isOrganizingInbox) {
+          return const SizedBox.shrink();
+        }
+        return Container(
+          margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: colors.primaryTint.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 13,
+                height: 13,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.primary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  vm.inboxOrganizerStatus ?? l10n.libraryInboxRunningBanner,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              AppActionButton(
+                icon: Icons.terminal_rounded,
+                label: l10n.libraryInboxViewLogs,
+                variant: AppActionButtonVariant.outlined,
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                onPressed: () => setState(() => _showOrganizerLogs = true),
+              ),
+              const SizedBox(width: 6),
+              AppActionButton(
+                icon: Icons.stop_rounded,
+                label: l10n.libraryInboxStopOrganizing,
+                variant: AppActionButtonVariant.danger,
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                onPressed: () => vm.abortInboxOrganizer(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInboxToolbar(BuildContext context, int inboxCount) {
+    final l10n = context.l10n;
+    return ListenableBuilder(
+      listenable: widget.viewModel.inboxOrganizerNotifier,
+      builder: (context, _) {
+        final vm = widget.viewModel;
+        final running = vm.isOrganizingInbox;
+        final hasLogs = vm.hasInboxOrganizerLogs;
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 600;
+            return Padding(
+              padding: isNarrow
+                  ? const EdgeInsets.fromLTRB(10, 0, 10, 8)
+                  : const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (running)
+                    AppActionButton(
+                      key: const Key('library_inbox_stop_button'),
+                      icon: Icons.stop_rounded,
+                      iconSize: 15,
+                      label: l10n.libraryInboxStopOrganizing,
+                      variant: AppActionButtonVariant.danger,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      onPressed: () => vm.abortInboxOrganizer(),
+                    )
+                  else
+                    AppActionButton(
+                      key: const Key('library_inbox_organize_all_button'),
+                      icon: Icons.auto_awesome_outlined,
+                      iconSize: 15,
+                      label: l10n.libraryInboxAskAgentAll,
+                      variant: AppActionButtonVariant.primary,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      onPressed: inboxCount > 0
+                          ? () => _askAgentToOrganizeInbox()
+                          : null,
+                    ),
+                  AppActionButton(
+                    key: const Key('library_inbox_organizer_settings_button'),
+                    icon: Icons.tune_rounded,
+                    iconSize: 15,
+                    label: l10n.libraryInboxOrganizerSettings,
+                    variant: AppActionButtonVariant.outlined,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    onPressed: () => PromptInboxOrganizerSettingsDialog.show(
+                      context,
+                      viewModel: vm,
+                    ),
+                  ),
+                  if (hasLogs || running)
+                    AppActionButton(
+                      key: const Key('library_inbox_toggle_logs_button'),
+                      icon: Icons.terminal_rounded,
+                      iconSize: 15,
+                      label: _showOrganizerLogs
+                          ? l10n.libraryInboxHideLogs
+                          : l10n.libraryInboxViewLogs,
+                      variant: AppActionButtonVariant.outlined,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      onPressed: () => setState(
+                        () => _showOrganizerLogs = !_showOrganizerLogs,
+                      ),
+                    ),
+                  if (inboxCount > 0)
+                    AppActionButton(
+                      key: const Key('library_inbox_clear_all_button'),
+                      icon: Icons.delete_sweep_outlined,
+                      iconSize: 15,
+                      label: l10n.libraryInboxClearAll,
+                      variant: AppActionButtonVariant.ghost,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      onPressed: running
+                          ? null
+                          : () => _confirmClearInbox(inboxCount),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   /// 快捷云同步按钮 (已配置则触发双向合并，未配置则打开设置弹窗)
   Widget _buildSyncButton(BuildContext context, {required bool compact}) {
     final l10n = context.l10n;
     final vm = widget.viewModel;
     final syncing = vm.isSyncingPromptLibrary;
     final stage = vm.promptSyncStage;
+    final autoOn =
+        vm.isPromptAutoSyncEnabled && vm.promptLibrarySyncConfig.isConfigured;
+    final syncErr = vm.lastPromptSyncError;
     final tooltip = syncing
         ? (stage ?? l10n.librarySyncingLabel)
+        : syncErr != null
+        ? l10n.librarySyncFailed(syncErr)
+        : autoOn
+        ? '${l10n.librarySyncButton} (${l10n.librarySyncAutoBadge})'
         : l10n.librarySyncButton;
 
     if (compact) {
@@ -847,7 +1162,10 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     void openCreateDialog() => PromptComboEditDialog.show(
       context,
       viewModel: widget.viewModel,
-      initialCategory: _selectedCategory != '全部' ? _selectedCategory : null,
+      initialCategory:
+          _selectedCategory != '全部' && !_isInboxSelected
+          ? _selectedCategory
+          : null,
     );
 
     if (compact) {
@@ -923,7 +1241,10 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     return 1;
   }
 
-  Widget _buildMasonryGallery(List<PromptComboEntry> entries) {
+  Widget _buildMasonryGallery(
+    List<PromptComboEntry> entries,
+    List<PromptComboEntry> allEntries,
+  ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 600;
@@ -999,6 +1320,17 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                               key: ValueKey(columns[c][i].entry.id),
                               child: PromptComboCard(
                                 combo: columns[c][i].entry,
+                                linkedEntries: resolveLinkedLibraryEntries(
+                                  columns[c][i].entry,
+                                  allEntries,
+                                ),
+                                onTapLinkedEntry: (linked) {
+                                  PromptComboEditDialog.show(
+                                    context,
+                                    viewModel: widget.viewModel,
+                                    initialEntry: linked,
+                                  );
+                                },
                                 compact: isCompactCard,
                                 loadImage:
                                     columns[c][i].bottomY >= visibleTop &&
@@ -1044,11 +1376,8 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
                                         vibe: true,
                                       )
                                     : null,
-                                onSendToAgent: columns[c][i].entry.isCharacter
-                                    ? () => _sendCharacterToAgent(
-                                        columns[c][i].entry,
-                                      )
-                                    : null,
+                                onSendToAgent: () =>
+                                    _sendComboToAgent(columns[c][i].entry),
                                 onEdit: () {
                                   PromptComboEditDialog.show(
                                     context,
@@ -1092,6 +1421,152 @@ class _PromptLibraryViewState extends State<PromptLibraryView> {
     return columnWidth / ratio + textSectionHeight;
   }
 
+  Widget _buildInboxMasonryGallery(List<PromptInboxItem> items) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 600;
+        final hPad = isNarrow ? 8.0 : 20.0;
+        final spacing = isNarrow ? 8.0 : 14.0;
+        final usableWidth = (constraints.maxWidth - hPad * 2).clamp(
+          200.0,
+          double.infinity,
+        );
+        final columnCount = _resolveColumnCount(usableWidth, isNarrow: isNarrow);
+        final columnWidth =
+            (usableWidth - (columnCount - 1) * spacing) / columnCount;
+        final isCompactCard = isNarrow || columnWidth < 230.0;
+
+        final columns = List.generate(
+          columnCount,
+          (_) => <_InboxMasonrySlot>[],
+          growable: false,
+        );
+        final colHeights = List<double>.filled(columnCount, 0.0);
+
+        for (final item in items) {
+          var targetCol = 0;
+          for (var c = 1; c < columnCount; c++) {
+            if (colHeights[c] < colHeights[targetCol]) {
+              targetCol = c;
+            }
+          }
+          final topY = colHeights[targetCol];
+          final estHeight = _estimateInboxCardHeight(
+            item,
+            columnWidth,
+            compact: isCompactCard,
+          );
+          columns[targetCol].add(
+            _InboxMasonrySlot(
+              item: item,
+              topY: topY,
+              bottomY: topY + estHeight,
+            ),
+          );
+          colHeights[targetCol] = topY + estHeight + spacing;
+        }
+
+        final viewportH = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 800.0;
+
+        return SingleChildScrollView(
+          controller: _gridScrollController,
+          padding: EdgeInsets.fromLTRB(hPad, 2, hPad, isNarrow ? 14 : 20),
+          child: ValueListenableBuilder<int>(
+            valueListenable: _scrollBucket,
+            builder: (context, bucket, _) {
+              final approxOffset = bucket * 320.0;
+              final visibleTop = approxOffset - 900.0;
+              final visibleBottom = approxOffset + viewportH + 900.0;
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var c = 0; c < columnCount; c++) ...[
+                    if (c > 0) SizedBox(width: spacing),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < columns[c].length; i++) ...[
+                            if (i > 0) SizedBox(height: spacing),
+                            RepaintBoundary(
+                              key: ValueKey(columns[c][i].item.id),
+                              child: PromptInboxCard(
+                                item: columns[c][i].item,
+                                compact: isCompactCard,
+                                loadImage:
+                                    columns[c][i].bottomY >= visibleTop &&
+                                    columns[c][i].topY <= visibleBottom,
+                                onInspect: () =>
+                                    _inspectInboxItem(columns[c][i].item),
+                                onOrganizeWithAgent: () =>
+                                    _askAgentToOrganizeInbox(
+                                      item: columns[c][i].item,
+                                    ),
+                                onManualConvert: () => _manualConvertInboxItem(
+                                  columns[c][i].item,
+                                ),
+                                onDelete: () =>
+                                    _deleteInboxItem(columns[c][i].item),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  double _estimateInboxCardHeight(
+    PromptInboxItem item,
+    double columnWidth, {
+    required bool compact,
+  }) {
+    final path = item.imagePath?.trim();
+    final charBonus = item.hasCharacters ? 20.0 : 0.0;
+    final textSectionHeight = (compact ? 112.0 : 104.0) + charBonus;
+    if (path == null || path.isEmpty || PromptImageProbe.isKnownMissing(path)) {
+      return textSectionHeight;
+    }
+    final ratio = (PromptImageProbe.getCachedAspectRatio(path) ?? 1.0).clamp(
+      0.45,
+      2.2,
+    );
+    return columnWidth / ratio + textSectionHeight;
+  }
+
+  Widget _buildInboxEmptyState(BuildContext context, bool isCompletelyEmpty) {
+    final l10n = context.l10n;
+    return AppEmptyState(
+      icon: Icons.inbox_outlined,
+      title: isCompletelyEmpty
+          ? l10n.libraryInboxEmptyTitle
+          : l10n.libraryNoMatchingTitle,
+      description: isCompletelyEmpty
+          ? l10n.libraryInboxEmptyDescription
+          : l10n.libraryNoMatchingDescription,
+      actionLabel: isCompletelyEmpty ? null : l10n.libraryResetFilter,
+      actionIcon: isCompletelyEmpty ? null : Icons.refresh,
+      onActionPressed: isCompletelyEmpty
+          ? null
+          : () {
+              setState(() {
+                _searchController.clear();
+              });
+            },
+    );
+  }
+
   Widget _buildEmptyState(BuildContext context, bool isCompletelyEmpty) {
     final l10n = context.l10n;
     return AppEmptyState(
@@ -1127,6 +1602,18 @@ class _MasonrySlot {
 
   const _MasonrySlot({
     required this.entry,
+    required this.topY,
+    required this.bottomY,
+  });
+}
+
+class _InboxMasonrySlot {
+  final PromptInboxItem item;
+  final double topY;
+  final double bottomY;
+
+  const _InboxMasonrySlot({
+    required this.item,
     required this.topY,
     required this.bottomY,
   });

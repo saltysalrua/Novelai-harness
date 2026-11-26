@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -6,9 +8,19 @@ import '../../../data/models/novelai_models.dart';
 import '../../../data/models/prompt_library_models.dart';
 import '../types.dart';
 import 'agent_tool.dart';
+import 'vision_image_codec.dart';
 
 /// 词库条目列表读取器
 typedef PromptLibraryEntriesGetter = List<PromptComboEntry> Function();
+
+/// 待整理区条目列表读取器
+typedef PromptLibraryInboxGetter = List<PromptInboxItem> Function();
+
+/// 待整理区批量删除回调 (返回实际删除条数)
+typedef PromptLibraryInboxDelete = Future<int> Function(Iterable<String> ids);
+
+/// 当前模型视觉能力检查器
+typedef PromptLibraryVisionChecker = bool Function();
 
 /// 词库条目新增回调
 typedef PromptLibraryAddEntry =
@@ -61,7 +73,34 @@ typedef PromptLibraryApplyEntryCallback =
     });
 
 /// 格式化单条词库条目为可读文本
-String formatPromptComboEntry(PromptComboEntry entry) {
+String formatPromptComboEntry(
+  PromptComboEntry entry, {
+  List<PromptComboEntry>? allEntries,
+}) {
+  final linkedSummary = <String>[];
+  if (allEntries != null && allEntries.isNotEmpty) {
+    final byId = <String, PromptComboEntry>{
+      for (final e in allEntries)
+        if (e.id.isNotEmpty) e.id: e,
+    };
+    final seen = <String>{entry.id};
+    for (final id in entry.linkedEntryIds) {
+      final found = byId[id];
+      if (found != null && seen.add(found.id)) {
+        linkedSummary.add('[${found.id}] ${found.title} (${found.category})');
+      }
+    }
+    for (final other in allEntries) {
+      if (other.id != entry.id &&
+          other.linkedEntryIds.contains(entry.id) &&
+          seen.add(other.id)) {
+        linkedSummary.add('[${other.id}] ${other.title} (${other.category})');
+      }
+    }
+  } else if (entry.linkedEntryIds.isNotEmpty) {
+    linkedSummary.addAll(entry.linkedEntryIds);
+  }
+
   final lines = <String>[
     '• [${entry.id}] ${entry.title} (${entry.category})'
         '${entry.isFavorite ? ' [收藏]' : ''}${entry.isBuiltin ? ' [内置]' : ''}',
@@ -75,6 +114,17 @@ String formatPromptComboEntry(PromptComboEntry entry) {
       '  提示词: ${entry.prompt}',
     if (entry.supportsNegative && entry.negativePrompt.isNotEmpty)
       '  负面提示词: ${entry.negativePrompt}',
+    if (entry.characterPrompts.isNotEmpty) ...[
+      '  多角色提示词 (${entry.characterPrompts.length} 个):',
+      for (var i = 0; i < entry.characterPrompts.length; i++) ...[
+        '    - 角色 ${i + 1}'
+            '${entry.characterPrompts[i].name.trim().isNotEmpty ? ' (${entry.characterPrompts[i].name.trim()})' : ''}: '
+            '${entry.characterPrompts[i].prompt.trim()}',
+        if (entry.characterPrompts[i].negativePrompt.trim().isNotEmpty)
+          '      负面词: ${entry.characterPrompts[i].negativePrompt.trim()}',
+      ],
+    ],
+    if (linkedSummary.isNotEmpty) '  关联条目: ${linkedSummary.join('、')}',
     if (entry.previewImagePath != null) '  预览图: 已设置',
     if (entry.preciseReferences.isNotEmpty)
       '  精准参考 (${entry.preciseReferences.length} 张): '
@@ -148,7 +198,7 @@ class SearchPromptLibraryTool extends AgentTool {
       }
       return ToolResult(
         toolCallId: toolCallId,
-        content: '词库条目详情：\n${formatPromptComboEntry(match.first)}',
+        content: '词库条目详情：\n${formatPromptComboEntry(match.first, allEntries: entries)}',
       );
     }
 
@@ -211,16 +261,47 @@ class SearchPromptLibraryTool extends AgentTool {
   }
 }
 
+/// 格式化单条待整理区条目为可读文本
+String formatPromptInboxItem(PromptInboxItem item) {
+  final ts = item.createdAt
+      .toLocal()
+      .toIso8601String()
+      .replaceAll('T', ' ')
+      .split('.')
+      .first;
+  final lines = <String>[
+    '• [${item.id}] 保存时间: $ts${item.hasImage ? ' [有图片]' : ' [无图片]'}',
+    if (item.prompt.trim().isNotEmpty) '  主提示词: ${item.prompt.trim()}',
+    if (item.negativePrompt.trim().isNotEmpty)
+      '  主负面提示词: ${item.negativePrompt.trim()}',
+    if (item.characterPrompts.isNotEmpty) ...[
+      '  角色提示词 (${item.characterPrompts.length} 个):',
+      for (var i = 0; i < item.characterPrompts.length; i++) ...[
+        '    - 角色 ${i + 1}'
+            '${item.characterPrompts[i].name.trim().isNotEmpty ? ' (${item.characterPrompts[i].name.trim()})' : ''}: '
+            '${item.characterPrompts[i].prompt.trim()}',
+        if (item.characterPrompts[i].negativePrompt.trim().isNotEmpty)
+          '      负面词: ${item.characterPrompts[i].negativePrompt.trim()}',
+      ],
+    ],
+    if (item.note != null && item.note!.trim().isNotEmpty)
+      '  备注: ${item.note!.trim()}',
+  ];
+  return lines.join('\n');
+}
+
 /// 词库条目新增工具
 class AddPromptLibraryEntryTool extends AgentTool {
   final PromptLibraryEntriesGetter getEntries;
   final PromptLibraryAddEntry addEntry;
+  final PromptLibraryInboxGetter? getInboxItems;
   final PromptLibraryWorkspacePreciseSnapshot? snapshotWorkspacePrecise;
   final PromptLibraryWorkspaceVibeSnapshot? snapshotWorkspaceVibe;
 
   AddPromptLibraryEntryTool({
     required this.getEntries,
     required this.addEntry,
+    this.getInboxItems,
     this.snapshotWorkspacePrecise,
     this.snapshotWorkspaceVibe,
   }) : super(
@@ -262,6 +343,10 @@ class AddPromptLibraryEntryTool extends AgentTool {
               'description': '检索用标签列表',
             },
             'favorite': {'type': 'boolean', 'description': '是否收藏'},
+            'preview_inbox_id': {
+              'type': 'string',
+              'description': '可选：复用指定待整理区条目 (inbox_id) 的图片作为本条目的预览图',
+            },
             'entries': {
               'type': 'array',
               'description':
@@ -280,6 +365,7 @@ class AddPromptLibraryEntryTool extends AgentTool {
                     'items': {'type': 'string'},
                   },
                   'favorite': {'type': 'boolean'},
+                  'preview_inbox_id': {'type': 'string'},
                 },
                 'required': ['title'],
               },
@@ -329,21 +415,24 @@ class AddPromptLibraryEntryTool extends AgentTool {
       final prefix = (spec['prefix_prompt'] as String?)?.trim() ?? '';
       final suffix = (spec['suffix_prompt'] as String?)?.trim() ?? '';
       final negative = (spec['negative_prompt'] as String?)?.trim() ?? '';
+      final chars = _parseCharacterPrompts(spec['character_prompts']);
       final hasStyleContent =
           prompt.isNotEmpty ||
           prefix.isNotEmpty ||
           suffix.isNotEmpty ||
-          negative.isNotEmpty;
+          negative.isNotEmpty ||
+          chars.isNotEmpty;
       final willAttachRefs =
           spec['attach_workspace_references'] == true ||
           spec['attach_workspace_vibes'] == true;
       if (title.isEmpty ||
-          (!willAttachRefs && (isStyle ? !hasStyleContent : prompt.isEmpty))) {
+          (!willAttachRefs &&
+              (isStyle ? !hasStyleContent : (prompt.isEmpty && chars.isEmpty)))) {
         return ToolResult(
           toolCallId: toolCallId,
           content: isStyle
               ? '风格分类下 title 为必填项，且 prompt / prefix_prompt / suffix_prompt / negative_prompt 至少需填一项（或附带工作台参考图）。'
-              : 'title 与 prompt 为必填项，不能为空（若仅保存参考图可传 attach_workspace_references / attach_workspace_vibes）。',
+              : 'title 与 prompt (或 character_prompts) 为必填项，不能为空（若仅保存参考图可传 attach_workspace_references / attach_workspace_vibes）。',
           isError: true,
         );
       }
@@ -355,9 +444,27 @@ class AddPromptLibraryEntryTool extends AgentTool {
           isError: true,
         );
       }
+      final previewInboxId =
+          (spec['preview_inbox_id'] as String?)?.trim() ?? '';
+      if (previewInboxId.isNotEmpty) {
+        final inboxItems = getInboxItems?.call() ?? const <PromptInboxItem>[];
+        if (!inboxItems.any((e) => e.id == previewInboxId)) {
+          return ToolResult(
+            toolCallId: toolCallId,
+            content: '未找到 ID 为 "$previewInboxId" 的待整理区条目，无法复用其图片作为预览图。',
+            isError: true,
+          );
+        }
+      }
     }
 
+    final inboxById = <String, PromptInboxItem>{
+      for (final item in getInboxItems?.call() ?? const <PromptInboxItem>[])
+        item.id: item,
+    };
+
     final created = <PromptComboEntry>[];
+    final createdIdByTitle = <String, String>{};
     for (var i = 0; i < specs.length; i++) {
       final spec = specs[i];
       final now = DateTime.now();
@@ -386,11 +493,30 @@ class AddPromptLibraryEntryTool extends AgentTool {
       final negativeText = allowNeg
           ? ((spec['negative_prompt'] as String?)?.trim() ?? '')
           : '';
+      final charPrompts = _parseCharacterPrompts(spec['character_prompts']);
+      final linkedIds = _resolveLinkedIds(
+        rawIds: spec['linked_entry_ids'],
+        rawTitles: spec['linked_entry_titles'],
+        existingEntries: getEntries(),
+        batchIdByTitle: createdIdByTitle,
+      );
+      final previewInboxId =
+          (spec['preview_inbox_id'] as String?)?.trim() ?? '';
+      String? resolvedPreviewPath;
+      if (previewInboxId.isNotEmpty) {
+        final candidatePath = inboxById[previewInboxId]?.imagePath?.trim();
+        if (candidatePath != null &&
+            candidatePath.isNotEmpty &&
+            File(candidatePath).existsSync()) {
+          resolvedPreviewPath = candidatePath;
+        }
+      }
       final hasAnyContent =
           promptText.isNotEmpty ||
           prefixText.isNotEmpty ||
           suffixText.isNotEmpty ||
           negativeText.isNotEmpty ||
+          charPrompts.isNotEmpty ||
           attachedPrecise.isNotEmpty ||
           attachedVibes.isNotEmpty;
       if (!hasAnyContent) {
@@ -400,30 +526,34 @@ class AddPromptLibraryEntryTool extends AgentTool {
           isError: true,
         );
       }
-      created.add(
-        await addEntry(
-          PromptComboEntry(
-            // 同毫秒内批量新增时补足序号，避免 ID 碰撞
-            id:
-                'combo_${now.millisecondsSinceEpoch}'
-                '${specs.length > 1 ? '_$i' : ''}',
-            title: (spec['title'] as String).trim(),
-            category: category,
-            prompt: promptText,
-            negativePrompt: negativeText,
-            prefixPrompt: prefixText,
-            suffixPrompt: suffixText,
-            preciseReferences: attachedPrecise,
-            vibeReferences: attachedVibes,
-            createdAt: now,
-            updatedAt: now,
-            isFavorite: spec['favorite'] is bool
-                ? spec['favorite'] as bool
-                : false,
-            tags: _parseTags(spec['tags']),
-          ),
+      final entryTitle = (spec['title'] as String).trim();
+      final newId =
+          'combo_${now.millisecondsSinceEpoch}'
+          '${specs.length > 1 ? '_$i' : ''}';
+      final saved = await addEntry(
+        PromptComboEntry(
+          id: newId,
+          title: entryTitle,
+          category: category,
+          prompt: promptText,
+          negativePrompt: negativeText,
+          prefixPrompt: prefixText,
+          suffixPrompt: suffixText,
+          previewImagePath: resolvedPreviewPath,
+          characterPrompts: charPrompts,
+          linkedEntryIds: linkedIds,
+          preciseReferences: attachedPrecise,
+          vibeReferences: attachedVibes,
+          createdAt: now,
+          updatedAt: now,
+          isFavorite: spec['favorite'] is bool
+              ? spec['favorite'] as bool
+              : false,
+          tags: _parseTags(spec['tags']),
         ),
       );
+      created.add(saved);
+      createdIdByTitle[entryTitle.toLowerCase()] = saved.id;
     }
 
     final details = created
@@ -449,6 +579,7 @@ class AddPromptLibraryEntryTool extends AgentTool {
 class SetPromptLibraryPreviewTool extends AgentTool {
   final PromptLibraryEntriesGetter getEntries;
   final PromptLibraryUpdateEntry updateEntry;
+  final PromptLibraryInboxGetter? getInboxItems;
 
   /// 画板历史图片列表 (从新到旧，索引 0 为最新)
   final PromptLibraryHistoryGetter? getHistory;
@@ -465,6 +596,7 @@ class SetPromptLibraryPreviewTool extends AgentTool {
   SetPromptLibraryPreviewTool({
     required this.getEntries,
     required this.updateEntry,
+    this.getInboxItems,
     this.getHistory,
     this.loadImageBytes,
     this.savePreviewBytes,
@@ -522,8 +654,11 @@ class SetPromptLibraryPreviewTool extends AgentTool {
 
     final current = entries[idx];
 
-    // 1. 清除预览图
-    if (args['clear'] is bool && args['clear'] as bool == true) {
+    // 1. 清除预览图 (兼容 clear / clear_preview)
+    final clearFlag =
+        (args['clear'] is bool && args['clear'] as bool) ||
+        (args['clear_preview'] is bool && args['clear_preview'] as bool);
+    if (clearFlag) {
       if (current.previewImagePath == null) {
         return ToolResult(
           toolCallId: toolCallId,
@@ -541,13 +676,25 @@ class SetPromptLibraryPreviewTool extends AgentTool {
       );
     }
 
-    // 2. 画板历史图片索引来源
-    final hasIndexArg = args.containsKey('index') && args['index'] != null;
-    if (hasIndexArg) {
-      return _applyFromHistoryIndex(toolCallId, args, current);
+    // 2. 待整理区图片索引来源
+    final inboxId = (args['inbox_id'] as String?)?.trim() ?? '';
+    if (inboxId.isNotEmpty) {
+      return _applyFromInbox(toolCallId, current, inboxId);
     }
 
-    // 3. 本地图片路径来源
+    // 3. 画板历史图片索引来源 (兼容 index / image_index)
+    final rawHistoryIndex = args.containsKey('index')
+        ? args['index']
+        : args['image_index'];
+    if (rawHistoryIndex != null) {
+      return _applyFromHistoryIndex(
+        toolCallId,
+        {'index': rawHistoryIndex},
+        current,
+      );
+    }
+
+    // 4. 本地图片路径来源
     final imagePath = (args['image_path'] as String?)?.trim() ?? '';
     if (imagePath.isNotEmpty) {
       return _applyFromPath(toolCallId, current, imagePath);
@@ -556,9 +703,44 @@ class SetPromptLibraryPreviewTool extends AgentTool {
     return ToolResult(
       toolCallId: toolCallId,
       content:
-          '未指定预览图来源：请传入 index (画板历史图片索引)、image_path (本地图片路径) '
-          '或 clear: true (清除预览图)。',
+          '未指定预览图来源：请传入 index / image_index (画板历史图片索引)、inbox_id (待整理区条目 ID)、'
+          'image_path (本地图片路径) 或 clear: true (清除预览图)。',
       isError: true,
+    );
+  }
+
+  Future<ToolResult> _applyFromInbox(
+    String toolCallId,
+    PromptComboEntry current,
+    String inboxId,
+  ) async {
+    final inboxItems = getInboxItems?.call() ?? const <PromptInboxItem>[];
+    final target = inboxItems.where((e) => e.id == inboxId).firstOrNull;
+    if (target == null) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '未找到 ID 为 "$inboxId" 的待整理区条目。',
+        isError: true,
+      );
+    }
+    final path = target.imagePath?.trim();
+    if (path == null || path.isEmpty || !File(path).existsSync()) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '待整理区条目 "$inboxId" 没有可用的图片文件。',
+        isError: true,
+      );
+    }
+    final updated = current.copyWith(
+      previewImagePath: path,
+      updatedAt: DateTime.now(),
+    );
+    await updateEntry(updated);
+    return ToolResult(
+      toolCallId: toolCallId,
+      content:
+          '已为条目「${current.title}」(${current.id}) 设置预览图 (来源: 待整理区 $inboxId)。\n'
+          '${formatPromptComboEntry(updated)}',
     );
   }
 
@@ -877,6 +1059,18 @@ class UpdatePromptLibraryEntryTool extends AgentTool {
         continue;
       }
 
+      final hasLinkedField =
+          spec.containsKey('linked_entry_ids') ||
+          spec.containsKey('linked_entry_titles');
+      final resolvedLinked = hasLinkedField
+          ? _resolveLinkedIds(
+              rawIds: spec['linked_entry_ids'],
+              rawTitles: spec['linked_entry_titles'],
+              existingEntries: getEntries(),
+              excludeId: current.id,
+            )
+          : null;
+
       final updated = current.copyWith(
         title: (spec['title'] as String?)?.trim().isNotEmpty == true
             ? (spec['title'] as String).trim()
@@ -896,6 +1090,10 @@ class UpdatePromptLibraryEntryTool extends AgentTool {
         negativePrompt: spec.containsKey('negative_prompt')
             ? ((spec['negative_prompt'] as String?)?.trim() ?? '')
             : null,
+        characterPrompts: spec.containsKey('character_prompts')
+            ? _parseCharacterPrompts(spec['character_prompts'])
+            : null,
+        linkedEntryIds: resolvedLinked,
         isFavorite: spec['favorite'] is bool ? spec['favorite'] as bool : null,
         tags: spec.containsKey('tags') ? _parseTags(spec['tags']) : null,
         updatedAt: DateTime.now(),
@@ -1026,7 +1224,177 @@ List<String> _parseTags(dynamic raw) {
   return const [];
 }
 
-/// 统一本地词组合预设库管理工具（合并 search / add / update / delete / set_preview / apply 为单工具）
+/// 解析多角色提示词数组 ([{name, prompt, negative_prompt}])
+List<PromptInboxCharacter> _parseCharacterPrompts(dynamic raw) {
+  if (raw is! List) return const [];
+  final out = <PromptInboxCharacter>[];
+  for (final item in raw) {
+    if (item is! Map) continue;
+    final map = item.cast<String, dynamic>();
+    final prompt = (map['prompt'] as String?)?.trim() ?? '';
+    if (prompt.isEmpty) continue;
+    final name = (map['name'] as String?)?.trim() ?? '';
+    final neg =
+        ((map['negative_prompt'] as String?) ??
+                (map['negativePrompt'] as String?))
+            ?.trim() ??
+        '';
+    out.add(
+      PromptInboxCharacter(name: name, prompt: prompt, negativePrompt: neg),
+    );
+  }
+  return out;
+}
+
+/// 解析关联条目 ID 列表（同时支持直接传 linked_entry_ids 与按标题查找 linked_entry_titles）
+List<String> _resolveLinkedIds({
+  dynamic rawIds,
+  dynamic rawTitles,
+  required List<PromptComboEntry> existingEntries,
+  Map<String, String> batchIdByTitle = const {},
+  String? excludeId,
+}) {
+  final result = <String>[];
+  final seen = <String>{if (excludeId != null && excludeId.isNotEmpty) excludeId};
+
+  if (rawIds is List) {
+    for (final item in rawIds) {
+      final id = item.toString().trim();
+      if (id.isNotEmpty && seen.add(id)) {
+        result.add(id);
+      }
+    }
+  }
+  if (rawTitles is List) {
+    final existingByTitle = <String, String>{
+      for (final e in existingEntries) e.title.trim().toLowerCase(): e.id,
+    };
+    for (final item in rawTitles) {
+      final key = item.toString().trim().toLowerCase();
+      if (key.isEmpty) continue;
+      final resolved = batchIdByTitle[key] ?? existingByTitle[key];
+      if (resolved != null && resolved.isNotEmpty && seen.add(resolved)) {
+        result.add(resolved);
+      }
+    }
+  }
+  return result;
+}
+
+/// 独立后台预览图生成回调签名（用于待整理区分离后自动重跑预览图，不污染工作台与画板历史）
+typedef GenerateLibraryPreviewCallback =
+    Future<({bool ok, String message})> Function({
+      required PromptComboEntry entry,
+      required String prompt,
+      String negativePrompt,
+      List<PromptInboxCharacter> characterPrompts,
+      int width,
+      int height,
+    });
+
+/// 词库条目独立预览图重跑工具（仅后台整理 Agent 在开启「分离后自动重跑预览图」时注册）
+class GenerateLibraryPreviewTool extends AgentTool {
+  final PromptLibraryEntriesGetter getEntries;
+  final GenerateLibraryPreviewCallback generatePreview;
+
+  GenerateLibraryPreviewTool({
+    required this.getEntries,
+    required this.generatePreview,
+  }) : super(
+         name: 'generate_library_preview',
+         label: '重跑词库预览图',
+         description:
+             '为指定词库条目独立生成一张专属预览图并自动绑定（不会覆盖工作台参数也不会污染画板历史；'
+             '严格限制在 Opus 免费区间尺寸内）。适合把一张图拆出的角色/服装/构图/环境分别重跑独立预览图。',
+         parameters: const {
+           'type': 'object',
+           'required': ['entry_id', 'prompt'],
+           'properties': {
+             'entry_id': {'type': 'string', 'description': '要更新预览图的词库条目 ID'},
+             'prompt': {
+               'type': 'string',
+               'description': '用于生成该条目专属预览图的正向提示词（英文 Danbooru 标签；服装可结合所属角色，构图可用简洁主体展示）',
+             },
+             'negative_prompt': {
+               'type': 'string',
+               'description': '可选：负面提示词',
+             },
+             'character_prompts': {
+               'type': 'array',
+               'description': '可选：多角色提示词数组 [{name, prompt, negative_prompt}]',
+               'items': {
+                 'type': 'object',
+                 'properties': {
+                   'name': {'type': 'string'},
+                   'prompt': {'type': 'string'},
+                   'negative_prompt': {'type': 'string'},
+                 },
+               },
+             },
+             'width': {
+               'type': 'integer',
+               'description': '可选宽度 (64 倍数，默认 832；像素总数不超过 1048576)',
+             },
+             'height': {
+               'type': 'integer',
+               'description': '可选高度 (64 倍数，默认 1216；像素总数不超过 1048576)',
+             },
+           },
+         },
+       );
+
+  @override
+  Future<ToolResult> execute(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final entryId =
+        ((args['entry_id'] as String?) ?? (args['id'] as String?))?.trim() ?? '';
+    final prompt = (args['prompt'] as String?)?.trim() ?? '';
+    if (entryId.isEmpty || prompt.isEmpty) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: 'entry_id 与 prompt 均为必填项。',
+        isError: true,
+      );
+    }
+    final entry = getEntries().where((e) => e.id == entryId).firstOrNull;
+    if (entry == null) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '未找到 ID 为 "$entryId" 的词库条目。',
+        isError: true,
+      );
+    }
+
+    var width = ((args['width'] as num?)?.toInt() ?? 832).clamp(512, 1216);
+    var height = ((args['height'] as num?)?.toInt() ?? 1216).clamp(512, 1216);
+    width = (width ~/ 64) * 64;
+    height = (height ~/ 64) * 64;
+    if (width * height > 1048576) {
+      width = 832;
+      height = 1216;
+    }
+
+    final negative = (args['negative_prompt'] as String?)?.trim() ?? '';
+    final chars = _parseCharacterPrompts(args['character_prompts']);
+    final outcome = await generatePreview(
+      entry: entry,
+      prompt: prompt,
+      negativePrompt: negative,
+      characterPrompts: chars,
+      width: width,
+      height: height,
+    );
+    return ToolResult(
+      toolCallId: toolCallId,
+      content: outcome.message,
+      isError: !outcome.ok,
+    );
+  }
+}
+
+/// 统一本地词组合预设库管理工具（合并 search / add / update / delete / set_preview / apply / 待整理区管理 为单工具）
 class PromptLibraryTool extends AgentTool {
   final SearchPromptLibraryTool _searchTool;
   final AddPromptLibraryEntryTool _addTool;
@@ -1034,6 +1402,9 @@ class PromptLibraryTool extends AgentTool {
   final DeletePromptLibraryEntryTool _deleteTool;
   final SetPromptLibraryPreviewTool _previewTool;
   final PromptLibraryEntriesGetter _getEntries;
+  final PromptLibraryInboxGetter? _getInboxItems;
+  final PromptLibraryInboxDelete? deleteInboxItems;
+  final PromptLibraryVisionChecker? isModelMultimodal;
   final PromptLibraryApplyEntryCallback? applyEntry;
 
   PromptLibraryTool({
@@ -1041,6 +1412,9 @@ class PromptLibraryTool extends AgentTool {
     required PromptLibraryAddEntry addEntry,
     required PromptLibraryUpdateEntry updateEntry,
     required PromptLibraryDeleteEntry deleteEntry,
+    PromptLibraryInboxGetter? getInboxItems,
+    this.deleteInboxItems,
+    this.isModelMultimodal,
     required PromptLibraryHistoryGetter getHistory,
     required PromptLibraryImageBytesLoader loadImageBytes,
     PromptLibraryPreviewBytesSaver? savePreviewBytes,
@@ -1049,10 +1423,12 @@ class PromptLibraryTool extends AgentTool {
     PromptLibraryWorkspaceVibeSnapshot? snapshotWorkspaceVibe,
     this.applyEntry,
   }) : _getEntries = getEntries,
+       _getInboxItems = getInboxItems,
        _searchTool = SearchPromptLibraryTool(getEntries: getEntries),
        _addTool = AddPromptLibraryEntryTool(
          getEntries: getEntries,
          addEntry: addEntry,
+         getInboxItems: getInboxItems,
          snapshotWorkspacePrecise: snapshotWorkspacePrecise,
          snapshotWorkspaceVibe: snapshotWorkspaceVibe,
        ),
@@ -1067,6 +1443,7 @@ class PromptLibraryTool extends AgentTool {
        _previewTool = SetPromptLibraryPreviewTool(
          getEntries: getEntries,
          updateEntry: updateEntry,
+         getInboxItems: getInboxItems,
          getHistory: getHistory,
          loadImageBytes: loadImageBytes,
          savePreviewBytes: savePreviewBytes,
@@ -1076,13 +1453,16 @@ class PromptLibraryTool extends AgentTool {
          name: 'prompt_library',
          label: '本地词库管理',
          description:
-             '统一检索、管理与应用本地词组合预设库（画风/角色/光影/构图/服装/关联精准参考与 Vibe）。通过 action 选择操作：\n'
-             '- search: 按关键词/分类检索条目，或按 id 读取详情（含已关联参考图与 Vibe）；\n'
-             '- add: 新增单个或批量词库条目（可传 attach_workspace_references / attach_workspace_vibes 一并保存当前工作台参考图）；\n'
-             '- update: 按 id 或 updates 数组修改条目；\n'
-             '- delete: 按 id 或 ids 数组删除条目；\n'
-             '- set_preview: 为词库条目设置/替换预览图（来自画板历史图或本地路径）；\n'
-             '- apply: 按 id 选择性应用条目到工作台（可自由控制是否应用提示词、精准参考、Vibe 及追加/替换模式）。',
+             '统一检索、管理与应用本地词组合预设库（画风/角色/光影/构图/服装/关联精准参考与 Vibe）及词库待整理区。通过 action 选择操作：\n'
+             '- search: 按关键词/分类检索正式词库条目，或按 id 读取详情（含已关联参考图与 Vibe）；\n'
+             '- add: 新增单个或批量词库条目（可传 preview_inbox_id 复用待整理区图片作预览图，或传 attach_workspace_references / attach_workspace_vibes 一并保存当前工作台参考图）；\n'
+             '- update: 按 id 或 updates 数组修改正式词库条目；\n'
+             '- delete: 按 id 或 ids 数组删除正式词库条目；\n'
+             '- set_preview: 为词库条目设置/替换预览图（来自画板历史图 image_index、待整理区 inbox_id 或本地路径 image_path）；\n'
+             '- apply: 按 id 选择性应用条目到工作台（可自由控制是否应用提示词、精准参考、Vibe 及追加/替换模式）；\n'
+             '- list_inbox: 列出词库待整理区中的所有暂存条目（含主提示词、角色提示词数量与是否有图）；\n'
+             '- read_inbox: 按 inbox_id 读取单条待整理项的完整主提示词、全部角色提示词及对应图片（多模态模型默认附带 ≤1024px 图片供视觉审查）；\n'
+             '- delete_inbox: 按 inbox_id 或 inbox_ids 批量删除已整理完毕的待整理区条目（复用为正式词库预览图的图片文件会自动保留）。',
          parameters: const {
            'type': 'object',
            'properties': {
@@ -1095,24 +1475,60 @@ class PromptLibraryTool extends AgentTool {
                  'delete',
                  'set_preview',
                  'apply',
+                 'list_inbox',
+                 'read_inbox',
+                 'delete_inbox',
                ],
                'description':
-                   '操作类型：search / add / update / delete / set_preview / apply',
+                   '操作类型：search / add / update / delete / set_preview / apply / list_inbox / read_inbox / delete_inbox',
              },
              'query': {'type': 'string', 'description': '搜索关键词 (search)'},
              'category': {'type': 'string', 'description': '条目分类 (search / add / update)'},
-             'limit': {'type': 'integer', 'description': '返回数量上限 (search)'},
+             'offset': {'type': 'integer', 'description': '分页偏移，默认 0 (search / list_inbox)'},
+             'limit': {'type': 'integer', 'description': '返回数量上限 (search / list_inbox)'},
              'id': {'type': 'string', 'description': '条目 ID (search / update / delete / set_preview / apply)'},
              'ids': {
                'type': 'array',
                'items': {'type': 'string'},
-               'description': '批量删除的条目 ID 列表 (delete)',
+               'description': '批量删除的条目 ID 列表 (delete / delete_inbox)',
+             },
+             'inbox_id': {
+               'type': 'string',
+               'description': '待整理区条目 ID (read_inbox / delete_inbox / set_preview)',
+             },
+             'inbox_ids': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '批量删除的待整理区条目 ID 列表 (delete_inbox)',
+             },
+             'include_image': {
+               'type': 'boolean',
+               'description': '读取待整理项时是否附带图片供视觉查看，多模态模型默认 true (read_inbox)',
+             },
+             'preview_inbox_id': {
+               'type': 'string',
+               'description': '新增条目时复用指定待整理区条目的图片作预览图 (add)',
              },
              'title': {'type': 'string', 'description': '条目标题 (add / update)'},
              'prompt': {'type': 'string', 'description': '正向提示词 (add / update)'},
              'prefix_prompt': {'type': 'string', 'description': '前置词，仅风格分类生效 (add / update)'},
              'suffix_prompt': {'type': 'string', 'description': '后置词，仅风格分类生效 (add / update)'},
              'negative_prompt': {'type': 'string', 'description': '负向提示词 (add / update)'},
+             'character_prompts': {
+               'type': 'array',
+               'items': {'type': 'object'},
+               'description': '多角色提示词数组 [{name, prompt, negative_prompt}]，用于同时含主提示词和角色提示词的条目 (add / update)',
+             },
+             'linked_entry_ids': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '关联的其他词库条目 ID 列表，例如服装关联所属角色 (add / update)',
+             },
+             'linked_entry_titles': {
+               'type': 'array',
+               'items': {'type': 'string'},
+               'description': '按标题关联词库条目（支持引用同一批 entries 中先创建的角色标题）(add / update)',
+             },
              'tags': {'description': '标签数组或逗号分隔字符串 (add / update)'},
              'favorite': {'type': 'boolean', 'description': '是否收藏 (add / update)'},
              'attach_workspace_references': {
@@ -1154,7 +1570,7 @@ class PromptLibraryTool extends AgentTool {
              'entries': {
                'type': 'array',
                'items': {'type': 'object'},
-               'description': '批量新增的条目数组 (add)',
+               'description': '批量新增的条目数组，每项可含 preview_inbox_id (add)',
              },
              'updates': {
                'type': 'array',
@@ -1191,13 +1607,232 @@ class PromptLibraryTool extends AgentTool {
       'delete' || 'remove' => _deleteTool.execute(toolCallId, args),
       'set_preview' || 'preview' => _previewTool.execute(toolCallId, args),
       'apply' => _executeApply(toolCallId, args),
+      'list_inbox' || 'inbox' => _executeListInbox(toolCallId, args),
+      'read_inbox' || 'inspect_inbox' => _executeReadInbox(toolCallId, args),
+      'delete_inbox' || 'remove_inbox' => _executeDeleteInbox(toolCallId, args),
       _ => ToolResult(
         toolCallId: toolCallId,
         content:
-            '错误：prompt_library 的 action 必须是 search / add / update / delete / set_preview / apply。',
+            '错误：prompt_library 的 action 必须是 search / add / update / delete / set_preview / apply / list_inbox / read_inbox / delete_inbox。',
         isError: true,
       ),
     };
+  }
+
+  Future<ToolResult> _executeListInbox(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final getter = _getInboxItems;
+    if (getter == null) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '当前环境未接入词库待整理区。',
+        isError: true,
+      );
+    }
+
+    final singleId =
+        ((args['inbox_id'] as String?) ?? (args['id'] as String?))?.trim() ??
+        '';
+    if (singleId.isNotEmpty) {
+      return _executeReadInbox(toolCallId, {...args, 'inbox_id': singleId});
+    }
+
+    final items = getter();
+    if (items.isEmpty) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '词库待整理区当前为空。',
+      );
+    }
+
+    final offset = ((args['offset'] as num?)?.toInt() ?? 0).clamp(
+      0,
+      items.length,
+    );
+    final limit = ((args['limit'] as num?)?.toInt() ?? 10).clamp(1, 50);
+    final page = items.skip(offset).take(limit).toList(growable: false);
+
+    final buf = StringBuffer('词库待整理区 (共 ${items.length} 条)：\n');
+    for (final item in page) {
+      final ts = item.createdAt
+          .toLocal()
+          .toIso8601String()
+          .replaceAll('T', ' ')
+          .split('.')
+          .first;
+      final summary = item.displaySummary.replaceAll('\n', ' ');
+      final preview = summary.length > 140
+          ? '${summary.substring(0, 140)}…'
+          : summary;
+      final tags = <String>[
+        if (item.hasImage) '有图',
+        if (item.characterPrompts.isNotEmpty)
+          '角色×${item.characterPrompts.length}',
+      ];
+      final badge = tags.isNotEmpty ? ' [${tags.join(', ')}]' : '';
+      buf.writeln('• [${item.id}] $ts$badge');
+      if (preview.isNotEmpty) {
+        buf.writeln('  摘要: $preview');
+      }
+    }
+    final next = offset + page.length;
+    buf.writeln(
+      '本页 ${page.length} 条；请用 action: "read_inbox" + inbox_id 查看完整主/角色提示词及图片，'
+      '整理入库时可用 action: "add"（传 preview_inbox_id 复用图片），完成后用 action: "delete_inbox" 清理。',
+    );
+    if (next < items.length) {
+      buf.writeln('下一页 offset: $next');
+    }
+    return ToolResult(toolCallId: toolCallId, content: buf.toString());
+  }
+
+  Future<ToolResult> _executeReadInbox(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final getter = _getInboxItems;
+    if (getter == null) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '当前环境未接入词库待整理区。',
+        isError: true,
+      );
+    }
+
+    final inboxId =
+        ((args['inbox_id'] as String?) ?? (args['id'] as String?))?.trim() ??
+        '';
+    if (inboxId.isEmpty) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: 'read_inbox 操作必须提供 inbox_id。',
+        isError: true,
+      );
+    }
+
+    final item = getter().where((e) => e.id == inboxId).firstOrNull;
+    if (item == null) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '未找到 ID 为 "$inboxId" 的待整理区条目。可先调用 list_inbox 查看列表。',
+        isError: true,
+      );
+    }
+
+    final includeImage = args['include_image'] is bool
+        ? args['include_image'] as bool
+        : true;
+    final multimodal = isModelMultimodal?.call() ?? false;
+
+    String? imageBase64;
+    String imageMimeType = 'image/png';
+    String? imageNote;
+
+    if (item.hasImage && includeImage) {
+      if (!multimodal) {
+        imageNote = '提示：当前对话模型不支持视觉输入，本次仅返回文本提示词（整理入库仍可用 preview_inbox_id 复用该图片）。';
+      } else {
+        final file = File(item.imagePath!.trim());
+        if (file.existsSync()) {
+          try {
+            final rawBytes = await file.readAsBytes();
+            if (rawBytes.isNotEmpty) {
+              final compressed = await compressVisionImage(rawBytes);
+              imageBase64 = base64Encode(compressed.bytes);
+              imageMimeType = compressed.mimeType;
+              imageNote = '对应图片已作为视觉附件返回（最长边 ≤ 1024px）。';
+            }
+          } catch (_) {
+            imageNote = '对应图片读取失败，本次仅返回文本提示词。';
+          }
+        } else {
+          imageNote = '对应图片文件已丢失，本次仅返回文本提示词。';
+        }
+      }
+    }
+
+    final buf = StringBuffer('待整理区条目详情：\n')
+      ..writeln(formatPromptInboxItem(item));
+    if (imageNote != null) {
+      buf.writeln(imageNote);
+    }
+    buf.write(
+      '整理建议：可将可复用的角色、风格、服装、构图、环境或特效拆解后用 action: "add" 存入正式词库'
+      '（传 preview_inbox_id: "${item.id}" 即可直接复用此图作为预览图），整理完毕后用 action: "delete_inbox" 移除本项。',
+    );
+
+    return ToolResult(
+      toolCallId: toolCallId,
+      content: buf.toString(),
+      imageBase64: imageBase64,
+      imageMimeType: imageMimeType,
+    );
+  }
+
+  Future<ToolResult> _executeDeleteInbox(
+    String toolCallId,
+    Map<String, dynamic> args,
+  ) async {
+    final getter = _getInboxItems;
+    final deleter = deleteInboxItems;
+    if (getter == null || deleter == null) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '当前环境未接入词库待整理区删除能力。',
+        isError: true,
+      );
+    }
+
+    final ids = <String>{};
+    final single =
+        ((args['inbox_id'] as String?) ?? (args['id'] as String?))?.trim() ??
+        '';
+    if (single.isNotEmpty) ids.add(single);
+
+    final rawList = args['inbox_ids'] ?? args['ids'];
+    if (rawList != null) {
+      if (rawList is! List || rawList.isEmpty) {
+        return ToolResult(
+          toolCallId: toolCallId,
+          content: 'inbox_ids 必须是非空字符串数组。',
+          isError: true,
+        );
+      }
+      for (final item in rawList) {
+        final v = '$item'.trim();
+        if (v.isNotEmpty) ids.add(v);
+      }
+    }
+
+    if (ids.isEmpty) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: 'delete_inbox 必须提供 inbox_id 或 inbox_ids。',
+        isError: true,
+      );
+    }
+
+    final existingIds = getter().map((e) => e.id).toSet();
+    final found = ids.where(existingIds.contains).toList(growable: false);
+    if (found.isEmpty) {
+      return ToolResult(
+        toolCallId: toolCallId,
+        content: '未找到待整理区条目：${ids.join('、')}。',
+        isError: true,
+      );
+    }
+
+    final removed = await deleter(found);
+    final missing = ids
+        .where((id) => !existingIds.contains(id))
+        .toList(growable: false);
+    final buf = StringBuffer('已从待整理区删除 $removed 项：${found.join('、')}。');
+    if (missing.isNotEmpty) {
+      buf.write('未找到：${missing.join('、')}。');
+    }
+    return ToolResult(toolCallId: toolCallId, content: buf.toString());
   }
 
   Future<ToolResult> _executeApply(

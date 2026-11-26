@@ -10,7 +10,9 @@ import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_collapsible_section.dart';
 import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
+import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_toast.dart';
+import '../../../core/widgets/app_toggle_controls.dart';
 import '../../../core/widgets/app_transitions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
 import '../../settings/widgets/settings_shared.dart';
@@ -107,6 +109,8 @@ class _PromptLibrarySyncDialogState extends State<PromptLibrarySyncDialog> {
   bool _testing = false;
   _SyncHealthTone _healthTone = _SyncHealthTone.idle;
   String? _statusMessage;
+  bool _autoSyncEnabled = false;
+  int _autoSyncIntervalMinutes = 0;
 
   @override
   void initState() {
@@ -120,6 +124,8 @@ class _PromptLibrarySyncDialogState extends State<PromptLibrarySyncDialog> {
       ..addListener(_onDraftChanged);
     _scrollController = SmoothWheelScrollController();
     _configExpanded = !cfg.isConfigured;
+    _autoSyncEnabled = cfg.autoSyncEnabled;
+    _autoSyncIntervalMinutes = cfg.normalizedAutoSyncIntervalMinutes;
   }
 
   void _onDraftChanged() {
@@ -145,6 +151,8 @@ class _PromptLibrarySyncDialogState extends State<PromptLibrarySyncDialog> {
       namespace: _namespaceController.text.trim().isEmpty
           ? 'default'
           : _namespaceController.text.trim(),
+      autoSyncEnabled: _autoSyncEnabled,
+      autoSyncIntervalMinutes: _autoSyncIntervalMinutes,
     );
   }
 
@@ -154,6 +162,24 @@ class _PromptLibrarySyncDialogState extends State<PromptLibrarySyncDialog> {
     return draft.endpoint != saved.endpoint.trim() ||
         draft.token != saved.token.trim() ||
         draft.normalizedNamespace != saved.normalizedNamespace;
+  }
+
+  Future<void> _updateAutoSyncSetting({
+    bool? enabled,
+    int? intervalMinutes,
+  }) async {
+    setState(() {
+      if (enabled != null) _autoSyncEnabled = enabled;
+      if (intervalMinutes != null) _autoSyncIntervalMinutes = intervalMinutes;
+    });
+    final saved = widget.viewModel.promptLibrarySyncConfig;
+    final nextConfig = _hasUnsavedDraft
+        ? saved.copyWith(
+            autoSyncEnabled: _autoSyncEnabled,
+            autoSyncIntervalMinutes: _autoSyncIntervalMinutes,
+          )
+        : _draftConfig();
+    await widget.viewModel.savePromptSyncConfig(nextConfig);
   }
 
   String? _displayHost(PromptLibrarySyncConfig cfg) {
@@ -290,6 +316,13 @@ class _PromptLibrarySyncDialogState extends State<PromptLibrarySyncDialog> {
                   syncing: syncing,
                   stage: stage,
                   lastSyncText: lastSyncText,
+                ),
+                const SizedBox(height: 12),
+
+                _buildAutoSyncCard(
+                  context,
+                  l10n: l10n,
+                  syncing: syncing,
                 ),
                 const SizedBox(height: 12),
 
@@ -560,6 +593,99 @@ class _PromptLibrarySyncDialogState extends State<PromptLibrarySyncDialog> {
                     ? colors.error
                     : colors.success,
               ),
+            ),
+          ] else if (widget.viewModel.lastPromptSyncError != null &&
+              widget.viewModel.lastPromptSyncError!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              l10n.librarySyncFailed(widget.viewModel.lastPromptSyncError!),
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: colors.error,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAutoSyncCard(
+    BuildContext context, {
+    required AppLocalizations l10n,
+    required bool syncing,
+  }) {
+    final colors = context.colors;
+    String intervalLabel(int minutes) => minutes <= 0
+        ? l10n.librarySyncIntervalChangeOnly
+        : l10n.librarySyncIntervalMinutes(minutes);
+
+    return SettingsSoftContainer(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.settingsLibrarySyncAutoTitle,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.settingsLibrarySyncAutoSubtitle,
+                      style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              AppSwitch(
+                key: const Key('library_sync_auto_switch'),
+                value: _autoSyncEnabled,
+                onChanged: syncing
+                    ? null
+                    : (v) => _updateAutoSyncSetting(enabled: v),
+              ),
+            ],
+          ),
+          if (_autoSyncEnabled) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.settingsLibrarySyncAutoIntervalTitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                AppDropdown<int>.simple(
+                  key: const Key('library_sync_auto_interval_dropdown'),
+                  value: _autoSyncIntervalMinutes,
+                  items: PromptLibrarySyncConfig.allowedAutoSyncIntervals,
+                  labelOf: intervalLabel,
+                  variant: AppDropdownVariant.compact,
+                  width: 170,
+                  isExpanded: false,
+                  enabled: !syncing,
+                  onChanged: (v) =>
+                      _updateAutoSyncSetting(intervalMinutes: v),
+                ),
+              ],
             ),
           ],
         ],

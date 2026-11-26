@@ -8828,6 +8828,348 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'将移除当前全部 {count} 条 Vibe Transfer，未保存的编码将丢失。'**
   String vibeClearConfirmMessage(int count);
+
+  /// No description provided for @canvasActionSaveToLibraryInbox.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存到词库待整理区'**
+  String get canvasActionSaveToLibraryInbox;
+
+  /// No description provided for @canvasSavedToLibraryInbox.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存到词库待整理区'**
+  String get canvasSavedToLibraryInbox;
+
+  /// No description provided for @canvasSaveToLibraryInboxFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片与提示词均为空，未保存到待整理区'**
+  String get canvasSaveToLibraryInboxFailed;
+
+  /// No description provided for @libraryCategoryInbox.
+  ///
+  /// In zh, this message translates to:
+  /// **'待整理'**
+  String get libraryCategoryInbox;
+
+  /// No description provided for @libraryInboxEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'待整理区为空'**
+  String get libraryInboxEmptyTitle;
+
+  /// No description provided for @libraryInboxEmptyDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'在画板或历史图片上右键「保存到词库待整理区」，可暂存主提示词、角色提示词与图片，后续交给助手统一整理。'**
+  String get libraryInboxEmptyDescription;
+
+  /// No description provided for @libraryInboxAskAgentAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'让助手整理全部'**
+  String get libraryInboxAskAgentAll;
+
+  /// No description provided for @libraryInboxAskAgentOne.
+  ///
+  /// In zh, this message translates to:
+  /// **'让助手整理'**
+  String get libraryInboxAskAgentOne;
+
+  /// No description provided for @libraryInboxManualConvert.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动建词条'**
+  String get libraryInboxManualConvert;
+
+  /// No description provided for @libraryInboxClearAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空'**
+  String get libraryInboxClearAll;
+
+  /// No description provided for @libraryInboxClearConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空待整理区'**
+  String get libraryInboxClearConfirmTitle;
+
+  /// No description provided for @libraryInboxClearConfirmMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'将删除待整理区内的全部 {count} 项，尚未转存为正式词条的暂存图也会被清理。'**
+  String libraryInboxClearConfirmMessage(int count);
+
+  /// No description provided for @libraryInboxCleared.
+  ///
+  /// In zh, this message translates to:
+  /// **'已清空待整理区'**
+  String get libraryInboxCleared;
+
+  /// No description provided for @libraryInboxDeleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除待整理项'**
+  String get libraryInboxDeleted;
+
+  /// No description provided for @libraryInboxCopiedPrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制待整理提示词'**
+  String get libraryInboxCopiedPrompt;
+
+  /// No description provided for @libraryInboxCharacterCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个角色'**
+  String libraryInboxCharacterCount(int count);
+
+  /// No description provided for @libraryInboxAgentBusy.
+  ///
+  /// In zh, this message translates to:
+  /// **'助手正在回复中，请稍后再试'**
+  String get libraryInboxAgentBusy;
+
+  /// No description provided for @libraryInboxAgentPromptAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'请帮我整理词库待整理区中的全部条目：先调用 prompt_library(action: \"list_inbox\") 查看清单，逐条用 read_inbox 读取完整主提示词、角色提示词与图片，按角色/风格/服装/构图/环境/特效等分类提炼并查重后存入正式词库（可用 preview_inbox_id 复用待整理图片作为预览图），整理完成后调用 delete_inbox 清理已处理的待整理项。'**
+  String get libraryInboxAgentPromptAll;
+
+  /// No description provided for @libraryInboxAgentPromptOne.
+  ///
+  /// In zh, this message translates to:
+  /// **'请帮我整理词库待整理区中 ID 为 {id} 的条目：调用 prompt_library(action: \"read_inbox\", inbox_id: \"{id}\") 查看其主提示词、角色提示词与图片，拆解提炼为合适的正式词库条目并查重入库（可用 preview_inbox_id: \"{id}\" 复用该图片作预览图），整理完成后调用 delete_inbox 删除该待整理项。'**
+  String libraryInboxAgentPromptOne(String id);
+
+  /// No description provided for @settingsLibrarySyncAutoTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动云同步'**
+  String get settingsLibrarySyncAutoTitle;
+
+  /// No description provided for @settingsLibrarySyncAutoSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'启动时及词库变更后自动双向合并'**
+  String get settingsLibrarySyncAutoSubtitle;
+
+  /// No description provided for @settingsLibrarySyncAutoIntervalTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'定时同步间隔'**
+  String get settingsLibrarySyncAutoIntervalTitle;
+
+  /// No description provided for @librarySyncIntervalChangeOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅启动与变更时'**
+  String get librarySyncIntervalChangeOnly;
+
+  /// No description provided for @librarySyncIntervalMinutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'每 {minutes} 分钟'**
+  String librarySyncIntervalMinutes(int minutes);
+
+  /// No description provided for @librarySyncAutoBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动同步'**
+  String get librarySyncAutoBadge;
+
+  /// No description provided for @libraryInboxOrganizerSettings.
+  ///
+  /// In zh, this message translates to:
+  /// **'整理设置'**
+  String get libraryInboxOrganizerSettings;
+
+  /// No description provided for @libraryInboxOrganizerModelTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台整理模型'**
+  String get libraryInboxOrganizerModelTitle;
+
+  /// No description provided for @libraryInboxOrganizerProviderTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'整理供应商'**
+  String get libraryInboxOrganizerProviderTitle;
+
+  /// No description provided for @libraryInboxOrganizerAutoRerunTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'分离后自动重跑预览图'**
+  String get libraryInboxOrganizerAutoRerunTitle;
+
+  /// No description provided for @libraryInboxOrganizerAutoRerunSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'拆出角色/服装/构图等条目后，后台分别重跑专属预览图（受免点保护，不改工作台）'**
+  String get libraryInboxOrganizerAutoRerunSubtitle;
+
+  /// No description provided for @libraryInboxLogsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台整理日志'**
+  String get libraryInboxLogsTitle;
+
+  /// No description provided for @libraryInboxLogsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无整理日志'**
+  String get libraryInboxLogsEmpty;
+
+  /// No description provided for @libraryInboxStopOrganizing.
+  ///
+  /// In zh, this message translates to:
+  /// **'停止整理'**
+  String get libraryInboxStopOrganizing;
+
+  /// No description provided for @libraryInboxClearLogs.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空日志'**
+  String get libraryInboxClearLogs;
+
+  /// No description provided for @libraryInboxRunningBanner.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台整理运行中'**
+  String get libraryInboxRunningBanner;
+
+  /// No description provided for @libraryInboxViewLogs.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看日志'**
+  String get libraryInboxViewLogs;
+
+  /// No description provided for @libraryInboxHideLogs.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起日志'**
+  String get libraryInboxHideLogs;
+
+  /// No description provided for @libraryInboxDetailTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'待整理项详情'**
+  String get libraryInboxDetailTitle;
+
+  /// No description provided for @libraryInboxMainPromptLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'主提示词（不含固定词缀）'**
+  String get libraryInboxMainPromptLabel;
+
+  /// No description provided for @libraryInboxMainNegativeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'主负面提示词'**
+  String get libraryInboxMainNegativeLabel;
+
+  /// No description provided for @libraryInboxCharactersLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色提示词'**
+  String get libraryInboxCharactersLabel;
+
+  /// No description provided for @libraryInboxAddCharacter.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加角色'**
+  String get libraryInboxAddCharacter;
+
+  /// No description provided for @libraryInboxCharacterNameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色名称（可选）'**
+  String get libraryInboxCharacterNameHint;
+
+  /// No description provided for @libraryInboxCharacterPromptHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色正向提示词'**
+  String get libraryInboxCharacterPromptHint;
+
+  /// No description provided for @libraryInboxCharacterNegativeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色负面提示词（可选）'**
+  String get libraryInboxCharacterNegativeHint;
+
+  /// No description provided for @libraryInboxSavedChanges.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存待整理项修改'**
+  String get libraryInboxSavedChanges;
+
+  /// No description provided for @libraryEditFieldCharacters.
+  ///
+  /// In zh, this message translates to:
+  /// **'多角色提示词'**
+  String get libraryEditFieldCharacters;
+
+  /// No description provided for @libraryEditImportWorkspaceChars.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入当前工作台角色'**
+  String get libraryEditImportWorkspaceChars;
+
+  /// No description provided for @libraryEditWorkspaceCharsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前工作台没有启用的角色提示词'**
+  String get libraryEditWorkspaceCharsEmpty;
+
+  /// No description provided for @libraryEditFieldLinkedEntries.
+  ///
+  /// In zh, this message translates to:
+  /// **'关联条目'**
+  String get libraryEditFieldLinkedEntries;
+
+  /// No description provided for @libraryEditAddLinkedEntry.
+  ///
+  /// In zh, this message translates to:
+  /// **'关联词条'**
+  String get libraryEditAddLinkedEntry;
+
+  /// No description provided for @libraryEditLinkedEntryEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无其他可关联的词库条目'**
+  String get libraryEditLinkedEntryEmpty;
+
+  /// No description provided for @libraryEditLinkedEntryHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'关联所属角色或配套套装'**
+  String get libraryEditLinkedEntryHint;
+
+  /// No description provided for @libraryCardCharacterPromptBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色词 ×{count}'**
+  String libraryCardCharacterPromptBadge(int count);
+
+  /// No description provided for @libraryCardLinkedLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'关联：{title}'**
+  String libraryCardLinkedLabel(String title);
+
+  /// No description provided for @librarySentComboToAgent.
+  ///
+  /// In zh, this message translates to:
+  /// **'已将「{title}」发送到助手输入框'**
+  String librarySentComboToAgent(String title);
+
+  /// No description provided for @settingsSectionInboxOrganizer.
+  ///
+  /// In zh, this message translates to:
+  /// **'词库后台整理'**
+  String get settingsSectionInboxOrganizer;
 }
 
 class _AppLocalizationsDelegate

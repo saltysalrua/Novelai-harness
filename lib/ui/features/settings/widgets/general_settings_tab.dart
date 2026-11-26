@@ -73,6 +73,10 @@ class GeneralSettingsDraft {
       promptSyncNamespaceController = TextEditingController(
         text: config.promptSyncNamespace,
       ),
+      promptSyncAutoEnabled = config.promptSyncAutoEnabled,
+      promptSyncAutoIntervalMinutes = PromptLibrarySyncConfig(
+        autoSyncIntervalMinutes: config.promptSyncAutoIntervalMinutes,
+      ).normalizedAutoSyncIntervalMinutes,
       opusFreeMode = config.opusFreeMode,
       themeMode = config.themeMode,
       accentMode = config.accentMode,
@@ -136,6 +140,8 @@ class GeneralSettingsDraft {
   final TextEditingController promptSyncEndpointController;
   final TextEditingController promptSyncTokenController;
   final TextEditingController promptSyncNamespaceController;
+  bool promptSyncAutoEnabled;
+  int promptSyncAutoIntervalMinutes;
   bool comfyUiEnabled;
   int rtxUpscaleScale;
 
@@ -877,6 +883,33 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                         ],
                       )
                     : null,
+              ),
+              AppSettingTile.switchTile(
+                title: l10n.settingsLibrarySyncAutoTitle,
+                subtitle: l10n.settingsLibrarySyncAutoSubtitle,
+                value: _draft.promptSyncAutoEnabled,
+                onChanged: (val) =>
+                    setState(() => _draft.promptSyncAutoEnabled = val),
+              ),
+              AppPanelReveal(
+                visible: _draft.promptSyncAutoEnabled,
+                enableBlur: false,
+                child: AppSettingTile(
+                  title: l10n.settingsLibrarySyncAutoIntervalTitle,
+                  control: AppDropdown<int>.simple(
+                    value: _draft.promptSyncAutoIntervalMinutes,
+                    items: PromptLibrarySyncConfig.allowedAutoSyncIntervals,
+                    labelOf: (minutes) => minutes <= 0
+                        ? l10n.librarySyncIntervalChangeOnly
+                        : l10n.librarySyncIntervalMinutes(minutes),
+                    variant: AppDropdownVariant.compact,
+                    width: 180,
+                    isExpanded: false,
+                    onChanged: (val) => setState(
+                      () => _draft.promptSyncAutoIntervalMinutes = val,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               AppSectionHeader(title: l10n.settingsSectionComfy),

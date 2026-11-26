@@ -210,6 +210,10 @@ mixin _StudioHarnessMixin on _StudioCore {
         addEntry: addPromptCombo,
         updateEntry: updatePromptCombo,
         deleteEntry: deletePromptCombo,
+        getInboxItems: () => promptInboxItems,
+        deleteInboxItems: deletePromptInboxItems,
+        isModelMultimodal: () =>
+            _config.activeLlmProvider.activeModel.isMultimodal,
         getHistory: () => _repository.history,
         // 内存缺失时从磁盘缓存回载大图字节，避免刚重启后的空字节
         loadImageBytes: ensureImageLoaded,

@@ -365,6 +365,21 @@ List<ContextMenuAction> buildImageContextMenuActions(
         }
       },
     ),
+    ContextMenuItem(
+      icon: Icons.move_to_inbox_outlined,
+      label: l10n.canvasActionSaveToLibraryInbox,
+      onTap: () async {
+        final saved = await viewModel.saveImageToPromptInbox(image);
+        if (!context.mounted) return;
+        showCanvasSnackBar(
+          context,
+          saved != null
+              ? l10n.canvasSavedToLibraryInbox
+              : l10n.canvasSaveToLibraryInboxFailed,
+          tone: saved != null ? AppToastTone.success : AppToastTone.warning,
+        );
+      },
+    ),
     const ContextMenuDivider(),
     ContextMenuItem(
       icon: Icons.zoom_in_rounded,

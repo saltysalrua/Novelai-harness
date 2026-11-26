@@ -19,10 +19,14 @@ class PromptLibraryService {
 
   String? _customStorageDir;
   List<PromptComboEntry>? _cachedEntries;
+  List<PromptInboxItem>? _cachedInboxItems;
   PromptLibrarySyncState? _cachedSyncState;
 
   /// 获取当前已加载的词库条目内存缓存 (未显式加载时视为空)
   List<PromptComboEntry> get cachedEntries => _cachedEntries ?? const [];
+
+  /// 获取当前已加载的待整理区条目内存缓存
+  List<PromptInboxItem> get cachedInboxItems => _cachedInboxItems ?? const [];
 
   /// 获取当前已加载的同步状态内存缓存
   PromptLibrarySyncState? get cachedSyncState => _cachedSyncState;
@@ -31,6 +35,7 @@ class PromptLibraryService {
   void setCustomStorageDirectory(String? dir) {
     _customStorageDir = dir;
     _cachedEntries = null;
+    _cachedInboxItems = null;
     _cachedSyncState = null;
   }
 
@@ -42,6 +47,16 @@ class PromptLibraryService {
       dir.createSync(recursive: true);
     }
     return File(p.join(baseDir, 'prompt_library.json'));
+  }
+
+  /// 获取存储待整理区数据的目标文件
+  Future<File> _getInboxFile() async {
+    final baseDir = _customStorageDir ?? (await _getAppSupportDir()).path;
+    final dir = Directory(baseDir);
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+    return File(p.join(baseDir, 'prompt_library_inbox.json'));
   }
 
   /// 获取同步状态持久化文件 (删除墓碑与图片哈希缓存)
@@ -225,16 +240,18 @@ class PromptLibraryService {
     await _atomicWriteString(file, jsonEncode(state.toJson()));
   }
 
-  /// 一次性提交云同步产物并清理孤儿托管图片（预览图 + 精准参考图 + Vibe 图）
+  /// 一次性提交云同步产物并清理孤儿托管图片（预览图 + 精准参考图 + Vibe 图 + 保留待整理区图片）
   Future<void> applySyncOutcome({
     required List<PromptComboEntry> entries,
     required PromptLibrarySyncState syncState,
   }) async {
     await saveEntries(entries);
     await saveSyncState(syncState);
-    final activePaths = entries
-        .expand((e) => e.managedImagePaths)
-        .toSet();
+    final inboxItems = await loadInboxItems();
+    final activePaths = <String>{
+      ...entries.expand((e) => e.managedImagePaths),
+      ...inboxItems.expand((i) => i.managedImagePaths),
+    };
     await pruneOrphanedManagedPreviews(activePaths);
   }
 
@@ -312,7 +329,11 @@ class PromptLibraryService {
       list[idx] = entry;
       await saveEntries(list);
       await _clearTombstonesForIds([entry.id]);
-      final remainingPaths = list.expand((e) => e.managedImagePaths).toSet();
+      final inboxItems = await loadInboxItems();
+      final remainingPaths = <String>{
+        ...list.expand((e) => e.managedImagePaths),
+        ...inboxItems.expand((i) => i.managedImagePaths),
+      };
       for (final oldPath in oldPaths) {
         if (!remainingPaths.contains(oldPath)) {
           await _deleteManagedPreviewFile(oldPath);
@@ -331,8 +352,138 @@ class PromptLibraryService {
       list.removeAt(idx);
       await saveEntries(list);
       await _recordTombstones([id]);
-      final remainingPaths = list.expand((e) => e.managedImagePaths).toSet();
+      final inboxItems = await loadInboxItems();
+      final remainingPaths = <String>{
+        ...list.expand((e) => e.managedImagePaths),
+        ...inboxItems.expand((i) => i.managedImagePaths),
+      };
       for (final oldPath in oldPaths) {
+        if (!remainingPaths.contains(oldPath)) {
+          await _deleteManagedPreviewFile(oldPath);
+        }
+      }
+    }
+  }
+
+  // ------------------------- 待整理区 (Inbox) -------------------------
+
+  /// 加载待整理区条目列表
+  Future<List<PromptInboxItem>> loadInboxItems() async {
+    final file = await _getInboxFile();
+    if (!file.existsSync()) {
+      _cachedInboxItems = [];
+      return [];
+    }
+    try {
+      final text = await file.readAsString();
+      final decoded = jsonDecode(text);
+      if (decoded is List) {
+        final list = <PromptInboxItem>[];
+        for (final item in decoded) {
+          if (item is Map<String, dynamic>) {
+            try {
+              list.add(PromptInboxItem.fromJson(item));
+            } catch (_) {}
+          }
+        }
+        _cachedInboxItems = list;
+        unawaited(
+          PromptImageProbe.warmUpPaths(list.map((e) => e.imagePath)),
+        );
+        return list;
+      }
+    } catch (_) {}
+    _cachedInboxItems = [];
+    return [];
+  }
+
+  /// 持久化保存待整理区列表
+  Future<void> saveInboxItems(List<PromptInboxItem> items) async {
+    _cachedInboxItems = List.from(items);
+    final file = await _getInboxFile();
+    final jsonList = items.map((e) => e.toJson()).toList();
+    await _atomicWriteString(file, jsonEncode(jsonList));
+  }
+
+  /// 添加条目到待整理区头部
+  Future<PromptInboxItem> addInboxItem(PromptInboxItem item) async {
+    final list = await loadInboxItems();
+    list.insert(0, item);
+    await saveInboxItems(list);
+    return item;
+  }
+
+  /// 更新待整理区条目（保留或清理不再被引用的旧托管图片）
+  Future<void> updateInboxItem(PromptInboxItem item) async {
+    final list = await loadInboxItems();
+    final idx = list.indexWhere((e) => e.id == item.id);
+    if (idx == -1) return;
+    final oldPaths = list[idx].managedImagePaths.toSet();
+    list[idx] = item;
+    await saveInboxItems(list);
+    if (oldPaths.isNotEmpty) {
+      final entries = await loadEntries();
+      final remainingPaths = <String>{
+        ...entries.expand((e) => e.managedImagePaths),
+        ...list.expand((i) => i.managedImagePaths),
+      };
+      for (final oldPath in oldPaths) {
+        if (!remainingPaths.contains(oldPath)) {
+          await _deleteManagedPreviewFile(oldPath);
+        }
+      }
+    }
+  }
+
+  /// 删除单条待整理区条目 (仅当图片不再被任何词库正式条目或待整理条目引用时才清理磁盘文件)
+  Future<void> deleteInboxItem(String id) async {
+    await deleteInboxItems([id]);
+  }
+
+  /// 批量删除待整理区条目，返回实际删除数量
+  Future<int> deleteInboxItems(Iterable<String> ids) async {
+    final targetIds = ids.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+    if (targetIds.isEmpty) return 0;
+
+    final list = await loadInboxItems();
+    final removedPaths = <String>{};
+    var removedCount = 0;
+    list.removeWhere((item) {
+      if (targetIds.contains(item.id)) {
+        removedPaths.addAll(item.managedImagePaths);
+        removedCount++;
+        return true;
+      }
+      return false;
+    });
+    if (removedCount == 0) return 0;
+
+    await saveInboxItems(list);
+    if (removedPaths.isNotEmpty) {
+      final entries = await loadEntries();
+      final remainingPaths = <String>{
+        ...entries.expand((e) => e.managedImagePaths),
+        ...list.expand((i) => i.managedImagePaths),
+      };
+      for (final oldPath in removedPaths) {
+        if (!remainingPaths.contains(oldPath)) {
+          await _deleteManagedPreviewFile(oldPath);
+        }
+      }
+    }
+    return removedCount;
+  }
+
+  /// 清空待整理区 (保留被正式词库条目引用的图片文件)
+  Future<void> clearInboxItems() async {
+    final list = await loadInboxItems();
+    if (list.isEmpty) return;
+    final removedPaths = list.expand((i) => i.managedImagePaths).toSet();
+    await saveInboxItems(const []);
+    if (removedPaths.isNotEmpty) {
+      final entries = await loadEntries();
+      final remainingPaths = entries.expand((e) => e.managedImagePaths).toSet();
+      for (final oldPath in removedPaths) {
         if (!remainingPaths.contains(oldPath)) {
           await _deleteManagedPreviewFile(oldPath);
         }

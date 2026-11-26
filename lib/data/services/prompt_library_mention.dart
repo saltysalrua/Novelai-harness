@@ -62,21 +62,55 @@ ActiveCharacterMention? extractActiveCharacterMention(
   );
 }
 
-/// 按关键词过滤并排序词库中的角色条目（供输入框 `@` 浮层使用）
+/// 解析指定条目的全部关联条目（同时包含显式出链 linkedEntryIds 与其他条目指向本条目的反链，去重保序）
+List<PromptComboEntry> resolveLinkedLibraryEntries(
+  PromptComboEntry target,
+  List<PromptComboEntry> allEntries,
+) {
+  if (allEntries.isEmpty) return const [];
+  final byId = <String, PromptComboEntry>{
+    for (final e in allEntries)
+      if (e.id.isNotEmpty) e.id: e,
+  };
+  final result = <PromptComboEntry>[];
+  final seen = <String>{target.id};
+
+  for (final id in target.linkedEntryIds) {
+    final found = byId[id];
+    if (found != null && seen.add(found.id)) {
+      result.add(found);
+    }
+  }
+  for (final other in allEntries) {
+    if (other.id == target.id) continue;
+    if (other.linkedEntryIds.contains(target.id) && seen.add(other.id)) {
+      result.add(other);
+    }
+  }
+  return result;
+}
+
+/// 按关键词过滤并排序词库条目（供输入框 `@` 浮层使用；[charactersOnly] 默认 true 保持兼容）
 List<PromptComboEntry> matchCharacterMentionSuggestions(
   String query,
   List<PromptComboEntry> entries, {
   int limit = 12,
+  bool charactersOnly = true,
 }) {
-  final chars = entries.where((e) => e.isCharacter).toList(growable: false);
-  if (chars.isEmpty) return const [];
+  final pool = charactersOnly
+      ? entries.where((e) => e.isCharacter).toList(growable: false)
+      : entries;
+  if (pool.isEmpty) return const [];
 
   final q = query.trim().toLowerCase();
   if (q.isEmpty) {
-    final sorted = List<PromptComboEntry>.from(chars)
+    final sorted = List<PromptComboEntry>.from(pool)
       ..sort((a, b) {
         if (a.isFavorite != b.isFavorite) {
           return a.isFavorite ? -1 : 1;
+        }
+        if (!charactersOnly && a.isCharacter != b.isCharacter) {
+          return a.isCharacter ? -1 : 1;
         }
         return 0;
       });
@@ -84,10 +118,11 @@ List<PromptComboEntry> matchCharacterMentionSuggestions(
   }
 
   final scored = <(PromptComboEntry entry, int score, int order)>[];
-  for (var i = 0; i < chars.length; i++) {
-    final e = chars[i];
+  for (var i = 0; i < pool.length; i++) {
+    final e = pool[i];
     final titleLower = e.title.toLowerCase();
     final promptLower = e.prompt.toLowerCase();
+    final catLower = e.category.toLowerCase();
     var score = 0;
     if (titleLower == q) {
       score = 1000;
@@ -101,6 +136,8 @@ List<PromptComboEntry> matchCharacterMentionSuggestions(
       score = 500;
     } else if (e.tags.any((t) => t.toLowerCase().contains(q))) {
       score = 400;
+    } else if (!charactersOnly && catLower.contains(q)) {
+      score = 300;
     } else if (promptLower.contains(q)) {
       score = 200;
     }
@@ -116,6 +153,9 @@ List<PromptComboEntry> matchCharacterMentionSuggestions(
     if (a.$1.isFavorite != b.$1.isFavorite) {
       return a.$1.isFavorite ? -1 : 1;
     }
+    if (!charactersOnly && a.$1.isCharacter != b.$1.isCharacter) {
+      return a.$1.isCharacter ? -1 : 1;
+    }
     return a.$3.compareTo(b.$3);
   });
 
@@ -123,58 +163,57 @@ List<PromptComboEntry> matchCharacterMentionSuggestions(
   return result.length > limit ? result.sublist(0, limit) : result;
 }
 
-PromptComboEntry? _findCharacterByMentionToken(
+PromptComboEntry? _findEntryByMentionToken(
   String token,
-  List<PromptComboEntry> characters,
+  List<PromptComboEntry> entries,
 ) {
   final trimmed = token.trim();
   if (trimmed.isEmpty) return null;
 
-  for (final c in characters) {
+  for (final c in entries) {
     if (c.title.trim() == trimmed) return c;
   }
   final lower = trimmed.toLowerCase();
-  for (final c in characters) {
+  for (final c in entries) {
     if (c.title.trim().toLowerCase() == lower) return c;
   }
   final norm = _normalizedMentionKey(trimmed);
-  for (final c in characters) {
+  for (final c in entries) {
     if (_normalizedMentionKey(c.title) == norm) return c;
   }
   return null;
 }
 
-/// 匹配显式 `@[标题]` 角色提及的正则表达式
+/// 匹配显式 `@[标题]` 词库条目提及的正则表达式
 final RegExp bracketMentionRegex = RegExp(r'@\[([^\[\]\r\n]+)\]');
 final RegExp _bareMentionRegex = RegExp(
   r'(?<![A-Za-z0-9_.])@([^\s@,\[\]，。！？；：]+)',
 );
 
-/// 根据提及标题在词库条目中查找对应角色（精确 -> 忽略大小写 -> 归一化匹配）
+/// 根据提及标题在词库条目中查找对应条目（优先角色分类，其次全部分类）
 PromptComboEntry? findCharacterByMentionToken(
   String token,
   List<PromptComboEntry> entries,
 ) {
+  if (entries.isEmpty) return null;
   final characters = entries.where((e) => e.isCharacter).toList(growable: false);
-  if (characters.isEmpty) return null;
-  return _findCharacterByMentionToken(token, characters);
+  return _findEntryByMentionToken(token, characters) ??
+      _findEntryByMentionToken(token, entries);
 }
 
-/// 提取消息中已显式 `@[标题]` 引用的词库角色列表（按出现顺序去重）
+/// 提取消息中已显式 `@[标题]` 引用的词库条目列表（全部分类，按出现顺序去重）
 List<PromptComboEntry> extractLinkedCharacters(
   String text,
   List<PromptComboEntry> entries,
 ) {
   if (text.isEmpty || entries.isEmpty) return const [];
-  final characters = entries.where((e) => e.isCharacter).toList(growable: false);
-  if (characters.isEmpty) return const [];
 
   final result = <PromptComboEntry>[];
   final seenIds = <String>{};
   for (final match in bracketMentionRegex.allMatches(text)) {
     final token = match.group(1);
     if (token == null) continue;
-    final matched = _findCharacterByMentionToken(token, characters);
+    final matched = findCharacterByMentionToken(token, entries);
     if (matched != null && seenIds.add(matched.id)) {
       result.add(matched);
     }
@@ -239,7 +278,7 @@ bool _matchesImplicitAlias(String lowerText, String alias) {
   ).hasMatch(lowerText);
 }
 
-/// 自动解析用户消息中提及的词库角色（显式 `@[标题]` / 裸 `@标题` + 隐式名称匹配），
+/// 自动解析用户消息中提及的词库条目（显式 `@[标题]` / 裸 `@标题` 覆盖全分类 + 隐式名称匹配角色），
 /// 生成注入 LLM 请求上下文的 `<library_characters>` 块。未命中时返回 null。
 String? resolveLibraryCharactersForMessage(
   String text,
@@ -250,32 +289,31 @@ String? resolveLibraryCharactersForMessage(
   if (trimmedText.isEmpty || entries.isEmpty) return null;
 
   final characters = entries.where((e) => e.isCharacter).toList(growable: false);
-  if (characters.isEmpty) return null;
 
   final matched = <({PromptComboEntry entry, String via})>[];
   final seenIds = <String>{};
 
-  // 1. 显式 @[标题] 引用
+  // 1. 显式 @[标题] 引用 (支持全分类)
   for (final match in bracketMentionRegex.allMatches(trimmedText)) {
     final token = match.group(1);
     if (token == null) continue;
-    final found = _findCharacterByMentionToken(token, characters);
+    final found = findCharacterByMentionToken(token, entries);
     if (found != null && seenIds.add(found.id)) {
       matched.add((entry: found, via: '@引用'));
     }
   }
 
-  // 2. 裸 @标题 引用
+  // 2. 裸 @标题 引用 (支持全分类)
   for (final match in _bareMentionRegex.allMatches(trimmedText)) {
     final token = match.group(1);
     if (token == null) continue;
-    final found = _findCharacterByMentionToken(token, characters);
+    final found = findCharacterByMentionToken(token, entries);
     if (found != null && seenIds.add(found.id)) {
       matched.add((entry: found, via: '@引用'));
     }
   }
 
-  // 3. 隐式名称匹配（未打 @ 但正文直接提及角色名或括号别名，最多 5 条）
+  // 3. 隐式名称匹配（未打 @ 但正文直接提及角色名或括号别名，仅角色分类，最多 5 条）
   final aliasPairs = <({String alias, PromptComboEntry entry})>[];
   for (final c in characters) {
     if (seenIds.contains(c.id)) continue;
@@ -303,20 +341,50 @@ String? resolveLibraryCharactersForMessage(
   final buffer = StringBuffer()
     ..writeln('<library_characters>')
     ..writeln(
-      '已自动关联本地词库中的以下角色条目，请直接采用其提示词设定（多角色构图优先写入角色卡，单角色可按需写入主提示词或角色卡），无需让用户提醒去查词库：',
+      '已自动关联本地词库中的以下条目，请直接采用其提示词设定（角色条目多角色构图优先写入角色卡，风格条目可写入固定词缀，其他分类可融入主提示词；若用户要求重跑预览图，生图后可调用 prompt_library(action: "set_preview", id: "...", image_index: 0) 更新预览图）：',
     );
 
   for (final item in matched) {
     final e = item.entry;
     final positive = sanitize(e.prompt).trim();
+    final prefix = sanitize(e.prefixPrompt).trim();
+    final suffix = sanitize(e.suffixPrompt).trim();
     final negative = sanitize(e.negativePrompt).trim();
-    buffer.writeln('- 标题: ${e.title} [id: ${e.id}] [方式: ${item.via}]');
-    buffer.writeln('  正向提示词: $positive');
+    buffer.writeln(
+      '- 标题: ${e.title} [id: ${e.id}] [分类: ${e.category}] [方式: ${item.via}]',
+    );
+    if (positive.isNotEmpty) {
+      buffer.writeln('  正向提示词: $positive');
+    }
+    if (e.isStyle && prefix.isNotEmpty) {
+      buffer.writeln('  前置词: $prefix');
+    }
+    if (e.isStyle && suffix.isNotEmpty) {
+      buffer.writeln('  后置词: $suffix');
+    }
     if (negative.isNotEmpty) {
       buffer.writeln('  负面提示词: $negative');
     }
+    if (e.characterPrompts.isNotEmpty) {
+      buffer.writeln('  多角色提示词 (${e.characterPrompts.length} 个):');
+      for (var i = 0; i < e.characterPrompts.length; i++) {
+        final c = e.characterPrompts[i];
+        final cName = c.name.trim().isNotEmpty ? c.name.trim() : '角色 ${i + 1}';
+        buffer.writeln('    * [$cName]: ${sanitize(c.prompt).trim()}');
+        if (c.negativePrompt.trim().isNotEmpty) {
+          buffer.writeln('      负面词: ${sanitize(c.negativePrompt).trim()}');
+        }
+      }
+    }
     if (e.tags.isNotEmpty) {
       buffer.writeln('  标签: ${e.tags.join(', ')}');
+    }
+    final linked = resolveLinkedLibraryEntries(e, entries);
+    if (linked.isNotEmpty) {
+      final linkedSummary = linked
+          .map((le) => '${le.title} (${le.category}, id: ${le.id})')
+          .join('、');
+      buffer.writeln('  关联词库条目: $linkedSummary');
     }
     if (e.hasReferenceGuides) {
       final refSummary = <String>[

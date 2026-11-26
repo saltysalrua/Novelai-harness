@@ -255,6 +255,8 @@ class AppConfig {
   final String promptSyncEndpoint;
   final String promptSyncToken;
   final String promptSyncNamespace;
+  final bool promptSyncAutoEnabled;
+  final int promptSyncAutoIntervalMinutes;
 
   // LLM 设置 (多供应商配置)
   final List<LlmProviderConfig> llmProviders;
@@ -273,6 +275,11 @@ class AppConfig {
   final bool agentPersistentImages;
   final String compactionProviderId;
   final String compactionModelId;
+
+  // 词库待整理区后台整理 Agent 配置 (留空 = 跟随主模型)
+  final String inboxOrganizerProviderId;
+  final String inboxOrganizerModelId;
+  final bool inboxAutoRerunPreview;
 
   // Agent 预设 (多预设配置)
   final List<AgentPreset> presets;
@@ -381,6 +388,8 @@ class AppConfig {
     this.promptSyncEndpoint = '',
     this.promptSyncToken = '',
     this.promptSyncNamespace = 'default',
+    this.promptSyncAutoEnabled = false,
+    this.promptSyncAutoIntervalMinutes = 0,
     this.llmProviders = const [],
     this.activeLlmProviderId = 'deepseek',
     this.imageEditProviderId = '',
@@ -391,6 +400,9 @@ class AppConfig {
     this.agentPersistentImages = false,
     this.compactionProviderId = '',
     this.compactionModelId = '',
+    this.inboxOrganizerProviderId = '',
+    this.inboxOrganizerModelId = '',
+    this.inboxAutoRerunPreview = false,
 
     this.presets = const [],
     this.activePresetId = 'v5-architect-preset',
@@ -454,6 +466,8 @@ class AppConfig {
     String? promptSyncEndpoint,
     String? promptSyncToken,
     String? promptSyncNamespace,
+    bool? promptSyncAutoEnabled,
+    int? promptSyncAutoIntervalMinutes,
     List<LlmProviderConfig>? llmProviders,
     String? activeLlmProviderId,
     String? imageEditProviderId,
@@ -464,6 +478,9 @@ class AppConfig {
     bool? agentPersistentImages,
     String? compactionProviderId,
     String? compactionModelId,
+    String? inboxOrganizerProviderId,
+    String? inboxOrganizerModelId,
+    bool? inboxAutoRerunPreview,
 
     List<AgentPreset>? presets,
     String? activePresetId,
@@ -535,6 +552,10 @@ class AppConfig {
       promptSyncEndpoint: promptSyncEndpoint ?? this.promptSyncEndpoint,
       promptSyncToken: promptSyncToken ?? this.promptSyncToken,
       promptSyncNamespace: promptSyncNamespace ?? this.promptSyncNamespace,
+      promptSyncAutoEnabled:
+          promptSyncAutoEnabled ?? this.promptSyncAutoEnabled,
+      promptSyncAutoIntervalMinutes:
+          promptSyncAutoIntervalMinutes ?? this.promptSyncAutoIntervalMinutes,
       llmProviders: updatedProviders,
       activeLlmProviderId: targetActiveId,
       anySearchApiKey: anySearchApiKey ?? this.anySearchApiKey,
@@ -549,6 +570,12 @@ class AppConfig {
           agentPersistentImages ?? this.agentPersistentImages,
       compactionProviderId: compactionProviderId ?? this.compactionProviderId,
       compactionModelId: compactionModelId ?? this.compactionModelId,
+      inboxOrganizerProviderId:
+          inboxOrganizerProviderId ?? this.inboxOrganizerProviderId,
+      inboxOrganizerModelId:
+          inboxOrganizerModelId ?? this.inboxOrganizerModelId,
+      inboxAutoRerunPreview:
+          inboxAutoRerunPreview ?? this.inboxAutoRerunPreview,
 
       presets: presets ?? this.presets,
       activePresetId: activePresetId ?? this.activePresetId,
@@ -661,6 +688,16 @@ class ConfigService {
   static const String _keyPromptSyncEndpoint = 'novelai_prompt_sync_endpoint';
   static const String _keyPromptSyncToken = 'novelai_prompt_sync_token';
   static const String _keyPromptSyncNamespace = 'novelai_prompt_sync_namespace';
+  static const String _keyPromptSyncAutoEnabled =
+      'novelai_prompt_sync_auto_enabled';
+  static const String _keyPromptSyncAutoIntervalMinutes =
+      'novelai_prompt_sync_auto_interval_minutes';
+  static const String _keyInboxOrganizerProviderId =
+      'novelai_inbox_organizer_provider_id';
+  static const String _keyInboxOrganizerModelId =
+      'novelai_inbox_organizer_model_id';
+  static const String _keyInboxAutoRerunPreview =
+      'novelai_inbox_auto_rerun_preview';
 
   // 页面布局持久化 Keys
   static const String _keySplitLeftWidth = 'novelai_layout_split_left_width';
@@ -1029,6 +1066,10 @@ class ConfigService {
         await _secretStore.read(_keyPromptSyncToken) ?? '';
     final String promptSyncNamespace =
         prefs.getString(_keyPromptSyncNamespace) ?? 'default';
+    final bool promptSyncAutoEnabled =
+        prefs.getBool(_keyPromptSyncAutoEnabled) ?? false;
+    final int promptSyncAutoIntervalMinutes =
+        prefs.getInt(_keyPromptSyncAutoIntervalMinutes) ?? 0;
 
     return AppConfig(
       novelAiKey: naiKey,
@@ -1094,6 +1135,8 @@ class ConfigService {
       promptSyncEndpoint: promptSyncEndpoint,
       promptSyncToken: promptSyncToken,
       promptSyncNamespace: promptSyncNamespace,
+      promptSyncAutoEnabled: promptSyncAutoEnabled,
+      promptSyncAutoIntervalMinutes: promptSyncAutoIntervalMinutes,
       llmProviders: providers,
       activeLlmProviderId: activeProviderId,
       imageEditProviderId: imageEditProviderId,
@@ -1105,6 +1148,12 @@ class ConfigService {
       agentPersistentImages: prefs.getBool(_keyAgentPersistentImages) ?? false,
       compactionProviderId: compactionProviderId,
       compactionModelId: compactionModelId,
+      inboxOrganizerProviderId:
+          prefs.getString(_keyInboxOrganizerProviderId) ?? '',
+      inboxOrganizerModelId:
+          prefs.getString(_keyInboxOrganizerModelId) ?? '',
+      inboxAutoRerunPreview:
+          prefs.getBool(_keyInboxAutoRerunPreview) ?? false,
 
       presets: presets,
       activePresetId: activePresetId,
@@ -1208,6 +1257,8 @@ class ConfigService {
       _keyComfyUiScheduler: config.comfyUiScheduler,
       _keyPromptSyncEndpoint: config.promptSyncEndpoint,
       _keyPromptSyncNamespace: config.promptSyncNamespace,
+      _keyPromptSyncAutoEnabled: config.promptSyncAutoEnabled,
+      _keyPromptSyncAutoIntervalMinutes: config.promptSyncAutoIntervalMinutes,
       _keyLlmProviders: providersJson,
       _keyActiveLlmProviderId: config.activeLlmProviderId,
       _keyImageEditProviderId: config.imageEditProviderId,
@@ -1218,6 +1269,9 @@ class ConfigService {
       _keyAgentPersistentImages: config.agentPersistentImages,
       _keyCompactionProviderId: config.compactionProviderId,
       _keyCompactionModelId: config.compactionModelId,
+      _keyInboxOrganizerProviderId: config.inboxOrganizerProviderId,
+      _keyInboxOrganizerModelId: config.inboxOrganizerModelId,
+      _keyInboxAutoRerunPreview: config.inboxAutoRerunPreview,
       _keyPresets: presetsJson,
       _keyActivePresetId: config.activePresetId,
       _keyCustomSkills: customSkillsJson,

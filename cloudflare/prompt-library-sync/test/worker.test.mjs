@@ -474,3 +474,48 @@ test('syncs preciseReferences & vibeReferences (incl. reference-only entries), m
   assert.equal((await handleRequest(authedRequest(`/api/images/${vibeHash}`), env)).status, 200);
   assert.equal((await handleRequest(authedRequest(`/api/images/${orphanHash}`), env)).status, 404);
 });
+
+test('syncs characterPrompts and linkedEntryIds and auto-migrates legacy D1 schema', async () => {
+  // Legacy D1 schema without characters_json / linked_ids_json
+  const legacySql = schemaSql
+    .replace("  characters_json TEXT NOT NULL DEFAULT '[]',\n", '')
+    .replace("  linked_ids_json TEXT NOT NULL DEFAULT '[]',\n", '');
+  const db = createD1Mock(legacySql);
+  const env = makeEnv(db);
+
+  const pushRes = await handleRequest(
+    authedRequest('/api/sync/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        namespace: 'default',
+        mode: 'merge',
+        entries: [
+          {
+            id: 'scene_char_link',
+            title: '窗边联动构图',
+            category: '构图',
+            prompt: '2girls, sunlit window',
+            characterPrompts: [
+              { name: '祈酱', prompt: 'black hair, white stockings', negativePrompt: 'bad hands' },
+            ],
+            linkedEntryIds: ['char_inori', 'attire_maid'],
+            createdAt: '2026-11-26T10:00:00.000Z',
+            updatedAt: '2026-11-26T10:00:00.000Z',
+          },
+        ],
+      }),
+    }),
+    env,
+  );
+  assert.equal(pushRes.status, 200);
+
+  const syncJson = await (await handleRequest(authedRequest('/api/sync'), env)).json();
+  assert.equal(syncJson.entries.length, 1);
+  const synced = syncJson.entries[0];
+  assert.equal(synced.characterPrompts.length, 1);
+  assert.equal(synced.characterPrompts[0].name, '祈酱');
+  assert.equal(synced.characterPrompts[0].prompt, 'black hair, white stockings');
+  assert.equal(synced.characterPrompts[0].negativePrompt, 'bad hands');
+  assert.deepEqual(synced.linkedEntryIds, ['char_inori', 'attire_maid']);
+});

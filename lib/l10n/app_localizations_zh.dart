@@ -4810,4 +4810,192 @@ class AppLocalizationsZh extends AppLocalizations {
   String vibeClearConfirmMessage(int count) {
     return '将移除当前全部 $count 条 Vibe Transfer，未保存的编码将丢失。';
   }
+
+  @override
+  String get canvasActionSaveToLibraryInbox => '保存到词库待整理区';
+
+  @override
+  String get canvasSavedToLibraryInbox => '已保存到词库待整理区';
+
+  @override
+  String get canvasSaveToLibraryInboxFailed => '图片与提示词均为空，未保存到待整理区';
+
+  @override
+  String get libraryCategoryInbox => '待整理';
+
+  @override
+  String get libraryInboxEmptyTitle => '待整理区为空';
+
+  @override
+  String get libraryInboxEmptyDescription =>
+      '在画板或历史图片上右键「保存到词库待整理区」，可暂存主提示词、角色提示词与图片，后续交给助手统一整理。';
+
+  @override
+  String get libraryInboxAskAgentAll => '让助手整理全部';
+
+  @override
+  String get libraryInboxAskAgentOne => '让助手整理';
+
+  @override
+  String get libraryInboxManualConvert => '手动建词条';
+
+  @override
+  String get libraryInboxClearAll => '清空';
+
+  @override
+  String get libraryInboxClearConfirmTitle => '清空待整理区';
+
+  @override
+  String libraryInboxClearConfirmMessage(int count) {
+    return '将删除待整理区内的全部 $count 项，尚未转存为正式词条的暂存图也会被清理。';
+  }
+
+  @override
+  String get libraryInboxCleared => '已清空待整理区';
+
+  @override
+  String get libraryInboxDeleted => '已删除待整理项';
+
+  @override
+  String get libraryInboxCopiedPrompt => '已复制待整理提示词';
+
+  @override
+  String libraryInboxCharacterCount(int count) {
+    return '$count 个角色';
+  }
+
+  @override
+  String get libraryInboxAgentBusy => '助手正在回复中，请稍后再试';
+
+  @override
+  String get libraryInboxAgentPromptAll =>
+      '请帮我整理词库待整理区中的全部条目：先调用 prompt_library(action: \"list_inbox\") 查看清单，逐条用 read_inbox 读取完整主提示词、角色提示词与图片，按角色/风格/服装/构图/环境/特效等分类提炼并查重后存入正式词库（可用 preview_inbox_id 复用待整理图片作为预览图），整理完成后调用 delete_inbox 清理已处理的待整理项。';
+
+  @override
+  String libraryInboxAgentPromptOne(String id) {
+    return '请帮我整理词库待整理区中 ID 为 $id 的条目：调用 prompt_library(action: \"read_inbox\", inbox_id: \"$id\") 查看其主提示词、角色提示词与图片，拆解提炼为合适的正式词库条目并查重入库（可用 preview_inbox_id: \"$id\" 复用该图片作预览图），整理完成后调用 delete_inbox 删除该待整理项。';
+  }
+
+  @override
+  String get settingsLibrarySyncAutoTitle => '自动云同步';
+
+  @override
+  String get settingsLibrarySyncAutoSubtitle => '启动时及词库变更后自动双向合并';
+
+  @override
+  String get settingsLibrarySyncAutoIntervalTitle => '定时同步间隔';
+
+  @override
+  String get librarySyncIntervalChangeOnly => '仅启动与变更时';
+
+  @override
+  String librarySyncIntervalMinutes(int minutes) {
+    return '每 $minutes 分钟';
+  }
+
+  @override
+  String get librarySyncAutoBadge => '自动同步';
+
+  @override
+  String get libraryInboxOrganizerSettings => '整理设置';
+
+  @override
+  String get libraryInboxOrganizerModelTitle => '后台整理模型';
+
+  @override
+  String get libraryInboxOrganizerProviderTitle => '整理供应商';
+
+  @override
+  String get libraryInboxOrganizerAutoRerunTitle => '分离后自动重跑预览图';
+
+  @override
+  String get libraryInboxOrganizerAutoRerunSubtitle =>
+      '拆出角色/服装/构图等条目后，后台分别重跑专属预览图（受免点保护，不改工作台）';
+
+  @override
+  String get libraryInboxLogsTitle => '后台整理日志';
+
+  @override
+  String get libraryInboxLogsEmpty => '暂无整理日志';
+
+  @override
+  String get libraryInboxStopOrganizing => '停止整理';
+
+  @override
+  String get libraryInboxClearLogs => '清空日志';
+
+  @override
+  String get libraryInboxRunningBanner => '后台整理运行中';
+
+  @override
+  String get libraryInboxViewLogs => '查看日志';
+
+  @override
+  String get libraryInboxHideLogs => '收起日志';
+
+  @override
+  String get libraryInboxDetailTitle => '待整理项详情';
+
+  @override
+  String get libraryInboxMainPromptLabel => '主提示词（不含固定词缀）';
+
+  @override
+  String get libraryInboxMainNegativeLabel => '主负面提示词';
+
+  @override
+  String get libraryInboxCharactersLabel => '角色提示词';
+
+  @override
+  String get libraryInboxAddCharacter => '添加角色';
+
+  @override
+  String get libraryInboxCharacterNameHint => '角色名称（可选）';
+
+  @override
+  String get libraryInboxCharacterPromptHint => '角色正向提示词';
+
+  @override
+  String get libraryInboxCharacterNegativeHint => '角色负面提示词（可选）';
+
+  @override
+  String get libraryInboxSavedChanges => '已保存待整理项修改';
+
+  @override
+  String get libraryEditFieldCharacters => '多角色提示词';
+
+  @override
+  String get libraryEditImportWorkspaceChars => '导入当前工作台角色';
+
+  @override
+  String get libraryEditWorkspaceCharsEmpty => '当前工作台没有启用的角色提示词';
+
+  @override
+  String get libraryEditFieldLinkedEntries => '关联条目';
+
+  @override
+  String get libraryEditAddLinkedEntry => '关联词条';
+
+  @override
+  String get libraryEditLinkedEntryEmpty => '暂无其他可关联的词库条目';
+
+  @override
+  String get libraryEditLinkedEntryHint => '关联所属角色或配套套装';
+
+  @override
+  String libraryCardCharacterPromptBadge(int count) {
+    return '角色词 ×$count';
+  }
+
+  @override
+  String libraryCardLinkedLabel(String title) {
+    return '关联：$title';
+  }
+
+  @override
+  String librarySentComboToAgent(String title) {
+    return '已将「$title」发送到助手输入框';
+  }
+
+  @override
+  String get settingsSectionInboxOrganizer => '词库后台整理';
 }

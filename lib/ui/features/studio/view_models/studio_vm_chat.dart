@@ -70,8 +70,8 @@ mixin _StudioChatMixin on _StudioCore {
     }
   }
 
-  /// 将词库角色引用 `@[标题] ` 插入到 Agent 输入框草稿并请求聚焦。
-  void insertCharacterToChatInput(PromptComboEntry combo) {
+  /// 将任意词库条目引用 `@[标题] ` 插入到 Agent 输入框草稿并请求聚焦。
+  void insertComboToChatInput(PromptComboEntry combo) {
     final mention = '${formatCharacterMention(combo.title)} ';
     final current = _chatDraft;
     final needsSpace =
@@ -86,6 +86,10 @@ mixin _StudioChatMixin on _StudioCore {
     );
     notifyListeners();
   }
+
+  /// 兼容旧名：将词库角色引用 `@[标题] ` 插入到 Agent 输入框草稿。
+  void insertCharacterToChatInput(PromptComboEntry combo) =>
+      insertComboToChatInput(combo);
 
   /// 更新 Agent 对话草稿输入文本 (300ms 防抖落盘)
   void updateChatDraft(String draft) {

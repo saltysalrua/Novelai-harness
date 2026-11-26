@@ -580,6 +580,7 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
         final matched = matchCharacterMentionSuggestions(
           mention.query,
           widget.viewModel.promptLibraryEntries,
+          charactersOnly: false,
         );
         if (matched.isNotEmpty) {
           final width = _inputFieldKey.currentContext?.size?.width;

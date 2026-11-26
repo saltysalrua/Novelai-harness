@@ -16,15 +16,45 @@ enum PromptLibrarySyncMode {
 
 /// 词库云同步连接配置
 class PromptLibrarySyncConfig {
+  /// 自动云同步允许的定时检查间隔选项 (0 表示仅启动与变更时同步)
+  static const List<int> allowedAutoSyncIntervals = [0, 5, 15, 30, 60];
+
   final String endpoint;
   final String token;
   final String namespace;
+  final bool autoSyncEnabled;
+  final int autoSyncIntervalMinutes;
 
   const PromptLibrarySyncConfig({
     this.endpoint = '',
     this.token = '',
     this.namespace = 'default',
+    this.autoSyncEnabled = false,
+    this.autoSyncIntervalMinutes = 0,
   });
+
+  /// 规范化后的定时同步间隔 (分钟；非法值回退 0)
+  int get normalizedAutoSyncIntervalMinutes =>
+      allowedAutoSyncIntervals.contains(autoSyncIntervalMinutes)
+      ? autoSyncIntervalMinutes
+      : 0;
+
+  PromptLibrarySyncConfig copyWith({
+    String? endpoint,
+    String? token,
+    String? namespace,
+    bool? autoSyncEnabled,
+    int? autoSyncIntervalMinutes,
+  }) {
+    return PromptLibrarySyncConfig(
+      endpoint: endpoint ?? this.endpoint,
+      token: token ?? this.token,
+      namespace: namespace ?? this.namespace,
+      autoSyncEnabled: autoSyncEnabled ?? this.autoSyncEnabled,
+      autoSyncIntervalMinutes:
+          autoSyncIntervalMinutes ?? this.autoSyncIntervalMinutes,
+    );
+  }
 
   /// 规范化后的命名空间 (空串回退 `'default'`)
   String get normalizedNamespace {
@@ -421,6 +451,8 @@ class RemotePromptEntryRecord {
   final bool isBuiltin;
   final String? previewHash;
   final String? previewExt;
+  final List<PromptInboxCharacter> characterPrompts;
+  final List<String> linkedEntryIds;
   final List<RemotePreciseRefRecord> preciseReferences;
   final List<RemoteVibeRefRecord> vibeReferences;
   final DateTime createdAt;
@@ -441,6 +473,8 @@ class RemotePromptEntryRecord {
     this.isBuiltin = false,
     this.previewHash,
     this.previewExt,
+    this.characterPrompts = const [],
+    this.linkedEntryIds = const [],
     this.preciseReferences = const [],
     this.vibeReferences = const [],
     required this.createdAt,
@@ -548,6 +582,8 @@ class RemotePromptEntryRecord {
       isBuiltin: entry.isBuiltin,
       previewHash: previewHash,
       previewExt: previewExt,
+      characterPrompts: entry.characterPrompts,
+      linkedEntryIds: entry.linkedEntryIds,
       preciseReferences: remoteRefs,
       vibeReferences: remoteVibes,
       createdAt: entry.createdAt.toUtc(),
@@ -599,6 +635,8 @@ class RemotePromptEntryRecord {
           ? suffixPrompt
           : '',
       previewImagePath: previewImagePath,
+      characterPrompts: characterPrompts,
+      linkedEntryIds: linkedEntryIds,
       preciseReferences: localRefs,
       vibeReferences: localVibes,
       createdAt: createdAt.toLocal(),
@@ -626,6 +664,9 @@ class RemotePromptEntryRecord {
     'isBuiltin': isBuiltin,
     'previewHash': previewHash,
     'previewExt': previewExt,
+    if (characterPrompts.isNotEmpty)
+      'characterPrompts': characterPrompts.map((c) => c.toJson()).toList(),
+    if (linkedEntryIds.isNotEmpty) 'linkedEntryIds': linkedEntryIds,
     if (preciseReferences.isNotEmpty)
       'preciseReferences': preciseReferences.map((r) => r.toJson()).toList(),
     if (vibeReferences.isNotEmpty)
@@ -660,6 +701,27 @@ class RemotePromptEntryRecord {
     final previewExt = previewHash != null && rawExt is String && rawExt.trim().isNotEmpty
         ? rawExt.trim().toLowerCase()
         : null;
+
+    final charPrompts = <PromptInboxCharacter>[];
+    final rawChars = json['characterPrompts'];
+    if (rawChars is List) {
+      for (final item in rawChars) {
+        if (item is Map<String, dynamic>) {
+          final parsed = PromptInboxCharacter.fromJson(item);
+          if (parsed.prompt.isNotEmpty) charPrompts.add(parsed);
+        }
+      }
+    }
+
+    final linkedIds = <String>[];
+    final rawLinked = json['linkedEntryIds'];
+    if (rawLinked is List) {
+      final seen = <String>{};
+      for (final item in rawLinked) {
+        final v = item.toString().trim();
+        if (v.isNotEmpty && seen.add(v)) linkedIds.add(v);
+      }
+    }
 
     final preciseRefs = <RemotePreciseRefRecord>[];
     final rawRefs = json['preciseReferences'];
@@ -698,6 +760,8 @@ class RemotePromptEntryRecord {
       isBuiltin: json['isBuiltin'] as bool? ?? false,
       previewHash: previewHash,
       previewExt: previewExt,
+      characterPrompts: charPrompts,
+      linkedEntryIds: linkedIds,
       preciseReferences: preciseRefs,
       vibeReferences: vibeRefs,
       createdAt: createdAt,

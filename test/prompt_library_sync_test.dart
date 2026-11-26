@@ -931,5 +931,193 @@ void main() {
         );
       },
     );
+
+    test(
+      'auto-sync config persists and automatically syncs on startup and debounced local edits',
+      () async {
+        final server = _FakeCloudflareSyncServer(expectedToken: 'auto-tok');
+        final dir = Directory.systemTemp.createTempSync('prompt_autosync_');
+        addTearDown(() {
+          try {
+            dir.deleteSync(recursive: true);
+          } catch (_) {}
+        });
+
+        // Pre-seed remote with 1 entry so startup auto-sync pulls it
+        final t0 = DateTime.utc(2026, 11, 26, 10, 0);
+        server.entriesByNs['auto-ns'] = {
+          'remote_seed': {
+            'id': 'remote_seed',
+            'title': '云端初始词条',
+            'category': '风格',
+            'prompt': 'remote watercolor',
+            'negativePrompt': '',
+            'tags': ['remote'],
+            'isFavorite': false,
+            'isBuiltin': false,
+            'previewHash': null,
+            'previewExt': null,
+            'createdAt': t0.toIso8601String(),
+            'updatedAt': t0.toIso8601String(),
+            'deletedAt': null,
+            'revision': 1,
+          },
+        };
+        server.revision = 1;
+
+        PromptLibraryService.instance.setCustomStorageDirectory(dir.path);
+        final configService = ConfigService();
+        final initialCfg = (await configService.loadConfig()).copyWith(
+          promptSyncEndpoint: 'https://sync.example.com',
+          promptSyncToken: 'auto-tok',
+          promptSyncNamespace: 'auto-ns',
+          promptSyncAutoEnabled: true,
+          promptSyncAutoIntervalMinutes: 15,
+        );
+        await configService.saveConfig(initialCfg);
+
+        // Verify ConfigService persistence round-trip
+        final reloadedCfg = await configService.loadConfig();
+        expect(reloadedCfg.promptSyncAutoEnabled, isTrue);
+        expect(reloadedCfg.promptSyncAutoIntervalMinutes, 15);
+
+        final syncSvc = PromptLibrarySyncService(
+          libraryService: PromptLibraryService.instance,
+          httpClient: server.client,
+        );
+        final vm = StudioViewModel(
+          configService: configService,
+          promptLibraryService: PromptLibraryService.instance,
+          promptLibrarySyncService: syncSvc,
+        );
+        vm.promptAutoSyncDebounceDelayForTest = const Duration(
+          milliseconds: 40,
+        );
+        addTearDown(vm.dispose);
+
+        await vm.init();
+        // Wait for startup background auto-sync to complete
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        expect(
+          vm.promptLibraryEntries.any((e) => e.id == 'remote_seed'),
+          isTrue,
+        );
+
+        // Rapid local mutations should debounce into automatic push
+        final now = DateTime.now();
+        await vm.addPromptCombo(
+          PromptComboEntry(
+            id: 'local_auto_1',
+            title: '本地自动上传1',
+            category: PromptComboCategories.attire,
+            prompt: 'white thighhighs',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+        await vm.addPromptCombo(
+          PromptComboEntry(
+            id: 'local_auto_2',
+            title: '本地自动上传2',
+            category: PromptComboCategories.environment,
+            prompt: 'sunlit room',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+        await Future<void>.delayed(const Duration(milliseconds: 160));
+        expect(
+          server.entriesByNs['auto-ns']?.containsKey('local_auto_1'),
+          isTrue,
+        );
+        expect(
+          server.entriesByNs['auto-ns']?.containsKey('local_auto_2'),
+          isTrue,
+        );
+
+        // Turning auto-sync OFF prevents subsequent local mutations from pushing
+        await vm.savePromptSyncConfig(
+          vm.promptLibrarySyncConfig.copyWith(autoSyncEnabled: false),
+        );
+        await vm.addPromptCombo(
+          PromptComboEntry(
+            id: 'local_manual_only',
+            title: '关闭自动同步后新增',
+            category: PromptComboCategories.other,
+            prompt: 'manual only',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        expect(
+          server.entriesByNs['auto-ns']?.containsKey('local_manual_only'),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'sync round-trip preserves characterPrompts and linkedEntryIds across devices',
+      () async {
+        final server = _FakeCloudflareSyncServer(expectedToken: 'tok-char-link');
+        final dirA = Directory.systemTemp.createTempSync('sync_char_a_');
+        final dirB = Directory.systemTemp.createTempSync('sync_char_b_');
+        addTearDown(() {
+          for (final d in [dirA, dirB]) {
+            try {
+              d.deleteSync(recursive: true);
+            } catch (_) {}
+          }
+        });
+
+        const cfg = PromptLibrarySyncConfig(
+          endpoint: 'https://sync.example.com',
+          token: 'tok-char-link',
+          namespace: 'char-link-ns',
+        );
+
+        final t1 = DateTime.utc(2026, 11, 26, 12, 0);
+        PromptLibraryService.instance.setCustomStorageDirectory(dirA.path);
+        await PromptLibraryService.instance.addEntry(
+          PromptComboEntry(
+            id: 'scene_multi',
+            title: '多角色联动场景',
+            category: PromptComboCategories.composition,
+            prompt: '2girls, cafe window, warm lighting',
+            characterPrompts: const [
+              PromptInboxCharacter(
+                name: '祈酱',
+                prompt: 'black hair, golden eyes, white thighhighs',
+                negativePrompt: 'bad feet',
+              ),
+            ],
+            linkedEntryIds: const ['char_inori'],
+            createdAt: t1,
+            updatedAt: t1,
+          ),
+        );
+
+        final syncSvc = PromptLibrarySyncService(httpClient: server.client);
+        final pushRes = await syncSvc.sync(cfg);
+        expect(pushRes.pushedEntries, 1);
+
+        PromptLibraryService.instance.setCustomStorageDirectory(dirB.path);
+        final pullRes = await syncSvc.sync(cfg);
+        expect(pullRes.pulledEntries, 1);
+
+        final pulled = (await PromptLibraryService.instance.loadEntries()).single;
+        expect(pulled.id, 'scene_multi');
+        expect(pulled.characterPrompts.length, 1);
+        expect(pulled.characterPrompts.first.name, '祈酱');
+        expect(
+          pulled.characterPrompts.first.prompt,
+          'black hair, golden eyes, white thighhighs',
+        );
+        expect(pulled.characterPrompts.first.negativePrompt, 'bad feet');
+        expect(pulled.linkedEntryIds, ['char_inori']);
+      },
+    );
   });
 }

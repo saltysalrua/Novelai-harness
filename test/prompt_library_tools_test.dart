@@ -822,5 +822,188 @@ void main() {
       expect(mentionCtx, contains('reference_guides'));
       expect(mentionCtx, contains('char_ref_1'));
     });
+
+    test('待整理区工具全链路: list_inbox -> read_inbox(含视觉附件) -> add(复用图) -> delete_inbox', () async {
+      final imgPath = await PromptLibraryService.instance.savePreviewImageBytes(
+        Uint8List.fromList(kTestPngBytes),
+        prefix: 'inbox',
+      );
+      expect(imgPath, isNotNull);
+
+      final now = DateTime(2026, 11, 26, 18, 0);
+      await PromptLibraryService.instance.addInboxItem(
+        PromptInboxItem(
+          id: 'inbox_a',
+          prompt: '1girl, outdoor cafe, golden hour, cinematic lighting',
+          negativePrompt: 'lowres',
+          characterPrompts: const [
+            PromptInboxCharacter(
+              name: '祈酱',
+              prompt: 'black hair, golden eyes, white cardigan, white stockings',
+              negativePrompt: 'bad hands',
+            ),
+          ],
+          imagePath: imgPath,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      var inboxItems = await PromptLibraryService.instance.loadInboxItems();
+
+      final tool = PromptLibraryTool(
+        getEntries: () => entries,
+        addEntry: addEntry,
+        updateEntry: updateEntry,
+        deleteEntry: deleteEntry,
+        getInboxItems: () => inboxItems,
+        deleteInboxItems: (ids) async {
+          final removed = await PromptLibraryService.instance.deleteInboxItems(
+            ids,
+          );
+          inboxItems = await PromptLibraryService.instance.loadInboxItems();
+          return removed;
+        },
+        isModelMultimodal: () => true,
+        getHistory: () => const [],
+        loadImageBytes: (_) async => null,
+      );
+
+      // 1. list_inbox
+      final listRes = await tool.execute('in_1', {'action': 'list_inbox'});
+      expect(listRes.isError, isFalse);
+      expect(listRes.content, contains('[inbox_a]'));
+      expect(listRes.content, contains('角色×1'));
+      expect(listRes.content, contains('有图'));
+
+      // 2. read_inbox (returns main prompt, character prompt & imageBase64)
+      final readRes = await tool.execute('in_2', {
+        'action': 'read_inbox',
+        'inbox_id': 'inbox_a',
+      });
+      expect(readRes.isError, isFalse);
+      expect(readRes.content, contains('outdoor cafe, golden hour'));
+      expect(readRes.content, contains('祈酱'));
+      expect(readRes.content, contains('white stockings'));
+      expect(readRes.imageBase64, isNotNull);
+      expect(readRes.imageBase64, isNotEmpty);
+
+      // 3. add formal entries reusing inbox image via preview_inbox_id
+      final addRes = await tool.execute('in_3', {
+        'action': 'add',
+        'entries': [
+          {
+            'title': '祈酱常服',
+            'category': '角色',
+            'prompt': 'black hair, golden eyes, white cardigan, white stockings',
+            'negative_prompt': 'bad hands',
+            'preview_inbox_id': 'inbox_a',
+            'tags': ['白丝', '祈酱'],
+          },
+          {
+            'title': '黄金时刻露天咖啡馆',
+            'category': '环境',
+            'prompt': 'outdoor cafe, golden hour, cinematic lighting',
+            'preview_inbox_id': 'inbox_a',
+          },
+        ],
+      });
+      expect(addRes.isError, isFalse);
+      final addedChar = entries.firstWhere((e) => e.title == '祈酱常服');
+      expect(addedChar.previewImagePath, imgPath);
+
+      // 4. delete_inbox removes inbox item while keeping image referenced by formal entry
+      final delRes = await tool.execute('in_4', {
+        'action': 'delete_inbox',
+        'inbox_id': 'inbox_a',
+      });
+      expect(delRes.isError, isFalse);
+      expect(inboxItems, isEmpty);
+      expect(File(imgPath!).existsSync(), isTrue);
+    });
+
+    test('批量新增支持 linked_entry_titles 关联同批角色与 character_prompts，且支持 generate_library_preview', () async {
+      final tool = PromptLibraryTool(
+        getEntries: () => entries,
+        addEntry: addEntry,
+        updateEntry: updateEntry,
+        deleteEntry: deleteEntry,
+        getHistory: () => const [],
+        loadImageBytes: (_) async => null,
+      );
+
+      final addRes = await tool.execute('link_1', {
+        'action': 'add',
+        'entries': [
+          {
+            'title': '小祈本体',
+            'category': '角色',
+            'prompt': '1girl, black hair, golden eyes',
+          },
+          {
+            'title': '小祈白丝针织开衫',
+            'category': '服装',
+            'prompt': 'white knit cardigan, black dress, white thighhighs',
+            'linked_entry_titles': ['小祈本体'],
+          },
+          {
+            'title': '双人咖啡馆构图',
+            'category': '构图',
+            'prompt': '2girls, cafe table, warm sunlight',
+            'character_prompts': [
+              {'name': '小祈', 'prompt': 'black hair, smiling'},
+            ],
+            'linked_entry_titles': ['小祈本体'],
+          },
+        ],
+      });
+      expect(addRes.isError, isFalse);
+
+      final charEntry = entries.firstWhere((e) => e.title == '小祈本体');
+      final outfitEntry = entries.firstWhere((e) => e.title == '小祈白丝针织开衫');
+      final compEntry = entries.firstWhere((e) => e.title == '双人咖啡馆构图');
+      expect(outfitEntry.linkedEntryIds, [charEntry.id]);
+      expect(compEntry.characterPrompts.length, 1);
+      expect(compEntry.characterPrompts.first.name, '小祈');
+
+      // search detail shows reverse links on character card
+      final detailRes = await tool.execute('link_2', {
+        'action': 'search',
+        'id': charEntry.id,
+      });
+      expect(detailRes.isError, isFalse);
+      expect(detailRes.content, contains('关联条目'));
+      expect(detailRes.content, contains('小祈白丝针织开衫'));
+
+      // GenerateLibraryPreviewTool clamps dimensions to <= 1MP and triggers callback
+      int? receivedW;
+      int? receivedH;
+      String? receivedEntryId;
+      final previewGenTool = GenerateLibraryPreviewTool(
+        getEntries: () => entries,
+        generatePreview: ({
+          required entry,
+          required prompt,
+          String negativePrompt = '',
+          List<PromptInboxCharacter> characterPrompts = const [],
+          int width = 832,
+          int height = 1216,
+        }) async {
+          receivedEntryId = entry.id;
+          receivedW = width;
+          receivedH = height;
+          return (ok: true, message: '预览图已重跑');
+        },
+      );
+
+      final genRes = await previewGenTool.execute('gen_p1', {
+        'entry_id': outfitEntry.id,
+        'prompt': '1girl, white knit cardigan, white thighhighs',
+        'width': 1216,
+        'height': 1216, // > 1MP -> clamped safely back to 832x1216
+      });
+      expect(genRes.isError, isFalse);
+      expect(receivedEntryId, outfitEntry.id);
+      expect(receivedW! * receivedH!, lessThanOrEqualTo(1048576));
+    });
   });
 }

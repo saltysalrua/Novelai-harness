@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS sync_entries (
   is_builtin INTEGER NOT NULL DEFAULT 0,
   preview_hash TEXT,
   preview_ext TEXT,
+  characters_json TEXT NOT NULL DEFAULT '[]',
+  linked_ids_json TEXT NOT NULL DEFAULT '[]',
   references_json TEXT NOT NULL DEFAULT '[]',
   vibes_json TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,

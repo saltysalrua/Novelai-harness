@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Color, Locale, Offset, Rect;
 import 'package:flutter/foundation.dart';
@@ -10,6 +11,7 @@ import '../../../../core/harness/mcp/mcp_manager.dart';
 import '../../../../core/harness/mcp/mcp_models.dart';
 import '../../../../core/harness/tools/context_memory_tool.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
+import '../../../../core/harness/providers/llm_provider.dart';
 import '../../../../core/harness/providers/llm_provider_factory.dart';
 import '../../../../core/harness/providers/openai_provider.dart';
 import '../../../../core/harness/skills/skills.dart';
@@ -68,10 +70,13 @@ import '../../../../data/services/usage_ledger_service.dart';
 import '../../../../l10n/app_localizations.dart'
     show AppLocalizations, lookupAppLocalizations;
 import '../../../core/widgets/app_toast.dart';
+import 'inbox_organizer_models.dart';
 import 'param_snapshot_journal.dart';
 import 'board/board_controller.dart';
 import 'slash_command_dispatcher.dart';
 import 'streaming_controllers.dart';
+
+export 'inbox_organizer_models.dart';
 
 part 'studio_vm_characters.dart';
 part 'studio_vm_chat.dart';
@@ -124,14 +129,35 @@ mixin _StudioCore on ChangeNotifier {
   /// 本地词组合库条目列表
   List<PromptComboEntry> _promptLibraryEntries = const [];
 
+  /// 词库待整理区条目列表
+  List<PromptInboxItem> _promptInboxItems = const [];
+
   /// 词库云同步状态
   bool _isSyncingPromptLibrary = false;
   String? _promptSyncStage;
   DateTime? _lastPromptSyncAt;
   PromptLibrarySyncResult? _lastPromptSyncResult;
+  String? _lastPromptSyncError;
+  Timer? _promptAutoSyncDebounceTimer;
+  Timer? _promptAutoSyncPeriodicTimer;
+  bool _pendingAutoPromptSync = false;
+  Duration _promptAutoSyncDebounceDelay = const Duration(seconds: 5);
 
   /// 词库条目列表独立通知器：避免工作台打字、对话流或生图进度触发词库全量重建
   final ValueNotifier<int> promptLibraryNotifier = ValueNotifier<int>(0);
+
+  /// 待整理区后台整理独立状态与实时日志通知器
+  final ValueNotifier<int> inboxOrganizerNotifier = ValueNotifier<int>(0);
+  bool _isOrganizingInbox = false;
+  String? _inboxOrganizerStatus;
+  String? _inboxOrganizerModelLabel;
+  final List<InboxOrganizerLogEntry> _inboxOrganizerLogs = [];
+  final StringBuffer _inboxOrganizerLiveThoughts = StringBuffer();
+  final StringBuffer _inboxOrganizerLiveContent = StringBuffer();
+  AgentHarness? _inboxOrganizerHarness;
+  StreamSubscription<HarnessEvent>? _inboxOrganizerSub;
+  Timer? _inboxOrganizerLogFlushTimer;
+  bool _inboxOrganizerAborted = false;
 
   /// 本会话内各模型 (provider/model) 的累计 Token 用量 (悬停模型选择器时展示)
   Map<String, TokenUsage> _sessionModelUsage = {};
@@ -635,6 +661,12 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 当前词库条目列表 (词库 Agent 工具读取)
   List<PromptComboEntry> get promptLibraryEntries;
+
+  /// 当前词库待整理区条目列表 (词库 Agent 工具读取)
+  List<PromptInboxItem> get promptInboxItems;
+
+  /// 删除待整理区条目 (支持批量，词库 Agent 工具与 UI 共用)
+  Future<int> deletePromptInboxItems(Iterable<String> ids);
 
   /// 新增词库条目 (词库 Agent 工具写入)
   Future<PromptComboEntry> addPromptCombo(PromptComboEntry entry);
@@ -1144,6 +1176,9 @@ class StudioViewModel extends ChangeNotifier
         enabled: _config.enableTagDictionaryAutoUpdate,
       );
     }());
+
+    // 启动自动云同步调度器（已开启且已配置凭证时后台静默执行一次双向合并）
+    _reconfigureAutoPromptSync(triggerImmediateIfEnabled: true);
   }
 
   /// Android 首次启动时引导申请图片/存储运行时权限（非阻塞：拒绝仍可正常进入）。
@@ -1289,6 +1324,20 @@ class StudioViewModel extends ChangeNotifier
       if (_config.novelAiKey.trim().isNotEmpty) {
         await refreshAccountInfo(showError: true);
       }
+    }
+
+    // 词库自动云同步配置变更时及时重建调度器
+    final promptSyncChanged =
+        oldConfig.promptSyncEndpoint != newConfig.promptSyncEndpoint ||
+        oldConfig.promptSyncToken != newConfig.promptSyncToken ||
+        oldConfig.promptSyncNamespace != newConfig.promptSyncNamespace ||
+        oldConfig.promptSyncAutoEnabled != newConfig.promptSyncAutoEnabled ||
+        oldConfig.promptSyncAutoIntervalMinutes !=
+            newConfig.promptSyncAutoIntervalMinutes;
+    if (promptSyncChanged) {
+      final justEnabled =
+          !oldConfig.promptSyncAutoEnabled && newConfig.promptSyncAutoEnabled;
+      _reconfigureAutoPromptSync(triggerImmediateIfEnabled: justEnabled);
     }
   }
 
@@ -1812,12 +1861,21 @@ class StudioViewModel extends ChangeNotifier
     _uiZoomSaveTimer?.cancel();
     _promptHeightsSaveTimer?.cancel();
     _chatDraftSaveTimer?.cancel();
+    _promptAutoSyncDebounceTimer?.cancel();
+    _promptAutoSyncPeriodicTimer?.cancel();
+    _inboxOrganizerHarness?.abort();
+    _inboxOrganizerHarness?.dispose();
+    _inboxOrganizerHarness = null;
+    _inboxOrganizerSub?.cancel();
+    _inboxOrganizerSub = null;
+    _inboxOrganizerLogFlushTimer?.cancel();
     _chatSubscription?.cancel();
     // 瞬态控制器随宿主一起释放
     _streamingText.dispose();
     _liveProgressController.dispose();
     bannerController.dispose();
     promptLibraryNotifier.dispose();
+    inboxOrganizerNotifier.dispose();
     // 大画布领域控制器：内部取消防抖并立即落盘一次 (对齐旧 dispose 契约)
     board.dispose();
     unawaited(_sessionLog.flush());

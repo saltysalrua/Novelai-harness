@@ -568,6 +568,20 @@ class NovelAiRepository {
     return image;
   }
 
+  /// 生成纯内存预览图（复用底层 AsyncLock 严格串行锁，不写入画板历史也不改动工作台参数）
+  Future<Uint8List?> generatePreviewImageBytes({
+    required String apiKey,
+    required NaiGenerationParams params,
+  }) async {
+    final effectiveSeed = params.seed < 0 ? generateRandomSeed() : params.seed;
+    final images = await _service.generateImage(
+      apiKey: apiKey,
+      params: params.copyWith(seed: effectiveSeed),
+    );
+    if (images.isEmpty || images.first.isEmpty) return null;
+    return Uint8List.fromList(images.first);
+  }
+
   /// 调用官方 `/ai/encode-vibe` 为单张原始图生成 Vibe 编码 (仅 V4/V4.5，单次 2 Anlas)
   Future<String> encodeVibe({
     required String apiKey,

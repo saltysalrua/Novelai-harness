@@ -198,6 +198,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
           _generalDraft.promptSyncNamespaceController.text.trim().isEmpty
           ? 'default'
           : _generalDraft.promptSyncNamespaceController.text.trim(),
+      promptSyncAutoEnabled: _generalDraft.promptSyncAutoEnabled,
+      promptSyncAutoIntervalMinutes:
+          _generalDraft.promptSyncAutoIntervalMinutes,
       llmProviders: _modelsDraft.providers,
       activeLlmProviderId: _modelsDraft.selectedProviderId,
       imageEditProviderId: _modelsDraft.imageEditProviderId,
@@ -215,6 +218,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
       agentPersistentImages: _defaultsDraft.persistentImages,
       compactionProviderId: _defaultsDraft.compactionProviderId,
       compactionModelId: _defaultsDraft.compactionModelId,
+      inboxOrganizerProviderId: _defaultsDraft.inboxOrganizerProviderId,
+      inboxOrganizerModelId: _defaultsDraft.inboxOrganizerModelId,
+      inboxAutoRerunPreview: _defaultsDraft.inboxAutoRerunPreview,
     );
 
     Navigator.of(context).pop(newConfig);

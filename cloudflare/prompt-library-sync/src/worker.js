@@ -316,6 +316,42 @@ function sanitizeVibeReferences(rawList) {
   return out;
 }
 
+function sanitizeCharacterPrompts(rawList) {
+  if (!Array.isArray(rawList)) return [];
+  const out = [];
+  for (let i = 0; i < rawList.length && out.length < 24; i++) {
+    const item = rawList[i];
+    if (!item || typeof item !== 'object') continue;
+    const prompt = typeof item.prompt === 'string' ? item.prompt.trim() : '';
+    if (!prompt) continue;
+    const name = typeof item.name === 'string' ? item.name.trim().slice(0, 120) : '';
+    const negativePrompt =
+      typeof item.negativePrompt === 'string' ? item.negativePrompt.trim() : '';
+    out.push({
+      ...(name ? { name } : {}),
+      prompt,
+      ...(negativePrompt ? { negativePrompt } : {}),
+    });
+  }
+  return out;
+}
+
+function sanitizeLinkedEntryIds(rawList) {
+  if (!Array.isArray(rawList)) return [];
+  const out = [];
+  const seen = new Set();
+  for (let i = 0; i < rawList.length && out.length < 64; i++) {
+    const raw = rawList[i];
+    if (typeof raw !== 'string') continue;
+    const id = raw.trim().slice(0, 200);
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
 function mapRowToEntry(row) {
   let tags = [];
   if (typeof row.tags_json === 'string' && row.tags_json.trim()) {
@@ -342,6 +378,8 @@ function mapRowToEntry(row) {
     isBuiltin: Boolean(row.is_builtin),
     previewHash: row.preview_hash || null,
     previewExt: row.preview_ext || null,
+    characterPrompts: parseJsonArrayField(row.characters_json),
+    linkedEntryIds: parseJsonArrayField(row.linked_ids_json),
     preciseReferences: parseJsonArrayField(row.references_json),
     vibeReferences: parseJsonArrayField(row.vibes_json),
     createdAt: row.created_at,
@@ -390,6 +428,18 @@ async function ensureEntrySchemaColumns(db) {
     await addColumnIfMissing(
       db,
       "ALTER TABLE sync_entries ADD COLUMN vibes_json TEXT NOT NULL DEFAULT '[]'",
+    );
+  }
+  if (!cols.has('characters_json')) {
+    await addColumnIfMissing(
+      db,
+      "ALTER TABLE sync_entries ADD COLUMN characters_json TEXT NOT NULL DEFAULT '[]'",
+    );
+  }
+  if (!cols.has('linked_ids_json')) {
+    await addColumnIfMissing(
+      db,
+      "ALTER TABLE sync_entries ADD COLUMN linked_ids_json TEXT NOT NULL DEFAULT '[]'",
     );
   }
   migratedEntryColumnDbs.add(db);
@@ -520,12 +570,16 @@ function validatePushEntry(raw, fallbackIso) {
   const prefixPrompt = isStyle && typeof raw.prefixPrompt === 'string' ? raw.prefixPrompt : '';
   const suffixPrompt = isStyle && typeof raw.suffixPrompt === 'string' ? raw.suffixPrompt : '';
 
+  const characterPrompts = deletedAt === null ? sanitizeCharacterPrompts(raw.characterPrompts) : [];
+  const linkedEntryIds = deletedAt === null ? sanitizeLinkedEntryIds(raw.linkedEntryIds) : [];
   const preciseReferences = deletedAt === null ? sanitizePreciseReferences(raw.preciseReferences) : [];
   const vibeReferences = deletedAt === null ? sanitizeVibeReferences(raw.vibeReferences) : [];
 
-  const hasPromptContent = isStyle
-    ? Boolean(prompt.trim() || prefixPrompt.trim() || suffixPrompt.trim() || negativePrompt.trim())
-    : Boolean(prompt.trim());
+  const hasPromptContent =
+    characterPrompts.length > 0 ||
+    (isStyle
+      ? Boolean(prompt.trim() || prefixPrompt.trim() || suffixPrompt.trim() || negativePrompt.trim())
+      : Boolean(prompt.trim()));
   const hasContent = hasPromptContent || preciseReferences.length > 0 || vibeReferences.length > 0;
 
   if (deletedAt === null && (!title.trim() || !hasContent)) {
@@ -559,6 +613,8 @@ function validatePushEntry(raw, fallbackIso) {
       isBuiltin: raw.isBuiltin ? 1 : 0,
       previewHash,
       previewExt,
+      charactersJson: JSON.stringify(characterPrompts),
+      linkedIdsJson: JSON.stringify(linkedEntryIds),
       referencesJson: JSON.stringify(preciseReferences),
       vibesJson: JSON.stringify(vibeReferences),
       createdAt,
@@ -573,9 +629,9 @@ function prepareUpsertEntry(db, namespace, e, nextRevision) {
     .prepare(
       `INSERT INTO sync_entries (
          namespace, id, title, category, prompt, negative_prompt, prefix_prompt, suffix_prompt, tags_json,
-         is_favorite, is_builtin, preview_hash, preview_ext, references_json, vibes_json,
+         is_favorite, is_builtin, preview_hash, preview_ext, characters_json, linked_ids_json, references_json, vibes_json,
          created_at, updated_at, deleted_at, revision
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(namespace, id) DO UPDATE SET
          title = excluded.title,
          category = excluded.category,
@@ -588,6 +644,8 @@ function prepareUpsertEntry(db, namespace, e, nextRevision) {
          is_builtin = excluded.is_builtin,
          preview_hash = excluded.preview_hash,
          preview_ext = excluded.preview_ext,
+         characters_json = excluded.characters_json,
+         linked_ids_json = excluded.linked_ids_json,
          references_json = excluded.references_json,
          vibes_json = excluded.vibes_json,
          created_at = excluded.created_at,
@@ -609,6 +667,8 @@ function prepareUpsertEntry(db, namespace, e, nextRevision) {
       e.isBuiltin,
       e.previewHash,
       e.previewExt,
+      e.charactersJson,
+      e.linkedIdsJson,
       e.referencesJson,
       e.vibesJson,
       e.createdAt,
@@ -694,7 +754,7 @@ async function handlePushSync(request, env) {
           env.DB.prepare(
             `UPDATE sync_entries
              SET deleted_at = ?, updated_at = ?, preview_hash = NULL, preview_ext = NULL,
-                 references_json = '[]', vibes_json = '[]', revision = ?
+                 characters_json = '[]', linked_ids_json = '[]', references_json = '[]', vibes_json = '[]', revision = ?
              WHERE namespace = ? AND id = ?`,
           ).bind(serverNow, serverNow, nextRevision, namespace, row.id),
         );

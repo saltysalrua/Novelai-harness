@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../../data/services/prompt_image_probe.dart';
+import '../../../core/context_l10n.dart';
+import '../../../core/l10n/model_label_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_autocomplete_panel.dart';
@@ -44,7 +46,8 @@ class CharacterMentionPanel extends StatelessWidget {
             !PromptImageProbe.isKnownMissing(previewPath);
         final snippet = entry.tags.isNotEmpty
             ? entry.tags.join(', ')
-            : entry.prompt;
+            : entry.displayPromptSummary.replaceAll('\n', ' ');
+        final catLabel = comboCategoryLabelOf(context.l10n, entry.category);
 
         return Container(
           height: rowHeight,
@@ -57,6 +60,7 @@ class CharacterMentionPanel extends StatelessWidget {
             children: [
               _MentionAvatar(
                 previewPath: hasValidPreview ? previewPath : null,
+                isCharacter: entry.isCharacter,
               ),
               const SizedBox(width: 8),
               Flexible(
@@ -72,7 +76,25 @@ class CharacterMentionPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: entry.isCharacter
+                      ? colors.errorSurface
+                      : colors.mutedBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Text(
+                  catLabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: entry.isCharacter ? colors.error : colors.textMuted,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
               Expanded(
                 flex: 4,
                 child: Text(
@@ -92,8 +114,9 @@ class CharacterMentionPanel extends StatelessWidget {
 
 class _MentionAvatar extends StatelessWidget {
   final String? previewPath;
+  final bool isCharacter;
 
-  const _MentionAvatar({required this.previewPath});
+  const _MentionAvatar({required this.previewPath, this.isCharacter = true});
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +153,11 @@ class _MentionAvatar extends StatelessWidget {
         color: colors.primaryTint,
         borderRadius: BorderRadius.circular(AppRadius.sm + 2),
       ),
-      child: Icon(Icons.person_outline_rounded, size: 14, color: colors.primary),
+      child: Icon(
+        isCharacter ? Icons.person_outline_rounded : Icons.bookmark_outline,
+        size: 14,
+        color: colors.primary,
+      ),
     );
   }
 }

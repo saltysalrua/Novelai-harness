@@ -211,6 +211,26 @@ class _DraftVibeRef {
       );
 }
 
+class _DraftComboCharacter {
+  final TextEditingController nameController;
+  final TextEditingController promptController;
+  final TextEditingController negativeController;
+
+  _DraftComboCharacter({
+    String name = '',
+    String prompt = '',
+    String negativePrompt = '',
+  }) : nameController = TextEditingController(text: name),
+       promptController = TextEditingController(text: prompt),
+       negativeController = TextEditingController(text: negativePrompt);
+
+  void dispose() {
+    nameController.dispose();
+    promptController.dispose();
+    negativeController.dispose();
+  }
+}
+
 class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   static const String _customCategorySentinel = '自定义...';
 
@@ -234,6 +254,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
   int _promptShakeTrigger = 0;
   int _styleShakeTrigger = 0;
   int _draftRefSeq = 0;
+  final List<_DraftComboCharacter> _characterDrafts = [];
+  final List<String> _linkedEntryIds = [];
   final List<_DraftPreciseRef> _preciseRefs = [];
   final List<_DraftVibeRef> _vibeRefs = [];
 
@@ -291,6 +313,16 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         widget.initialPreviewBytes!,
       );
     }
+    for (final c in entry?.characterPrompts ?? const <PromptInboxCharacter>[]) {
+      _characterDrafts.add(
+        _DraftComboCharacter(
+          name: c.name,
+          prompt: c.prompt,
+          negativePrompt: c.negativePrompt,
+        ),
+      );
+    }
+    _linkedEntryIds.addAll(entry?.linkedEntryIds ?? const <String>[]);
     final seedPrecise =
         widget.initialPreciseReferences ?? entry?.preciseReferences ?? const [];
     for (final ref in seedPrecise) {
@@ -332,6 +364,9 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     _negativePromptController.dispose();
     _tagsController.dispose();
     _formScrollController.dispose();
+    for (final c in _characterDrafts) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -494,10 +529,21 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
     }
 
     final hasAttachedRefs = _preciseRefs.isNotEmpty || _vibeRefs.isNotEmpty;
+    final persistedCharacters = <PromptInboxCharacter>[
+      for (final d in _characterDrafts)
+        if (d.promptController.text.trim().isNotEmpty)
+          PromptInboxCharacter(
+            name: d.nameController.text.trim(),
+            prompt: d.promptController.text.trim(),
+            negativePrompt: d.negativeController.text.trim(),
+          ),
+    ];
+    final hasChars = persistedCharacters.isNotEmpty;
     if (isStyle) {
       if (prefixPrompt.isEmpty &&
           suffixPrompt.isEmpty &&
           negativeRaw.isEmpty &&
+          !hasChars &&
           !hasAttachedRefs) {
         setState(() => _styleShakeTrigger++);
         showAppToast(
@@ -508,7 +554,7 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         );
         return;
       }
-    } else if (prompt.isEmpty && !hasAttachedRefs) {
+    } else if (prompt.isEmpty && !hasChars && !hasAttachedRefs) {
       setState(() => _promptShakeTrigger++);
       showAppToast(
         context,
@@ -625,6 +671,11 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
         );
       }
 
+      final cleanLinkedIds = _linkedEntryIds
+          .where((id) => id.trim().isNotEmpty && id != widget.initialEntry?.id)
+          .toSet()
+          .toList(growable: false);
+
       final now = DateTime.now();
       if (_isEdit) {
         final updated = widget.initialEntry!.copyWith(
@@ -636,6 +687,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           suffixPrompt: suffixPrompt,
           previewImagePath: savedImagePath,
           clearPreviewImage: savedImagePath == null,
+          characterPrompts: persistedCharacters,
+          linkedEntryIds: cleanLinkedIds,
           preciseReferences: persistedPreciseRefs,
           vibeReferences: persistedVibeRefs,
           updatedAt: now,
@@ -652,6 +705,8 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
           prefixPrompt: prefixPrompt,
           suffixPrompt: suffixPrompt,
           previewImagePath: savedImagePath,
+          characterPrompts: persistedCharacters,
+          linkedEntryIds: cleanLinkedIds,
           preciseReferences: persistedPreciseRefs,
           vibeReferences: persistedVibeRefs,
           createdAt: now,
@@ -1271,6 +1326,10 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       ),
       const SizedBox(height: 14),
 
+      // 4.5 多角色提示词 (当条目同时包含主提示词与角色提示词时)
+      _buildCharactersSection(context),
+      const SizedBox(height: 14),
+
       // 5. 检索标签
       _FieldLabel(text: l10n.libraryEditFieldTags),
       const SizedBox(height: 6),
@@ -1284,9 +1343,328 @@ class _PromptComboEditDialogState extends State<PromptComboEditDialog> {
       ),
       const SizedBox(height: 16),
 
+      // 5.5 关联条目 (如服装关联所属角色)
+      _buildLinkedEntriesSection(context),
+      const SizedBox(height: 16),
+
       // 6. 关联精准参考图与 Vibe Transfer
       _buildReferenceGuidesSection(context),
     ];
+  }
+
+  void _importCharactersFromWorkspace() {
+    final enabled = widget.viewModel.params.enabledCharacterPrompts;
+    if (enabled.isEmpty) {
+      showAppToast(
+        context,
+        message: context.l10n.libraryEditWorkspaceCharsEmpty,
+        tone: AppToastTone.info,
+        duration: const Duration(milliseconds: 1400),
+      );
+      return;
+    }
+    setState(() {
+      for (final c in enabled) {
+        _characterDrafts.add(
+          _DraftComboCharacter(
+            name: c.name,
+            prompt: c.prompt,
+            negativePrompt: c.negativePrompt,
+          ),
+        );
+      }
+    });
+  }
+
+  Widget _buildCharactersSection(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            _FieldLabel(
+              text: _characterDrafts.isEmpty
+                  ? l10n.libraryEditFieldCharacters
+                  : '${l10n.libraryEditFieldCharacters} (${_characterDrafts.length})',
+            ),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                AppToolChip(
+                  icon: Icons.input_rounded,
+                  label: l10n.libraryEditImportWorkspaceChars,
+                  variant: AppToolChipVariant.tinted,
+                  fontSize: 11,
+                  iconSize: 12.5,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  onTap: _importCharactersFromWorkspace,
+                ),
+                AppToolChip(
+                  icon: Icons.person_add_alt_1_outlined,
+                  label: l10n.libraryInboxAddCharacter,
+                  variant: AppToolChipVariant.tinted,
+                  fontSize: 11,
+                  iconSize: 12.5,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  onTap: () => setState(
+                    () => _characterDrafts.add(_DraftComboCharacter()),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        if (_characterDrafts.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          for (var i = 0; i < _characterDrafts.length; i++) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colors.elevatedBackground,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: colors.borderSubtle),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.errorSurface,
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                        child: Text(
+                          '#${i + 1}',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: colors.error,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _characterDrafts[i].nameController,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary,
+                          ),
+                          decoration: _softFieldDecoration(
+                            context,
+                            hintText: l10n.libraryInboxCharacterNameHint,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      AppIconButton(
+                        icon: Icons.delete_outline,
+                        size: 26,
+                        iconSize: 14.5,
+                        iconColor: colors.error,
+                        variant: AppIconButtonVariant.ghost,
+                        tooltip: l10n.delete,
+                        onPressed: () {
+                          setState(() {
+                            final removed = _characterDrafts.removeAt(i);
+                            removed.dispose();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _characterDrafts[i].promptController,
+                    minLines: 2,
+                    maxLines: 4,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.45,
+                      color: colors.textPrimary,
+                    ),
+                    decoration: _softFieldDecoration(
+                      context,
+                      hintText: l10n.libraryInboxCharacterPromptHint,
+                      contentPadding: const EdgeInsets.all(10),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _characterDrafts[i].negativeController,
+                    minLines: 1,
+                    maxLines: 3,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: colors.textPrimary,
+                    ),
+                    decoration: _softFieldDecoration(
+                      context,
+                      hintText: l10n.libraryInboxCharacterNegativeHint,
+                      contentPadding: const EdgeInsets.all(10),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildLinkedEntriesSection(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final currentId = widget.initialEntry?.id;
+    final allEntries = widget.viewModel.promptLibraryEntries;
+    final byId = <String, PromptComboEntry>{
+      for (final e in allEntries)
+        if (e.id.isNotEmpty) e.id: e,
+    };
+    final selectedEntries = _linkedEntryIds
+        .map((id) => byId[id])
+        .whereType<PromptComboEntry>()
+        .toList(growable: false);
+    final candidates = allEntries
+        .where(
+          (e) =>
+              e.id.isNotEmpty &&
+              e.id != currentId &&
+              !_linkedEntryIds.contains(e.id),
+        )
+        .toList()
+      ..sort((a, b) {
+        if (a.isCharacter != b.isCharacter) return a.isCharacter ? -1 : 1;
+        return a.title.compareTo(b.title);
+      });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            _FieldLabel(text: l10n.libraryEditFieldLinkedEntries),
+            if (candidates.isNotEmpty)
+              AppDropdown<String>.simple(
+                value: '',
+                items: ['', ...candidates.map((e) => e.id)],
+                labelOf: (id) {
+                  if (id.isEmpty) return '+ ${l10n.libraryEditAddLinkedEntry}';
+                  final e = byId[id];
+                  if (e == null) return id;
+                  return '[${comboCategoryLabelOf(l10n, e.category)}] ${e.title}';
+                },
+                variant: AppDropdownVariant.compact,
+                width: 220,
+                isExpanded: false,
+                searchable: candidates.length >= 6,
+                onChanged: (id) {
+                  if (id.isEmpty) return;
+                  setState(() {
+                    if (!_linkedEntryIds.contains(id)) {
+                      _linkedEntryIds.add(id);
+                    }
+                  });
+                },
+              ),
+          ],
+        ),
+        if (selectedEntries.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final entry in selectedEntries)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+                  decoration: BoxDecoration(
+                    color: entry.isCharacter
+                        ? colors.errorSurface
+                        : colors.elevatedBackground,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(
+                      color: entry.isCharacter
+                          ? colors.error.withValues(alpha: 0.35)
+                          : colors.borderSubtle,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.link_rounded,
+                        size: 13,
+                        color: entry.isCharacter
+                            ? colors.error
+                            : colors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${entry.title} (${comboCategoryLabelOf(l10n, entry.category)})',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: entry.isCharacter
+                              ? colors.error
+                              : colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () => setState(
+                          () => _linkedEntryIds.remove(entry.id),
+                        ),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 14,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ] else if (candidates.isEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            l10n.libraryEditLinkedEntryEmpty,
+            style: TextStyle(fontSize: 11.5, color: colors.textMuted),
+          ),
+        ],
+      ],
+    );
   }
 
   void _importRefsFromCurrentWorkspace() {

@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/models/prompt_library_models.dart';
+import 'package:novelai_harness/data/models/prompt_library_sync_models.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/prompt_library_mention.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
@@ -663,5 +665,288 @@ void main() {
       expect(controller.text, isEmpty);
       expect(controller.toSerializedText(), isEmpty);
     });
+  });
+
+  group('Prompt Library Inbox Tests', () {
+    test(
+      'fromGenerationParams extracts main prompt & enabled characters while excluding fixed affixes',
+      () {
+        final params = NaiGenerationParams(
+          prompt: '1girl, solo, white stockings, sunlit classroom',
+          negativePrompt: 'lowres, bad hands',
+          prefixPrompt: 'artist:secret_prefix, masterpiece',
+          suffixPrompt: 'very aesthetic, absurdres',
+          applyFixedPrompts: true,
+          characterPrompts: [
+            NaiCharacterPrompt(
+              id: 'c1',
+              name: '祈酱',
+              prompt: 'black hair, golden eyes, white thighhighs',
+              negativePrompt: 'extra fingers',
+              enabled: true,
+            ),
+            NaiCharacterPrompt(
+              id: 'c2',
+              name: '已禁用角色',
+              prompt: 'should_not_appear',
+              enabled: false,
+            ),
+            NaiCharacterPrompt(
+              id: 'c3',
+              name: '空白角色',
+              prompt: '   ',
+              enabled: true,
+            ),
+          ],
+        );
+
+        final inbox = PromptInboxItem.fromGenerationParams(
+          params,
+          id: 'inbox_test_1',
+        );
+
+        expect(inbox.prompt, '1girl, solo, white stockings, sunlit classroom');
+        expect(inbox.prompt, isNot(contains('secret_prefix')));
+        expect(inbox.prompt, isNot(contains('very aesthetic')));
+        expect(inbox.negativePrompt, 'lowres, bad hands');
+        expect(inbox.characterPrompts.length, 1);
+        expect(inbox.characterPrompts.first.name, '祈酱');
+        expect(
+          inbox.characterPrompts.first.prompt,
+          'black hair, golden eyes, white thighhighs',
+        );
+        expect(inbox.characterPrompts.first.negativePrompt, 'extra fingers');
+
+        // JSON round-trip
+        final restored = PromptInboxItem.fromJson(inbox.toJson());
+        expect(restored.id, 'inbox_test_1');
+        expect(restored.prompt, inbox.prompt);
+        expect(restored.negativePrompt, inbox.negativePrompt);
+        expect(restored.characterPrompts.length, 1);
+        expect(restored.characterPrompts.first.name, '祈酱');
+      },
+    );
+
+    test(
+      'inbox persistence, image reference safety across combo promotion and sync cleanup',
+      () async {
+        final imgBytes = Uint8List.fromList([
+          0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+          0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+          0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+          0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+          0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+          0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+          0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+          0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+          0x42, 0x60, 0x82,
+        ]);
+
+        final sharedImgPath = await service.savePreviewImageBytes(
+          imgBytes,
+          prefix: 'inbox',
+        );
+        final unsharedImgPath = await service.savePreviewImageBytes(
+          Uint8List.fromList([...imgBytes, 0x00]),
+          prefix: 'inbox',
+        );
+        expect(sharedImgPath, isNotNull);
+        expect(unsharedImgPath, isNotNull);
+
+        final now = DateTime.now();
+        await service.addInboxItem(
+          PromptInboxItem(
+            id: 'in_1',
+            prompt: 'shared image prompt',
+            imagePath: sharedImgPath,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+        await service.addInboxItem(
+          PromptInboxItem(
+            id: 'in_2',
+            prompt: 'unshared image prompt',
+            imagePath: unsharedImgPath,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+        // applySyncOutcome with empty formal entries must NOT delete inbox images
+        await service.applySyncOutcome(
+          entries: const [],
+          syncState: const PromptLibrarySyncState(),
+        );
+        expect(File(sharedImgPath!).existsSync(), isTrue);
+        expect(File(unsharedImgPath!).existsSync(), isTrue);
+
+        // Promote in_1's image to a formal PromptComboEntry
+        await service.addEntry(
+          PromptComboEntry(
+            id: 'formal_1',
+            title: '正式条目',
+            category: PromptComboCategories.character,
+            prompt: 'shared image prompt',
+            previewImagePath: sharedImgPath,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+        // Delete both inbox items: sharedImgPath stays (referenced by formal_1),
+        // unsharedImgPath is cleaned up!
+        final removed = await service.deleteInboxItems(['in_1', 'in_2']);
+        expect(removed, 2);
+        expect(await service.loadInboxItems(), isEmpty);
+        expect(File(sharedImgPath).existsSync(), isTrue);
+        expect(File(unsharedImgPath).existsSync(), isFalse);
+      },
+    );
+
+    test(
+      'StudioViewModel.saveImageToPromptInbox saves image and excludes fixed affixes',
+      () async {
+        final vm = StudioViewModel(
+          configService: ConfigService(),
+          promptLibraryService: service,
+        );
+        await vm.init();
+        addTearDown(vm.dispose);
+
+        final pngBytes = Uint8List.fromList([
+          0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+          0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+          0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+          0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+          0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+          0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+          0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+          0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+          0x42, 0x60, 0x82,
+        ]);
+
+        final generated = NaiGeneratedImage(
+          id: 'gen_inbox_1',
+          bytes: pngBytes,
+          params: NaiGenerationParams(
+            prompt: '2girls, cherry blossoms, spring park',
+            negativePrompt: 'blurry',
+            prefixPrompt: 'artist:fixed_prefix',
+            suffixPrompt: 'fixed_suffix_tag',
+            applyFixedPrompts: true,
+            characterPrompts: [
+              NaiCharacterPrompt(
+                id: 'c_a',
+                name: '妹妹',
+                prompt: 'girl, black hair, white stockings',
+                negativePrompt: 'bad feet',
+                enabled: true,
+              ),
+            ],
+          ),
+          createdAt: DateTime.now(),
+          seed: 42,
+          isOpusFree: true,
+        );
+
+        final saved = await vm.saveImageToPromptInbox(generated);
+        expect(saved, isNotNull);
+        expect(vm.promptInboxItems.length, 1);
+        expect(saved!.prompt, '2girls, cherry blossoms, spring park');
+        expect(saved.prompt, isNot(contains('fixed_prefix')));
+        expect(saved.prompt, isNot(contains('fixed_suffix_tag')));
+        expect(saved.characterPrompts.length, 1);
+        expect(saved.characterPrompts.first.name, '妹妹');
+        expect(saved.imagePath, isNotNull);
+        expect(File(saved.imagePath!).existsSync(), isTrue);
+      },
+    );
+
+    test(
+      'combo with characterPrompts & linkedEntryIds round-trips, applies to workbench, and resolves all-category @ mentions with links',
+      () async {
+        final now = DateTime(2026, 11, 26, 18, 0);
+        final charEntry = PromptComboEntry(
+          id: 'char_inori',
+          title: '祈酱',
+          category: PromptComboCategories.character,
+          prompt: 'black hair, golden eyes, ahoge',
+          negativePrompt: 'bad hands',
+          createdAt: now,
+          updatedAt: now,
+        );
+        final outfitEntry = PromptComboEntry(
+          id: 'attire_maid',
+          title: '祈酱女仆装',
+          category: PromptComboCategories.attire,
+          prompt: 'maid headdress, black frilled dress, white thighhighs',
+          linkedEntryIds: const ['char_inori'],
+          createdAt: now,
+          updatedAt: now,
+        );
+        final sceneEntry = PromptComboEntry(
+          id: 'comp_duet',
+          title: '窗边双人构图',
+          category: PromptComboCategories.composition,
+          prompt: '2girls, sunlit classroom, window light',
+          characterPrompts: const [
+            PromptInboxCharacter(
+              name: '祈酱',
+              prompt: 'black hair, golden eyes, sitting on desk',
+              negativePrompt: 'extra limbs',
+            ),
+          ],
+          linkedEntryIds: const ['char_inori', 'attire_maid'],
+          createdAt: now,
+          updatedAt: now,
+        );
+
+        // JSON round-trip preserves characterPrompts & linkedEntryIds
+        final restored = PromptComboEntry.fromJson(sceneEntry.toJson());
+        expect(restored.characterPrompts.length, 1);
+        expect(restored.characterPrompts.first.name, '祈酱');
+        expect(restored.linkedEntryIds, ['char_inori', 'attire_maid']);
+
+        // Bidirectional link resolution (character card sees outfit & scene backlinks)
+        final all = [charEntry, outfitEntry, sceneEntry];
+        final charLinks = resolveLinkedLibraryEntries(charEntry, all);
+        expect(charLinks.map((e) => e.id), containsAll(['attire_maid', 'comp_duet']));
+
+        // All-category @ mention suggestions & explicit resolution include outfit & linked character info
+        final suggestions = matchCharacterMentionSuggestions(
+          '女仆',
+          all,
+          charactersOnly: false,
+        );
+        expect(suggestions.map((e) => e.id), contains('attire_maid'));
+
+        final mentionCtx = resolveLibraryCharactersForMessage(
+          '帮我重跑 @[祈酱女仆装] 的预览图',
+          all,
+        );
+        expect(mentionCtx, isNotNull);
+        expect(mentionCtx!, contains('祈酱女仆装'));
+        expect(mentionCtx, contains('关联词库条目'));
+        expect(mentionCtx, contains('祈酱'));
+
+        // Applying a combo with characterPrompts writes both main prompt and character cards
+        final vm = StudioViewModel(
+          configService: ConfigService(),
+          promptLibraryService: service,
+        );
+        await vm.init();
+        addTearDown(vm.dispose);
+
+        vm.applyPromptCombo(sceneEntry, replace: true);
+        expect(vm.params.prompt, '2girls, sunlit classroom, window light');
+        expect(vm.params.characterPrompts.length, 1);
+        expect(vm.params.characterPrompts.first.name, '祈酱');
+        expect(
+          vm.params.characterPrompts.first.prompt,
+          'black hair, golden eyes, sitting on desk',
+        );
+      },
+    );
   });
 }

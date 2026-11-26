@@ -23,7 +23,10 @@ class DefaultsSettingsDraft {
       backgroundCompaction = config.agentBackgroundCompaction,
       persistentImages = config.agentPersistentImages,
       compactionProviderId = config.compactionProviderId,
-      compactionModelId = config.compactionModelId;
+      compactionModelId = config.compactionModelId,
+      inboxOrganizerProviderId = config.inboxOrganizerProviderId,
+      inboxOrganizerModelId = config.inboxOrganizerModelId,
+      inboxAutoRerunPreview = config.inboxAutoRerunPreview;
 
   NaiModel model;
   NaiSampler sampler;
@@ -38,6 +41,9 @@ class DefaultsSettingsDraft {
   bool persistentImages;
   String compactionProviderId;
   String compactionModelId;
+  String inboxOrganizerProviderId;
+  String inboxOrganizerModelId;
+  bool inboxAutoRerunPreview;
 }
 
 /// Defaults 页：启动出厂默认生图模型、采样算法与步数引导
@@ -79,6 +85,11 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
         .where((p) => p.id == _draft.compactionProviderId)
         .firstOrNull;
     final models = summaryProvider?.models ?? const <LlmModelConfig>[];
+    final organizerProvider = providers
+        .where((p) => p.id == _draft.inboxOrganizerProviderId)
+        .firstOrNull;
+    final organizerModels =
+        organizerProvider?.models ?? const <LlmModelConfig>[];
     return LayoutBuilder(
       builder: (context, constraints) {
         final hPad = constraints.maxWidth > 984
@@ -199,6 +210,51 @@ class _DefaultsSettingsTabState extends State<DefaultsSettingsTab> {
                     setState(() => _draft.compactionModelId = id),
               ),
             ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppSectionHeader(title: l10n.settingsSectionInboxOrganizer),
+          AppSettingTile(
+            title: l10n.libraryInboxOrganizerProviderTitle,
+            control: AppDropdown.simple(
+              value: organizerProvider?.id ?? '',
+              items: ['', ...providers.map((p) => p.id)],
+              width: 170,
+              labelOf: (id) => id.isEmpty
+                  ? l10n.settingsFollowMainModel
+                  : providers.firstWhere((p) => p.id == id).name,
+              onChanged: (id) => setState(() {
+                _draft.inboxOrganizerProviderId = id;
+                _draft.inboxOrganizerModelId = '';
+              }),
+            ),
+          ),
+          AppPanelReveal(
+            visible: organizerProvider != null,
+            enableBlur: false,
+            child: AppSettingTile(
+              title: l10n.libraryInboxOrganizerModelTitle,
+              control: AppDropdown.simple(
+                value:
+                    organizerModels.any(
+                      (m) => m.id == _draft.inboxOrganizerModelId,
+                    )
+                    ? _draft.inboxOrganizerModelId
+                    : '',
+                items: ['', ...organizerModels.map((m) => m.id)],
+                width: 170,
+                labelOf: (id) => id.isEmpty
+                    ? l10n.settingsFollowMainModel
+                    : organizerModels.firstWhere((m) => m.id == id).name,
+                onChanged: (id) =>
+                    setState(() => _draft.inboxOrganizerModelId = id),
+              ),
+            ),
+          ),
+          AppSettingTile.switchTile(
+            title: l10n.libraryInboxOrganizerAutoRerunTitle,
+            subtitle: l10n.libraryInboxOrganizerAutoRerunSubtitle,
+            value: _draft.inboxAutoRerunPreview,
+            onChanged: (v) => setState(() => _draft.inboxAutoRerunPreview = v),
           ),
           const SizedBox(height: AppSpacing.lg),
           AppSectionHeader(title: l10n.settingsSectionAgentLoop),

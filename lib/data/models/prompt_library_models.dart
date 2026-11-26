@@ -1,3 +1,5 @@
+import 'nai_character_prompt.dart';
+import 'nai_generation_params.dart';
 import 'nai_precise_reference.dart';
 import 'nai_vibe_reference.dart';
 
@@ -269,6 +271,8 @@ class PromptComboEntry {
   final String prefixPrompt;
   final String suffixPrompt;
   final String? previewImagePath;
+  final List<PromptInboxCharacter> characterPrompts;
+  final List<String> linkedEntryIds;
   final List<PromptLibraryPreciseRef> preciseReferences;
   final List<PromptLibraryVibeRef> vibeReferences;
   final DateTime createdAt;
@@ -286,6 +290,8 @@ class PromptComboEntry {
     this.prefixPrompt = '',
     this.suffixPrompt = '',
     this.previewImagePath,
+    this.characterPrompts = const [],
+    this.linkedEntryIds = const [],
     this.preciseReferences = const [],
     this.vibeReferences = const [],
     required this.createdAt,
@@ -337,8 +343,9 @@ class PromptComboEntry {
     return '';
   }
 
-  /// 是否包含文本提示词内容
+  /// 是否包含文本提示词内容 (含多角色提示词)
   bool get hasPromptText {
+    if (characterPrompts.isNotEmpty) return true;
     if (isStyle) {
       return prefixPrompt.trim().isNotEmpty ||
           suffixPrompt.trim().isNotEmpty ||
@@ -347,6 +354,12 @@ class PromptComboEntry {
     }
     return prompt.trim().isNotEmpty;
   }
+
+  /// 是否包含多角色提示词
+  bool get hasCharacterPrompts => characterPrompts.isNotEmpty;
+
+  /// 是否包含显式关联条目
+  bool get hasLinkedEntries => linkedEntryIds.isNotEmpty;
 
   /// 是否包含关联的精准参考图
   bool get hasPreciseReferences => preciseReferences.isNotEmpty;
@@ -396,6 +409,11 @@ class PromptComboEntry {
       }
     }
     if (textSummary.isNotEmpty) return textSummary;
+    if (characterPrompts.isNotEmpty) {
+      return characterPrompts
+          .map((c) => c.name.isNotEmpty ? '${c.name}: ${c.prompt}' : c.prompt)
+          .join('\n');
+    }
     final refParts = <String>[
       if (preciseReferences.isNotEmpty) '精准参考 ×${preciseReferences.length}',
       if (vibeReferences.isNotEmpty) 'Vibe ×${vibeReferences.length}',
@@ -413,6 +431,8 @@ class PromptComboEntry {
     String? suffixPrompt,
     String? previewImagePath,
     bool clearPreviewImage = false,
+    List<PromptInboxCharacter>? characterPrompts,
+    List<String>? linkedEntryIds,
     List<PromptLibraryPreciseRef>? preciseReferences,
     List<PromptLibraryVibeRef>? vibeReferences,
     DateTime? createdAt,
@@ -437,6 +457,8 @@ class PromptComboEntry {
       previewImagePath: clearPreviewImage
           ? null
           : (previewImagePath ?? this.previewImagePath),
+      characterPrompts: characterPrompts ?? this.characterPrompts,
+      linkedEntryIds: linkedEntryIds ?? this.linkedEntryIds,
       preciseReferences: preciseReferences ?? this.preciseReferences,
       vibeReferences: vibeReferences ?? this.vibeReferences,
       createdAt: createdAt ?? this.createdAt,
@@ -457,6 +479,9 @@ class PromptComboEntry {
       if (isStyle && prefixPrompt.isNotEmpty) 'prefixPrompt': prefixPrompt,
       if (isStyle && suffixPrompt.isNotEmpty) 'suffixPrompt': suffixPrompt,
       'previewImagePath': previewImagePath,
+      if (characterPrompts.isNotEmpty)
+        'characterPrompts': characterPrompts.map((c) => c.toJson()).toList(),
+      if (linkedEntryIds.isNotEmpty) 'linkedEntryIds': linkedEntryIds,
       if (preciseReferences.isNotEmpty)
         'preciseReferences': preciseReferences.map((r) => r.toJson()).toList(),
       if (vibeReferences.isNotEmpty)
@@ -473,6 +498,25 @@ class PromptComboEntry {
     final cat = json['category'] as String? ?? PromptComboCategories.character;
     final allowNeg = supportsNegativePrompt(cat);
     final allowStyle = isStyleCategory(cat);
+    final charPrompts = <PromptInboxCharacter>[];
+    final rawChars = json['characterPrompts'];
+    if (rawChars is List) {
+      for (final item in rawChars) {
+        if (item is Map<String, dynamic>) {
+          final parsed = PromptInboxCharacter.fromJson(item);
+          if (parsed.prompt.isNotEmpty) charPrompts.add(parsed);
+        }
+      }
+    }
+    final linkedIds = <String>[];
+    final rawLinked = json['linkedEntryIds'];
+    if (rawLinked is List) {
+      final seen = <String>{};
+      for (final item in rawLinked) {
+        final v = item.toString().trim();
+        if (v.isNotEmpty && seen.add(v)) linkedIds.add(v);
+      }
+    }
     final rawRefs = json['preciseReferences'];
     final preciseRefs = <PromptLibraryPreciseRef>[];
     if (rawRefs is List) {
@@ -506,6 +550,8 @@ class PromptComboEntry {
       prefixPrompt: allowStyle ? (json['prefixPrompt'] as String? ?? '') : '',
       suffixPrompt: allowStyle ? (json['suffixPrompt'] as String? ?? '') : '',
       previewImagePath: json['previewImagePath'] as String?,
+      characterPrompts: charPrompts,
+      linkedEntryIds: linkedIds,
       preciseReferences: preciseRefs,
       vibeReferences: vibeRefs,
       createdAt: json['createdAt'] != null
@@ -525,4 +571,222 @@ class PromptComboEntry {
   @override
   String toString() =>
       'PromptComboEntry(id: $id, title: $title, category: $category, isCharacter: $isCharacter, isStyle: $isStyle, refs: ${preciseReferences.length}, vibes: ${vibeReferences.length})';
+}
+
+/// 待整理区条目中的单角色提示词快照
+class PromptInboxCharacter {
+  final String name;
+  final String prompt;
+  final String negativePrompt;
+
+  const PromptInboxCharacter({
+    this.name = '',
+    required this.prompt,
+    this.negativePrompt = '',
+  });
+
+  factory PromptInboxCharacter.fromNaiCharacter(NaiCharacterPrompt character) {
+    return PromptInboxCharacter(
+      name: character.name.trim(),
+      prompt: character.prompt.trim(),
+      negativePrompt: character.negativePrompt.trim(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    if (name.trim().isNotEmpty) 'name': name.trim(),
+    'prompt': prompt,
+    if (negativePrompt.trim().isNotEmpty)
+      'negativePrompt': negativePrompt.trim(),
+  };
+
+  factory PromptInboxCharacter.fromJson(Map<String, dynamic> json) {
+    return PromptInboxCharacter(
+      name: (json['name'] as String?)?.trim() ?? '',
+      prompt: (json['prompt'] as String?)?.trim() ?? '',
+      negativePrompt: (json['negativePrompt'] as String?)?.trim() ?? '',
+    );
+  }
+}
+
+/// 词库待整理区条目 (保存图片及主/角色提示词，严格不包含固定词缀，供用户或 Agent 后续整理)
+class PromptInboxItem {
+  final String id;
+
+  /// 主正向提示词 (不含固定前置/后置词缀)
+  final String prompt;
+
+  /// 主负面提示词 (不含官方 UC 预设)
+  final String negativePrompt;
+
+  /// 启用的角色提示词列表
+  final List<PromptInboxCharacter> characterPrompts;
+
+  /// 托管预览目录中的图片路径
+  final String? imagePath;
+
+  /// 可选备注
+  final String? note;
+
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const PromptInboxItem({
+    required this.id,
+    this.prompt = '',
+    this.negativePrompt = '',
+    this.characterPrompts = const [],
+    this.imagePath,
+    this.note,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  /// 从生成参数提取待整理条目：仅取主提示词、主负面词与启用的角色提示词，显式排除固定词缀。
+  factory PromptInboxItem.fromGenerationParams(
+    NaiGenerationParams params, {
+    String? id,
+    String? imagePath,
+    String? note,
+    DateTime? now,
+  }) {
+    final ts = now ?? DateTime.now();
+    final chars = params.enabledCharacterPrompts
+        .map(PromptInboxCharacter.fromNaiCharacter)
+        .where((c) => c.prompt.isNotEmpty)
+        .toList(growable: false);
+    return PromptInboxItem(
+      id: id ?? 'inbox_${ts.microsecondsSinceEpoch}',
+      prompt: params.prompt.trim(),
+      negativePrompt: params.negativePrompt.trim(),
+      characterPrompts: chars,
+      imagePath: imagePath?.trim().isNotEmpty == true ? imagePath!.trim() : null,
+      note: note?.trim().isNotEmpty == true ? note!.trim() : null,
+      createdAt: ts,
+      updatedAt: ts,
+    );
+  }
+
+  bool get hasImage => imagePath != null && imagePath!.trim().isNotEmpty;
+
+  bool get hasCharacters => characterPrompts.isNotEmpty;
+
+  bool get hasContent =>
+      prompt.trim().isNotEmpty || characterPrompts.isNotEmpty || hasImage;
+
+  /// 条目引用的托管图片路径
+  Iterable<String> get managedImagePaths sync* {
+    final path = imagePath?.trim();
+    if (path != null && path.isNotEmpty) yield path;
+  }
+
+  /// 卡片展示摘要文本
+  String get displaySummary {
+    final main = prompt.trim();
+    if (main.isNotEmpty) return main;
+    if (characterPrompts.isNotEmpty) {
+      return characterPrompts
+          .map((c) => c.name.isNotEmpty ? '${c.name}: ${c.prompt}' : c.prompt)
+          .join('\n');
+    }
+    return note?.trim() ?? '';
+  }
+
+  /// 组合可复制的完整提示词文本（主提示词 + 角色提示词）
+  String toCopyableText() {
+    final lines = <String>[];
+    final main = prompt.trim();
+    if (main.isNotEmpty) {
+      lines.add(main);
+    }
+    if (negativePrompt.trim().isNotEmpty) {
+      lines.add('UC: ${negativePrompt.trim()}');
+    }
+    for (var i = 0; i < characterPrompts.length; i++) {
+      final c = characterPrompts[i];
+      final label = c.name.trim().isNotEmpty ? c.name.trim() : 'Character ${i + 1}';
+      lines.add('[$label] ${c.prompt.trim()}');
+      if (c.negativePrompt.trim().isNotEmpty) {
+        lines.add('[$label UC] ${c.negativePrompt.trim()}');
+      }
+    }
+    return lines.join('\n');
+  }
+
+  PromptInboxItem copyWith({
+    String? id,
+    String? prompt,
+    String? negativePrompt,
+    List<PromptInboxCharacter>? characterPrompts,
+    String? imagePath,
+    bool clearImagePath = false,
+    String? note,
+    bool clearNote = false,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return PromptInboxItem(
+      id: id ?? this.id,
+      prompt: prompt ?? this.prompt,
+      negativePrompt: negativePrompt ?? this.negativePrompt,
+      characterPrompts: characterPrompts ?? this.characterPrompts,
+      imagePath: clearImagePath ? null : (imagePath ?? this.imagePath),
+      note: clearNote ? null : (note ?? this.note),
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'prompt': prompt,
+    if (negativePrompt.trim().isNotEmpty) 'negativePrompt': negativePrompt,
+    if (characterPrompts.isNotEmpty)
+      'characterPrompts': characterPrompts.map((c) => c.toJson()).toList(),
+    if (imagePath != null && imagePath!.trim().isNotEmpty)
+      'imagePath': imagePath,
+    if (note != null && note!.trim().isNotEmpty) 'note': note,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
+
+  factory PromptInboxItem.fromJson(Map<String, dynamic> json) {
+    final chars = <PromptInboxCharacter>[];
+    final rawChars = json['characterPrompts'];
+    if (rawChars is List) {
+      for (final item in rawChars) {
+        if (item is Map<String, dynamic>) {
+          final parsed = PromptInboxCharacter.fromJson(item);
+          if (parsed.prompt.isNotEmpty) {
+            chars.add(parsed);
+          }
+        }
+      }
+    }
+    final rawPath = (json['imagePath'] as String?)?.trim();
+    final rawNote = (json['note'] as String?)?.trim();
+    final now = DateTime.now();
+    final createdAt = json['createdAt'] is String
+        ? (DateTime.tryParse(json['createdAt'] as String) ?? now)
+        : now;
+    final updatedAt = json['updatedAt'] is String
+        ? (DateTime.tryParse(json['updatedAt'] as String) ?? createdAt)
+        : createdAt;
+    return PromptInboxItem(
+      id: (json['id'] as String?)?.trim().isNotEmpty == true
+          ? (json['id'] as String).trim()
+          : 'inbox_${now.microsecondsSinceEpoch}',
+      prompt: (json['prompt'] as String?)?.trim() ?? '',
+      negativePrompt: (json['negativePrompt'] as String?)?.trim() ?? '',
+      characterPrompts: chars,
+      imagePath: rawPath != null && rawPath.isNotEmpty ? rawPath : null,
+      note: rawNote != null && rawNote.isNotEmpty ? rawNote : null,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  String toString() =>
+      'PromptInboxItem(id: $id, promptLen: ${prompt.length}, chars: ${characterPrompts.length}, hasImage: $hasImage)';
 }

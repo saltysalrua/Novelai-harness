@@ -5145,4 +5145,200 @@ class AppLocalizationsEn extends AppLocalizations {
   String vibeClearConfirmMessage(int count) {
     return 'Remove all $count Vibe Transfer item(s)? Unsaved encodings will be lost.';
   }
+
+  @override
+  String get canvasActionSaveToLibraryInbox => 'Save to Library Inbox';
+
+  @override
+  String get canvasSavedToLibraryInbox => 'Saved to library inbox';
+
+  @override
+  String get canvasSaveToLibraryInboxFailed =>
+      'Nothing to save to library inbox';
+
+  @override
+  String get libraryCategoryInbox => 'Inbox';
+
+  @override
+  String get libraryInboxEmptyTitle => 'Inbox is empty';
+
+  @override
+  String get libraryInboxEmptyDescription =>
+      'Right-click any canvas or history image and choose \"Save to Library Inbox\" to stage its prompts and image here for the agent to organize.';
+
+  @override
+  String get libraryInboxAskAgentAll => 'Organize All with Agent';
+
+  @override
+  String get libraryInboxAskAgentOne => 'Organize with Agent';
+
+  @override
+  String get libraryInboxManualConvert => 'Create Entry';
+
+  @override
+  String get libraryInboxClearAll => 'Clear';
+
+  @override
+  String get libraryInboxClearConfirmTitle => 'Clear Inbox';
+
+  @override
+  String libraryInboxClearConfirmMessage(int count) {
+    return 'Delete all $count inbox item(s)? Staged images not used by library entries will also be removed.';
+  }
+
+  @override
+  String get libraryInboxCleared => 'Inbox cleared';
+
+  @override
+  String get libraryInboxDeleted => 'Inbox item deleted';
+
+  @override
+  String get libraryInboxCopiedPrompt => 'Inbox prompt copied';
+
+  @override
+  String libraryInboxCharacterCount(int count) {
+    return '$count character(s)';
+  }
+
+  @override
+  String get libraryInboxAgentBusy =>
+      'Agent is currently busy, please try again later';
+
+  @override
+  String get libraryInboxAgentPromptAll =>
+      'Please organize all items in the prompt library inbox: call prompt_library(action: \"list_inbox\") first, inspect each item via read_inbox (main prompt, character prompts, and image), extract and deduplicate reusable presets into the formal library (use preview_inbox_id to reuse staged images as previews), and clean up processed items via delete_inbox.';
+
+  @override
+  String libraryInboxAgentPromptOne(String id) {
+    return 'Please organize inbox item $id: call prompt_library(action: \"read_inbox\", inbox_id: \"$id\") to inspect its main prompt, character prompts, and image, extract reusable presets into the formal library (use preview_inbox_id: \"$id\" for preview images), and delete the processed inbox item via delete_inbox.';
+  }
+
+  @override
+  String get settingsLibrarySyncAutoTitle => 'Auto Cloud Sync';
+
+  @override
+  String get settingsLibrarySyncAutoSubtitle =>
+      'Automatically merge on startup and after library changes';
+
+  @override
+  String get settingsLibrarySyncAutoIntervalTitle => 'Scheduled Sync Interval';
+
+  @override
+  String get librarySyncIntervalChangeOnly => 'Startup & changes only';
+
+  @override
+  String librarySyncIntervalMinutes(int minutes) {
+    return 'Every $minutes min';
+  }
+
+  @override
+  String get librarySyncAutoBadge => 'Auto';
+
+  @override
+  String get libraryInboxOrganizerSettings => 'Organizer Settings';
+
+  @override
+  String get libraryInboxOrganizerModelTitle => 'Organizer Model';
+
+  @override
+  String get libraryInboxOrganizerProviderTitle => 'Organizer Provider';
+
+  @override
+  String get libraryInboxOrganizerAutoRerunTitle =>
+      'Auto-rerun previews after split';
+
+  @override
+  String get libraryInboxOrganizerAutoRerunSubtitle =>
+      'Generate dedicated previews in background for split entries (Opus-free safe, keeps workbench untouched)';
+
+  @override
+  String get libraryInboxLogsTitle => 'Background Organizer Logs';
+
+  @override
+  String get libraryInboxLogsEmpty => 'No organizer logs yet';
+
+  @override
+  String get libraryInboxStopOrganizing => 'Stop';
+
+  @override
+  String get libraryInboxClearLogs => 'Clear Logs';
+
+  @override
+  String get libraryInboxRunningBanner => 'Background organizing...';
+
+  @override
+  String get libraryInboxViewLogs => 'View Logs';
+
+  @override
+  String get libraryInboxHideLogs => 'Hide Logs';
+
+  @override
+  String get libraryInboxDetailTitle => 'Inbox Item Details';
+
+  @override
+  String get libraryInboxMainPromptLabel =>
+      'Main Prompt (excluding fixed affixes)';
+
+  @override
+  String get libraryInboxMainNegativeLabel => 'Main Negative Prompt';
+
+  @override
+  String get libraryInboxCharactersLabel => 'Character Prompts';
+
+  @override
+  String get libraryInboxAddCharacter => 'Add Character';
+
+  @override
+  String get libraryInboxCharacterNameHint => 'Character name (optional)';
+
+  @override
+  String get libraryInboxCharacterPromptHint => 'Character positive prompt';
+
+  @override
+  String get libraryInboxCharacterNegativeHint =>
+      'Character negative prompt (optional)';
+
+  @override
+  String get libraryInboxSavedChanges => 'Inbox item updated';
+
+  @override
+  String get libraryEditFieldCharacters => 'Character Prompts';
+
+  @override
+  String get libraryEditImportWorkspaceChars => 'Import Workbench Characters';
+
+  @override
+  String get libraryEditWorkspaceCharsEmpty =>
+      'No enabled character prompts in workbench';
+
+  @override
+  String get libraryEditFieldLinkedEntries => 'Linked Entries';
+
+  @override
+  String get libraryEditAddLinkedEntry => 'Link Entry';
+
+  @override
+  String get libraryEditLinkedEntryEmpty => 'No other library entries to link';
+
+  @override
+  String get libraryEditLinkedEntryHint =>
+      'Link to a character or matching preset';
+
+  @override
+  String libraryCardCharacterPromptBadge(int count) {
+    return 'Chars ×$count';
+  }
+
+  @override
+  String libraryCardLinkedLabel(String title) {
+    return 'Linked: $title';
+  }
+
+  @override
+  String librarySentComboToAgent(String title) {
+    return 'Sent \"$title\" to Agent input';
+  }
+
+  @override
+  String get settingsSectionInboxOrganizer => 'Library Background Organizer';
 }

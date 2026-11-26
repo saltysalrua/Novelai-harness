@@ -23,6 +23,8 @@ class PromptComboCard extends StatelessWidget {
   static const int _previewDecodeMaxSide = 560;
 
   final PromptComboEntry combo;
+  final List<PromptComboEntry> linkedEntries;
+  final ValueChanged<PromptComboEntry>? onTapLinkedEntry;
   final void Function(bool replace, bool asCharacter) onApply;
   final void Function(bool replace)? onApplyStyle;
   final VoidCallback? onSelectiveApply;
@@ -42,6 +44,8 @@ class PromptComboCard extends StatelessWidget {
   const PromptComboCard({
     super.key,
     required this.combo,
+    this.linkedEntries = const [],
+    this.onTapLinkedEntry,
     required this.onApply,
     this.onApplyStyle,
     this.onSelectiveApply,
@@ -145,13 +149,13 @@ class PromptComboCard extends StatelessWidget {
               label: l10n.libraryMenuAddAsCharacter,
               onTap: () => onApply(false, true),
             ),
-          if (combo.isCharacter && onSendToAgent != null)
-            ContextMenuItem(
-              icon: Icons.chat_bubble_outline_rounded,
-              label: l10n.libraryMenuSendToAgent,
-              onTap: onSendToAgent!,
-            ),
         ],
+        if (onSendToAgent != null)
+          ContextMenuItem(
+            icon: Icons.chat_bubble_outline_rounded,
+            label: l10n.libraryMenuSendToAgent,
+            onTap: onSendToAgent!,
+          ),
         const ContextMenuDivider(),
         ContextMenuItem(
           icon: Icons.copy_outlined,
@@ -228,6 +232,16 @@ class PromptComboCard extends StatelessWidget {
               onTap: () => onSelectiveApply?.call(),
             ),
           ),
+          if (onSendToAgent != null) ...[
+            const SizedBox(width: 4),
+            _SoftIconPill(
+              icon: Icons.chat_bubble_outline_rounded,
+              tooltip: l10n.libraryCardSendToAgentTooltip,
+              backgroundColor: colors.primaryTint,
+              foregroundColor: colors.primary,
+              onTap: onSendToAgent!,
+            ),
+          ],
         ],
       );
     }
@@ -253,6 +267,16 @@ class PromptComboCard extends StatelessWidget {
               },
             ),
           ),
+          if (onSendToAgent != null) ...[
+            const SizedBox(width: 4),
+            _SoftIconPill(
+              icon: Icons.chat_bubble_outline_rounded,
+              tooltip: l10n.libraryCardSendToAgentTooltip,
+              backgroundColor: colors.primaryTint,
+              foregroundColor: colors.primary,
+              onTap: onSendToAgent!,
+            ),
+          ],
         ],
       );
     }
@@ -296,16 +320,16 @@ class PromptComboCard extends StatelessWidget {
               },
             ),
           ),
-          if (onSendToAgent != null) ...[
-            const SizedBox(width: 4),
-            _SoftIconPill(
-              icon: Icons.chat_bubble_outline_rounded,
-              tooltip: l10n.libraryCardSendToAgentTooltip,
-              backgroundColor: colors.primaryTint,
-              foregroundColor: colors.primary,
-              onTap: onSendToAgent!,
-            ),
-          ],
+        ],
+        if (onSendToAgent != null) ...[
+          const SizedBox(width: 4),
+          _SoftIconPill(
+            icon: Icons.chat_bubble_outline_rounded,
+            tooltip: l10n.libraryCardSendToAgentTooltip,
+            backgroundColor: colors.primaryTint,
+            foregroundColor: colors.primary,
+            onTap: onSendToAgent!,
+          ),
         ],
       ],
     );
@@ -318,6 +342,16 @@ class PromptComboCard extends StatelessWidget {
       spacing: 4,
       runSpacing: 4,
       children: [
+        if (combo.hasCharacterPrompts)
+          _QuietRefBadge(
+            icon: Icons.people_outline_rounded,
+            label: l10n.libraryCardCharacterPromptBadge(
+              combo.characterPrompts.length,
+            ),
+            backgroundColor: colors.errorSurface,
+            foregroundColor: colors.error,
+            compact: compact,
+          ),
         if (combo.hasPreciseReferences)
           _QuietRefBadge(
             icon: Icons.style_outlined,
@@ -334,6 +368,36 @@ class PromptComboCard extends StatelessWidget {
             label: l10n.libraryCardVibeBadge(combo.vibeReferences.length),
             backgroundColor: colors.mutedBackground,
             foregroundColor: colors.textSecondary,
+            compact: compact,
+          ),
+        for (final linked in linkedEntries.take(3))
+          GestureDetector(
+            onTap: onTapLinkedEntry != null
+                ? () => onTapLinkedEntry!(linked)
+                : null,
+            child: MouseRegion(
+              cursor: onTapLinkedEntry != null
+                  ? SystemMouseCursors.click
+                  : SystemMouseCursors.basic,
+              child: _QuietRefBadge(
+                icon: Icons.link_rounded,
+                label: linked.title,
+                backgroundColor: linked.isCharacter
+                    ? colors.errorSurface.withValues(alpha: 0.75)
+                    : colors.mutedBackground,
+                foregroundColor: linked.isCharacter
+                    ? colors.error
+                    : colors.textSecondary,
+                compact: compact,
+              ),
+            ),
+          ),
+        if (linkedEntries.length > 3)
+          _QuietRefBadge(
+            icon: Icons.more_horiz_rounded,
+            label: '+${linkedEntries.length - 3}',
+            backgroundColor: colors.mutedBackground,
+            foregroundColor: colors.textMuted,
             compact: compact,
           ),
       ],
@@ -430,7 +494,9 @@ class PromptComboCard extends StatelessWidget {
 
                 // 提示词摘要 (两行更清晰，悬停看完整)
                 _buildPromptSnippet(context, hasNegative: hasNegative),
-                if (combo.hasReferenceGuides) ...[
+                if (combo.hasReferenceGuides ||
+                    combo.hasCharacterPrompts ||
+                    linkedEntries.isNotEmpty) ...[
                   SizedBox(height: compact ? 4 : 6),
                   _buildReferenceBadges(context),
                 ],
